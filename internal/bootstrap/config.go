@@ -21,19 +21,18 @@ func mustBindEnv(v *viper.Viper, input ...string) {
 }
 
 func LoadConfig() *config.Config {
-	_ = godotenv.Load()
+	// 1. 首先尝试加载 .env 文件
+	envErr := godotenv.Load()
 
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath("./internal/config") // 你的 yaml 存放地
-	viper.AddConfigPath(".")
-
+	// 2. 设置环境变量绑定
 	viper.SetEnvPrefix("METEORX")
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
+	// 统一 viper 实例
+	v := viper.GetViper()
+
 	// 手动绑定平铺的环境变量到嵌套结构
-	v := viper.New()
 	mustBindEnv(v, "server.port", "METEORX_APP_PORT")
 	mustBindEnv(v, "server.mode", "METEORX_APP_MODE")
 	mustBindEnv(v, "database.host", "METEORX_DB_HOST")
@@ -48,9 +47,23 @@ func LoadConfig() *config.Config {
 	mustBindEnv(v, "redis.db", "METEORX_REDIS_DB")
 	mustBindEnv(v, "jwt.secret", "METEORX_JWT_SECRET")
 	mustBindEnv(v, "jwt.expiration", "METEORX_JWT_EXPIRATION")
+	mustBindEnv(v, "jwt.issuer", "METEORX_JWT_ISSUER")
 
-	if err := viper.ReadInConfig(); err != nil {
-		log.Printf("Note: config.yaml not found, relying on env vars")
+	// 3. 检查是否需要读取 YAML 文件
+	// 如果 .env 文件加载成功，则跳过 YAML 读取
+	if envErr == nil {
+		log.Println("Using configuration from .env file")
+	} else {
+		log.Println("No .env file found, loading from YAML")
+		// 3. 设置并读取 YAML 配置文件（仅在没有 .env 时使用）
+		viper.SetConfigName("config")
+		viper.SetConfigType("yaml")
+		viper.AddConfigPath("./internal/config") // 你的 yaml 存放地
+		viper.AddConfigPath(".")
+
+		if err := viper.ReadInConfig(); err != nil {
+			log.Fatalf("Failed to read config.yaml: %v", err)
+		}
 	}
 
 	conf := &config.Config{}

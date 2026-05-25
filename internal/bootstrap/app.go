@@ -23,7 +23,7 @@ func StartApp() {
 
 	// 4. 初始化路由并注入依赖
 	// 这样你的路由、中间件、业务模块都能拿到这个 db 实例
-	r := InitRouter(db)
+	r := InitRouter(db, cfg)
 
 	// 5. 启动服务
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)

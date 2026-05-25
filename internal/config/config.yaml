@@ -7,7 +7,7 @@ database:
   host: 127.0.0.1    # 建议用 IP，有时 localhost 在 Docker 容器内会有指向问题
   port: 3306
   user: root
-  password: ${DB_PASSWORD:123456} # Viper 支持这种写法，但你用 .env 已经够了
+  password: 123456
   name: meteorx
   tls: false         # 修正：去掉引号
 

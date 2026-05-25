@@ -5,6 +5,9 @@ package repository
 
 import (
 	"context"
+	"errors"
+	userModel "meteorx/internal/modules/user/model"
+	userRepo "meteorx/internal/modules/user/repository"
 	"time"
 
 	"meteorx/internal/modules/tenant/model"
@@ -16,35 +19,45 @@ import (
 // 如果接口方法未实现，编译时会报错
 var _ TenantRepository = (*tenantRepository)(nil)
 
-// dbTenant 仅限仓库内部使用的 GORM 模型
+// TenantPO 仅限仓库内部使用的 GORM 模型
 // 用于映射数据库表结构，包含所有持久化字段
-type dbTenant struct {
-	ID        string         `gorm:"primaryKey;size:26;comment:'租户唯一标识'"` // 租户唯一标识符
-	Name      string         `gorm:"size:100;comment:'租户名称'"`             // 租户显示名称
-	Domain    string         `gorm:"uniqueIndex;comment:'租户域名，全局唯一'"`     // 租户访问域名，全局唯一
-	Status    int            `gorm:"comment:'状态：1-启用 0-禁用'"`              // 租户状态：1-启用，0-禁用
-	CreatedAt time.Time      `gorm:"comment:'创建时间'"`                      // 记录创建时间
-	UpdatedAt time.Time      `gorm:"comment:'更新时间'"`                      // 记录最后更新时间
-	DeletedAt gorm.DeletedAt `gorm:"index;comment:'软删除时间'"`               // 软删除时间戳，支持 GORM 软删除
+type TenantPO struct {
+	ID           string         `gorm:"primaryKey;size:26;comment:'租户唯一标识'"`      // 租户唯一标识符
+	Name         string         `gorm:"size:100;comment:'租户名称'"`                  // 租户显示名称
+	Domain       string         `gorm:"size:255;uniqueIndex;comment:'租户域名，全局唯一'"` // 租户访问域名，全局唯一
+	Status       int            `gorm:"comment:'状态：1-启用 0-禁用'"`                   // 租户状态：1-启用，0-禁用
+	Description  string         `gorm:"size:255;comment:'租户简述'"`                  // 租户简述
+	ContactEmail string         `gorm:"size:100;comment:'联系邮箱'"`                  // 联系邮箱
+	Region       string         `gorm:"size:50;comment:'地区/数据中心'"`                // 地区/数据中心
+	Logo         string         `gorm:"size:500;comment:'租户Logo URL'"`            // 租户 Logo URL
+	Extra        string         `gorm:"type:text;comment:'扩展字段(JSON格式)'"`         // 扩展字段，存储 JSON 格式
+	CreatedAt    time.Time      `gorm:"comment:'创建时间'"`                           // 记录创建时间
+	UpdatedAt    time.Time      `gorm:"comment:'更新时间'"`                           // 记录最后更新时间
+	DeletedAt    gorm.DeletedAt `gorm:"index;comment:'软删除时间'"`                    // 软删除时间戳，支持 GORM 软删除
 }
 
 // TableName 指定 GORM 使用的表名
 // 返回数据库中对应的表名
-func (dbTenant) TableName() string {
+func (TenantPO) TableName() string {
 	return "tenants"
 }
 
 // toDomain 将 GORM 模型转换为纯净的业务模型
 // 隔离数据库层与业务层，避免业务模型被数据库框架污染
 // 返回值：*model.Tenant - 纯业务模型，不包含数据库相关字段
-func (record dbTenant) toDomain() *model.Tenant {
+func (record TenantPO) toDomain() *model.Tenant {
 	tenant := &model.Tenant{
-		ID:        record.ID,
-		Name:      record.Name,
-		Domain:    record.Domain,
-		Status:    record.Status,
-		CreatedAt: record.CreatedAt,
-		UpdatedAt: record.UpdatedAt,
+		ID:           record.ID,
+		Name:         record.Name,
+		Domain:       record.Domain,
+		Status:       record.Status,
+		Description:  record.Description,
+		ContactEmail: record.ContactEmail,
+		Region:       record.Region,
+		Logo:         record.Logo,
+		Extra:        record.Extra,
+		CreatedAt:    record.CreatedAt,
+		UpdatedAt:    record.UpdatedAt,
 	}
 	if record.DeletedAt.Valid {
 		tenant.DeletedAt = &record.DeletedAt.Time
@@ -57,7 +70,7 @@ func (record dbTenant) toDomain() *model.Tenant {
 // 参数：db - GORM 数据库连接实例
 // 返回值：error - 迁移过程中的错误
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&dbTenant{})
+	return db.AutoMigrate(&TenantPO{})
 }
 
 // tenantRepository 租户仓储实现
@@ -85,7 +98,7 @@ func NewTenantRepository(db *gorm.DB) TenantRepository {
 //	*model.Tenant - 找到的租户信息
 //	error - 查询过程中的错误，如记录不存在或数据库错误
 func (r *tenantRepository) GetByID(ctx context.Context, id string) (*model.Tenant, error) {
-	var record dbTenant
+	var record TenantPO
 	if err := r.db.WithContext(ctx).First(&record, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
@@ -104,13 +117,18 @@ func (r *tenantRepository) GetByID(ctx context.Context, id string) (*model.Tenan
 //
 //	error - 创建过程中的错误，如数据验证失败或数据库错误
 func (r *tenantRepository) Create(ctx context.Context, t *model.Tenant) error {
-	record := dbTenant{
-		ID:        t.ID,
-		Name:      t.Name,
-		Domain:    t.Domain,
-		Status:    t.Status,
-		CreatedAt: t.CreatedAt,
-		UpdatedAt: t.UpdatedAt,
+	record := TenantPO{
+		ID:           t.ID,
+		Name:         t.Name,
+		Domain:       t.Domain,
+		Status:       t.Status,
+		Description:  t.Description,
+		ContactEmail: t.ContactEmail,
+		Region:       t.Region,
+		Logo:         t.Logo,
+		Extra:        t.Extra,
+		CreatedAt:    t.CreatedAt,
+		UpdatedAt:    t.UpdatedAt,
 	}
 	if t.DeletedAt != nil {
 		record.DeletedAt = gorm.DeletedAt{Time: *t.DeletedAt, Valid: true}
@@ -130,9 +148,101 @@ func (r *tenantRepository) Create(ctx context.Context, t *model.Tenant) error {
 //	*model.Tenant - 找到的租户信息
 //	error - 查询过程中的错误，如记录不存在或数据库错误
 func (r *tenantRepository) GetByDomain(ctx context.Context, domain string) (*model.Tenant, error) {
-	var record dbTenant
-	if err := r.db.WithContext(ctx).Where("domain = ?", domain).First(&record).Error; err != nil {
-		return nil, err
+	var record TenantPO
+	err := r.db.WithContext(ctx).Where("domain = ?", domain).First(&record).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // 没找到不是错误，返回空对象
+		}
+		return nil, err // 真正的数据库错误（如断网）
 	}
 	return record.toDomain(), nil
+}
+
+// CreateTenantWithAdmin 在物理库层开启 GORM 事务，两张表同时落库
+func (r *tenantRepository) CreateTenantWithAdmin(ctx context.Context, t *model.Tenant, u *userModel.User) error {
+	// 1. 组装本模块的 PO
+	tenantPO := &TenantPO{
+		ID:           t.ID,
+		Name:         t.Name,
+		Domain:       t.Domain,
+		Status:       t.Status,
+		Description:  t.Description,
+		ContactEmail: t.ContactEmail,
+		Region:       t.Region,
+		Logo:         t.Logo,
+		Extra:        t.Extra,
+	}
+
+	// 2. 跨包直接组装邻居的 PO (名字带 PO 后缀，优雅易懂)
+	userPO := &userRepo.UserPO{
+		ID:       u.ID,
+		TenantID: t.ID, // 强绑定租户ID
+		Username: u.Username,
+		Password: u.Password,
+		Nickname: u.Nickname,
+		Email:    u.Email,
+		Role:     u.Role,
+		Status:   u.Status,
+		IsMaster: u.IsMaster,
+	}
+
+	// 3. 执行本地事务闭包
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 写入租户表
+		if err := tx.Create(tenantPO).Error; err != nil {
+			return err
+		}
+
+		// 写入用户表
+		if err := tx.Create(userPO).Error; err != nil {
+			return err
+		}
+
+		return nil // 自动提交
+	})
+
+}
+
+// UpdateStatus 修改租户状态
+func (r *tenantRepository) UpdateStatus(ctx context.Context, id string, status int) error {
+	return r.db.WithContext(ctx).Model(&TenantPO{}).Where("id = ?", id).Update("status", status).Error
+}
+
+// FindPage 分页查询租户列表
+func (r *tenantRepository) FindPage(ctx context.Context, page, pageSize int, name string) ([]*model.Tenant, int64, error) {
+	var pos []*TenantPO
+	var total int64
+
+	query := r.db.WithContext(ctx).Model(&TenantPO{})
+	if name != "" {
+		query = query.Where("name LIKE ?", "%"+name+"%")
+	}
+
+	// 统计总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	offset := (page - 1) * pageSize
+	if err := query.Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&pos).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 将 PO 数组转换为对外干净的 Model 数组
+	var tenants []*model.Tenant
+	for _, po := range pos {
+		tenants = append(tenants, &model.Tenant{
+			ID:           po.ID,
+			Name:         po.Name,
+			Domain:       po.Domain,
+			Status:       po.Status,
+			ContactEmail: po.ContactEmail,
+			CreatedAt:    po.CreatedAt,
+		})
+	}
+
+	return tenants, total, nil
 }

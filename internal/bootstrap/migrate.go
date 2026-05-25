@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 
-	authrepo "meteorx/internal/modules/auth/repository"
 	tenantrepo "meteorx/internal/modules/tenant/repository"
+	authrepo "meteorx/internal/modules/user/repository"
 
 	"gorm.io/gorm"
 )

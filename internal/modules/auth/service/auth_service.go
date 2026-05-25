@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"meteorx/internal/common/jwt"
 	"meteorx/internal/modules/auth/dto"
 	"meteorx/internal/modules/user/model"
 	"meteorx/internal/modules/user/repository"
@@ -10,11 +12,15 @@ import (
 )
 
 type AuthService struct {
-	userRepo repository.UserRepository
+	userRepo    repository.UserRepository
+	tokenHelper *jwt.TokenHelper
 }
 
-func NewAuthService(ur repository.UserRepository) *AuthService {
-	return &AuthService{userRepo: ur}
+func NewAuthService(ur repository.UserRepository, th *jwt.TokenHelper) *AuthService {
+	return &AuthService{
+		userRepo:    ur,
+		tokenHelper: th,
+	}
 }
 
 // Register 处理用户注册流程
@@ -45,4 +51,32 @@ func (s *AuthService) Register(ctx context.Context, req dto.RegisterUserReq) (*m
 	}
 
 	return user, nil
+}
+
+// Login 处理用户登录
+func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User, string, error) {
+	// 1. 查找用户
+	user, err := s.userRepo.GetByUsername(ctx, req.TenantID, req.Username)
+	if err != nil {
+		// 为了安全，通常不直接说“用户不存在”，而是说“账号或密码错误”
+		return nil, "", errors.New("账号或密码错误")
+	}
+
+	// 2. 验证密码 (调用你 pkg/crypto 下的工具)
+	if !crypto.CheckPassword(req.Password, user.Password) {
+		return nil, "", errors.New("账号或密码错误")
+	}
+
+	// 3. 验证状态
+	if user.Status == 0 {
+		return nil, "", errors.New("账号已被禁用")
+	}
+
+	// 4. 生成 JWT Token
+	token, err := s.tokenHelper.GenerateToken(user.ID, user.TenantID, user.Role)
+	if err != nil {
+		return nil, "", errors.New("生成令牌失败")
+	}
+
+	return user, token, nil
 }
