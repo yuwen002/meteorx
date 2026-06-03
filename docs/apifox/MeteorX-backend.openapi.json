@@ -1,0 +1,828 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "MeteorX-backend",
+    "description": "",
+    "version": "1.0.0"
+  },
+  "tags": [],
+  "paths": {
+    "/api/v1/tenants/register": {
+      "post": {
+        "summary": "租户注册",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "title": "租户名称"
+                  },
+                  "domain": {
+                    "type": "string",
+                    "title": "租户域名"
+                  },
+                  "description": {
+                    "type": "string",
+                    "title": "租户描述"
+                  },
+                  "contact_email": {
+                    "type": "string",
+                    "title": "联系邮箱"
+                  },
+                  "region": {
+                    "type": "string",
+                    "title": "地区"
+                  },
+                  "logo": {
+                    "type": "string",
+                    "title": "Logo地址"
+                  },
+                  "extra": {
+                    "type": "string",
+                    "title": "扩展字段"
+                  },
+                  "admin_user": {
+                    "type": "object",
+                    "properties": {
+                      "username": {
+                        "type": "string",
+                        "title": "管理员用户名"
+                      },
+                      "password": {
+                        "type": "string",
+                        "title": "管理员密码"
+                      },
+                      "nickname": {
+                        "type": "string",
+                        "title": "管理员昵称"
+                      },
+                      "email": {
+                        "type": "string",
+                        "title": "管理员邮箱"
+                      }
+                    },
+                    "required": [
+                      "username",
+                      "password",
+                      "nickname",
+                      "email"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "domain",
+                  "description",
+                  "contact_email",
+                  "region",
+                  "logo",
+                  "extra",
+                  "admin_user"
+                ]
+              },
+              "example": {
+                "name": "极客科技",
+                "domain": "geektech",
+                "description": "这是一家专注于 AI 研发的公司",
+                "contact_email": "contact@geektech.com",
+                "region": "华东地区",
+                "logo": "https://cdn.geektech.com/logo.png",
+                "extra": "{}",
+                "admin_user": {
+                  "username": "admin2026",
+                  "password": "SecretPassword123",
+                  "nickname": "超级管理员",
+                  "email": "admin@geektech.com"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "用户登录",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tenant_id": {
+                    "type": "string",
+                    "title": "租户ID"
+                  },
+                  "username": {
+                    "type": "string",
+                    "title": "用户名"
+                  },
+                  "password": {
+                    "type": "string",
+                    "title": "密码"
+                  }
+                },
+                "required": [
+                  "tenant_id",
+                  "username",
+                  "password"
+                ]
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "summary": "用户注册",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tenant_id": {
+                    "type": "string",
+                    "title": "租户ID"
+                  },
+                  "username": {
+                    "type": "string",
+                    "title": "用户名"
+                  },
+                  "password": {
+                    "type": "string",
+                    "title": "密码"
+                  },
+                  "nickname": {
+                    "type": "string",
+                    "title": "昵称"
+                  },
+                  "email": {
+                    "type": "string",
+                    "title": "邮箱"
+                  }
+                },
+                "required": [
+                  "tenant_id",
+                  "username",
+                  "password",
+                  "nickname",
+                  "email"
+                ]
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/admin/tenants": {
+      "post": {
+        "summary": "创建租户",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "title": "租户名称"
+                  },
+                  "domain": {
+                    "type": "string",
+                    "title": "租户域名"
+                  },
+                  "description": {
+                    "type": "string",
+                    "title": "租户描述"
+                  },
+                  "contact_email": {
+                    "type": "string",
+                    "title": "联系邮箱"
+                  },
+                  "region": {
+                    "type": "string",
+                    "title": "地区"
+                  },
+                  "logo": {
+                    "type": "string",
+                    "title": "Logo地址"
+                  },
+                  "status": {
+                    "type": "integer",
+                    "title": "租户状态"
+                  },
+                  "extra": {
+                    "type": "string",
+                    "title": "扩展字段"
+                  },
+                  "admin_user": {
+                    "type": "object",
+                    "properties": {
+                      "username": {
+                        "type": "string",
+                        "title": "管理员用户名"
+                      },
+                      "password": {
+                        "type": "string",
+                        "title": "管理员密码"
+                      },
+                      "nickname": {
+                        "type": "string",
+                        "title": "管理员昵称"
+                      },
+                      "email": {
+                        "type": "string",
+                        "title": "管理员邮箱"
+                      }
+                    },
+                    "required": [
+                      "username",
+                      "password",
+                      "nickname",
+                      "email"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "domain",
+                  "description",
+                  "contact_email",
+                  "region",
+                  "logo",
+                  "status",
+                  "extra",
+                  "admin_user"
+                ]
+              },
+              "example": {
+                "name": "巨浪企业管理有限公司",
+                "domain": "julang2026",
+                "description": "通过运营后台手动创建的VIP大客户租户",
+                "contact_email": "vip_service@julang.com",
+                "region": "华南地区",
+                "logo": "https://img.julang.com/logo_avatar.png",
+                "status": 1,
+                "extra": "{\"contract_id\": \"CTR_2026_0091\"}",
+                "admin_user": {
+                  "username": "julangadmin",
+                  "password": "VipPassword888",
+                  "nickname": "租户企业代表",
+                  "email": "owner@julang.com"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "get": {
+        "summary": "租户列表（回收站）",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/tenants/{id}/status": {
+      "put": {
+        "summary": "禁用/启用租户",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "integer",
+                    "title": "用户状态",
+                    "description": " 0:禁用 1:启用"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/tenants/batch/status": {
+      "put": {
+        "summary": "禁用/启用租户（批量）",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "integer",
+                    "title": "用户状态",
+                    "description": " 0:禁用 1:启用"
+                  },
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "title": "ids",
+                    "description": "最多支持100条"
+                  }
+                },
+                "required": [
+                  "status",
+                  "ids"
+                ]
+              },
+              "example": {
+                "status": 0,
+                "ids": [
+                  61,
+                  45,
+                  52
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/tenants/{id}": {
+      "get": {
+        "summary": "租户详情",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/xml": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "编辑租户",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "domain": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "contact_email": {
+                    "type": "string"
+                  },
+                  "region": {
+                    "type": "string"
+                  },
+                  "logo": {
+                    "type": "string"
+                  },
+                  "extra": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "domain",
+                  "description",
+                  "contact_email",
+                  "region",
+                  "logo",
+                  "extra"
+                ]
+              },
+              "example": {
+                "name": "巨浪企业管理有限公司-更新",
+                "domain": "julang2026_new",
+                "description": "更新了租户的描述信息",
+                "contact_email": "new_service@julang.com",
+                "region": "华东",
+                "logo": "https://example.com/new_logo.png",
+                "extra": "{\"tax_id\": \"91110000MA01XXXXXX\"}"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "删除租户",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/tenants/{id}/restore": {
+      "put": {
+        "summary": "恢复租户（已软删除）",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/tenants/batch": {
+      "delete": {
+        "summary": "删除租户（批量）",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "ids"
+                ]
+              },
+              "example": {
+                "ids": [
+                  "61",
+                  "4",
+                  "52"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {},
+    "responses": {},
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "servers": [],
+  "security": []
+}
