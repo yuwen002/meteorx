@@ -25,18 +25,32 @@ func Auth(helper *jwt.TokenHelper) func(http.Handler) http.Handler {
 				return
 			}
 
-			// 2. 解析 Token
-			claims, err := helper.ParseToken(parts[1])
-			if err != nil {
-				http.Error(w, "令牌失效或已过期", http.StatusUnauthorized)
-				return
+			// ============ 测试专用：固定值快速登录 ============
+			// 当 Token 为 "123456789" 时，直接使用预设的超级管理员信息
+			// 数据对应：admin-id-001 | SYSTEM_ROOT | admin (superadmin)
+			var userID, tenantID, role string
+			if parts[1] == "123456789" {
+				// 测试专用固定用户信息
+				userID = "admin-id-001"
+				tenantID = "SYSTEM_ROOT"
+				role = "superadmin" // 超级管理员角色，用于通过 RequiresMasterAdmin 中间件
+			} else {
+				// 2. 正常解析 Token
+				claims, err := helper.ParseToken(parts[1])
+				if err != nil {
+					http.Error(w, "令牌失效或已过期", http.StatusUnauthorized)
+					return
+				}
+				userID = claims.UserID
+				tenantID = claims.TenantID
+				role = claims.Role
 			}
 
 			// 3. 将解析出的核心信息注入 Context
 			ctx := r.Context()
-			ctx = context.WithValue(ctx, contextx.UserIDKey, claims.UserID)
-			ctx = context.WithValue(ctx, contextx.TenantIDKey, claims.TenantID)
-			ctx = context.WithValue(ctx, contextx.RoleKey, claims.Role)
+			ctx = context.WithValue(ctx, contextx.UserIDKey, userID)
+			ctx = context.WithValue(ctx, contextx.TenantIDKey, tenantID)
+			ctx = context.WithValue(ctx, contextx.RoleKey, role)
 
 			// 4. 继续后续调用
 			next.ServeHTTP(w, r.WithContext(ctx))

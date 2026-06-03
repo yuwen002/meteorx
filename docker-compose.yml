@@ -8,29 +8,36 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=meteorx
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - METEORX_APP_PORT=8080
+      - METEORX_APP_MODE=debug
+      - METEORX_DB_HOST=mysql
+      - METEORX_DB_PORT=3306
+      - METEORX_DB_USER=root
+      - METEORX_DB_PASSWORD=123456
+      - METEORX_DB_NAME=meteorx
+      - METEORX_DB_TLS=false
+      - METEORX_REDIS_HOST=redis
+      - METEORX_REDIS_PORT=6379
+      - METEORX_REDIS_PASSWORD=
+      - METEORX_REDIS_DB=0
+      - METEORX_JWT_SECRET=your-secret-key
+      - METEORX_JWT_EXPIRATION=24h
+      - METEORX_JWT_ISSUER=meteorx-auth
     depends_on:
-      - postgres
+      - mysql
       - redis
     networks:
       - meteorx-network
 
-  postgres:
-    image: postgres:15-alpine
+  mysql:
+    image: mysql:8.4
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=meteorx
+      - MYSQL_ROOT_PASSWORD=123456
+      - MYSQL_DATABASE=meteorx
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - mysql-data:/var/lib/mysql
     networks:
       - meteorx-network
 
@@ -44,7 +51,7 @@ services:
       - meteorx-network
 
 volumes:
-  postgres-data:
+  mysql-data:
   redis-data:
 
 networks:

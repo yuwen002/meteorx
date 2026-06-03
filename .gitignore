@@ -1,46 +1,45 @@
-# Go 编译产物
+# Go build artifacts
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
 
-# Go 模块缓存
-go.sum
+# Go dependencies
 vendor/
 
-# IDE 配置
+# IDE settings
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
 
-# 环境变量
+# Environment files
 .env
 .env.local
 .env.*.local
 
-# 日志文件
+# Logs
 *.log
 logs/
 
-# 临时文件
+# Temporary files
 tmp/
 temp/
 *.tmp
 
-# Docker
+# Docker overrides
 docker-compose.override.yml
 
-# 操作系统
+# OS files
 .DS_Store
 Thumbs.db
 
-# 测试覆盖
+# Test coverage
 *.out
 coverage/
 
-# 编辑器备份
+# Editor backups
 *.bak
 *.backup

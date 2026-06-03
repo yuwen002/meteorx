@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
@@ -24,7 +24,7 @@ WORKDIR /root/
 COPY --from=builder /app/meteorx-api .
 
 # Copy config file
-COPY --from=builder /app/internal/config/config.yaml ./config/
+COPY --from=builder /app/internal/config/config.yaml ./config.yaml
 
 EXPOSE 8080
 

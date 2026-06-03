@@ -1,6 +1,8 @@
 package dto
 
-import "time"
+import (
+	"time"
+)
 
 // AdminCreateTenantReq 运营后台管理员手工创建租户请求
 type AdminCreateTenantReq struct {
@@ -35,4 +37,56 @@ type AdminTenantResp struct {
 	Extra        string    `json:"extra"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+// AdminUpdateTenantStatusReq 后台更新租户状态请求
+type AdminUpdateTenantStatusReq struct {
+	// 使用指针类型，避免 0 被 required 验证器当作空值
+	Status *int `json:"status" validate:"required,oneof=0 1" label:"租户状态"` // 0:禁用 1:启用
+}
+
+// AdminUpdateTenantReq 后台更新租户信息请求
+type AdminUpdateTenantReq struct {
+	Name         string `json:"name,omitempty" validate:"omitempty,min=2,max=100" label:"租户名称"`
+	Domain       string `json:"domain,omitempty" validate:"omitempty,min=2,max=50,alphanum" label:"租户域名"`
+	Description  string `json:"description,omitempty" validate:"omitempty,max=255" label:"租户描述"`
+	ContactEmail string `json:"contact_email,omitempty" validate:"omitempty,email,max=100" label:"联系邮箱"`
+	Region       string `json:"region,omitempty" validate:"omitempty,max=50" label:"地区"`
+	Logo         string `json:"logo,omitempty" validate:"omitempty,url,max=500" label:"Logo地址"`
+	Extra        string `json:"extra,omitempty" validate:"omitempty,max=1000" label:"扩展字段"`
+}
+
+// AdminBatchUpdateStatusReq 后台批量更新租户状态请求
+type AdminBatchUpdateStatusReq struct {
+	IDs    []string `json:"ids" validate:"required,min=1,max=100" label:"租户ID列表"` // 最多支持100条
+	Status *int     `json:"status" validate:"required,oneof=0 1" label:"目标状态"`    // 0:禁用 1:启用
+}
+
+// AdminBatchDeleteReq 后台批量软删除租户请求
+type AdminBatchDeleteReq struct {
+	IDs []string `json:"ids" validate:"required,min=1,max=100" label:"租户ID列表"` // 最多支持100条
+}
+
+// AdminBatchOperationResp 批量操作结果响应
+type AdminBatchOperationResp struct {
+	Total     int      `json:"total"`      // 请求处理的总数
+	Succeeded int      `json:"succeeded"`  // 成功数量
+	Failed    int      `json:"failed"`     // 失败数量
+	FailedIDs []string `json:"failed_ids"` // 失败的租户ID列表
+}
+
+// AdminDeletedTenantResp 回收站租户视图（比 AdminTenantResp 多一个 DeletedAt 字段）
+type AdminDeletedTenantResp struct {
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	Domain       string    `json:"domain"`
+	Status       int       `json:"status"`
+	Description  string    `json:"description"`
+	ContactEmail string    `json:"contact_email"`
+	Region       string    `json:"region"`
+	Logo         string    `json:"logo"`
+	Extra        string    `json:"extra"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	DeletedAt    time.Time `json:"deleted_at"` // 软删除时间
 }

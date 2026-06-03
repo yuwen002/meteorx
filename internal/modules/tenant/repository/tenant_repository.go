@@ -22,18 +22,18 @@ var _ TenantRepository = (*tenantRepository)(nil)
 // TenantPO 仅限仓库内部使用的 GORM 模型
 // 用于映射数据库表结构，包含所有持久化字段
 type TenantPO struct {
-	ID           string         `gorm:"primaryKey;size:26;comment:'租户唯一标识'"`      // 租户唯一标识符
-	Name         string         `gorm:"size:100;comment:'租户名称'"`                  // 租户显示名称
+	ID           string         `gorm:"primaryKey;size:26;comment:'租户唯一标识'"`        // 租户唯一标识符
+	Name         string         `gorm:"size:100;comment:'租户名称'"`                      // 租户显示名称
 	Domain       string         `gorm:"size:255;uniqueIndex;comment:'租户域名，全局唯一'"` // 租户访问域名，全局唯一
-	Status       int            `gorm:"comment:'状态：1-启用 0-禁用'"`                   // 租户状态：1-启用，0-禁用
-	Description  string         `gorm:"size:255;comment:'租户简述'"`                  // 租户简述
-	ContactEmail string         `gorm:"size:100;comment:'联系邮箱'"`                  // 联系邮箱
-	Region       string         `gorm:"size:50;comment:'地区/数据中心'"`                // 地区/数据中心
-	Logo         string         `gorm:"size:500;comment:'租户Logo URL'"`            // 租户 Logo URL
-	Extra        string         `gorm:"type:text;comment:'扩展字段(JSON格式)'"`         // 扩展字段，存储 JSON 格式
-	CreatedAt    time.Time      `gorm:"comment:'创建时间'"`                           // 记录创建时间
-	UpdatedAt    time.Time      `gorm:"comment:'更新时间'"`                           // 记录最后更新时间
-	DeletedAt    gorm.DeletedAt `gorm:"index;comment:'软删除时间'"`                    // 软删除时间戳，支持 GORM 软删除
+	Status       int            `gorm:"comment:'状态：1-启用 0-禁用'"`                     // 租户状态：1-启用，0-禁用
+	Description  string         `gorm:"size:255;comment:'租户简述'"`                      // 租户简述
+	ContactEmail string         `gorm:"size:100;comment:'联系邮箱'"`                      // 联系邮箱
+	Region       string         `gorm:"size:50;comment:'地区/数据中心'"`                  // 地区/数据中心
+	Logo         string         `gorm:"size:500;comment:'租户Logo URL'"`                  // 租户 Logo URL
+	Extra        string         `gorm:"type:text;comment:'扩展字段(JSON格式)'"`           // 扩展字段，存储 JSON 格式
+	CreatedAt    time.Time      `gorm:"comment:'创建时间'"`                               // 记录创建时间
+	UpdatedAt    time.Time      `gorm:"comment:'更新时间'"`                               // 记录最后更新时间
+	DeletedAt    gorm.DeletedAt `gorm:"index;comment:'软删除时间'"`                       // 软删除时间戳，支持 GORM 软删除
 }
 
 // TableName 指定 GORM 使用的表名
@@ -161,18 +161,28 @@ func (r *tenantRepository) GetByDomain(ctx context.Context, domain string) (*mod
 }
 
 // CreateTenantWithAdmin 在物理库层开启 GORM 事务，两张表同时落库
+// CreateTenantWithAdmin 在创建租户的同时创建管理员用户
+// 这是一个跨模块的数据库操作，使用事务确保数据一致性
+// 参数:
+//   - ctx: 上下文信息，用于传递请求范围的数据、取消信号和截止日期
+//   - t: 租户模型对象，包含租户的基本信息
+//   - u: 用户模型对象，将作为该租户的管理员
+//
+// 返回值:
+//   - error: 操作过程中发生的错误，如果成功则为nil
 func (r *tenantRepository) CreateTenantWithAdmin(ctx context.Context, t *model.Tenant, u *userModel.User) error {
-	// 1. 组装本模块的 PO
+	// 1. 组装本模块的 PO (Persistent Object)
+	// 将领域模型转换为持久化对象，以便与数据库交互
 	tenantPO := &TenantPO{
-		ID:           t.ID,
-		Name:         t.Name,
-		Domain:       t.Domain,
-		Status:       t.Status,
-		Description:  t.Description,
-		ContactEmail: t.ContactEmail,
-		Region:       t.Region,
-		Logo:         t.Logo,
-		Extra:        t.Extra,
+		ID:           t.ID,           // 租户ID
+		Name:         t.Name,         // 租户名称
+		Domain:       t.Domain,       // 租户域名
+		Status:       t.Status,       // 租户状态
+		Description:  t.Description,  // 租户描述
+		ContactEmail: t.ContactEmail, // 联系邮箱
+		Region:       t.Region,       // 租户所在区域
+		Logo:         t.Logo,         // 租户Logo
+		Extra:        t.Extra,        // 额外信息，以JSON格式存储
 	}
 
 	// 2. 跨包直接组装邻居的 PO (名字带 PO 后缀，优雅易懂)
@@ -206,8 +216,55 @@ func (r *tenantRepository) CreateTenantWithAdmin(ctx context.Context, t *model.T
 }
 
 // UpdateStatus 修改租户状态
+// UpdateStatus 更新租户状态的方法
+// 参数:
+//   - ctx: 上下文信息，用于控制请求的超时、取消等
+//   - id: 要更新的租户ID
+//   - status: 新的状态值
+//
+// 返回值:
+//   - error: 操作过程中可能出现的错误
 func (r *tenantRepository) UpdateStatus(ctx context.Context, id string, status int) error {
+	// 使用GORM的WithContext方法设置上下文
+	// 使用Model方法指定操作的数据模型为TenantPO
+	// 使用Where方法添加条件，筛选ID匹配的记录
+	// 使用Update方法更新status字段
+	// 返回操作过程中可能出现的错误
 	return r.db.WithContext(ctx).Model(&TenantPO{}).Where("id = ?", id).Update("status", status).Error
+}
+
+// Update 更新租户信息
+func (r *tenantRepository) Update(ctx context.Context, id string, t *model.Tenant) error {
+	updates := map[string]interface{}{}
+	if t.Name != "" {
+		updates["name"] = t.Name
+	}
+	if t.Description != "" {
+		updates["description"] = t.Description
+	}
+	if t.ContactEmail != "" {
+		updates["contact_email"] = t.ContactEmail
+	}
+	if t.Region != "" {
+		updates["region"] = t.Region
+	}
+	if t.Logo != "" {
+		updates["logo"] = t.Logo
+	}
+	if t.Extra != "" {
+		updates["extra"] = t.Extra
+	}
+
+	if len(updates) == 0 {
+		return nil
+	}
+
+	return r.db.WithContext(ctx).Model(&TenantPO{}).Where("id = ?", id).Updates(updates).Error
+}
+
+// Delete 软删除租户
+func (r *tenantRepository) Delete(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Delete(&TenantPO{}, "id = ?", id).Error
 }
 
 // FindPage 分页查询租户列表
@@ -239,10 +296,133 @@ func (r *tenantRepository) FindPage(ctx context.Context, page, pageSize int, nam
 			Name:         po.Name,
 			Domain:       po.Domain,
 			Status:       po.Status,
+			Description:  po.Description,
 			ContactEmail: po.ContactEmail,
+			Region:       po.Region,
+			Logo:         po.Logo,
+			Extra:        po.Extra,
 			CreatedAt:    po.CreatedAt,
+			UpdatedAt:    po.UpdatedAt,
 		})
+
 	}
 
 	return tenants, total, nil
+}
+
+// findMissingIDs 在给定 ID 列表中找出数据库中不存在的 ID
+func (r *tenantRepository) findMissingIDs(ctx context.Context, ids []string) ([]string, error) {
+	var existingIDs []string
+	if err := r.db.WithContext(ctx).Model(&TenantPO{}).Where("id IN ?", ids).Pluck("id", &existingIDs).Error; err != nil {
+		return nil, err
+	}
+	// 用 map 快速查找，差集即为不存在的 ID
+	existingMap := make(map[string]struct{}, len(existingIDs))
+	for _, id := range existingIDs {
+		existingMap[id] = struct{}{}
+	}
+	var missing []string
+	for _, id := range ids {
+		if _, found := existingMap[id]; !found {
+			missing = append(missing, id)
+		}
+	}
+	return missing, nil
+}
+
+// BatchUpdateStatus 批量更新租户状态
+// 先检查哪些 ID 不存在，将其作为 failedIDs 返回，只对存在的记录执行更新
+func (r *tenantRepository) BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, []string, error) {
+	missingIDs, err := r.findMissingIDs(ctx, ids)
+	if err != nil {
+		return 0, nil, err
+	}
+	// 计算实际可操作的 ID（排除不存在的）
+	validIDs := make([]string, 0, len(ids)-len(missingIDs))
+	missingSet := make(map[string]struct{}, len(missingIDs))
+	for _, id := range missingIDs {
+		missingSet[id] = struct{}{}
+	}
+	for _, id := range ids {
+		if _, skip := missingSet[id]; !skip {
+			validIDs = append(validIDs, id)
+		}
+	}
+	if len(validIDs) == 0 {
+		return 0, missingIDs, nil
+	}
+	result := r.db.WithContext(ctx).Model(&TenantPO{}).Where("id IN ?", validIDs).Update("status", status)
+	return result.RowsAffected, missingIDs, result.Error
+}
+
+// BatchDelete 批量软删除租户
+// 先检查哪些 ID 不存在，将其作为 failedIDs 返回，只对存在的记录执行软删除
+func (r *tenantRepository) BatchDelete(ctx context.Context, ids []string) (int64, []string, error) {
+	missingIDs, err := r.findMissingIDs(ctx, ids)
+	if err != nil {
+		return 0, nil, err
+	}
+	// 计算实际可操作的 ID（排除不存在的）
+	validIDs := make([]string, 0, len(ids)-len(missingIDs))
+	missingSet := make(map[string]struct{}, len(missingIDs))
+	for _, id := range missingIDs {
+		missingSet[id] = struct{}{}
+	}
+	for _, id := range ids {
+		if _, skip := missingSet[id]; !skip {
+			validIDs = append(validIDs, id)
+		}
+	}
+	if len(validIDs) == 0 {
+		return 0, missingIDs, nil
+	}
+	result := r.db.WithContext(ctx).Where("id IN ?", validIDs).Delete(&TenantPO{})
+	return result.RowsAffected, missingIDs, result.Error
+}
+
+// FindDeleted 分页查询已软删除的租户列表
+// 使用 GORM 的 Unscoped 绕过软删除过滤，手动筛选 deleted_at IS NOT NULL 的记录
+func (r *tenantRepository) FindDeleted(ctx context.Context, page, pageSize int, name string) ([]*model.Tenant, int64, error) {
+	var pos []*TenantPO
+	var total int64
+
+	query := r.db.WithContext(ctx).Unscoped().Model(&TenantPO{}).Where("deleted_at IS NOT NULL")
+	if name != "" {
+		query = query.Where("name LIKE ?", "%"+name+"%")
+	}
+
+	// 统计总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	offset := (page - 1) * pageSize
+	if err := query.Offset(offset).Limit(pageSize).Order("deleted_at DESC").Find(&pos).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 将 PO 数组转换为 Model 数组
+	var tenants []*model.Tenant
+	for _, po := range pos {
+		t := po.toDomain()
+		tenants = append(tenants, t)
+	}
+
+	return tenants, total, nil
+}
+
+// Restore 恢复已软删除的租户
+// 使用 Unscoped 找到已软删除的记录，并将 deleted_at 置为 NULL
+func (r *tenantRepository) Restore(ctx context.Context, id string) error {
+	result := r.db.WithContext(ctx).Unscoped().Model(&TenantPO{}).
+		Where("id = ? AND deleted_at IS NOT NULL", id).
+		Update("deleted_at", nil)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("tenant not found or not deleted")
+	}
+	return nil
 }
