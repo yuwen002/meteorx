@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
 	"meteorx/internal/modules/tenant/dto"
@@ -40,6 +41,8 @@ func (h *TenantHandler) Register(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, service.ErrDomainConflict):
 			response.Fail(w, 409, "该域名已被其他租户占用")
+		case errors.Is(err, service.ErrUsernameConflict):
+			response.Fail(w, 409, "该用户名已被使用")
 		default:
 			// 记录日志并在响应中隐藏细节
 			// log.Printf("Register Error: %v", err)
@@ -238,6 +241,10 @@ func (h *TenantHandler) AdminUpdate(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, service.ErrTenantNotFound):
 			response.Fail(w, http.StatusNotFound, "租户不存在")
+		case errors.Is(err, service.ErrDomainConflict):
+			response.Fail(w, http.StatusConflict, "该域名已被其他租户占用")
+		case errors.Is(err, service.ErrNameConflict):
+			response.Fail(w, http.StatusConflict, "该租户名称已被使用")
 		default:
 			response.Fail(w, http.StatusInternalServerError, "更新租户信息失败")
 		}
@@ -398,4 +405,124 @@ func (h *TenantHandler) AdminRestore(w http.ResponseWriter, r *http.Request) {
 
 	// 3. 返回成功响应
 	response.Success(w, nil)
+}
+
+// GetCurrentTenant GET /api/v1/tenants/current
+// GetCurrentTenant 获取当前租户信息的处理函数
+// 该函数从请求上下文中获取租户ID，查询租户信息，并将其转换为DTO返回
+// @param w HTTP响应写入器
+// @param r HTTP请求指针
+func (h *TenantHandler) GetCurrentTenant(w http.ResponseWriter, r *http.Request) {
+	// 1. 从上下文获取当前租户ID
+	tenantID := contextx.GetTenantID(r.Context())
+	if tenantID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到租户信息")
+		return
+	}
+
+	// 2. 调用服务层查询
+	tenant, err := h.svc.GetCurrentTenant(r.Context(), tenantID)
+	if err != nil {
+		// 根据错误类型返回不同的响应
+		switch {
+		case errors.Is(err, service.ErrTenantNotFound):
+			response.Fail(w, http.StatusNotFound, "租户不存在")
+		default:
+			response.Fail(w, http.StatusInternalServerError, "查询租户详情失败")
+		}
+		return
+	}
+
+	// 3. 转换为 DTO
+	converter := dto.TenantConverter{}
+	response.Success(w, converter.ToTenantResponse(tenant))
+}
+
+// UpdateCurrentTenant PUT /api/v1/tenants/current
+func (h *TenantHandler) UpdateCurrentTenant(w http.ResponseWriter, r *http.Request) {
+	// 1. 从上下文获取当前租户ID
+	tenantID := contextx.GetTenantID(r.Context())
+	if tenantID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到租户信息")
+		return
+	}
+
+	// 2. 解析请求体
+	var req dto.UpdateCurrentTenantReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	// 3. 调用服务层更新
+	err := h.svc.UpdateCurrentTenant(r.Context(), tenantID, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrTenantNotFound):
+			response.Fail(w, http.StatusNotFound, "租户不存在")
+		case errors.Is(err, service.ErrNameConflict):
+			response.Fail(w, http.StatusConflict, "该租户名称已被使用")
+		default:
+			response.Fail(w, http.StatusInternalServerError, "更新租户信息失败")
+		}
+		return
+	}
+
+	// 4. 返回成功响应
+	response.Success(w, nil)
+}
+
+// GetInitStatus GET /api/v1/tenants/current/status
+func (h *TenantHandler) GetInitStatus(w http.ResponseWriter, r *http.Request) {
+	// 1. 从上下文获取当前租户ID
+	tenantID := contextx.GetTenantID(r.Context())
+	if tenantID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到租户信息")
+		return
+	}
+
+	// 2. 调用服务层查询
+	status, err := h.svc.GetInitStatus(r.Context(), tenantID)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrTenantNotFound):
+			response.Fail(w, http.StatusNotFound, "租户不存在")
+		default:
+			response.Fail(w, http.StatusInternalServerError, "查询租户初始化状态失败")
+		}
+		return
+	}
+
+	// 3. 返回成功响应
+	response.Success(w, status)
+}
+
+// ApplyCancellation POST /api/v1/tenants/current/cancel
+func (h *TenantHandler) ApplyCancellation(w http.ResponseWriter, r *http.Request) {
+	// 1. 从上下文获取当前租户ID
+	tenantID := contextx.GetTenantID(r.Context())
+	if tenantID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到租户信息")
+		return
+	}
+
+	// 2. 解析请求体
+	var req dto.ApplyCancellationReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	// 3. 调用服务层申请注销
+	result, err := h.svc.ApplyCancellation(r.Context(), tenantID, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrTenantNotFound):
+			response.Fail(w, http.StatusNotFound, "租户不存在")
+		default:
+			response.Fail(w, http.StatusInternalServerError, "申请注销失败")
+		}
+		return
+	}
+
+	// 4. 返回成功响应
+	response.Success(w, result)
 }

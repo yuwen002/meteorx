@@ -6,6 +6,7 @@ import (
 	"meteorx/internal/middleware"
 	"meteorx/internal/modules/auth"
 	"meteorx/internal/modules/tenant"
+	"meteorx/internal/modules/user"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -43,7 +44,7 @@ func InitRouter(db *gorm.DB, cfg *config.Config) *chi.Mux {
 			tenant.InitPrivateModule(r, db)
 
 			// 4. 用户/业务接口
-			// user.InitModule(r, db)
+			user.InitModule(r, db)
 
 			// ========================================================
 			// 🔥 新增分组三：MaaS 平台运营后台特权接口 (Platform Admin Only)
@@ -53,8 +54,10 @@ func InitRouter(db *gorm.DB, cfg *config.Config) *chi.Mux {
 				r.Use(middleware.RequiresMasterAdmin())
 
 				// 5. 租户管理特权接口（后台手动新建租户、禁用/启用、软删除等）
-				// 注意：这里我们单独为运营后台开一个子初始化入口
 				tenant.InitAdminModule(r, db)
+
+				// 6. 系统管理员管理接口
+				user.InitAdminModule(r, db)
 			})
 		})
 	})

@@ -10,6 +10,7 @@ database:
   password: 123456
   name: meteorx
   tls: false         # 修正：去掉引号
+  debug: true        # 开启后在控制台输出 SQL 日志
 
 redis:
   host: 127.0.0.1

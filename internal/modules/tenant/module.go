@@ -2,8 +2,9 @@ package tenant
 
 import (
 	"meteorx/internal/modules/tenant/handler"
-	"meteorx/internal/modules/tenant/repository"
+	tenantrepo "meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/tenant/service"
+	userrepository "meteorx/internal/modules/user/repository"
 
 	"github.com/go-chi/chi/v5"
 	"gorm.io/gorm"
@@ -11,8 +12,9 @@ import (
 
 // 提取公共工厂方法，保持不变
 func initHandler(db *gorm.DB) *handler.TenantHandler {
-	repo := repository.NewTenantRepository(db)
-	svc := service.NewTenantService(repo)
+	tenantRepo := tenantrepo.NewTenantRepository(db)
+	userRepo := userrepository.NewUserRepository(db)
+	svc := service.NewTenantService(tenantRepo, userRepo)
 	return handler.NewTenantHandler(svc)
 }
 

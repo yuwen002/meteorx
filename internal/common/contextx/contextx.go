@@ -31,6 +31,13 @@ func GetUserID(ctx context.Context) string {
 	if val, ok := ctx.Value(UserIDKey).(string); ok {
 		return val
 	}
+	return ""
+}
 
+// GetRole 获取当前用户角色
+func GetRole(ctx context.Context) string {
+	if val, ok := ctx.Value(RoleKey).(string); ok {
+		return val
+	}
 	return ""
 }

@@ -41,6 +41,7 @@ func LoadConfig() *config.Config {
 	mustBindEnv(v, "database.password", "METEORX_DB_PASSWORD")
 	mustBindEnv(v, "database.name", "METEORX_DB_NAME")
 	mustBindEnv(v, "database.tls", "METEORX_DB_TLS")
+	mustBindEnv(v, "database.debug", "METEORX_DB_DEBUG")
 	mustBindEnv(v, "redis.host", "METEORX_REDIS_HOST")
 	mustBindEnv(v, "redis.port", "METEORX_REDIS_PORT")
 	mustBindEnv(v, "redis.password", "METEORX_REDIS_PASSWORD")

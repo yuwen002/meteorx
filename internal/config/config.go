@@ -23,6 +23,7 @@ type DatabaseConfig struct {
 	Password string `mapstructure:"password"`
 	Name     string `mapstructure:"name"`
 	TLS      bool   `mapstructure:"tls"`
+	Debug    bool   `mapstructure:"debug"` // 开启后输出 SQL 日志
 }
 
 type RedisConfig struct {

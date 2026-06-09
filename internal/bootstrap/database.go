@@ -8,6 +8,7 @@ import (
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // InitDB 返回一个 *gorm.DB 实例，而不是存放在全局变量
@@ -21,7 +22,15 @@ func InitDB(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 		cfg.TLS, // 既然是 bool 类型，这里直接用 %v
 	)
 
+	// 根据配置决定是否开启 SQL 日志
+	gormLogger := logger.Default.LogMode(logger.Silent)
+	if cfg.Debug {
+		gormLogger = logger.Default.LogMode(logger.Info)
+		fmt.Println("GORM SQL debug mode enabled")
+	}
+
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		Logger:                                  gormLogger,
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {

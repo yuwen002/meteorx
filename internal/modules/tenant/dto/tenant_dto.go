@@ -41,3 +41,33 @@ type TenantResp struct {
 	CreatedAt    string `json:"created_at"`
 	UpdatedAt    string `json:"updated_at"`
 }
+
+// UpdateCurrentTenantReq 租户更新当前租户信息请求
+type UpdateCurrentTenantReq struct {
+	Name         string `json:"name,omitempty" validate:"omitempty,min=2,max=100" label:"租户名称"`
+	Logo         string `json:"logo,omitempty" validate:"omitempty,url,max=500" label:"Logo地址"`
+	Description  string `json:"description,omitempty" validate:"max=255" label:"租户描述"`
+	ContactEmail string `json:"contact_email,omitempty" validate:"omitempty,email,max=100" label:"联系邮箱"`
+	Region       string `json:"region,omitempty" validate:"max=50" label:"地区"`
+	Extra        string `json:"extra,omitempty" validate:"max=1000" label:"扩展字段"`
+}
+
+// GetInitStatusResp 租户初始化状态响应
+type GetInitStatusResp struct {
+	Status      string `json:"status"`      // pending, initializing, completed, failed
+	Message     string `json:"message"`     // 状态描述信息
+	Progress    int    `json:"progress"`    // 进度百分比 0-100
+	Initialized bool   `json:"initialized"` // 是否已完成初始化
+}
+
+// ApplyCancellationReq 租户申请注销请求
+type ApplyCancellationReq struct {
+	Reason string `json:"reason" validate:"required,max=500" label:"注销原因"`
+}
+
+// ApplyCancellationResp 租户申请注销响应
+type ApplyCancellationResp struct {
+	AppliedAt    string `json:"applied_at"`    // 申请时间
+	Status       string `json:"status"`       // pending, approved, rejected
+	EstimatedDay int    `json:"estimated_day"` // 预计注销天数
+}

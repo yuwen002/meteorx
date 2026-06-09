@@ -16,8 +16,10 @@ func RegisterPublicRoutes(r chi.Router, h *handler.TenantHandler) {
 // RegisterPrivateRoutes 编排需要普通登录 Token 的接口
 func RegisterPrivateRoutes(r chi.Router, h *handler.TenantHandler) {
 	r.Route("/tenants/current", func(r chi.Router) {
-		//r.Get("/", h.GetCurrentTenant)    // 查看当前租户详情
-		//r.Put("/", h.UpdateCurrentTenant) // 修改当前租户信息
+		r.Get("/", h.GetCurrentTenant)         // 查看当前租户详情
+		r.Put("/", h.UpdateCurrentTenant)      // 修改当前租户信息（如企业名称、Logo）
+		r.Get("/status", h.GetInitStatus)      // 查询租户异步初始化/开通状态
+		r.Post("/cancel", h.ApplyCancellation) // 租户申请自主注销
 	})
 }
 
