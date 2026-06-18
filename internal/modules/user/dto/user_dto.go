@@ -29,24 +29,32 @@ type AdminCreateTenantUserReq struct {
 	Password string `json:"password" validate:"required,min=6,max=32"`
 	Nickname string `json:"nickname" validate:"required,max=50"`
 	Email    string `json:"email,omitempty" validate:"omitempty,email"`
-	Role     string `json:"role" validate:"required,oneof=admin user superadmin"` // 租户用户角色
+	Role     string `json:"role" validate:"required,oneof=admin user"` // 租户用户角色
 }
 
 type UpdateUserReq struct {
 	Nickname string `json:"nickname,omitempty" validate:"max=50"`
 	Email    string `json:"email,omitempty" validate:"omitempty,email"`
-	Role     string `json:"role,omitempty" validate:"oneof=admin user superadmin"`
-	Status   int    `json:"status,omitempty" validate:"oneof=0 1"`
+	Role     string `json:"role,omitempty" validate:"omitempty,oneof=admin user superadmin"`
+	Status   *int   `json:"status,omitempty" validate:"omitempty,oneof=0 1"`
 }
 
 type UserResp struct {
-	ID        string `json:"id"`
-	TenantID  string `json:"tenant_id"`
-	Username  string `json:"username"`
-	Nickname  string `json:"nickname"`
-	Email     string `json:"email"`
-	Role      string `json:"role"`
-	Status    int    `json:"status"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	ID         string `json:"id"`
+	TenantID   string `json:"tenant_id"`
+	TenantName string `json:"tenant_name"`
+	Username   string `json:"username"`
+	Nickname   string `json:"nickname"`
+	Email      string `json:"email"`
+	Role       string `json:"role"`
+	Status     int    `json:"status"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
+}
+
+// ChangePasswordReq 修改密码请求
+type ChangePasswordReq struct {
+	OldPassword     string `json:"old_password" validate:"required,min=6,max=32"`
+	NewPassword     string `json:"new_password" validate:"required,min=6,max=32"`
+	ConfirmPassword string `json:"confirm_password" validate:"required,min=6,max=32,eqfield=NewPassword"`
 }

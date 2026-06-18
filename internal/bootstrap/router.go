@@ -46,6 +46,9 @@ func InitRouter(db *gorm.DB, cfg *config.Config) *chi.Mux {
 			// 4. 用户/业务接口
 			user.InitModule(r, db)
 
+			// 4.1 当前用户个人信息接口
+			user.InitProfileModule(r, db)
+
 			// ========================================================
 			// 🔥 新增分组三：MaaS 平台运营后台特权接口 (Platform Admin Only)
 			// ========================================================

@@ -24,7 +24,7 @@ func NewUserHandler(svc *service.UserService) *UserHandler {
 	return &UserHandler{svc: svc}
 }
 
-// ListUsers GET /api/v1/users - 获取租户下的用户列表
+// ListUsers GET /api/v1/users?page=1&page_size=10&keyword=xxx - 获取租户下的用户列表
 func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	if tenantID == "" {
@@ -32,15 +32,28 @@ func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := h.svc.ListByTenant(r.Context(), tenantID)
+	// 解析分页参数
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("page_size")
+	page, _ := strconv.Atoi(pageStr)
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	pg := pagination.NewPagination(page, pageSize)
+
+	// 解析搜索关键字
+	keyword := r.URL.Query().Get("keyword")
+
+	users, total, err := h.svc.ListByTenant(r.Context(), tenantID, pg.Page, pg.PageSize, keyword)
 	if err != nil {
 		response.Fail(w, http.StatusInternalServerError, "获取用户列表失败")
 		return
 	}
-	response.Success(w, users)
+
+	// 使用分页包返回结果
+	result := pagination.NewPaginatedResult(users, pg.Page, pg.PageSize, int(total))
+	response.Success(w, result)
 }
 
-// GetUser GET /api/v1/users/{id} - 获取用户详情
+// GetUser GET /api/v1/users/{id}/detail - 获取用户详情
 func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "id")
 	if userID == "" {
@@ -93,7 +106,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, user)
 }
 
-// UpdateUser PUT /api/v1/users/{id} - 更新用户信息
+// UpdateUser PUT /api/v1/users/{id}/update - 更新用户信息
 func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "id")
 	if userID == "" {
@@ -126,7 +139,7 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, user)
 }
 
-// DeleteUser DELETE /api/v1/users/{id} - 删除用户
+// DeleteUser DELETE /api/v1/users/{id}/delete - 删除用户
 func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "id")
 	if userID == "" {
@@ -179,7 +192,7 @@ func (h *UserHandler) ListMasterAdmins(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, result)
 }
 
-// GetMasterAdmin GET /api/v1/admin/users/{id} - 获取系统管理员详情
+// GetMasterAdmin GET /api/v1/admin/users/{id}/detail - 获取系统管理员详情
 func (h *UserHandler) GetMasterAdmin(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "id")
 	if userID == "" {
@@ -218,7 +231,7 @@ func (h *UserHandler) CreateMasterAdmin(w http.ResponseWriter, r *http.Request) 
 	response.Success(w, user)
 }
 
-// UpdateMasterAdmin PUT /api/v1/admin/users/{id} - 更新系统管理员信息
+// UpdateMasterAdmin PUT /api/v1/admin/users/{id}/update - 更新系统管理员信息
 func (h *UserHandler) UpdateMasterAdmin(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "id")
 	if userID == "" {
@@ -243,7 +256,7 @@ func (h *UserHandler) UpdateMasterAdmin(w http.ResponseWriter, r *http.Request) 
 	response.Success(w, user)
 }
 
-// DeleteMasterAdmin DELETE /api/v1/admin/users/{id} - 删除系统管理员
+// DeleteMasterAdmin DELETE /api/v1/admin/users/{id}/delete - 删除系统管理员
 func (h *UserHandler) DeleteMasterAdmin(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "id")
 	if userID == "" {
@@ -282,7 +295,7 @@ func (h *UserHandler) AdminCreateTenantUser(w http.ResponseWriter, r *http.Reque
 	response.Success(w, user)
 }
 
-// AdminListTenantUsers GET /api/v1/admin/tenant-users/{tenantID} - 系统管理员获取指定租户的用户列表
+// AdminListTenantUsers GET /api/v1/admin/tenant-users/{tenantID}/list?page=1&page_size=10&keyword=xxx - 系统管理员获取指定租户的用户列表
 func (h *UserHandler) AdminListTenantUsers(w http.ResponseWriter, r *http.Request) {
 	tenantID := chi.URLParam(r, "tenantID")
 	if tenantID == "" {
@@ -290,24 +303,53 @@ func (h *UserHandler) AdminListTenantUsers(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	if page <= 0 {
-		page = 1
-	}
-	pageSize, _ := strconv.Atoi(r.URL.Query().Get("pageSize"))
-	if pageSize <= 0 {
-		pageSize = 20
-	}
+	// 使用 pagination 包解析分页参数
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("page_size")
+	page, _ := strconv.Atoi(pageStr)
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	pg := pagination.NewPagination(page, pageSize)
 
-	users, err := h.svc.AdminListTenantUsers(r.Context(), tenantID, page, pageSize)
+	// 解析搜索关键词
+	keyword := r.URL.Query().Get("keyword")
+
+	// 调用服务层查询
+	users, total, err := h.svc.AdminListTenantUsers(r.Context(), tenantID, pg.Page, pg.PageSize, keyword)
 	if err != nil {
 		response.Fail(w, http.StatusInternalServerError, "获取用户列表失败")
 		return
 	}
-	response.Success(w, users)
+
+	// 使用分页包返回结果
+	result := pagination.NewPaginatedResult(users, pg.Page, pg.PageSize, int(total))
+	response.Success(w, result)
 }
 
-// AdminUpdateTenantUser PUT /api/v1/admin/tenant-users/{tenantID}/{userID} - 系统管理员更新指定租户的用户
+// AdminListAllTenantUsers GET /api/v1/admin/tenant-users/all - 系统管理员获取所有租户用户列表（不包括系统管理员）
+func (h *UserHandler) AdminListAllTenantUsers(w http.ResponseWriter, r *http.Request) {
+	// 解析分页参数
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("page_size")
+	page, _ := strconv.Atoi(pageStr)
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	pg := pagination.NewPagination(page, pageSize)
+
+	// 解析搜索关键词
+	keyword := r.URL.Query().Get("keyword")
+
+	// 调用服务层查询
+	users, total, err := h.svc.AdminListAllTenantUsers(r.Context(), pg.Page, pg.PageSize, keyword)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取用户列表失败")
+		return
+	}
+
+	// 使用分页包返回结果
+	result := pagination.NewPaginatedResult(users, pg.Page, pg.PageSize, int(total))
+	response.Success(w, result)
+}
+
+// AdminUpdateTenantUser PUT /api/v1/admin/tenant-users/{tenantID}/{userID}/update - 系统管理员更新指定租户的用户
 func (h *UserHandler) AdminUpdateTenantUser(w http.ResponseWriter, r *http.Request) {
 	tenantID := chi.URLParam(r, "tenantID")
 	userID := chi.URLParam(r, "userID")
@@ -333,7 +375,7 @@ func (h *UserHandler) AdminUpdateTenantUser(w http.ResponseWriter, r *http.Reque
 	response.Success(w, user)
 }
 
-// AdminDeleteTenantUser DELETE /api/v1/admin/tenant-users/{tenantID}/{userID} - 系统管理员删除指定租户的用户
+// AdminDeleteTenantUser DELETE /api/v1/admin/tenant-users/{tenantID}/{userID}/delete - 系统管理员删除指定租户的用户
 func (h *UserHandler) AdminDeleteTenantUser(w http.ResponseWriter, r *http.Request) {
 	tenantID := chi.URLParam(r, "tenantID")
 	userID := chi.URLParam(r, "userID")
@@ -347,6 +389,76 @@ func (h *UserHandler) AdminDeleteTenantUser(w http.ResponseWriter, r *http.Reque
 			response.Fail(w, http.StatusBadRequest, "用户不属于指定租户")
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "删除用户失败")
+		}
+		return
+	}
+	response.Success(w, nil)
+}
+
+// GetProfile GET /api/v1/profile - 获取当前用户个人信息
+func (h *UserHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
+	userID := contextx.GetUserID(r.Context())
+	if userID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
+
+	user, err := h.svc.GetByID(r.Context(), userID)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取用户信息失败")
+		return
+	}
+	response.Success(w, user)
+}
+
+// UpdateProfile PUT /api/v1/profile - 更新当前用户个人信息（仅限昵称、邮箱等非敏感信息）
+func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	userID := contextx.GetUserID(r.Context())
+	if userID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
+
+	var req dto.UpdateUserReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	// 用户只能修改自己的非敏感信息（昵称、邮箱），不能修改角色和状态
+	req.Role = ""
+	req.Status = nil
+
+	user, err := h.svc.Update(r.Context(), userID, req)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "更新用户信息失败")
+		return
+	}
+	response.Success(w, user)
+}
+
+// ChangePassword PUT /api/v1/profile/password - 修改当前用户密码
+func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	userID := contextx.GetUserID(r.Context())
+	if userID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
+
+	var req dto.ChangePasswordReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	if req.NewPassword != req.ConfirmPassword {
+		response.Fail(w, http.StatusBadRequest, "新密码与确认密码不一致")
+		return
+	}
+
+	if err := h.svc.ChangePassword(r.Context(), userID, req.OldPassword, req.NewPassword); err != nil {
+		if err.Error() == "原密码错误" {
+			response.Fail(w, http.StatusBadRequest, "原密码错误")
+		} else {
+			response.Fail(w, http.StatusInternalServerError, "修改密码失败")
 		}
 		return
 	}

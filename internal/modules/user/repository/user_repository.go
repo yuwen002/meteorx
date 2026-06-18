@@ -129,19 +129,26 @@ func (r *userRepository) UsernameExists(ctx context.Context, username string) (b
 	return count > 0, nil
 }
 
-// ListByTenant 根据租户ID查询用户列表（支持分页）
-func (r *userRepository) ListByTenant(ctx context.Context, tenantID string, page, pageSize int) ([]*model.User, int64, error) {
+// ListByTenant 根据租户ID查询用户列表（支持分页和关键字搜索）
+func (r *userRepository) ListByTenant(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*model.User, int64, error) {
 	var records []UserPO
 	var total int64
 
-	// 先查询总数
-	err := r.db.WithContext(ctx).Model(&UserPO{}).Where("tenant_id = ?", tenantID).Count(&total).Error
+	// 构建查询条件
+	query := r.db.WithContext(ctx).Model(&UserPO{}).Where("tenant_id = ?", tenantID)
+
+	// 如果有搜索关键字，按用户名、昵称、邮箱模糊搜索
+	if keyword != "" {
+		query = query.Where("username LIKE ? OR nickname LIKE ? OR email LIKE ?", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+	}
+
+	// 查询总数
+	err := query.Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
 	// 分页查询
-	var query = r.db.WithContext(ctx).Where("tenant_id = ?", tenantID)
 	if pageSize > 0 {
 		offset := (page - 1) * pageSize
 		query = query.Offset(offset).Limit(pageSize)
@@ -160,12 +167,16 @@ func (r *userRepository) ListByTenant(ctx context.Context, tenantID string, page
 
 // Update 更新用户信息
 func (r *userRepository) Update(ctx context.Context, user *model.User) error {
-	return r.db.WithContext(ctx).Model(&UserPO{}).Where("id = ?", user.ID).Updates(map[string]interface{}{
+	updates := map[string]interface{}{
 		"nickname": user.Nickname,
 		"email":    user.Email,
 		"role":     user.Role,
 		"status":   user.Status,
-	}).Error
+	}
+	if user.Password != "" {
+		updates["password"] = user.Password
+	}
+	return r.db.WithContext(ctx).Model(&UserPO{}).Where("id = ?", user.ID).Updates(updates).Error
 }
 
 // Delete 删除用户（软删除）
@@ -180,6 +191,40 @@ func (r *userRepository) ListMasterAdmins(ctx context.Context, page, pageSize in
 
 	// 构建基础查询条件
 	baseQuery := r.db.WithContext(ctx).Model(&UserPO{}).Where("is_master = ?", true)
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		baseQuery = baseQuery.Where("username LIKE ? OR nickname LIKE ?", like, like)
+	}
+
+	// 先查询总数
+	err := baseQuery.Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	if pageSize > 0 {
+		offset := (page - 1) * pageSize
+		baseQuery = baseQuery.Offset(offset).Limit(pageSize)
+	}
+	err = baseQuery.Find(&records).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var users []*model.User
+	for _, record := range records {
+		users = append(users, record.toDomain())
+	}
+	return users, total, nil
+}
+
+func (r *userRepository) ListAllTenantUsers(ctx context.Context, page, pageSize int, keyword string) ([]*model.User, int64, error) {
+	var records []UserPO
+	var total int64
+
+	// 构建基础查询条件：排除系统管理员
+	baseQuery := r.db.WithContext(ctx).Model(&UserPO{}).Where("is_master = ?", false)
 	if keyword != "" {
 		like := "%" + keyword + "%"
 		baseQuery = baseQuery.Where("username LIKE ? OR nickname LIKE ?", like, like)

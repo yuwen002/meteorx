@@ -1,8 +1,9 @@
 package user
 
 import (
+	"meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/user/handler"
-	"meteorx/internal/modules/user/repository"
+	userRepository "meteorx/internal/modules/user/repository"
 	"meteorx/internal/modules/user/service"
 
 	"github.com/go-chi/chi/v5"
@@ -11,8 +12,9 @@ import (
 
 // 提取公共工厂方法，保持与租户模块结构一致
 func initHandler(db *gorm.DB) *handler.UserHandler {
-	repo := repository.NewUserRepository(db)
-	svc := service.NewUserService(repo)
+	repo := userRepository.NewUserRepository(db)
+	tenantRepo := repository.NewTenantRepository(db)
+	svc := service.NewUserService(repo, tenantRepo)
 	return handler.NewUserHandler(svc)
 }
 
@@ -20,6 +22,12 @@ func initHandler(db *gorm.DB) *handler.UserHandler {
 func InitModule(r chi.Router, db *gorm.DB) {
 	h := initHandler(db)
 	RegisterRoutes(r, h)
+}
+
+// InitProfileModule 用户个人信息接口初始化（当前用户操作自己的信息）
+func InitProfileModule(r chi.Router, db *gorm.DB) {
+	h := initHandler(db)
+	RegisterProfileRoutes(r, h)
 }
 
 // InitAdminModule 用户模块的系统管理员接口初始化
