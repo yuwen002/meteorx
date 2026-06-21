@@ -1,1 +1,168 @@
 package service
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"meteorx/internal/modules/rbac/dto"
+	"meteorx/internal/modules/rbac/model"
+	"meteorx/internal/modules/rbac/repository"
+	"meteorx/pkg/ulid"
+)
+
+type RBACService struct {
+	roleRepo           repository.RoleRepository
+	permissionRepo     repository.PermissionRepository
+	rolePermissionRepo repository.RolePermissionRepository
+}
+
+func NewRBACService(
+	rr repository.RoleRepository,
+	pr repository.PermissionRepository,
+	rpr repository.RolePermissionRepository,
+) *RBACService {
+	return &RBACService{
+		roleRepo:           rr,
+		permissionRepo:     pr,
+		rolePermissionRepo: rpr,
+	}
+}
+
+// --- Role ---
+
+func (s *RBACService) CreateRole(ctx context.Context, tenantID string, req dto.CreateRoleReq) (*model.Role, error) {
+	// 检查 code 是否已存在
+	existing, _ := s.roleRepo.GetByCode(ctx, tenantID, req.Code)
+	if existing != nil {
+		return nil, errors.New("角色编码已存在")
+	}
+
+	role := &model.Role{
+		ID:          ulid.Generate(),
+		Name:        req.Name,
+		Code:        req.Code,
+		Description: req.Description,
+		TenantID:    tenantID,
+		IsSystem:    false,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	if err := s.roleRepo.Create(ctx, role); err != nil {
+		return nil, err
+	}
+	return role, nil
+}
+
+func (s *RBACService) GetRole(ctx context.Context, id string) (*model.Role, error) {
+	return s.roleRepo.GetByID(ctx, id)
+}
+
+func (s *RBACService) ListRoles(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*model.Role, int64, error) {
+	return s.roleRepo.List(ctx, tenantID, page, pageSize, keyword)
+}
+
+func (s *RBACService) UpdateRole(ctx context.Context, id string, req dto.UpdateRoleReq) error {
+	role, err := s.roleRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if role.IsSystem {
+		return errors.New("系统内置角色不可修改")
+	}
+
+	role.Name = req.Name
+	role.Code = req.Code
+	role.Description = req.Description
+	role.UpdatedAt = time.Now()
+
+	return s.roleRepo.Update(ctx, role)
+}
+
+func (s *RBACService) DeleteRole(ctx context.Context, id string) error {
+	role, err := s.roleRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if role.IsSystem {
+		return errors.New("系统内置角色不可删除")
+	}
+	return s.roleRepo.Delete(ctx, id)
+}
+
+// --- Permission ---
+
+func (s *RBACService) CreatePermission(ctx context.Context, req dto.CreatePermissionReq) (*model.Permission, error) {
+	existing, _ := s.permissionRepo.GetByCode(ctx, req.Code)
+	if existing != nil {
+		return nil, errors.New("权限编码已存在")
+	}
+
+	permission := &model.Permission{
+		ID:          ulid.Generate(),
+		Name:        req.Name,
+		Code:        req.Code,
+		Description: req.Description,
+		Resource:    req.Resource,
+		Action:      req.Action,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	if err := s.permissionRepo.Create(ctx, permission); err != nil {
+		return nil, err
+	}
+	return permission, nil
+}
+
+func (s *RBACService) GetPermission(ctx context.Context, id string) (*model.Permission, error) {
+	return s.permissionRepo.GetByID(ctx, id)
+}
+
+func (s *RBACService) ListPermissions(ctx context.Context, page, pageSize int, resource, keyword string) ([]*model.Permission, int64, error) {
+	return s.permissionRepo.List(ctx, page, pageSize, resource, keyword)
+}
+
+func (s *RBACService) UpdatePermission(ctx context.Context, id string, req dto.UpdatePermissionReq) error {
+	permission, err := s.permissionRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	permission.Name = req.Name
+	permission.Code = req.Code
+	permission.Description = req.Description
+	permission.Resource = req.Resource
+	permission.Action = req.Action
+	permission.UpdatedAt = time.Now()
+
+	return s.permissionRepo.Update(ctx, permission)
+}
+
+func (s *RBACService) DeletePermission(ctx context.Context, id string) error {
+	return s.permissionRepo.Delete(ctx, id)
+}
+
+// --- Role Permission ---
+
+func (s *RBACService) BindRolePermissions(ctx context.Context, roleID string, req dto.BindRolePermissionsReq) error {
+	// 验证角色是否存在
+	_, err := s.roleRepo.GetByID(ctx, roleID)
+	if err != nil {
+		return errors.New("角色不存在")
+	}
+	return s.rolePermissionRepo.BindPermissions(ctx, roleID, req.PermissionIDs)
+}
+
+func (s *RBACService) GetRolePermissions(ctx context.Context, roleID string) ([]*model.Permission, error) {
+	return s.rolePermissionRepo.GetPermissionsByRoleID(ctx, roleID)
+}
+
+func (s *RBACService) GetRolePermissionCodes(ctx context.Context, roleID string) ([]string, error) {
+	return s.rolePermissionRepo.GetPermissionCodesByRoleID(ctx, roleID)
+}
+
+func (s *RBACService) UnbindRolePermission(ctx context.Context, roleID, permissionID string) error {
+	return s.rolePermissionRepo.UnbindPermission(ctx, roleID, permissionID)
+}

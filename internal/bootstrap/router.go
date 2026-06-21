@@ -5,6 +5,7 @@ import (
 	"meteorx/internal/config"
 	"meteorx/internal/middleware"
 	"meteorx/internal/modules/auth"
+	"meteorx/internal/modules/rbac"
 	"meteorx/internal/modules/tenant"
 	"meteorx/internal/modules/user"
 	"net/http"
@@ -62,6 +63,9 @@ func InitRouter(db *gorm.DB, cfg *config.Config) *chi.Mux {
 				// 6. 系统管理员管理接口
 				user.InitAdminModule(r, db)
 			})
+
+			// RBAC 模块
+			rbac.InitModule(r, db)
 		})
 	})
 
