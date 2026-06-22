@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	rbacRepo "meteorx/internal/modules/rbac/repository"
 	tenantRepository "meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/user/dto"
 	"meteorx/internal/modules/user/model"
@@ -15,10 +16,23 @@ import (
 type UserService struct {
 	repo       repository.UserRepository
 	tenantRepo tenantRepository.TenantRepository
+	roleRepo   rbacRepo.RoleRepository
 }
 
-func NewUserService(repo repository.UserRepository, tenantRepo tenantRepository.TenantRepository) *UserService {
-	return &UserService{repo: repo, tenantRepo: tenantRepo}
+func NewUserService(repo repository.UserRepository, tenantRepo tenantRepository.TenantRepository, roleRepo rbacRepo.RoleRepository) *UserService {
+	return &UserService{repo: repo, tenantRepo: tenantRepo, roleRepo: roleRepo}
+}
+
+// validateRole 校验角色编码是否存在于 roles 表中，并返回角色信息
+func (s *UserService) validateRole(ctx context.Context, roleCode string) error {
+	role, err := s.roleRepo.GetByCode(ctx, "", roleCode)
+	if err != nil {
+		return fmt.Errorf("角色 '%s' 不存在", roleCode)
+	}
+	if role.Status == 0 {
+		return fmt.Errorf("角色 '%s' 已禁用", roleCode)
+	}
+	return nil
 }
 
 // ListByTenant 获取租户下的用户列表（支持分页和关键字搜索）
@@ -74,6 +88,11 @@ func (s *UserService) Create(ctx context.Context, tenantID string, req dto.Creat
 		return nil, fmt.Errorf("用户名已被使用")
 	}
 
+	// 校验角色是否存在且启用
+	if err := s.validateRole(ctx, req.Role); err != nil {
+		return nil, err
+	}
+
 	// 密码加密
 	hashedPassword, err := crypto.HashPassword(req.Password)
 	if err != nil {
@@ -85,7 +104,7 @@ func (s *UserService) Create(ctx context.Context, tenantID string, req dto.Creat
 		ID:       ulpkg.Generate(),
 		TenantID: tenantID,
 		Username: req.Username,
-		Password: string(hashedPassword),
+		Password: hashedPassword,
 		Nickname: req.Nickname,
 		Email:    req.Email,
 		Role:     req.Role,
@@ -124,6 +143,10 @@ func (s *UserService) Update(ctx context.Context, userID string, req dto.UpdateU
 		user.Email = req.Email
 	}
 	if req.Role != "" {
+		// 校验角色是否存在且启用
+		if err := s.validateRole(ctx, req.Role); err != nil {
+			return nil, err
+		}
 		user.Role = req.Role
 	}
 	if req.Status != nil {
@@ -220,6 +243,11 @@ func (s *UserService) CreateMasterAdmin(ctx context.Context, req dto.CreateMaste
 	}
 	if exists {
 		return nil, fmt.Errorf("用户名已被使用")
+	}
+
+	// 校验 superadmin 角色是否存在且启用
+	if err := s.validateRole(ctx, "superadmin"); err != nil {
+		return nil, fmt.Errorf("系统管理员角色未配置，请先在 roles 表中初始化 superadmin 角色")
 	}
 
 	// 密码加密
@@ -323,6 +351,11 @@ func (s *UserService) AdminCreateTenantUser(ctx context.Context, req dto.AdminCr
 	}
 	if exists {
 		return nil, fmt.Errorf("用户名已被使用")
+	}
+
+	// 校验角色是否存在且启用
+	if err := s.validateRole(ctx, req.Role); err != nil {
+		return nil, err
 	}
 
 	// 密码加密
@@ -447,6 +480,10 @@ func (s *UserService) AdminUpdateTenantUser(ctx context.Context, tenantID, userI
 		user.Email = req.Email
 	}
 	if req.Role != "" {
+		// 校验角色是否存在且启用
+		if err := s.validateRole(ctx, req.Role); err != nil {
+			return nil, err
+		}
 		user.Role = req.Role
 	}
 	if req.Status != nil {

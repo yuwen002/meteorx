@@ -12,6 +12,8 @@ type RoleRepository interface {
 	List(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*model.Role, int64, error)
 	Update(ctx context.Context, role *model.Role) error
 	Delete(ctx context.Context, id string) error
+	FindDeleted(ctx context.Context, page, pageSize int, keyword string) ([]*model.Role, int64, error)
+	Restore(ctx context.Context, id string) error
 }
 
 type PermissionRepository interface {

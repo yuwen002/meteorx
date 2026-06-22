@@ -62,10 +62,10 @@ func InitRouter(db *gorm.DB, cfg *config.Config) *chi.Mux {
 
 				// 6. 系统管理员管理接口
 				user.InitAdminModule(r, db)
-			})
 
-			// RBAC 模块
-			rbac.InitModule(r, db)
+				// 7. RBAC 角色权限管理接口（仅后台管理员可操作）
+				rbac.InitModule(r, db)
+			})
 		})
 	})
 

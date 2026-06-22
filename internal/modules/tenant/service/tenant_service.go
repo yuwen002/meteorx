@@ -9,6 +9,7 @@ import (
 	"meteorx/internal/modules/tenant/repository"
 	userModel "meteorx/internal/modules/user/model"
 	userRepo "meteorx/internal/modules/user/repository"
+	rbacRepo "meteorx/internal/modules/rbac/repository"
 	"meteorx/pkg/crypto"
 	"meteorx/pkg/ulid"
 	"time"
@@ -26,10 +27,11 @@ var (
 type TenantService struct {
 	repo     repository.TenantRepository
 	userRepo userRepo.UserRepository
+	roleRepo rbacRepo.RoleRepository
 }
 
-func NewTenantService(repo repository.TenantRepository, userRepo userRepo.UserRepository) *TenantService {
-	return &TenantService{repo: repo, userRepo: userRepo}
+func NewTenantService(repo repository.TenantRepository, userRepo userRepo.UserRepository, roleRepo rbacRepo.RoleRepository) *TenantService {
+	return &TenantService{repo: repo, userRepo: userRepo, roleRepo: roleRepo}
 }
 
 // Register 注册新租户及其管理员用户
@@ -50,17 +52,27 @@ func (s *TenantService) Register(ctx context.Context, req dto.RegisterTenantReq)
 		return nil, ErrUsernameConflict
 	}
 
-	// 3. 生成符合 size:26 限制的唯一 ID (使用 ULID，高并发安全、支持字典序排序)
+	// 3. 校验默认租户管理员角色是否存在且启用
+	defaultRole := "tenant_admin"
+	role, err := s.roleRepo.GetByCode(ctx, "", defaultRole)
+	if err != nil {
+		return nil, fmt.Errorf("默认租户管理员角色未配置，请联系管理员初始化角色: %w", err)
+	}
+	if role.Status == 0 {
+		return nil, fmt.Errorf("默认租户管理员角色已禁用，请联系管理员")
+	}
+
+	// 4. 生成符合 size:26 限制的唯一 ID (使用 ULID，高并发安全、支持字典序排序)
 	tenantID := ulid.Generate()
 	userID := ulid.Generate()
 
-	// 4. 密码加密
+	// 5. 密码加密
 	hashedPassword, err := crypto.HashPassword(req.AdminUser.Password)
 	if err != nil {
 		return nil, fmt.Errorf("password encryption failed: %w", err)
 	}
 
-	// 5. 构造数据库租户模型 PO (全量对齐你精致的 DTO)
+	// 6. 构造数据库租户模型 PO (全量对齐你精致的 DTO)
 	tenantPO := &tenantModel.Tenant{
 		ID:           tenantID,
 		Name:         req.Name, // 修正为 req.Name
@@ -73,7 +85,7 @@ func (s *TenantService) Register(ctx context.Context, req dto.RegisterTenantReq)
 		Status:       1, // 默认正常激活
 	}
 
-	// 6. 构造数据库用户模型 PO
+	// 7. 构造数据库用户模型 PO
 	userPO := &userModel.User{
 		ID:       userID,
 		TenantID: tenantID,
@@ -81,12 +93,12 @@ func (s *TenantService) Register(ctx context.Context, req dto.RegisterTenantReq)
 		Password: string(hashedPassword),
 		Nickname: req.AdminUser.Nickname,
 		Email:    req.AdminUser.Email,
-		Role:     "admin", // 租户创始人，锁定 admin 角色
+		Role:     "tenant_admin", // 租户创始人，默认租户管理员角色
 		IsMaster: false,   // 绝不是 MaaS 平台上帝
 		Status:   1,       // 默认激活
 	}
 
-	// 7. 抛给持久层执行事务
+	// 8. 抛给持久层执行事务
 	if err := s.repo.CreateTenantWithAdmin(ctx, tenantPO, userPO); err != nil {
 		return nil, err
 	}
@@ -106,7 +118,17 @@ func (s *TenantService) AdminCreate(ctx context.Context, req dto.AdminCreateTena
 		return nil, fmt.Errorf("admin user password encryption failed: %w", err)
 	}
 
-	// 3. 组装纯业务租户模型
+	// 3. 校验默认租户管理员角色是否存在且启用
+	defaultRole := "tenant_admin"
+	role, err := s.roleRepo.GetByCode(ctx, "", defaultRole)
+	if err != nil {
+		return nil, fmt.Errorf("默认租户管理员角色未配置，请联系管理员初始化角色: %w", err)
+	}
+	if role.Status == 0 {
+		return nil, fmt.Errorf("默认租户管理员角色已禁用，请联系管理员")
+	}
+
+	// 4. 组装纯业务租户模型
 	tenant := &tenantModel.Tenant{
 		ID:           tenantID,
 		Name:         req.Name,
@@ -119,7 +141,7 @@ func (s *TenantService) AdminCreate(ctx context.Context, req dto.AdminCreateTena
 		Status:       req.Status, // 使用后台指定的的状态
 	}
 
-	// 4. 组装纯业务用户模型
+	// 5. 组装纯业务用户模型
 	user := &userModel.User{
 		ID:       userID,
 		TenantID: tenantID,
@@ -127,12 +149,12 @@ func (s *TenantService) AdminCreate(ctx context.Context, req dto.AdminCreateTena
 		Password: string(hashedPassword),
 		Nickname: req.AdminUser.Nickname,
 		Email:    req.AdminUser.Email,
-		Role:     "admin", // 锁定为该租户的主管理员
+		Role:     "tenant_admin", // 租户主管理员角色
 		IsMaster: false,   // 后台创建的也只是普通租户管理员，绝非 MaaS 平台超级管理员
 		Status:   1,       // 默认激活用户状态
 	}
 
-	// 5. 交付底层 Repository 开启强一致性事务落库
+	// 6. 交付底层 Repository 开启强一致性事务落库
 	// 完美复用你之前写好的 CreateTenantWithAdmin 事务方法
 	if err := s.repo.CreateTenantWithAdmin(ctx, tenant, user); err != nil {
 		return nil, err

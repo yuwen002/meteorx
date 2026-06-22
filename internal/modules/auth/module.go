@@ -5,6 +5,7 @@ import (
 	"meteorx/internal/config"
 	"meteorx/internal/modules/auth/handler"
 	"meteorx/internal/modules/auth/service"
+	rbacRepo "meteorx/internal/modules/rbac/repository"
 	userrepo "meteorx/internal/modules/user/repository"
 
 	"github.com/go-chi/chi/v5"
@@ -18,7 +19,8 @@ func InitModule(r chi.Router, db *gorm.DB, cfg config.JWTConfig) {
 
 	// 2. 初始化依赖：Repository -> Service -> Handler
 	uRepo := userrepo.NewUserRepository(db)
-	svc := service.NewAuthService(uRepo, tokenHelper) // 注入 TokenHelper
+	rRepo := rbacRepo.NewRoleRepository(db)
+	svc := service.NewAuthService(uRepo, rRepo, tokenHelper) // 注入 TokenHelper + RoleRepo
 	h := handler.NewAuthHandler(svc)
 
 	// 3. 注册路由

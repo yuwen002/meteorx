@@ -1,6 +1,7 @@
 package user
 
 import (
+	rbacRepo "meteorx/internal/modules/rbac/repository"
 	"meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/user/handler"
 	userRepository "meteorx/internal/modules/user/repository"
@@ -14,7 +15,8 @@ import (
 func initHandler(db *gorm.DB) *handler.UserHandler {
 	repo := userRepository.NewUserRepository(db)
 	tenantRepo := repository.NewTenantRepository(db)
-	svc := service.NewUserService(repo, tenantRepo)
+	roleRepo := rbacRepo.NewRoleRepository(db)
+	svc := service.NewUserService(repo, tenantRepo, roleRepo)
 	return handler.NewUserHandler(svc)
 }
 

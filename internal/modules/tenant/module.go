@@ -2,6 +2,7 @@ package tenant
 
 import (
 	"meteorx/internal/modules/tenant/handler"
+	rbacrepo "meteorx/internal/modules/rbac/repository"
 	tenantrepo "meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/tenant/service"
 	userrepository "meteorx/internal/modules/user/repository"
@@ -14,7 +15,8 @@ import (
 func initHandler(db *gorm.DB) *handler.TenantHandler {
 	tenantRepo := tenantrepo.NewTenantRepository(db)
 	userRepo := userrepository.NewUserRepository(db)
-	svc := service.NewTenantService(tenantRepo, userRepo)
+	roleRepo := rbacrepo.NewRoleRepository(db)
+	svc := service.NewTenantService(tenantRepo, userRepo, roleRepo)
 	return handler.NewTenantHandler(svc)
 }
 

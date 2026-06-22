@@ -7,6 +7,7 @@ import (
 
 	"meteorx/internal/common/jwt"
 	"meteorx/internal/modules/auth/dto"
+	rbacRepo "meteorx/internal/modules/rbac/repository"
 	"meteorx/internal/modules/user/model"
 	"meteorx/internal/modules/user/repository"
 	"meteorx/pkg/crypto"
@@ -15,17 +16,29 @@ import (
 
 type AuthService struct {
 	userRepo    repository.UserRepository
+	roleRepo    rbacRepo.RoleRepository
 	tokenHelper *jwt.TokenHelper
 }
 
-func NewAuthService(ur repository.UserRepository, th *jwt.TokenHelper) *AuthService {
+func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, th *jwt.TokenHelper) *AuthService {
 	return &AuthService{
 		userRepo:    ur,
+		roleRepo:    rr,
 		tokenHelper: th,
 	}
 }
 
 func (s *AuthService) Register(ctx context.Context, req dto.RegisterUserReq) (*model.User, error) {
+	// 默认角色为 tenant_admin，校验其是否存在且启用
+	defaultRole := "tenant_admin"
+	role, err := s.roleRepo.GetByCode(ctx, "", defaultRole)
+	if err != nil {
+		return nil, errors.New("默认注册角色未配置，请联系管理员初始化角色")
+	}
+	if role.Status == 0 {
+		return nil, errors.New("默认注册角色已禁用，请联系管理员")
+	}
+
 	hashedPassword, err := crypto.HashPassword(req.Password)
 	if err != nil {
 		return nil, err
@@ -38,7 +51,7 @@ func (s *AuthService) Register(ctx context.Context, req dto.RegisterUserReq) (*m
 		Username:  req.Username,
 		Password:  hashedPassword,
 		Nickname:  req.Nickname,
-		Role:      "admin",
+		Role:      defaultRole,
 		Status:    1,
 		CreatedAt: now,
 		UpdatedAt: now,

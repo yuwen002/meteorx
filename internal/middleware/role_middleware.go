@@ -22,5 +22,5 @@ func RequireRole(requiredRole string) func(http.Handler) http.Handler {
 
 // RequireAdmin 快捷方法：验证是否为租户管理员
 func RequireAdmin() func(http.Handler) http.Handler {
-	return RequireRole("admin")
+	return RequireRole("tenant_admin")
 }

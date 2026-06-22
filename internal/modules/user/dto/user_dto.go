@@ -11,7 +11,7 @@ type CreateUserReq struct {
 	Password string `json:"password" validate:"required,min=6,max=32"`
 	Nickname string `json:"nickname" validate:"required,max=50"`
 	Email    string `json:"email,omitempty" validate:"omitempty,email"`
-	Role     string `json:"role" validate:"required,oneof=admin user"` // 租户用户角色
+	Role     string `json:"role" validate:"required"` // 角色编码，需存在于 roles 表中
 }
 
 // CreateMasterAdminReq 创建系统管理员请求（不需要指定角色，自动设为 superadmin）
@@ -24,18 +24,18 @@ type CreateMasterAdminReq struct {
 
 // AdminCreateTenantUserReq 系统管理员为指定租户创建用户请求
 type AdminCreateTenantUserReq struct {
-	TenantID string `json:"tenant_id" validate:"required"` // 需要指定租户ID
+	TenantID string `json:"tenant_id" validate:"required"`               // 需要指定租户ID
 	Username string `json:"username" validate:"required,alphanum,min=4,max=50"`
 	Password string `json:"password" validate:"required,min=6,max=32"`
 	Nickname string `json:"nickname" validate:"required,max=50"`
 	Email    string `json:"email,omitempty" validate:"omitempty,email"`
-	Role     string `json:"role" validate:"required,oneof=admin user"` // 租户用户角色
+	Role     string `json:"role" validate:"required"` // 角色编码，需存在于 roles 表中
 }
 
 type UpdateUserReq struct {
 	Nickname string `json:"nickname,omitempty" validate:"max=50"`
 	Email    string `json:"email,omitempty" validate:"omitempty,email"`
-	Role     string `json:"role,omitempty" validate:"omitempty,oneof=admin user superadmin"`
+	Role     string `json:"role,omitempty" validate:"omitempty"` // 角色编码，需存在于 roles 表中
 	Status   *int   `json:"status,omitempty" validate:"omitempty,oneof=0 1"`
 }
 

@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 	"errors"
-	"time"
-
+	"meteorx/internal/common/contextx"
 	"meteorx/internal/modules/rbac/dto"
 	"meteorx/internal/modules/rbac/model"
 	"meteorx/internal/modules/rbac/repository"
 	"meteorx/pkg/ulid"
+	"time"
 )
 
 type RBACService struct {
@@ -31,11 +31,22 @@ func NewRBACService(
 
 // --- Role ---
 
-func (s *RBACService) CreateRole(ctx context.Context, tenantID string, req dto.CreateRoleReq) (*model.Role, error) {
+func (s *RBACService) CreateRole(ctx context.Context, req dto.CreateRoleReq) (*model.Role, error) {
+	// 如果未指定 tenant_id，默认为系统级角色
+	if req.TenantID == "" {
+		req.TenantID = contextx.SystemTenantID
+	}
+
 	// 检查 code 是否已存在
-	existing, _ := s.roleRepo.GetByCode(ctx, tenantID, req.Code)
+	existing, _ := s.roleRepo.GetByCode(ctx, req.TenantID, req.Code)
 	if existing != nil {
 		return nil, errors.New("角色编码已存在")
+	}
+
+	// Status 默认启用
+	status := req.Status
+	if status == 0 {
+		status = model.RoleStatusEnabled
 	}
 
 	role := &model.Role{
@@ -43,8 +54,9 @@ func (s *RBACService) CreateRole(ctx context.Context, tenantID string, req dto.C
 		Name:        req.Name,
 		Code:        req.Code,
 		Description: req.Description,
-		TenantID:    tenantID,
-		IsSystem:    false,
+		TenantID:    req.TenantID,
+		IsSystem:    req.IsSystem,
+		Status:      status,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -75,6 +87,11 @@ func (s *RBACService) UpdateRole(ctx context.Context, id string, req dto.UpdateR
 	role.Name = req.Name
 	role.Code = req.Code
 	role.Description = req.Description
+	role.Status = req.Status
+	// 如果指定了 tenant_id 则更新租户归属
+	if req.TenantID != "" {
+		role.TenantID = req.TenantID
+	}
 	role.UpdatedAt = time.Now()
 
 	return s.roleRepo.Update(ctx, role)
@@ -89,6 +106,16 @@ func (s *RBACService) DeleteRole(ctx context.Context, id string) error {
 		return errors.New("系统内置角色不可删除")
 	}
 	return s.roleRepo.Delete(ctx, id)
+}
+
+// ListDeletedRoles 获取已软删除的角色列表
+func (s *RBACService) ListDeletedRoles(ctx context.Context, page, pageSize int, keyword string) ([]*model.Role, int64, error) {
+	return s.roleRepo.FindDeleted(ctx, page, pageSize, keyword)
+}
+
+// RestoreRole 恢复已软删除的角色
+func (s *RBACService) RestoreRole(ctx context.Context, id string) error {
+	return s.roleRepo.Restore(ctx, id)
 }
 
 // --- Permission ---
