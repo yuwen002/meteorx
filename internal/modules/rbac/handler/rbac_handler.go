@@ -317,9 +317,51 @@ func (h *RBACHandler) ListDeletedRoles(w http.ResponseWriter, r *http.Request) {
 // POST /api/v1/rbac/roles/{id}/restore
 func (h *RBACHandler) RestoreRole(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	if id == "" {
+		response.Fail(w, http.StatusBadRequest, "角色ID不能为空")
+		return
+	}
+
 	if err := h.svc.RestoreRole(r.Context(), id); err != nil {
 		response.Fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	response.Success(w, nil)
+}
+
+// UpdateRoleStatus 更改角色状态（启用/禁用）
+// PUT /api/v1/rbac/roles/{id}/status
+func (h *RBACHandler) UpdateRoleStatus(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		response.Fail(w, http.StatusBadRequest, "角色ID不能为空")
+		return
+	}
+
+	var req dto.UpdateRoleStatusReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	if err := h.svc.UpdateRoleStatus(r.Context(), id, req.Status); err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, nil)
+}
+
+// BatchUpdateRoleStatus 批量更改角色状态
+// PUT /api/v1/rbac/roles/batch/status
+func (h *RBACHandler) BatchUpdateRoleStatus(w http.ResponseWriter, r *http.Request) {
+	var req dto.BatchUpdateRoleStatusReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	updated, err := h.svc.BatchUpdateRoleStatus(r.Context(), req.IDs, req.Status)
+	if err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, map[string]interface{}{"updated": updated})
 }

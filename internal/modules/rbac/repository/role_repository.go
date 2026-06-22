@@ -150,6 +150,37 @@ func (r *roleRepository) Update(ctx context.Context, role *model.Role) error {
 	}).Error
 }
 
+// UpdateStatus 仅更新角色状态（启用/禁用）
+func (r *roleRepository) UpdateStatus(ctx context.Context, id string, status int) error {
+	result := r.db.WithContext(ctx).Model(&RolePO{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":     status,
+			"updated_at": time.Now(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("角色不存在")
+	}
+	return nil
+}
+
+// BatchUpdateStatus 批量更新角色状态，返回实际更新的行数
+func (r *roleRepository) BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, error) {
+	result := r.db.WithContext(ctx).Model(&RolePO{}).
+		Where("id IN ? AND is_system = ?", ids, false).
+		Updates(map[string]interface{}{
+			"status":     status,
+			"updated_at": time.Now(),
+		})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
 func (r *roleRepository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&RolePO{}, "id = ?", id).Error
 }

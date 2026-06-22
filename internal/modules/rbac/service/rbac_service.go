@@ -132,6 +132,26 @@ func (s *RBACService) RestoreRole(ctx context.Context, id string) error {
 	return s.roleRepo.Restore(ctx, id)
 }
 
+// UpdateRoleStatus 更改角色状态（启用/禁用）
+func (s *RBACService) UpdateRoleStatus(ctx context.Context, id string, status int) error {
+	role, err := s.roleRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if role.IsSystem {
+		return errors.New("系统内置角色不可更改状态")
+	}
+	return s.roleRepo.UpdateStatus(ctx, id, status)
+}
+
+// BatchUpdateRoleStatus 批量更改角色状态，返回实际更新的数量
+func (s *RBACService) BatchUpdateRoleStatus(ctx context.Context, ids []string, status int) (int64, error) {
+	if len(ids) == 0 {
+		return 0, errors.New("角色ID列表不能为空")
+	}
+	return s.roleRepo.BatchUpdateStatus(ctx, ids, status)
+}
+
 // --- Permission ---
 
 func (s *RBACService) CreatePermission(ctx context.Context, req dto.CreatePermissionReq) (*model.Permission, error) {

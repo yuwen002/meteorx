@@ -64,3 +64,14 @@ type ListRolesQuery struct {
 type BindRolePermissionsReq struct {
 	PermissionIDs []string `json:"permission_ids" validate:"required"`
 }
+
+// UpdateRoleStatusReq 更改角色状态请求
+type UpdateRoleStatusReq struct {
+	Status int `json:"status" validate:"oneof=0 1"` // 状态: 1-启用 0-禁用
+}
+
+// BatchUpdateRoleStatusReq 批量更改角色状态请求
+type BatchUpdateRoleStatusReq struct {
+	IDs    []string `json:"ids" validate:"required,min=1"`   // 角色ID列表
+	Status int      `json:"status" validate:"oneof=0 1"` // 状态: 1-启用 0-禁用
+}
