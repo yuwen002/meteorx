@@ -47,14 +47,18 @@ func (h *RBACHandler) CreateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.Success(w, role)
+	response.Success(w, dto.ToRoleResp(role))
 }
 
 // GetRole 获取单个角色详情
-// GET /api/v1/rbac/roles/{id}
+// GET /api/v1/rbac/roles/{id}/detail
 // 根据 URL 路径参数中的角色 ID 查询并返回角色详细信息
 func (h *RBACHandler) GetRole(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id") // 从 URL 路径中提取角色 ID
+	if id == "" {
+		response.Fail(w, http.StatusBadRequest, "角色ID不能为空")
+		return
+	}
 	// 调用 service 根据 ID 查询角色
 	role, err := h.svc.GetRole(r.Context(), id)
 	if err != nil {
@@ -63,7 +67,7 @@ func (h *RBACHandler) GetRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 返回角色详情
-	response.Success(w, role)
+	response.Success(w, dto.ToRoleResp(role))
 }
 
 // ListRoles 获取角色列表（带分页和关键字搜索）
@@ -87,36 +91,53 @@ func (h *RBACHandler) ListRoles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result := pagination.NewPaginatedResult(roles, pg.Page, pg.PageSize, int(total))
+	// 转换为 RoleResp
+	resp := make([]*dto.RoleResp, len(roles))
+	for i, role := range roles {
+		resp[i] = dto.ToRoleResp(role)
+	}
+
+	result := pagination.NewPaginatedResult(resp, pg.Page, pg.PageSize, int(total))
 	response.Success(w, result)
 }
 
 // UpdateRole 更新角色信息
-// PUT /api/v1/rbac/roles/{id}
+// PUT /api/v1/rbac/roles/{id}/update
 // 根据角色 ID 和请求体参数更新角色的属性
 func (h *RBACHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id") // 获取要更新的角色 ID
-	var req dto.UpdateRoleReq   // 角色更新请求结构体
+	if id == "" {
+		response.Fail(w, http.StatusBadRequest, "角色ID不能为空")
+		return
+	}
+
+	var req dto.UpdateRoleReq // 角色更新请求结构体
 	// 解析并校验请求体，校验失败则返回
 	if !validator.ValidateJSON(w, r, &req) {
 		return
 	}
 
 	// 调用 service 执行更新操作
-	if err := h.svc.UpdateRole(r.Context(), id, req); err != nil {
+	role, err := h.svc.UpdateRole(r.Context(), id, req)
+	if err != nil {
 		// 更新失败，返回 400 状态码
 		response.Fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	// 更新成功，返回空数据
-	response.Success(w, nil)
+	// 更新成功，返回更新后的角色信息
+	response.Success(w, dto.ToRoleResp(role))
 }
 
 // DeleteRole 删除角色
-// DELETE /api/v1/rbac/roles/{id}
+// DELETE /api/v1/rbac/roles/{id}/delete
 // 根据角色 ID 删除角色（逻辑删除或物理删除，取决于 service 层实现）
 func (h *RBACHandler) DeleteRole(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id") // 获取要删除的角色 ID
+	if id == "" {
+		response.Fail(w, http.StatusBadRequest, "角色ID不能为空")
+		return
+	}
+
 	// 调用 service 执行删除操作
 	if err := h.svc.DeleteRole(r.Context(), id); err != nil {
 		// 删除失败，返回 400 状态码
@@ -283,7 +304,12 @@ func (h *RBACHandler) ListDeletedRoles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result := pagination.NewPaginatedResult(roles, pg.Page, pg.PageSize, int(total))
+	resp := make([]*dto.RoleResp, len(roles))
+	for i, role := range roles {
+		resp[i] = dto.ToRoleResp(role)
+	}
+
+	result := pagination.NewPaginatedResult(resp, pg.Page, pg.PageSize, int(total))
 	response.Success(w, result)
 }
 

@@ -16,6 +16,7 @@ type RolePO struct {
 	Description string         `gorm:"size:255;comment:角色描述"`
 	TenantID    string         `gorm:"index;size:26;comment:租户ID"`
 	IsSystem    bool           `gorm:"default:false;comment:是否系统内置"`
+	Scope       string         `gorm:"size:20;default:'tenant';comment:作用域:system/tenant/all"`
 	Status      int            `gorm:"default:1;comment:状态:1-启用 0-禁用"`
 	CreatedAt   time.Time      `gorm:"autoCreateTime;comment:创建时间"`
 	UpdatedAt   time.Time      `gorm:"autoUpdateTime;comment:更新时间"`
@@ -34,6 +35,7 @@ func (record RolePO) toDomain() *model.Role {
 		Description: record.Description,
 		TenantID:    record.TenantID,
 		IsSystem:    record.IsSystem,
+		Scope:       record.Scope,
 		Status:      record.Status,
 		CreatedAt:   record.CreatedAt,
 		UpdatedAt:   record.UpdatedAt,
@@ -60,6 +62,7 @@ func (r *roleRepository) Create(ctx context.Context, role *model.Role) error {
 		Description: role.Description,
 		TenantID:    role.TenantID,
 		IsSystem:    role.IsSystem,
+		Scope:       role.Scope,
 		Status:      role.Status,
 	}
 	return r.db.WithContext(ctx).Create(&record).Error
@@ -119,12 +122,29 @@ func (r *roleRepository) List(ctx context.Context, tenantID string, page, pageSi
 	return roles, total, nil
 }
 
+// ListByScope 查询指定作用域下可用角色（scope 匹配或为 all，且状态为启用）
+func (r *roleRepository) ListByScope(ctx context.Context, scope string) ([]*model.Role, error) {
+	var records []RolePO
+	if err := r.db.WithContext(ctx).
+		Where("(scope = ? OR scope = ?) AND status = ?", scope, model.RoleScopeAll, model.RoleStatusEnabled).
+		Order("created_at ASC").
+		Find(&records).Error; err != nil {
+		return nil, err
+	}
+	roles := make([]*model.Role, len(records))
+	for i, record := range records {
+		roles[i] = record.toDomain()
+	}
+	return roles, nil
+}
+
 func (r *roleRepository) Update(ctx context.Context, role *model.Role) error {
 	return r.db.WithContext(ctx).Model(&RolePO{}).Where("id = ?", role.ID).Updates(map[string]interface{}{
 		"name":        role.Name,
 		"code":        role.Code,
 		"description": role.Description,
 		"tenant_id":   role.TenantID,
+		"scope":       role.Scope,
 		"status":      role.Status,
 		"updated_at":  time.Now(),
 	}).Error

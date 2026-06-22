@@ -10,8 +10,9 @@ import (
 // 注意：该模块应挂载在 RequiresMasterAdmin 中间件保护的路由组下，
 // 仅后台超级管理员可访问，无需额外的逐接口权限校验。
 // 参数:
-//   r: chi.Router 路由实例
-//   h: RBACHandler 处理器实例
+//
+//	r: chi.Router 路由实例
+//	h: RBACHandler 处理器实例
 func RegisterRoutes(r chi.Router, h *handler.RBACHandler) {
 	r.Route("/rbac", func(r chi.Router) {
 		// 角色管理
@@ -21,9 +22,9 @@ func RegisterRoutes(r chi.Router, h *handler.RBACHandler) {
 			// 回收站：静态路由必须注册在通配符路由之前
 			r.Get("/deleted", h.ListDeletedRoles)
 			r.Post("/{id}/restore", h.RestoreRole)
-			r.Get("/{id}", h.GetRole)
-			r.Put("/{id}", h.UpdateRole)
-			r.Delete("/{id}", h.DeleteRole)
+			r.Get("/{id}/detail", h.GetRole)
+			r.Put("/{id}/update", h.UpdateRole)
+			r.Delete("/{id}/delete", h.DeleteRole)
 			r.Put("/{id}/permissions", h.BindRolePermissions)
 			r.Get("/{id}/permissions", h.GetRolePermissions)
 		})
@@ -32,9 +33,9 @@ func RegisterRoutes(r chi.Router, h *handler.RBACHandler) {
 		r.Route("/permissions", func(r chi.Router) {
 			r.Get("/", h.ListPermissions)
 			r.Post("/", h.CreatePermission)
-			r.Get("/{id}", h.GetPermission)
-			r.Put("/{id}", h.UpdatePermission)
-			r.Delete("/{id}", h.DeletePermission)
+			r.Get("/{id}/detail", h.GetPermission)
+			r.Put("/{id}/update", h.UpdatePermission)
+			r.Delete("/{id}/delete", h.DeletePermission)
 		})
 	})
 }

@@ -49,6 +49,12 @@ func (s *RBACService) CreateRole(ctx context.Context, req dto.CreateRoleReq) (*m
 		status = model.RoleStatusEnabled
 	}
 
+	// Scope 默认 tenant
+	scope := req.Scope
+	if scope == "" {
+		scope = model.RoleScopeTenant
+	}
+
 	role := &model.Role{
 		ID:          ulid.Generate(),
 		Name:        req.Name,
@@ -56,6 +62,7 @@ func (s *RBACService) CreateRole(ctx context.Context, req dto.CreateRoleReq) (*m
 		Description: req.Description,
 		TenantID:    req.TenantID,
 		IsSystem:    req.IsSystem,
+		Scope:       scope,
 		Status:      status,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -75,13 +82,13 @@ func (s *RBACService) ListRoles(ctx context.Context, tenantID string, page, page
 	return s.roleRepo.List(ctx, tenantID, page, pageSize, keyword)
 }
 
-func (s *RBACService) UpdateRole(ctx context.Context, id string, req dto.UpdateRoleReq) error {
+func (s *RBACService) UpdateRole(ctx context.Context, id string, req dto.UpdateRoleReq) (*model.Role, error) {
 	role, err := s.roleRepo.GetByID(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if role.IsSystem {
-		return errors.New("系统内置角色不可修改")
+		return nil, errors.New("系统内置角色不可修改")
 	}
 
 	role.Name = req.Name
@@ -92,9 +99,16 @@ func (s *RBACService) UpdateRole(ctx context.Context, id string, req dto.UpdateR
 	if req.TenantID != "" {
 		role.TenantID = req.TenantID
 	}
+	// 如果指定了 scope 则更新作用域
+	if req.Scope != "" {
+		role.Scope = req.Scope
+	}
 	role.UpdatedAt = time.Now()
 
-	return s.roleRepo.Update(ctx, role)
+	if err := s.roleRepo.Update(ctx, role); err != nil {
+		return nil, err
+	}
+	return role, nil
 }
 
 func (s *RBACService) DeleteRole(ctx context.Context, id string) error {

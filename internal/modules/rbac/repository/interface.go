@@ -10,6 +10,7 @@ type RoleRepository interface {
 	GetByID(ctx context.Context, id string) (*model.Role, error)
 	GetByCode(ctx context.Context, tenantID, code string) (*model.Role, error)
 	List(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*model.Role, int64, error)
+	ListByScope(ctx context.Context, scope string) ([]*model.Role, error)
 	Update(ctx context.Context, role *model.Role) error
 	Delete(ctx context.Context, id string) error
 	FindDeleted(ctx context.Context, page, pageSize int, keyword string) ([]*model.Role, int64, error)

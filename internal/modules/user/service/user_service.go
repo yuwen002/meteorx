@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	rbacModel "meteorx/internal/modules/rbac/model"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
 	tenantRepository "meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/user/dto"
@@ -23,14 +24,18 @@ func NewUserService(repo repository.UserRepository, tenantRepo tenantRepository.
 	return &UserService{repo: repo, tenantRepo: tenantRepo, roleRepo: roleRepo}
 }
 
-// validateRole 校验角色编码是否存在于 roles 表中，并返回角色信息
-func (s *UserService) validateRole(ctx context.Context, roleCode string) error {
+// validateRole 校验角色编码是否存在于 roles 表中，且作用域匹配、状态启用
+func (s *UserService) validateRole(ctx context.Context, roleCode string, scope string) error {
 	role, err := s.roleRepo.GetByCode(ctx, "", roleCode)
 	if err != nil {
 		return fmt.Errorf("角色 '%s' 不存在", roleCode)
 	}
 	if role.Status == 0 {
 		return fmt.Errorf("角色 '%s' 已禁用", roleCode)
+	}
+	// 校验作用域：角色的 scope 必须匹配当前操作上下文，或为 all
+	if role.Scope != rbacModel.RoleScopeAll && role.Scope != scope {
+		return fmt.Errorf("角色 '%s' 不允许在当前上下文分配", roleCode)
 	}
 	return nil
 }
@@ -88,8 +93,8 @@ func (s *UserService) Create(ctx context.Context, tenantID string, req dto.Creat
 		return nil, fmt.Errorf("用户名已被使用")
 	}
 
-	// 校验角色是否存在且启用
-	if err := s.validateRole(ctx, req.Role); err != nil {
+	// 校验角色是否存在且启用，且作用域为 tenant
+	if err := s.validateRole(ctx, req.Role, rbacModel.RoleScopeTenant); err != nil {
 		return nil, err
 	}
 
@@ -143,8 +148,8 @@ func (s *UserService) Update(ctx context.Context, userID string, req dto.UpdateU
 		user.Email = req.Email
 	}
 	if req.Role != "" {
-		// 校验角色是否存在且启用
-		if err := s.validateRole(ctx, req.Role); err != nil {
+		// 校验角色是否存在且启用，且作用域为 tenant
+		if err := s.validateRole(ctx, req.Role, rbacModel.RoleScopeTenant); err != nil {
 			return nil, err
 		}
 		user.Role = req.Role
@@ -246,7 +251,7 @@ func (s *UserService) CreateMasterAdmin(ctx context.Context, req dto.CreateMaste
 	}
 
 	// 校验 superadmin 角色是否存在且启用
-	if err := s.validateRole(ctx, "superadmin"); err != nil {
+	if err := s.validateRole(ctx, "superadmin", rbacModel.RoleScopeSystem); err != nil {
 		return nil, fmt.Errorf("系统管理员角色未配置，请先在 roles 表中初始化 superadmin 角色")
 	}
 
@@ -353,8 +358,8 @@ func (s *UserService) AdminCreateTenantUser(ctx context.Context, req dto.AdminCr
 		return nil, fmt.Errorf("用户名已被使用")
 	}
 
-	// 校验角色是否存在且启用
-	if err := s.validateRole(ctx, req.Role); err != nil {
+	// 校验角色是否存在且启用，且作用域为 tenant（管理员为租户创建用户，只能分配租户级角色）
+	if err := s.validateRole(ctx, req.Role, rbacModel.RoleScopeTenant); err != nil {
 		return nil, err
 	}
 
@@ -480,8 +485,8 @@ func (s *UserService) AdminUpdateTenantUser(ctx context.Context, tenantID, userI
 		user.Email = req.Email
 	}
 	if req.Role != "" {
-		// 校验角色是否存在且启用
-		if err := s.validateRole(ctx, req.Role); err != nil {
+		// 校验角色是否存在且启用，且作用域为 tenant
+		if err := s.validateRole(ctx, req.Role, rbacModel.RoleScopeTenant); err != nil {
 			return nil, err
 		}
 		user.Role = req.Role
