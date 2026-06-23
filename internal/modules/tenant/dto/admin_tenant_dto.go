@@ -48,7 +48,7 @@ type AdminUpdateTenantStatusReq struct {
 // AdminUpdateTenantReq 后台更新租户信息请求
 type AdminUpdateTenantReq struct {
 	Name         string `json:"name,omitempty" validate:"omitempty,min=2,max=100" label:"租户名称"`
-	Domain       string `json:"domain,omitempty" validate:"omitempty,min=2,max=50,alphanum" label:"租户域名"`
+	Domain       string `json:"domain,omitempty" validate:"omitempty,min=2,max=50,hostname" label:"租户域名"`
 	Description  string `json:"description,omitempty" validate:"omitempty,max=255" label:"租户描述"`
 	ContactEmail string `json:"contact_email,omitempty" validate:"omitempty,email,max=100" label:"联系邮箱"`
 	Region       string `json:"region,omitempty" validate:"omitempty,max=50" label:"地区"`

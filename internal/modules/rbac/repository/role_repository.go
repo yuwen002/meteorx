@@ -185,6 +185,17 @@ func (r *roleRepository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&RolePO{}, "id = ?", id).Error
 }
 
+// BatchDelete 批量软删除角色，返回实际删除的行数
+func (r *roleRepository) BatchDelete(ctx context.Context, ids []string) (int64, error) {
+	result := r.db.WithContext(ctx).Model(&RolePO{}).
+		Where("id IN ? AND is_system = ?", ids, false).
+		Delete(&RolePO{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
 // FindDeleted 分页查询已软删除的角色列表
 func (r *roleRepository) FindDeleted(ctx context.Context, page, pageSize int, keyword string) ([]*model.Role, int64, error) {
 	var total int64

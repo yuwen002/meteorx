@@ -152,6 +152,14 @@ func (s *RBACService) BatchUpdateRoleStatus(ctx context.Context, ids []string, s
 	return s.roleRepo.BatchUpdateStatus(ctx, ids, status)
 }
 
+// BatchDeleteRoles 批量删除角色，返回实际删除的数量
+func (s *RBACService) BatchDeleteRoles(ctx context.Context, ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, errors.New("角色ID列表不能为空")
+	}
+	return s.roleRepo.BatchDelete(ctx, ids)
+}
+
 // --- Permission ---
 
 func (s *RBACService) CreatePermission(ctx context.Context, req dto.CreatePermissionReq) (*model.Permission, error) {

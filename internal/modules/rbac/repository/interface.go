@@ -15,6 +15,7 @@ type RoleRepository interface {
 	UpdateStatus(ctx context.Context, id string, status int) error
 	BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, error)
 	Delete(ctx context.Context, id string) error
+	BatchDelete(ctx context.Context, ids []string) (int64, error)
 	FindDeleted(ctx context.Context, page, pageSize int, keyword string) ([]*model.Role, int64, error)
 	Restore(ctx context.Context, id string) error
 }

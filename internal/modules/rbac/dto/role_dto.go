@@ -75,3 +75,8 @@ type BatchUpdateRoleStatusReq struct {
 	IDs    []string `json:"ids" validate:"required,min=1"`   // 角色ID列表
 	Status int      `json:"status" validate:"oneof=0 1"` // 状态: 1-启用 0-禁用
 }
+
+// BatchDeleteRolesReq 批量删除角色请求
+type BatchDeleteRolesReq struct {
+	IDs []string `json:"ids" validate:"required,min=1"` // 角色ID列表
+}

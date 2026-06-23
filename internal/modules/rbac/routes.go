@@ -22,6 +22,7 @@ func RegisterRoutes(r chi.Router, h *handler.RBACHandler) {
 			// 回收站：静态路由必须注册在通配符路由之前
 			r.Get("/deleted", h.ListDeletedRoles)
 			r.Put("/batch/status", h.BatchUpdateRoleStatus)
+			r.Delete("/batch/delete", h.BatchDeleteRoles)
 			r.Put("/{id}/restore", h.RestoreRole)
 			r.Get("/{id}/detail", h.GetRole)
 			r.Put("/{id}/update", h.UpdateRole)

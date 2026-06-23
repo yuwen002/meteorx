@@ -365,3 +365,19 @@ func (h *RBACHandler) BatchUpdateRoleStatus(w http.ResponseWriter, r *http.Reque
 	}
 	response.Success(w, map[string]interface{}{"updated": updated})
 }
+
+// BatchDeleteRoles 批量删除角色
+// DELETE /api/v1/rbac/roles/batch/delete
+func (h *RBACHandler) BatchDeleteRoles(w http.ResponseWriter, r *http.Request) {
+	var req dto.BatchDeleteRolesReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	deleted, err := h.svc.BatchDeleteRoles(r.Context(), req.IDs)
+	if err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, map[string]interface{}{"deleted": deleted})
+}

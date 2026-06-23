@@ -180,7 +180,7 @@ func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, result)
 }
 
-// AdminDetail GET /api/v1/admin/tenants/:id
+// AdminDetail GET /api/v1/admin/tenants/:id/detail
 func (h *TenantHandler) AdminDetail(w http.ResponseWriter, r *http.Request) {
 	// 1. 从 URL 获取 ID
 	id := chi.URLParam(r, "id")
@@ -220,7 +220,7 @@ func (h *TenantHandler) AdminDetail(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, respData)
 }
 
-// AdminUpdate PUT /api/v1/admin/tenants/:id
+// AdminUpdate PUT /api/v1/admin/tenants/:id/update
 func (h *TenantHandler) AdminUpdate(w http.ResponseWriter, r *http.Request) {
 	// 1. 从 URL 获取 ID
 	id := chi.URLParam(r, "id")
@@ -255,7 +255,7 @@ func (h *TenantHandler) AdminUpdate(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
-// AdminDelete DELETE /api/v1/admin/tenants/:id
+// AdminDelete DELETE /api/v1/admin/tenants/:id/delete
 func (h *TenantHandler) AdminDelete(w http.ResponseWriter, r *http.Request) {
 	// 1. 从 URL 获取 ID
 	id := chi.URLParam(r, "id")
