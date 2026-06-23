@@ -14,6 +14,7 @@ import (
 	"meteorx/pkg/pagination"
 
 	"github.com/go-chi/chi/v5"
+	"gorm.io/gorm"
 )
 
 type UserHandler struct {
@@ -274,6 +275,105 @@ func (h *UserHandler) DeleteMasterAdmin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	response.Success(w, nil)
+}
+
+// UpdateMasterAdminStatus PUT /api/v1/admin/users/{id}/status - 更新系统管理员状态
+func (h *UserHandler) UpdateMasterAdminStatus(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "id")
+	if userID == "" {
+		response.Fail(w, http.StatusBadRequest, "用户ID不能为空")
+		return
+	}
+
+	var req dto.UpdateUserStatusReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	err := h.svc.UpdateMasterAdminStatus(r.Context(), userID, req.Status)
+	if err != nil {
+		if err.Error() == "用户不是系统管理员" {
+			response.Fail(w, http.StatusNotFound, "系统管理员不存在")
+		} else {
+			response.Fail(w, http.StatusInternalServerError, "更新系统管理员状态失败")
+		}
+		return
+	}
+	response.Success(w, nil)
+}
+
+// ListDeletedMasterAdmins GET /api/v1/admin/users/deleted - 获取已删除的系统管理员列表
+func (h *UserHandler) ListDeletedMasterAdmins(w http.ResponseWriter, r *http.Request) {
+	// 解析分页参数
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("page_size")
+	page, _ := strconv.Atoi(pageStr)
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	pg := pagination.NewPagination(page, pageSize)
+
+	// 解析搜索关键词
+	keyword := r.URL.Query().Get("keyword")
+
+	// 调用服务层查询
+	users, total, err := h.svc.ListDeletedMasterAdmins(r.Context(), pg.Page, pg.PageSize, keyword)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取已删除系统管理员列表失败")
+		return
+	}
+
+	// 使用分页包返回结果
+	result := pagination.NewPaginatedResult(users, pg.Page, pg.PageSize, int(total))
+	response.Success(w, result)
+}
+
+// RestoreMasterAdmin PUT /api/v1/admin/users/{id}/restore - 恢复已删除的系统管理员
+func (h *UserHandler) RestoreMasterAdmin(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "id")
+	if userID == "" {
+		response.Fail(w, http.StatusBadRequest, "用户ID不能为空")
+		return
+	}
+
+	err := h.svc.RestoreMasterAdmin(r.Context(), userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(w, http.StatusNotFound, "系统管理员不存在或未删除")
+		} else {
+			response.Fail(w, http.StatusInternalServerError, "恢复系统管理员失败")
+		}
+		return
+	}
+	response.Success(w, nil)
+}
+
+// BatchUpdateMasterAdminStatus PUT /api/v1/admin/users/batch/status - 批量更新系统管理员状态
+func (h *UserHandler) BatchUpdateMasterAdminStatus(w http.ResponseWriter, r *http.Request) {
+	var req dto.BatchUpdateUserStatusReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	updated, err := h.svc.BatchUpdateMasterAdminStatus(r.Context(), req.IDs, req.Status)
+	if err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, map[string]interface{}{"updated": updated})
+}
+
+// BatchDeleteMasterAdmins DELETE /api/v1/admin/users/batch/delete - 批量删除系统管理员
+func (h *UserHandler) BatchDeleteMasterAdmins(w http.ResponseWriter, r *http.Request) {
+	var req dto.BatchDeleteUsersReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	deleted, err := h.svc.BatchDeleteMasterAdmins(r.Context(), req.IDs)
+	if err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, map[string]interface{}{"deleted": deleted})
 }
 
 // AdminCreateTenantUser POST /api/v1/admin/tenant-users - 系统管理员为指定租户创建用户

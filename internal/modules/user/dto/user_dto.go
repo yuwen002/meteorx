@@ -50,6 +50,7 @@ type UserResp struct {
 	Status     int    `json:"status"`
 	CreatedAt  string `json:"created_at"`
 	UpdatedAt  string `json:"updated_at"`
+	DeletedAt  string `json:"deleted_at,omitempty"` // 删除时间，仅已删除记录返回
 }
 
 // ChangePasswordReq 修改密码请求
@@ -57,4 +58,20 @@ type ChangePasswordReq struct {
 	OldPassword     string `json:"old_password" validate:"required,min=6,max=32"`
 	NewPassword     string `json:"new_password" validate:"required,min=6,max=32"`
 	ConfirmPassword string `json:"confirm_password" validate:"required,min=6,max=32,eqfield=NewPassword"`
+}
+
+// UpdateUserStatusReq 更新用户状态请求
+type UpdateUserStatusReq struct {
+	Status int `json:"status" validate:"oneof=0 1"` // 状态: 1-启用 0-禁用
+}
+
+// BatchUpdateUserStatusReq 批量更新用户状态请求
+type BatchUpdateUserStatusReq struct {
+	IDs    []string `json:"ids" validate:"required,min=1"`   // 用户ID列表
+	Status int      `json:"status" validate:"oneof=0 1"` // 状态: 1-启用 0-禁用
+}
+
+// BatchDeleteUsersReq 批量删除用户请求
+type BatchDeleteUsersReq struct {
+	IDs []string `json:"ids" validate:"required,min=1"` // 用户ID列表
 }

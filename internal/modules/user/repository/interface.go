@@ -24,4 +24,14 @@ type UserRepository interface {
 	Update(ctx context.Context, user *model.User) error
 	// Delete 删除用户（软删除）
 	Delete(ctx context.Context, id string) error
+	// UpdateStatus 更新用户状态
+	UpdateStatus(ctx context.Context, id string, status int) error
+	// FindDeletedMasterAdmins 查询已删除的系统管理员列表
+	FindDeletedMasterAdmins(ctx context.Context, page, pageSize int, keyword string) ([]*model.User, int64, error)
+	// RestoreMasterAdmin 恢复已删除的系统管理员
+	RestoreMasterAdmin(ctx context.Context, id string) error
+	// BatchUpdateStatus 批量更新系统管理员状态
+	BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, error)
+	// BatchDelete 批量删除系统管理员
+	BatchDelete(ctx context.Context, ids []string) (int64, error)
 }

@@ -2330,7 +2330,7 @@
                   "api": {
                     "id": "467606242",
                     "method": "get",
-                    "path": "/api/v1/admin/tenants",
+                    "path": "/api/v1/admin/tenants/deleted",
                     "parameters": {
                       "query": [
                         {
@@ -2363,7 +2363,8 @@
                           "enable": true,
                           "name": "name"
                         }
-                      ]
+                      ],
+                      "path": []
                     },
                     "auth": {
                       "type": "bearer",
@@ -2435,7 +2436,7 @@
                   "api": {
                     "id": "467646299",
                     "method": "get",
-                    "path": "/api/v1/admin/tenants/{id}",
+                    "path": "/api/v1/admin/tenants/{id}/detail",
                     "parameters": {
                       "path": [
                         {
@@ -2523,7 +2524,7 @@
                   "api": {
                     "id": "467711987",
                     "method": "put",
-                    "path": "/api/v1/admin/tenants/{id}",
+                    "path": "/api/v1/admin/tenants/{id}/update",
                     "parameters": {
                       "path": [
                         {
@@ -2656,7 +2657,7 @@
                   "api": {
                     "id": "467729486",
                     "method": "delete",
-                    "path": "/api/v1/admin/tenants/{id}",
+                    "path": "/api/v1/admin/tenants/{id}/delete",
                     "parameters": {
                       "path": [
                         {
@@ -3196,6 +3197,105 @@
                       }
                     },
                     {
+                      "name": "系统管理员列表（已删除）",
+                      "api": {
+                        "id": "476907953",
+                        "method": "get",
+                        "path": "/api/v1/admin/users/deleted",
+                        "parameters": {
+                          "query": [
+                            {
+                              "required": false,
+                              "description": "",
+                              "type": "string",
+                              "id": "ONtBjs1D8w",
+                              "enable": true,
+                              "name": "page"
+                            },
+                            {
+                              "required": false,
+                              "description": "",
+                              "type": "string",
+                              "id": "Yl48Hubmg7",
+                              "enable": true,
+                              "name": "page_size"
+                            },
+                            {
+                              "required": false,
+                              "description": "",
+                              "type": "string",
+                              "id": "wsyTTvKx0V",
+                              "enable": true,
+                              "name": "keyword"
+                            }
+                          ]
+                        },
+                        "auth": {
+                          "type": "bearer",
+                          "bearer": {
+                            "token": "123456789"
+                          }
+                        },
+                        "securityScheme": {},
+                        "commonParameters": {
+                          "query": [],
+                          "body": [],
+                          "cookie": [],
+                          "header": []
+                        },
+                        "responses": [
+                          {
+                            "id": "190163261",
+                            "code": 200,
+                            "name": "成功",
+                            "headers": [],
+                            "jsonSchema": {
+                              "type": "object",
+                              "properties": {}
+                            },
+                            "itemSchema": {},
+                            "description": "",
+                            "contentType": "json",
+                            "mediaType": ""
+                          }
+                        ],
+                        "responseExamples": [],
+                        "requestBody": {
+                          "type": "none",
+                          "parameters": [],
+                          "required": true,
+                          "mediaType": "",
+                          "examples": [],
+                          "oasExtensions": ""
+                        },
+                        "description": "",
+                        "tags": [],
+                        "status": "developing",
+                        "serverId": "",
+                        "operationId": "",
+                        "sourceUrl": "",
+                        "ordering": 60,
+                        "cases": [],
+                        "mocks": [],
+                        "customApiFields": "{}",
+                        "advancedSettings": {
+                          "disabledSystemHeaders": {}
+                        },
+                        "mockScript": {},
+                        "codeSamples": [],
+                        "commonResponseStatus": {},
+                        "responseChildren": [],
+                        "visibility": "INHERITED",
+                        "moduleId": 7675120,
+                        "oasExtensions": "",
+                        "type": "http",
+                        "preProcessors": [],
+                        "postProcessors": [],
+                        "inheritPostProcessors": {},
+                        "inheritPreProcessors": {}
+                      }
+                    },
+                    {
                       "name": "系统管理员详情",
                       "api": {
                         "id": "469704442",
@@ -3447,6 +3547,369 @@
                         "operationId": "",
                         "sourceUrl": "",
                         "ordering": 50,
+                        "cases": [],
+                        "mocks": [],
+                        "customApiFields": "{}",
+                        "advancedSettings": {
+                          "disabledSystemHeaders": {}
+                        },
+                        "mockScript": {},
+                        "codeSamples": [],
+                        "commonResponseStatus": {},
+                        "responseChildren": [],
+                        "visibility": "INHERITED",
+                        "moduleId": 7675120,
+                        "oasExtensions": "",
+                        "type": "http",
+                        "preProcessors": [],
+                        "postProcessors": [],
+                        "inheritPostProcessors": {},
+                        "inheritPreProcessors": {}
+                      }
+                    },
+                    {
+                      "name": "删除系统管理员（批量）",
+                      "api": {
+                        "id": "476965670",
+                        "method": "delete",
+                        "path": "/api/v1/admin/users/batch/delete",
+                        "parameters": {},
+                        "auth": {
+                          "type": "bearer",
+                          "bearer": {
+                            "token": "123456789"
+                          }
+                        },
+                        "securityScheme": {},
+                        "commonParameters": {
+                          "query": [],
+                          "body": [],
+                          "cookie": [],
+                          "header": []
+                        },
+                        "responses": [
+                          {
+                            "id": "161414459",
+                            "code": 200,
+                            "name": "成功",
+                            "headers": [],
+                            "jsonSchema": {
+                              "type": "object",
+                              "properties": {}
+                            },
+                            "itemSchema": {},
+                            "description": "",
+                            "contentType": "json",
+                            "mediaType": ""
+                          }
+                        ],
+                        "responseExamples": [],
+                        "requestBody": {
+                          "type": "application/json",
+                          "parameters": [],
+                          "jsonSchema": {
+                            "type": "object",
+                            "properties": {
+                              "ids": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "x-apifox-orders": [
+                              "ids"
+                            ],
+                            "required": [
+                              "ids"
+                            ]
+                          },
+                          "required": true,
+                          "mediaType": "",
+                          "examples": [],
+                          "oasExtensions": ""
+                        },
+                        "description": "",
+                        "tags": [],
+                        "status": "developing",
+                        "serverId": "",
+                        "operationId": "",
+                        "sourceUrl": "",
+                        "ordering": 100,
+                        "cases": [],
+                        "mocks": [],
+                        "customApiFields": "{}",
+                        "advancedSettings": {
+                          "disabledSystemHeaders": {}
+                        },
+                        "mockScript": {},
+                        "codeSamples": [],
+                        "commonResponseStatus": {},
+                        "responseChildren": [],
+                        "visibility": "INHERITED",
+                        "moduleId": 7675120,
+                        "oasExtensions": "",
+                        "type": "http",
+                        "preProcessors": [],
+                        "postProcessors": [],
+                        "inheritPostProcessors": {},
+                        "inheritPreProcessors": {}
+                      }
+                    },
+                    {
+                      "name": "恢复系统管理员（已软删除）",
+                      "api": {
+                        "id": "476925052",
+                        "method": "put",
+                        "path": "/api/v1/admin/users/{id}/restore",
+                        "parameters": {
+                          "path": [
+                            {
+                              "id": "id#0",
+                              "name": "id",
+                              "required": true,
+                              "description": "",
+                              "type": "string",
+                              "enable": true
+                            }
+                          ]
+                        },
+                        "auth": {
+                          "type": "bearer",
+                          "bearer": {
+                            "token": "123456789"
+                          }
+                        },
+                        "securityScheme": {},
+                        "commonParameters": {
+                          "query": [],
+                          "body": [],
+                          "cookie": [],
+                          "header": []
+                        },
+                        "responses": [
+                          {
+                            "id": "105435303",
+                            "code": 200,
+                            "name": "成功",
+                            "headers": [],
+                            "jsonSchema": {
+                              "type": "object",
+                              "properties": {}
+                            },
+                            "itemSchema": {},
+                            "description": "",
+                            "contentType": "json",
+                            "mediaType": ""
+                          }
+                        ],
+                        "responseExamples": [],
+                        "requestBody": {
+                          "type": "none",
+                          "parameters": [],
+                          "required": true,
+                          "mediaType": "",
+                          "examples": [],
+                          "oasExtensions": ""
+                        },
+                        "description": "",
+                        "tags": [],
+                        "status": "developing",
+                        "serverId": "",
+                        "operationId": "",
+                        "sourceUrl": "",
+                        "ordering": 70,
+                        "cases": [],
+                        "mocks": [],
+                        "customApiFields": "{}",
+                        "advancedSettings": {
+                          "disabledSystemHeaders": {}
+                        },
+                        "mockScript": {},
+                        "codeSamples": [],
+                        "commonResponseStatus": {},
+                        "responseChildren": [],
+                        "visibility": "INHERITED",
+                        "moduleId": 7675120,
+                        "oasExtensions": "",
+                        "type": "http",
+                        "preProcessors": [],
+                        "postProcessors": [],
+                        "inheritPostProcessors": {},
+                        "inheritPreProcessors": {}
+                      }
+                    },
+                    {
+                      "name": "启用/禁用系统管理员",
+                      "api": {
+                        "id": "476934709",
+                        "method": "put",
+                        "path": "/api/v1/admin/users/{id}/status",
+                        "parameters": {
+                          "path": [
+                            {
+                              "id": "id#0",
+                              "name": "id",
+                              "required": true,
+                              "description": "",
+                              "type": "string",
+                              "enable": true
+                            }
+                          ]
+                        },
+                        "auth": {
+                          "type": "bearer",
+                          "bearer": {
+                            "token": "123456789"
+                          }
+                        },
+                        "securityScheme": {},
+                        "commonParameters": {
+                          "query": [],
+                          "body": [],
+                          "cookie": [],
+                          "header": []
+                        },
+                        "responses": [
+                          {
+                            "id": "107454731",
+                            "code": 200,
+                            "name": "成功",
+                            "headers": [],
+                            "jsonSchema": {
+                              "type": "object",
+                              "properties": {}
+                            },
+                            "itemSchema": {},
+                            "description": "",
+                            "contentType": "json",
+                            "mediaType": ""
+                          }
+                        ],
+                        "responseExamples": [],
+                        "requestBody": {
+                          "type": "application/json",
+                          "parameters": [],
+                          "jsonSchema": {
+                            "type": "object",
+                            "properties": {
+                              "status": {
+                                "type": "integer"
+                              }
+                            },
+                            "x-apifox-orders": [
+                              "status"
+                            ],
+                            "required": [
+                              "status"
+                            ]
+                          },
+                          "required": true,
+                          "mediaType": "",
+                          "examples": [],
+                          "oasExtensions": ""
+                        },
+                        "description": "",
+                        "tags": [],
+                        "status": "developing",
+                        "serverId": "",
+                        "operationId": "",
+                        "sourceUrl": "",
+                        "ordering": 80,
+                        "cases": [],
+                        "mocks": [],
+                        "customApiFields": "{}",
+                        "advancedSettings": {
+                          "disabledSystemHeaders": {}
+                        },
+                        "mockScript": {},
+                        "codeSamples": [],
+                        "commonResponseStatus": {},
+                        "responseChildren": [],
+                        "visibility": "INHERITED",
+                        "moduleId": 7675120,
+                        "oasExtensions": "",
+                        "type": "http",
+                        "preProcessors": [],
+                        "postProcessors": [],
+                        "inheritPostProcessors": {},
+                        "inheritPreProcessors": {}
+                      }
+                    },
+                    {
+                      "name": "启用/禁用系统管理员（批量）",
+                      "api": {
+                        "id": "476960105",
+                        "method": "put",
+                        "path": "/api/v1/admin/users/batch/status",
+                        "parameters": {},
+                        "auth": {
+                          "type": "bearer",
+                          "bearer": {
+                            "token": "123456789"
+                          }
+                        },
+                        "securityScheme": {},
+                        "commonParameters": {
+                          "query": [],
+                          "body": [],
+                          "cookie": [],
+                          "header": []
+                        },
+                        "responses": [
+                          {
+                            "id": "172942800",
+                            "code": 200,
+                            "name": "成功",
+                            "headers": [],
+                            "jsonSchema": {
+                              "type": "object",
+                              "properties": {}
+                            },
+                            "itemSchema": {},
+                            "description": "",
+                            "contentType": "json",
+                            "mediaType": ""
+                          }
+                        ],
+                        "responseExamples": [],
+                        "requestBody": {
+                          "type": "application/json",
+                          "parameters": [],
+                          "jsonSchema": {
+                            "type": "object",
+                            "properties": {
+                              "ids": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "status": {
+                                "type": "string"
+                              }
+                            },
+                            "x-apifox-orders": [
+                              "status",
+                              "ids"
+                            ],
+                            "required": [
+                              "ids",
+                              "status"
+                            ]
+                          },
+                          "required": true,
+                          "mediaType": "",
+                          "examples": [],
+                          "oasExtensions": ""
+                        },
+                        "description": "",
+                        "tags": [],
+                        "status": "developing",
+                        "serverId": "",
+                        "operationId": "",
+                        "sourceUrl": "",
+                        "ordering": 90,
                         "cases": [],
                         "mocks": [],
                         "customApiFields": "{}",
@@ -4703,6 +5166,178 @@
                   }
                 },
                 {
+                  "name": "删除角色（批量）",
+                  "api": {
+                    "id": "476540109",
+                    "method": "delete",
+                    "path": "/api/v1/rbac/roles/batch/delete",
+                    "parameters": {
+                      "query": []
+                    },
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": {}
+                    },
+                    "securityScheme": {},
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "responses": [
+                      {
+                        "id": "152251892",
+                        "code": 200,
+                        "name": "成功",
+                        "headers": [],
+                        "jsonSchema": {
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "itemSchema": {},
+                        "description": "",
+                        "contentType": "json",
+                        "mediaType": ""
+                      }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": {
+                      "type": "application/json",
+                      "parameters": [],
+                      "jsonSchema": {
+                        "type": "object",
+                        "properties": {
+                          "ids": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "x-apifox-orders": [
+                          "ids"
+                        ],
+                        "required": [
+                          "ids"
+                        ]
+                      },
+                      "required": true,
+                      "mediaType": "",
+                      "examples": [],
+                      "oasExtensions": ""
+                    },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 96,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "恢复角色（已软删除）",
+                  "api": {
+                    "id": "476515507",
+                    "method": "put",
+                    "path": "/api/v1/rbac/roles/{id}/restore",
+                    "parameters": {
+                      "path": [
+                        {
+                          "id": "id#0",
+                          "name": "id",
+                          "required": true,
+                          "description": "",
+                          "type": "string",
+                          "enable": true
+                        }
+                      ]
+                    },
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": {
+                        "token": "123456789"
+                      }
+                    },
+                    "securityScheme": {},
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "responses": [
+                      {
+                        "id": "151180932",
+                        "code": 200,
+                        "name": "成功",
+                        "headers": [],
+                        "jsonSchema": {
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "itemSchema": {},
+                        "description": "",
+                        "contentType": "json",
+                        "mediaType": ""
+                      }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": {
+                      "type": "none",
+                      "parameters": [],
+                      "required": true,
+                      "mediaType": "",
+                      "examples": [],
+                      "oasExtensions": ""
+                    },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 86,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
                   "name": "启用/禁用角色",
                   "api": {
                     "id": "476514201",
@@ -4873,89 +5508,6 @@
                     "operationId": "",
                     "sourceUrl": "",
                     "ordering": 66,
-                    "cases": [],
-                    "mocks": [],
-                    "customApiFields": "{}",
-                    "advancedSettings": {
-                      "disabledSystemHeaders": {}
-                    },
-                    "mockScript": {},
-                    "codeSamples": [],
-                    "commonResponseStatus": {},
-                    "responseChildren": [],
-                    "visibility": "INHERITED",
-                    "moduleId": 7675120,
-                    "oasExtensions": "",
-                    "type": "http",
-                    "preProcessors": [],
-                    "postProcessors": [],
-                    "inheritPostProcessors": {},
-                    "inheritPreProcessors": {}
-                  }
-                },
-                {
-                  "name": "恢复角色（已软删除）",
-                  "api": {
-                    "id": "476515507",
-                    "method": "put",
-                    "path": "/api/v1/rbac/roles/{id}/restore",
-                    "parameters": {
-                      "path": [
-                        {
-                          "id": "id#0",
-                          "name": "id",
-                          "required": true,
-                          "description": "",
-                          "type": "string",
-                          "enable": true
-                        }
-                      ]
-                    },
-                    "auth": {
-                      "type": "bearer",
-                      "bearer": {
-                        "token": "123456789"
-                      }
-                    },
-                    "securityScheme": {},
-                    "commonParameters": {
-                      "query": [],
-                      "body": [],
-                      "cookie": [],
-                      "header": []
-                    },
-                    "responses": [
-                      {
-                        "id": "151180932",
-                        "code": 200,
-                        "name": "成功",
-                        "headers": [],
-                        "jsonSchema": {
-                          "type": "object",
-                          "properties": {}
-                        },
-                        "itemSchema": {},
-                        "description": "",
-                        "contentType": "json",
-                        "mediaType": ""
-                      }
-                    ],
-                    "responseExamples": [],
-                    "requestBody": {
-                      "type": "none",
-                      "parameters": [],
-                      "required": true,
-                      "mediaType": "",
-                      "examples": [],
-                      "oasExtensions": ""
-                    },
-                    "description": "",
-                    "tags": [],
-                    "status": "developing",
-                    "serverId": "",
-                    "operationId": "",
-                    "sourceUrl": "",
-                    "ordering": 86,
                     "cases": [],
                     "mocks": [],
                     "customApiFields": "{}",

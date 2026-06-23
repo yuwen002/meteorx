@@ -347,6 +347,69 @@ func (s *UserService) DeleteMasterAdmin(ctx context.Context, userID string) erro
 	return s.repo.Delete(ctx, userID)
 }
 
+// UpdateMasterAdminStatus 更新系统管理员状态
+func (s *UserService) UpdateMasterAdminStatus(ctx context.Context, userID string, status int) error {
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !user.IsMaster {
+		return fmt.Errorf("用户不是系统管理员")
+	}
+	return s.repo.UpdateStatus(ctx, userID, status)
+}
+
+// ListDeletedMasterAdmins 获取已删除的系统管理员列表
+func (s *UserService) ListDeletedMasterAdmins(ctx context.Context, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error) {
+	users, total, err := s.repo.FindDeletedMasterAdmins(ctx, page, pageSize, keyword)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var resp []*dto.UserResp
+	for _, user := range users {
+		respItem := &dto.UserResp{
+			ID:        user.ID,
+			TenantID:  user.TenantID,
+			Username:  user.Username,
+			Nickname:  user.Nickname,
+			Email:     user.Email,
+			Role:      user.Role,
+			Status:    user.Status,
+			CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+		}
+		// 填充删除时间
+		if user.DeletedAt != nil {
+			respItem.DeletedAt = user.DeletedAt.Format("2006-01-02 15:04:05")
+		}
+		resp = append(resp, respItem)
+	}
+
+	return resp, total, nil
+}
+
+// RestoreMasterAdmin 恢复已删除的系统管理员
+func (s *UserService) RestoreMasterAdmin(ctx context.Context, userID string) error {
+	return s.repo.RestoreMasterAdmin(ctx, userID)
+}
+
+// BatchUpdateMasterAdminStatus 批量更新系统管理员状态
+func (s *UserService) BatchUpdateMasterAdminStatus(ctx context.Context, ids []string, status int) (int64, error) {
+	if len(ids) == 0 {
+		return 0, fmt.Errorf("用户ID列表不能为空")
+	}
+	return s.repo.BatchUpdateStatus(ctx, ids, status)
+}
+
+// BatchDeleteMasterAdmins 批量删除系统管理员
+func (s *UserService) BatchDeleteMasterAdmins(ctx context.Context, ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, fmt.Errorf("用户ID列表不能为空")
+	}
+	return s.repo.BatchDelete(ctx, ids)
+}
+
 // AdminCreateTenantUser 系统管理员为指定租户创建用户
 func (s *UserService) AdminCreateTenantUser(ctx context.Context, req dto.AdminCreateTenantUserReq) (*dto.UserResp, error) {
 	// 检查用户名是否已存在

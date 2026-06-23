@@ -219,6 +219,101 @@ func (r *userRepository) ListMasterAdmins(ctx context.Context, page, pageSize in
 	return users, total, nil
 }
 
+// UpdateStatus 更新用户状态
+func (r *userRepository) UpdateStatus(ctx context.Context, id string, status int) error {
+	result := r.db.WithContext(ctx).Model(&UserPO{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":     status,
+			"updated_at": time.Now(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// FindDeletedMasterAdmins 查询已删除的系统管理员列表
+func (r *userRepository) FindDeletedMasterAdmins(ctx context.Context, page, pageSize int, keyword string) ([]*model.User, int64, error) {
+	var records []UserPO
+	var total int64
+
+	// 构建查询条件：已删除 + 系统管理员
+	query := r.db.WithContext(ctx).Unscoped().Model(&UserPO{}).
+		Where("is_master = ? AND deleted_at IS NOT NULL", true)
+
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("username LIKE ? OR nickname LIKE ?", like, like)
+	}
+
+	// 查询总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	offset := (page - 1) * pageSize
+	if page <= 0 {
+		offset = 0
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	if err := query.Order("deleted_at DESC").Offset(offset).Limit(pageSize).Find(&records).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var users []*model.User
+	for _, record := range records {
+		users = append(users, record.toDomain())
+	}
+	return users, total, nil
+}
+
+// RestoreMasterAdmin 恢复已删除的系统管理员
+func (r *userRepository) RestoreMasterAdmin(ctx context.Context, id string) error {
+	result := r.db.WithContext(ctx).Unscoped().Model(&UserPO{}).
+		Where("id = ? AND is_master = ? AND deleted_at IS NOT NULL", id, true).
+		Update("deleted_at", nil)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// BatchUpdateStatus 批量更新系统管理员状态
+func (r *userRepository) BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, error) {
+	result := r.db.WithContext(ctx).Model(&UserPO{}).
+		Where("id IN ? AND is_master = ?", ids, true).
+		Updates(map[string]interface{}{
+			"status":     status,
+			"updated_at": time.Now(),
+		})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
+// BatchDelete 批量删除系统管理员
+func (r *userRepository) BatchDelete(ctx context.Context, ids []string) (int64, error) {
+	result := r.db.WithContext(ctx).Model(&UserPO{}).
+		Where("id IN ? AND is_master = ?", ids, true).
+		Delete(&UserPO{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
 func (r *userRepository) ListAllTenantUsers(ctx context.Context, page, pageSize int, keyword string) ([]*model.User, int64, error) {
 	var records []UserPO
 	var total int64

@@ -29,11 +29,16 @@ func RegisterRoutes(r chi.Router, h *handler.UserHandler) {
 // RegisterAdminRoutes 编排系统管理员管理接口（仅限平台超级管理员）
 func RegisterAdminRoutes(r chi.Router, h *handler.UserHandler) {
 	r.Route("/admin/users", func(r chi.Router) {
-		r.Get("/", h.ListMasterAdmins)                // 获取系统管理员列表
-		r.Post("/", h.CreateMasterAdmin)              // 创建系统管理员
-		r.Get("/{id}/detail", h.GetMasterAdmin)       // 获取系统管理员详情
-		r.Put("/{id}/update", h.UpdateMasterAdmin)    // 更新系统管理员
-		r.Delete("/{id}/delete", h.DeleteMasterAdmin) // 删除系统管理员
+		r.Get("/", h.ListMasterAdmins)                         // 获取系统管理员列表
+		r.Post("/", h.CreateMasterAdmin)                       // 创建系统管理员
+		r.Get("/deleted", h.ListDeletedMasterAdmins)           // 回收站：获取已删除的系统管理员列表
+		r.Put("/{id}/restore", h.RestoreMasterAdmin)           // 回收站：恢复已删除的系统管理员
+		r.Put("/batch/status", h.BatchUpdateMasterAdminStatus) // 批量更新系统管理员状态
+		r.Delete("/batch/delete", h.BatchDeleteMasterAdmins)   // 批量删除系统管理员
+		r.Get("/{id}/detail", h.GetMasterAdmin)                // 获取系统管理员详情
+		r.Put("/{id}/update", h.UpdateMasterAdmin)             // 更新系统管理员
+		r.Put("/{id}/status", h.UpdateMasterAdminStatus)       // 更新系统管理员状态
+		r.Delete("/{id}/delete", h.DeleteMasterAdmin)          // 删除系统管理员
 	})
 
 	// 系统管理员跨租户用户管理

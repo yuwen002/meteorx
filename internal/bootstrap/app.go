@@ -21,7 +21,12 @@ func StartApp() {
 		log.Fatalf("Database migration failed: %v", err)
 	}
 
-	// 4. 初始化路由并注入依赖
+	// 4. 初始化种子数据（如果不存在）
+	if err := SeedDatabase(db); err != nil {
+		log.Printf("Warning: Seed data initialization failed: %v", err)
+	}
+
+	// 5. 初始化路由并注入依赖
 	// 这样你的路由、中间件、业务模块都能拿到这个 db 实例
 	r := InitRouter(db, cfg)
 
