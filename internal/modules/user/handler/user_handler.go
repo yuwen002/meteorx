@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -416,6 +417,7 @@ func (h *UserHandler) AdminListTenantUsers(w http.ResponseWriter, r *http.Reques
 	// 调用服务层查询
 	users, total, err := h.svc.AdminListTenantUsers(r.Context(), tenantID, pg.Page, pg.PageSize, keyword)
 	if err != nil {
+		fmt.Println(err)
 		response.Fail(w, http.StatusInternalServerError, "获取用户列表失败")
 		return
 	}
@@ -493,6 +495,143 @@ func (h *UserHandler) AdminDeleteTenantUser(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	response.Success(w, nil)
+}
+
+// AdminListDeletedTenantUsers GET /api/v1/admin/tenant-users/{tenantID}/deleted - 系统管理员获取指定租户的已删除用户列表（回收站）
+func (h *UserHandler) AdminListDeletedTenantUsers(w http.ResponseWriter, r *http.Request) {
+	tenantID := chi.URLParam(r, "tenantID")
+	if tenantID == "" {
+		response.Fail(w, http.StatusBadRequest, "租户ID不能为空")
+		return
+	}
+
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("page_size")
+	page, _ := strconv.Atoi(pageStr)
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	pg := pagination.NewPagination(page, pageSize)
+
+	keyword := r.URL.Query().Get("keyword")
+
+	users, total, err := h.svc.AdminListDeletedTenantUsers(r.Context(), tenantID, pg.Page, pg.PageSize, keyword)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取已删除用户列表失败")
+		return
+	}
+
+	result := pagination.NewPaginatedResult(users, pg.Page, pg.PageSize, int(total))
+	response.Success(w, result)
+}
+
+// AdminListAllDeletedTenantUsers GET /api/v1/admin/tenant-users/deleted/all - 系统管理员获取所有租户的已删除用户列表（回收站）
+func (h *UserHandler) AdminListAllDeletedTenantUsers(w http.ResponseWriter, r *http.Request) {
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("page_size")
+	page, _ := strconv.Atoi(pageStr)
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	pg := pagination.NewPagination(page, pageSize)
+
+	keyword := r.URL.Query().Get("keyword")
+
+	users, total, err := h.svc.AdminListAllDeletedTenantUsers(r.Context(), pg.Page, pg.PageSize, keyword)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取已删除用户列表失败")
+		return
+	}
+
+	result := pagination.NewPaginatedResult(users, pg.Page, pg.PageSize, int(total))
+	response.Success(w, result)
+}
+
+// AdminRestoreTenantUser PUT /api/v1/admin/tenant-users/{tenantID}/{userID}/restore - 系统管理员恢复已删除的租户用户
+func (h *UserHandler) AdminRestoreTenantUser(w http.ResponseWriter, r *http.Request) {
+	tenantID := chi.URLParam(r, "tenantID")
+	userID := chi.URLParam(r, "userID")
+	if tenantID == "" || userID == "" {
+		response.Fail(w, http.StatusBadRequest, "租户ID和用户ID不能为空")
+		return
+	}
+
+	err := h.svc.AdminRestoreTenantUser(r.Context(), tenantID, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(w, http.StatusNotFound, "用户不存在或未删除")
+		} else {
+			response.Fail(w, http.StatusInternalServerError, "恢复用户失败")
+		}
+		return
+	}
+	response.Success(w, nil)
+}
+
+// AdminUpdateTenantUserStatus PUT /api/v1/admin/tenant-users/{tenantID}/{userID}/status - 系统管理员更新指定租户的用户状态
+func (h *UserHandler) AdminUpdateTenantUserStatus(w http.ResponseWriter, r *http.Request) {
+	tenantID := chi.URLParam(r, "tenantID")
+	userID := chi.URLParam(r, "userID")
+	if tenantID == "" || userID == "" {
+		response.Fail(w, http.StatusBadRequest, "租户ID和用户ID不能为空")
+		return
+	}
+
+	var req dto.UpdateUserStatusReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	err := h.svc.AdminUpdateTenantUserStatus(r.Context(), tenantID, userID, req.Status)
+	if err != nil {
+		if err.Error() == "用户不属于指定租户" {
+			response.Fail(w, http.StatusBadRequest, "用户不属于指定租户")
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(w, http.StatusNotFound, "用户不存在")
+		} else {
+			response.Fail(w, http.StatusInternalServerError, "更新用户状态失败")
+		}
+		return
+	}
+	response.Success(w, nil)
+}
+
+// AdminBatchUpdateTenantUserStatus PUT /api/v1/admin/tenant-users/{tenantID}/batch/status - 系统管理员批量更新指定租户的用户状态
+func (h *UserHandler) AdminBatchUpdateTenantUserStatus(w http.ResponseWriter, r *http.Request) {
+	tenantID := chi.URLParam(r, "tenantID")
+	if tenantID == "" {
+		response.Fail(w, http.StatusBadRequest, "租户ID不能为空")
+		return
+	}
+
+	var req dto.BatchUpdateUserStatusReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	updated, err := h.svc.AdminBatchUpdateTenantUserStatus(r.Context(), tenantID, req.IDs, req.Status)
+	if err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, map[string]interface{}{"updated": updated})
+}
+
+// AdminBatchDeleteTenantUsers DELETE /api/v1/admin/tenant-users/{tenantID}/batch/delete - 系统管理员批量删除指定租户的用户
+func (h *UserHandler) AdminBatchDeleteTenantUsers(w http.ResponseWriter, r *http.Request) {
+	tenantID := chi.URLParam(r, "tenantID")
+	if tenantID == "" {
+		response.Fail(w, http.StatusBadRequest, "租户ID不能为空")
+		return
+	}
+
+	var req dto.BatchDeleteUsersReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	deleted, err := h.svc.AdminBatchDeleteTenantUsers(r.Context(), tenantID, req.IDs)
+	if err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, map[string]interface{}{"deleted": deleted})
 }
 
 // GetProfile GET /api/v1/profile - 获取当前用户个人信息

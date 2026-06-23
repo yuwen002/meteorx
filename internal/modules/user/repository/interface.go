@@ -34,4 +34,15 @@ type UserRepository interface {
 	BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, error)
 	// BatchDelete 批量删除系统管理员
 	BatchDelete(ctx context.Context, ids []string) (int64, error)
+
+	// FindDeletedTenantUsers 查询指定租户的已删除用户列表（回收站）
+	FindDeletedTenantUsers(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*model.User, int64, error)
+	// FindAllDeletedTenantUsers 查询所有租户的已删除用户列表（回收站，排除系统管理员）
+	FindAllDeletedTenantUsers(ctx context.Context, page, pageSize int, keyword string) ([]*model.User, int64, error)
+	// RestoreTenantUser 恢复已删除的租户用户
+	RestoreTenantUser(ctx context.Context, tenantID, userID string) error
+	// BatchUpdateTenantUserStatus 批量更新租户用户状态（指定租户，排除系统管理员）
+	BatchUpdateTenantUserStatus(ctx context.Context, tenantID string, ids []string, status int) (int64, error)
+	// BatchDeleteTenantUsers 批量删除租户用户（指定租户）
+	BatchDeleteTenantUsers(ctx context.Context, tenantID string, ids []string) (int64, error)
 }

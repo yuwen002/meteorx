@@ -45,8 +45,14 @@ func RegisterAdminRoutes(r chi.Router, h *handler.UserHandler) {
 	r.Route("/admin/tenant-users", func(r chi.Router) {
 		r.Post("/", h.AdminCreateTenantUser)                             // 为指定租户创建用户
 		r.Get("/all", h.AdminListAllTenantUsers)                         // 获取所有租户用户列表（不包括系统管理员）
+		r.Get("/deleted/all", h.AdminListAllDeletedTenantUsers)          // 回收站：获取所有租户的已删除用户列表
 		r.Get("/{tenantID}/list", h.AdminListTenantUsers)                // 获取指定租户的用户列表
+		r.Get("/{tenantID}/deleted", h.AdminListDeletedTenantUsers)      // 回收站：获取指定租户的已删除用户列表
 		r.Put("/{tenantID}/{userID}/update", h.AdminUpdateTenantUser)    // 更新指定租户的用户
+		r.Put("/{tenantID}/{userID}/status", h.AdminUpdateTenantUserStatus) // 更新指定租户的用户状态
+		r.Put("/{tenantID}/{userID}/restore", h.AdminRestoreTenantUser)  // 恢复已删除的租户用户
 		r.Delete("/{tenantID}/{userID}/delete", h.AdminDeleteTenantUser) // 删除指定租户的用户
+		r.Put("/{tenantID}/batch/status", h.AdminBatchUpdateTenantUserStatus) // 批量更新指定租户的用户状态
+		r.Delete("/{tenantID}/batch/delete", h.AdminBatchDeleteTenantUsers)  // 批量删除指定租户的用户
 	})
 }

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	rbacModel "meteorx/internal/modules/rbac/model"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
@@ -12,6 +13,8 @@ import (
 	"meteorx/pkg/crypto"
 	ulpkg "meteorx/pkg/ulid"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type UserService struct {
@@ -46,18 +49,27 @@ func (s *UserService) ListByTenant(ctx context.Context, tenantID string, page, p
 	if err != nil {
 		return nil, 0, err
 	}
+
+	// 查询租户名称
+	tenant, err := s.tenantRepo.GetByID(ctx, tenantID)
+	var tenantName string
+	if err == nil {
+		tenantName = tenant.Name
+	}
+
 	var resp []*dto.UserResp
 	for _, user := range users {
 		resp = append(resp, &dto.UserResp{
-			ID:        user.ID,
-			TenantID:  user.TenantID,
-			Username:  user.Username,
-			Nickname:  user.Nickname,
-			Email:     user.Email,
-			Role:      user.Role,
-			Status:    user.Status,
-			CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+			ID:         user.ID,
+			TenantID:   user.TenantID,
+			TenantName: tenantName,
+			Username:   user.Username,
+			Nickname:   user.Nickname,
+			Email:      user.Email,
+			Role:       user.Role,
+			Status:     user.Status,
+			CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:  user.UpdatedAt.Format("2006-01-02 15:04:05"),
 		})
 	}
 	return resp, total, nil
@@ -69,16 +81,25 @@ func (s *UserService) GetByID(ctx context.Context, userID string) (*dto.UserResp
 	if err != nil {
 		return nil, err
 	}
+
+	// 查询租户名称
+	tenant, err := s.tenantRepo.GetByID(ctx, user.TenantID)
+	var tenantName string
+	if err == nil {
+		tenantName = tenant.Name
+	}
+
 	return &dto.UserResp{
-		ID:        user.ID,
-		TenantID:  user.TenantID,
-		Username:  user.Username,
-		Nickname:  user.Nickname,
-		Email:     user.Email,
-		Role:      user.Role,
-		Status:    user.Status,
-		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+		ID:         user.ID,
+		TenantID:   user.TenantID,
+		TenantName: tenantName,
+		Username:   user.Username,
+		Nickname:   user.Nickname,
+		Email:      user.Email,
+		Role:       user.Role,
+		Status:     user.Status,
+		CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:  user.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}, nil
 }
 
@@ -162,17 +183,25 @@ func (s *UserService) Update(ctx context.Context, userID string, req dto.UpdateU
 		return nil, err
 	}
 
+	// 查询租户名称
+	tenant, err := s.tenantRepo.GetByID(ctx, user.TenantID)
+	var tenantName string
+	if err == nil {
+		tenantName = tenant.Name
+	}
+
 	now := time.Now().Format("2006-01-02 15:04:05")
 	return &dto.UserResp{
-		ID:        user.ID,
-		TenantID:  user.TenantID,
-		Username:  user.Username,
-		Nickname:  user.Nickname,
-		Email:     user.Email,
-		Role:      user.Role,
-		Status:    user.Status,
-		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: now,
+		ID:         user.ID,
+		TenantID:   user.TenantID,
+		TenantName: tenantName,
+		Username:   user.Username,
+		Nickname:   user.Nickname,
+		Email:      user.Email,
+		Role:       user.Role,
+		Status:     user.Status,
+		CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:  now,
 	}, nil
 }
 
@@ -199,18 +228,32 @@ func (s *UserService) ListMasterAdmins(ctx context.Context, page, pageSize int, 
 		return nil, 0, err
 	}
 
+	// 查询租户名称（系统管理员的租户为 SYSTEM_ROOT）
+	tenantNames := make(map[string]string)
+	for _, user := range users {
+		if _, ok := tenantNames[user.TenantID]; !ok {
+			tenant, err := s.tenantRepo.GetByID(ctx, user.TenantID)
+			if err == nil {
+				tenantNames[user.TenantID] = tenant.Name
+			} else {
+				tenantNames[user.TenantID] = "系统级"
+			}
+		}
+	}
+
 	var resp []*dto.UserResp
 	for _, user := range users {
 		resp = append(resp, &dto.UserResp{
-			ID:        user.ID,
-			TenantID:  user.TenantID,
-			Username:  user.Username,
-			Nickname:  user.Nickname,
-			Email:     user.Email,
-			Role:      user.Role,
-			Status:    user.Status,
-			CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+			ID:         user.ID,
+			TenantID:   user.TenantID,
+			TenantName: tenantNames[user.TenantID],
+			Username:   user.Username,
+			Nickname:   user.Nickname,
+			Email:      user.Email,
+			Role:       user.Role,
+			Status:     user.Status,
+			CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:  user.UpdatedAt.Format("2006-01-02 15:04:05"),
 		})
 	}
 
@@ -226,16 +269,27 @@ func (s *UserService) GetMasterAdmin(ctx context.Context, userID string) (*dto.U
 	if !user.IsMaster {
 		return nil, fmt.Errorf("用户不是系统管理员")
 	}
+
+	// 查询租户名称
+	tenant, err := s.tenantRepo.GetByID(ctx, user.TenantID)
+	var tenantName string
+	if err == nil {
+		tenantName = tenant.Name
+	} else {
+		tenantName = "系统级"
+	}
+
 	return &dto.UserResp{
-		ID:        user.ID,
-		TenantID:  user.TenantID,
-		Username:  user.Username,
-		Nickname:  user.Nickname,
-		Email:     user.Email,
-		Role:      user.Role,
-		Status:    user.Status,
-		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+		ID:         user.ID,
+		TenantID:   user.TenantID,
+		TenantName: tenantName,
+		Username:   user.Username,
+		Nickname:   user.Nickname,
+		Email:      user.Email,
+		Role:       user.Role,
+		Status:     user.Status,
+		CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:  user.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}, nil
 }
 
@@ -284,16 +338,26 @@ func (s *UserService) CreateMasterAdmin(ctx context.Context, req dto.CreateMaste
 		return nil, err
 	}
 
+	// 查询租户名称
+	tenant, err := s.tenantRepo.GetByID(ctx, createdUser.TenantID)
+	var tenantName string
+	if err == nil {
+		tenantName = tenant.Name
+	} else {
+		tenantName = "系统级"
+	}
+
 	return &dto.UserResp{
-		ID:        createdUser.ID,
-		TenantID:  createdUser.TenantID,
-		Username:  createdUser.Username,
-		Nickname:  createdUser.Nickname,
-		Email:     createdUser.Email,
-		Role:      createdUser.Role,
-		Status:    createdUser.Status,
-		CreatedAt: createdUser.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: createdUser.UpdatedAt.Format("2006-01-02 15:04:05"),
+		ID:         createdUser.ID,
+		TenantID:   createdUser.TenantID,
+		TenantName: tenantName,
+		Username:   createdUser.Username,
+		Nickname:   createdUser.Nickname,
+		Email:      createdUser.Email,
+		Role:       createdUser.Role,
+		Status:     createdUser.Status,
+		CreatedAt:  createdUser.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:  createdUser.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}, nil
 }
 
@@ -321,17 +385,27 @@ func (s *UserService) UpdateMasterAdmin(ctx context.Context, userID string, req 
 		return nil, err
 	}
 
+	// 查询租户名称
+	tenant, err := s.tenantRepo.GetByID(ctx, user.TenantID)
+	var tenantName string
+	if err == nil {
+		tenantName = tenant.Name
+	} else {
+		tenantName = "系统级"
+	}
+
 	now := time.Now().Format("2006-01-02 15:04:05")
 	return &dto.UserResp{
-		ID:        user.ID,
-		TenantID:  user.TenantID,
-		Username:  user.Username,
-		Nickname:  user.Nickname,
-		Email:     user.Email,
-		Role:      user.Role,
-		Status:    user.Status,
-		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: now,
+		ID:         user.ID,
+		TenantID:   user.TenantID,
+		TenantName: tenantName,
+		Username:   user.Username,
+		Nickname:   user.Nickname,
+		Email:      user.Email,
+		Role:       user.Role,
+		Status:     user.Status,
+		CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:  now,
 	}, nil
 }
 
@@ -366,18 +440,32 @@ func (s *UserService) ListDeletedMasterAdmins(ctx context.Context, page, pageSiz
 		return nil, 0, err
 	}
 
+	// 查询租户名称（系统管理员的租户为 SYSTEM_ROOT）
+	tenantNames := make(map[string]string)
+	for _, user := range users {
+		if _, ok := tenantNames[user.TenantID]; !ok {
+			tenant, err := s.tenantRepo.GetByID(ctx, user.TenantID)
+			if err == nil {
+				tenantNames[user.TenantID] = tenant.Name
+			} else {
+				tenantNames[user.TenantID] = "系统级"
+			}
+		}
+	}
+
 	var resp []*dto.UserResp
 	for _, user := range users {
 		respItem := &dto.UserResp{
-			ID:        user.ID,
-			TenantID:  user.TenantID,
-			Username:  user.Username,
-			Nickname:  user.Nickname,
-			Email:     user.Email,
-			Role:      user.Role,
-			Status:    user.Status,
-			CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+			ID:         user.ID,
+			TenantID:   user.TenantID,
+			TenantName: tenantNames[user.TenantID],
+			Username:   user.Username,
+			Nickname:   user.Nickname,
+			Email:      user.Email,
+			Role:       user.Role,
+			Status:     user.Status,
+			CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:  user.UpdatedAt.Format("2006-01-02 15:04:05"),
 		}
 		// 填充删除时间
 		if user.DeletedAt != nil {
@@ -437,7 +525,7 @@ func (s *UserService) AdminCreateTenantUser(ctx context.Context, req dto.AdminCr
 		ID:       ulpkg.Generate(),
 		TenantID: req.TenantID, // 使用指定的租户ID
 		Username: req.Username,
-		Password: string(hashedPassword),
+		Password: hashedPassword,
 		Nickname: req.Nickname,
 		Email:    req.Email,
 		Role:     req.Role,
@@ -449,16 +537,24 @@ func (s *UserService) AdminCreateTenantUser(ctx context.Context, req dto.AdminCr
 		return nil, err
 	}
 
+	// 查询租户名称
+	tenant, err := s.tenantRepo.GetByID(ctx, req.TenantID)
+	var tenantName string
+	if err == nil {
+		tenantName = tenant.Name
+	}
+
 	return &dto.UserResp{
-		ID:        user.ID,
-		TenantID:  user.TenantID,
-		Username:  user.Username,
-		Nickname:  user.Nickname,
-		Email:     user.Email,
-		Role:      user.Role,
-		Status:    user.Status,
-		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+		ID:         user.ID,
+		TenantID:   user.TenantID,
+		TenantName: tenantName,
+		Username:   user.Username,
+		Nickname:   user.Nickname,
+		Email:      user.Email,
+		Role:       user.Role,
+		Status:     user.Status,
+		CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:  user.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}, nil
 }
 
@@ -471,7 +567,13 @@ func (s *UserService) AdminListTenantUsers(ctx context.Context, tenantID string,
 
 	tenant, err := s.tenantRepo.GetByID(ctx, tenantID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return []*dto.UserResp{}, 0, nil
+		}
 		return nil, 0, err
+	}
+	if tenant == nil {
+		return []*dto.UserResp{}, 0, nil
 	}
 
 	var resp []*dto.UserResp
@@ -595,6 +697,117 @@ func (s *UserService) AdminDeleteTenantUser(ctx context.Context, tenantID, userI
 	}
 
 	return s.repo.Delete(ctx, userID)
+}
+
+// AdminListDeletedTenantUsers 系统管理员获取指定租户的已删除用户列表（回收站）
+func (s *UserService) AdminListDeletedTenantUsers(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error) {
+	users, total, err := s.repo.FindDeletedTenantUsers(ctx, tenantID, page, pageSize, keyword)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	tenant, err := s.tenantRepo.GetByID(ctx, tenantID)
+	var tenantName string
+	if err == nil {
+		tenantName = tenant.Name
+	}
+
+	var resp []*dto.UserResp
+	for _, user := range users {
+		respItem := &dto.UserResp{
+			ID:         user.ID,
+			TenantID:   user.TenantID,
+			TenantName: tenantName,
+			Username:   user.Username,
+			Nickname:   user.Nickname,
+			Email:      user.Email,
+			Role:       user.Role,
+			Status:     user.Status,
+			CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:  user.UpdatedAt.Format("2006-01-02 15:04:05"),
+		}
+		if user.DeletedAt != nil {
+			respItem.DeletedAt = user.DeletedAt.Format("2006-01-02 15:04:05")
+		}
+		resp = append(resp, respItem)
+	}
+	return resp, total, nil
+}
+
+// AdminListAllDeletedTenantUsers 系统管理员获取所有租户的已删除用户列表（回收站）
+func (s *UserService) AdminListAllDeletedTenantUsers(ctx context.Context, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error) {
+	users, total, err := s.repo.FindAllDeletedTenantUsers(ctx, page, pageSize, keyword)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	tenantNames := make(map[string]string)
+	for _, user := range users {
+		if _, ok := tenantNames[user.TenantID]; !ok {
+			tenant, err := s.tenantRepo.GetByID(ctx, user.TenantID)
+			if err == nil {
+				tenantNames[user.TenantID] = tenant.Name
+			} else {
+				tenantNames[user.TenantID] = ""
+			}
+		}
+	}
+
+	var resp []*dto.UserResp
+	for _, user := range users {
+		respItem := &dto.UserResp{
+			ID:         user.ID,
+			TenantID:   user.TenantID,
+			TenantName: tenantNames[user.TenantID],
+			Username:   user.Username,
+			Nickname:   user.Nickname,
+			Email:      user.Email,
+			Role:       user.Role,
+			Status:     user.Status,
+			CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:  user.UpdatedAt.Format("2006-01-02 15:04:05"),
+		}
+		if user.DeletedAt != nil {
+			respItem.DeletedAt = user.DeletedAt.Format("2006-01-02 15:04:05")
+		}
+		resp = append(resp, respItem)
+	}
+	return resp, total, nil
+}
+
+// AdminRestoreTenantUser 系统管理员恢复已删除的租户用户
+func (s *UserService) AdminRestoreTenantUser(ctx context.Context, tenantID, userID string) error {
+	return s.repo.RestoreTenantUser(ctx, tenantID, userID)
+}
+
+// AdminUpdateTenantUserStatus 系统管理员更新指定租户的用户状态
+func (s *UserService) AdminUpdateTenantUserStatus(ctx context.Context, tenantID, userID string, status int) error {
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	if user.TenantID != tenantID {
+		return fmt.Errorf("用户不属于指定租户")
+	}
+
+	return s.repo.UpdateStatus(ctx, userID, status)
+}
+
+// AdminBatchUpdateTenantUserStatus 系统管理员批量更新指定租户的用户状态
+func (s *UserService) AdminBatchUpdateTenantUserStatus(ctx context.Context, tenantID string, ids []string, status int) (int64, error) {
+	if len(ids) == 0 {
+		return 0, fmt.Errorf("用户ID列表不能为空")
+	}
+	return s.repo.BatchUpdateTenantUserStatus(ctx, tenantID, ids, status)
+}
+
+// AdminBatchDeleteTenantUsers 系统管理员批量删除指定租户的用户
+func (s *UserService) AdminBatchDeleteTenantUsers(ctx context.Context, tenantID string, ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, fmt.Errorf("用户ID列表不能为空")
+	}
+	return s.repo.BatchDeleteTenantUsers(ctx, tenantID, ids)
 }
 
 // ChangePassword 修改用户密码

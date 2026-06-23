@@ -347,3 +347,114 @@ func (r *userRepository) ListAllTenantUsers(ctx context.Context, page, pageSize 
 	}
 	return users, total, nil
 }
+
+// FindDeletedTenantUsers 查询指定租户的已删除用户列表（回收站）
+func (r *userRepository) FindDeletedTenantUsers(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*model.User, int64, error) {
+	var records []UserPO
+	var total int64
+
+	query := r.db.WithContext(ctx).Unscoped().Model(&UserPO{}).
+		Where("tenant_id = ? AND is_master = ? AND deleted_at IS NOT NULL", tenantID, false)
+
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("username LIKE ? OR nickname LIKE ?", like, like)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	if page <= 0 {
+		offset = 0
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	if err := query.Order("deleted_at DESC").Offset(offset).Limit(pageSize).Find(&records).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var users []*model.User
+	for _, record := range records {
+		users = append(users, record.toDomain())
+	}
+	return users, total, nil
+}
+
+// FindAllDeletedTenantUsers 查询所有租户的已删除用户列表（回收站，排除系统管理员）
+func (r *userRepository) FindAllDeletedTenantUsers(ctx context.Context, page, pageSize int, keyword string) ([]*model.User, int64, error) {
+	var records []UserPO
+	var total int64
+
+	query := r.db.WithContext(ctx).Unscoped().Model(&UserPO{}).
+		Where("is_master = ? AND deleted_at IS NOT NULL", false)
+
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("username LIKE ? OR nickname LIKE ?", like, like)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	if page <= 0 {
+		offset = 0
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	if err := query.Order("deleted_at DESC").Offset(offset).Limit(pageSize).Find(&records).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var users []*model.User
+	for _, record := range records {
+		users = append(users, record.toDomain())
+	}
+	return users, total, nil
+}
+
+// RestoreTenantUser 恢复已删除的租户用户
+func (r *userRepository) RestoreTenantUser(ctx context.Context, tenantID, userID string) error {
+	result := r.db.WithContext(ctx).Unscoped().Model(&UserPO{}).
+		Where("id = ? AND tenant_id = ? AND is_master = ? AND deleted_at IS NOT NULL", userID, tenantID, false).
+		Update("deleted_at", nil)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// BatchDeleteTenantUsers 批量删除租户用户（指定租户，排除系统管理员）
+func (r *userRepository) BatchDeleteTenantUsers(ctx context.Context, tenantID string, ids []string) (int64, error) {
+	result := r.db.WithContext(ctx).Model(&UserPO{}).
+		Where("id IN ? AND tenant_id = ? AND is_master = ?", ids, tenantID, false).
+		Delete(&UserPO{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
+// BatchUpdateTenantUserStatus 批量更新租户用户状态（指定租户，排除系统管理员）
+func (r *userRepository) BatchUpdateTenantUserStatus(ctx context.Context, tenantID string, ids []string, status int) (int64, error) {
+	result := r.db.WithContext(ctx).Model(&UserPO{}).
+		Where("id IN ? AND tenant_id = ? AND is_master = ?", ids, tenantID, false).
+		Updates(map[string]interface{}{
+			"status":     status,
+			"updated_at": time.Now(),
+		})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
