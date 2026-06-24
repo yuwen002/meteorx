@@ -3,5 +3,5 @@ package repository
 import "gorm.io/gorm"
 
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&RolePO{}, &PermissionPO{}, &RolePermissionPO{})
+	return db.AutoMigrate(&RolePO{}, &PermissionPO{}, &RolePermissionPO{}, &UserRolePO{})
 }

@@ -19,7 +19,6 @@ func RegisterRoutes(r chi.Router, h *handler.RBACHandler) {
 		r.Route("/roles", func(r chi.Router) {
 			r.Get("/", h.ListRoles)
 			r.Post("/", h.CreateRole)
-			// 回收站：静态路由必须注册在通配符路由之前
 			r.Get("/deleted", h.ListDeletedRoles)
 			r.Put("/batch/status", h.BatchUpdateRoleStatus)
 			r.Delete("/batch/delete", h.BatchDeleteRoles)
@@ -36,8 +35,11 @@ func RegisterRoutes(r chi.Router, h *handler.RBACHandler) {
 		r.Route("/permissions", func(r chi.Router) {
 			r.Get("/", h.ListPermissions)
 			r.Post("/", h.CreatePermission)
+			r.Put("/batch/status", h.BatchUpdatePermissionStatus)
+			r.Delete("/batch/delete", h.BatchDeletePermissions)
 			r.Get("/{id}/detail", h.GetPermission)
 			r.Put("/{id}/update", h.UpdatePermission)
+			r.Put("/{id}/status", h.UpdatePermissionStatus)
 			r.Delete("/{id}/delete", h.DeletePermission)
 		})
 	})

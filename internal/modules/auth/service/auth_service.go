@@ -15,16 +15,18 @@ import (
 )
 
 type AuthService struct {
-	userRepo    repository.UserRepository
-	roleRepo    rbacRepo.RoleRepository
-	tokenHelper *jwt.TokenHelper
+	userRepo     repository.UserRepository
+	roleRepo     rbacRepo.RoleRepository
+	userRoleRepo rbacRepo.UserRoleRepository
+	tokenHelper  *jwt.TokenHelper
 }
 
-func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, th *jwt.TokenHelper) *AuthService {
+func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, urr rbacRepo.UserRoleRepository, th *jwt.TokenHelper) *AuthService {
 	return &AuthService{
-		userRepo:    ur,
-		roleRepo:    rr,
-		tokenHelper: th,
+		userRepo:     ur,
+		roleRepo:     rr,
+		userRoleRepo: urr,
+		tokenHelper:  th,
 	}
 }
 
@@ -51,7 +53,7 @@ func (s *AuthService) Register(ctx context.Context, req dto.RegisterUserReq) (*m
 		Username:  req.Username,
 		Password:  hashedPassword,
 		Nickname:  req.Nickname,
-		Role:      defaultRole,
+		Roles:     []string{defaultRole},
 		Status:    1,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -61,27 +63,45 @@ func (s *AuthService) Register(ctx context.Context, req dto.RegisterUserReq) (*m
 		return nil, err
 	}
 
+	// 创建用户后分配角色
+	if err := s.userRoleRepo.AssignRoles(ctx, user.ID, []string{role.ID}); err != nil {
+		return nil, err
+	}
+
 	return user, nil
 }
 
-func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User, string, error) {
+func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User, []string, string, error) {
 	user, err := s.userRepo.GetByUsername(ctx, req.TenantID, req.Username)
 	if err != nil {
-		return nil, "", errors.New("account or password is incorrect")
+		return nil, nil, "", errors.New("account or password is incorrect")
 	}
 
 	if !crypto.CheckPassword(req.Password, user.Password) {
-		return nil, "", errors.New("account or password is incorrect")
+		return nil, nil, "", errors.New("account or password is incorrect")
 	}
 
 	if user.Status == 0 {
-		return nil, "", errors.New("account is disabled")
+		return nil, nil, "", errors.New("account is disabled")
 	}
 
-	token, err := s.tokenHelper.GenerateToken(user.ID, user.TenantID, user.Role)
+	// 查询用户关联的角色编码列表
+	roleCodes, err := s.userRoleRepo.GetRoleCodesByUserID(ctx, user.ID)
 	if err != nil {
-		return nil, "", errors.New("failed to generate token")
+		return nil, nil, "", errors.New("failed to query user roles")
 	}
 
-	return user, token, nil
+	// 如果是系统管理员且没有角色，兜底返回 superadmin
+	if user.IsMaster && len(roleCodes) == 0 {
+		roleCodes = []string{"superadmin"}
+	}
+
+	user.Roles = roleCodes
+
+	token, err := s.tokenHelper.GenerateToken(user.ID, user.TenantID, roleCodes)
+	if err != nil {
+		return nil, nil, "", errors.New("failed to generate token")
+	}
+
+	return user, roleCodes, token, nil
 }

@@ -217,7 +217,6 @@ func (r *tenantRepository) CreateTenantWithAdmin(ctx context.Context, t *model.T
 		Password: u.Password,
 		Nickname: u.Nickname,
 		Email:    u.Email,
-		Role:     u.Role,
 		Status:   u.Status,
 		IsMaster: u.IsMaster,
 	}

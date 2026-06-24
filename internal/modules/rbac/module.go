@@ -13,8 +13,9 @@ func InitModule(r chi.Router, db *gorm.DB) {
 	roleRepo := repository.NewRoleRepository(db)
 	permRepo := repository.NewPermissionRepository(db)
 	rolePermRepo := repository.NewRolePermissionRepository(db)
+	userRoleRepo := repository.NewUserRoleRepository(db)
 
-	svc := service.NewRBACService(roleRepo, permRepo, rolePermRepo)
+	svc := service.NewRBACService(roleRepo, permRepo, rolePermRepo, userRoleRepo)
 	h := handler.NewRBACHandler(svc)
 
 	RegisterRoutes(r, h)

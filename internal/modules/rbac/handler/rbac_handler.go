@@ -189,101 +189,153 @@ func (h *RBACHandler) GetRolePermissions(w http.ResponseWriter, r *http.Request)
 // POST /api/v1/rbac/permissions
 // 创建新的权限条目，权限通常描述对某个资源的特定操作
 func (h *RBACHandler) CreatePermission(w http.ResponseWriter, r *http.Request) {
-	var req dto.CreatePermissionReq // 权限创建请求结构体
-	// 解析并校验 JSON 请求体
+	var req dto.CreatePermissionReq
 	if !validator.ValidateJSON(w, r, &req) {
 		return
 	}
 
-	// 调用 service 创建权限
 	permission, err := h.svc.CreatePermission(r.Context(), req)
 	if err != nil {
-		// 创建失败，返回 400 状态码
 		response.Fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// 创建成功，返回权限数据
-	response.Success(w, permission)
+	response.Success(w, dto.ToPermissionResp(permission))
 }
 
 // GetPermission 获取单个权限详情
-// GET /api/v1/rbac/permissions/{id}
+// GET /api/v1/rbac/permissions/{id}/detail
 // 根据权限 ID 查询权限的详细信息
 func (h *RBACHandler) GetPermission(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id") // 从 URL 获取权限 ID
-	// 调用 service 根据 ID 查询权限
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		response.Fail(w, http.StatusBadRequest, "权限 ID 不能为空")
+		return
+	}
 	permission, err := h.svc.GetPermission(r.Context(), id)
 	if err != nil {
-		// 权限不存在，返回 404 状态码
 		response.Fail(w, http.StatusNotFound, "权限不存在")
 		return
 	}
-	// 返回权限详情
-	response.Success(w, permission)
+	response.Success(w, dto.ToPermissionResp(permission))
 }
 
 // ListPermissions 获取权限列表（带分页、按资源和关键字筛选）
 // GET /api/v1/rbac/permissions
 // 支持查询参数：page、page_size、resource（按资源过滤）、keyword（关键字搜索）
 func (h *RBACHandler) ListPermissions(w http.ResponseWriter, r *http.Request) {
-	// 读取分页参数并转换为整数
 	pageStr := r.URL.Query().Get("page")
 	pageSizeStr := r.URL.Query().Get("page_size")
 	page, _ := strconv.Atoi(pageStr)
 	pageSize, _ := strconv.Atoi(pageSizeStr)
-	pg := pagination.NewPagination(page, pageSize) // 初始化分页对象
+	pg := pagination.NewPagination(page, pageSize)
 
-	resource := r.URL.Query().Get("resource") // 按资源类型过滤权限
-	keyword := r.URL.Query().Get("keyword")   // 按关键字模糊搜索权限
+	resource := r.URL.Query().Get("resource")
+	keyword := r.URL.Query().Get("keyword")
 
-	// 调用 service 获取权限列表，返回权限数据、总数和错误
 	permissions, total, err := h.svc.ListPermissions(r.Context(), pg.Page, pg.PageSize, resource, keyword)
 	if err != nil {
-		// 查询失败，返回 500 状态码
 		response.Fail(w, http.StatusInternalServerError, "获取权限列表失败")
 		return
 	}
 
-	// 封装分页结果并返回给客户端
-	result := pagination.NewPaginatedResult(permissions, pg.Page, pg.PageSize, int(total))
+	resp := make([]*dto.PermissionResp, len(permissions))
+	for i, p := range permissions {
+		resp[i] = dto.ToPermissionResp(p)
+	}
+
+	result := pagination.NewPaginatedResult(resp, pg.Page, pg.PageSize, int(total))
 	response.Success(w, result)
 }
 
 // UpdatePermission 更新权限信息
-// PUT /api/v1/rbac/permissions/{id}
+// PUT /api/v1/rbac/permissions/{id}/update
 // 根据权限 ID 和请求体参数更新权限的属性
 func (h *RBACHandler) UpdatePermission(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")     // 获取要更新的权限 ID
-	var req dto.UpdatePermissionReq // 权限更新请求结构体
-	// 解析并校验请求体
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		response.Fail(w, http.StatusBadRequest, "权限 ID 不能为空")
+		return
+	}
+	var req dto.UpdatePermissionReq
 	if !validator.ValidateJSON(w, r, &req) {
 		return
 	}
 
-	// 调用 service 执行更新操作
-	if err := h.svc.UpdatePermission(r.Context(), id, req); err != nil {
-		// 更新失败，返回 400 状态码
+	permission, err := h.svc.UpdatePermission(r.Context(), id, req)
+	if err != nil {
 		response.Fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	// 更新成功，返回空数据
+	response.Success(w, dto.ToPermissionResp(permission))
+}
+
+// UpdatePermissionStatus 更改权限状态
+// PUT /api/v1/rbac/permissions/{id}/status
+func (h *RBACHandler) UpdatePermissionStatus(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		response.Fail(w, http.StatusBadRequest, "权限 ID 不能为空")
+		return
+	}
+	var req dto.UpdatePermissionStatusReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	if err := h.svc.UpdatePermissionStatus(r.Context(), id, req.Status); err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	response.Success(w, nil)
 }
 
-// DeletePermission 删除权限
-// DELETE /api/v1/rbac/permissions/{id}
-// 根据权限 ID 删除权限条目
-func (h *RBACHandler) DeletePermission(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id") // 获取要删除的权限 ID
-	// 调用 service 执行删除操作
-	if err := h.svc.DeletePermission(r.Context(), id); err != nil {
-		// 删除失败，返回 400 状态码
+// BatchUpdatePermissionStatus 批量更改权限状态
+// PUT /api/v1/rbac/permissions/batch/status
+func (h *RBACHandler) BatchUpdatePermissionStatus(w http.ResponseWriter, r *http.Request) {
+	var req dto.BatchUpdatePermissionStatusReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	updated, err := h.svc.BatchUpdatePermissionStatus(r.Context(), req.IDs, req.Status)
+	if err != nil {
 		response.Fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	// 删除成功，返回空数据
+	response.Success(w, map[string]interface{}{"updated": updated})
+}
+
+// DeletePermission 删除权限
+// DELETE /api/v1/rbac/permissions/{id}/delete
+// 根据权限 ID 删除权限条目
+func (h *RBACHandler) DeletePermission(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		response.Fail(w, http.StatusBadRequest, "权限 ID 不能为空")
+		return
+	}
+	if err := h.svc.DeletePermission(r.Context(), id); err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	response.Success(w, nil)
+}
+
+// BatchDeletePermissions 批量删除权限
+// DELETE /api/v1/rbac/permissions/batch/delete
+func (h *RBACHandler) BatchDeletePermissions(w http.ResponseWriter, r *http.Request) {
+	var req dto.BatchDeletePermissionsReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	deleted, err := h.svc.BatchDeletePermissions(r.Context(), req.IDs)
+	if err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, map[string]interface{}{"deleted": deleted})
 }
 
 // ListDeletedRoles 获取已软删除的角色列表

@@ -7,11 +7,11 @@ type UserListResp struct {
 }
 
 type CreateUserReq struct {
-	Username string `json:"username" validate:"required,alphanum,min=4,max=50"`
-	Password string `json:"password" validate:"required,min=6,max=32"`
-	Nickname string `json:"nickname" validate:"required,max=50"`
-	Email    string `json:"email,omitempty" validate:"omitempty,email"`
-	Role     string `json:"role" validate:"required"` // 角色编码，需存在于 roles 表中
+	Username string   `json:"username" validate:"required,alphanum,min=4,max=50"`
+	Password string   `json:"password" validate:"required,min=6,max=32"`
+	Nickname string   `json:"nickname" validate:"required,max=50"`
+	Email    string   `json:"email,omitempty" validate:"omitempty,email"`
+	RoleIDs  []string `json:"role_ids" validate:"required,min=1"` // 角色ID列表，需存在于 roles 表中
 }
 
 // CreateMasterAdminReq 创建系统管理员请求（不需要指定角色，自动设为 superadmin）
@@ -24,33 +24,39 @@ type CreateMasterAdminReq struct {
 
 // AdminCreateTenantUserReq 系统管理员为指定租户创建用户请求
 type AdminCreateTenantUserReq struct {
-	TenantID string `json:"tenant_id" validate:"required"`               // 需要指定租户ID
-	Username string `json:"username" validate:"required,alphanum,min=4,max=50"`
-	Password string `json:"password" validate:"required,min=6,max=32"`
-	Nickname string `json:"nickname" validate:"required,max=50"`
-	Email    string `json:"email,omitempty" validate:"omitempty,email"`
-	Role     string `json:"role" validate:"required"` // 角色编码，需存在于 roles 表中
+	TenantID string   `json:"tenant_id" validate:"required"` // 需要指定租户ID
+	Username string   `json:"username" validate:"required,alphanum,min=4,max=50"`
+	Password string   `json:"password" validate:"required,min=6,max=32"`
+	Nickname string   `json:"nickname" validate:"required,max=50"`
+	Email    string   `json:"email,omitempty" validate:"omitempty,email"`
+	RoleIDs  []string `json:"role_ids" validate:"required,min=1"` // 角色ID列表
 }
 
 type UpdateUserReq struct {
-	Nickname string `json:"nickname,omitempty" validate:"max=50"`
-	Email    string `json:"email,omitempty" validate:"omitempty,email"`
-	Role     string `json:"role,omitempty" validate:"omitempty"` // 角色编码，需存在于 roles 表中
-	Status   *int   `json:"status,omitempty" validate:"omitempty,oneof=0 1"`
+	Nickname string   `json:"nickname,omitempty" validate:"max=50"`
+	Email    string   `json:"email,omitempty" validate:"omitempty,email"`
+	RoleIDs  []string `json:"role_ids,omitempty" validate:"omitempty,min=1"` // 可选，用于单独更新角色
+	Status   *int     `json:"status,omitempty" validate:"omitempty,oneof=0 1"`
 }
 
 type UserResp struct {
-	ID         string `json:"id"`
-	TenantID   string `json:"tenant_id"`
-	TenantName string `json:"tenant_name"`
-	Username   string `json:"username"`
-	Nickname   string `json:"nickname"`
-	Email      string `json:"email"`
-	Role       string `json:"role"`
-	Status     int    `json:"status"`
-	CreatedAt  string `json:"created_at"`
-	UpdatedAt  string `json:"updated_at"`
-	DeletedAt  string `json:"deleted_at,omitempty"` // 删除时间，仅已删除记录返回
+	ID         string   `json:"id"`
+	TenantID   string   `json:"tenant_id"`
+	TenantName string   `json:"tenant_name"`
+	Username   string   `json:"username"`
+	Nickname   string   `json:"nickname"`
+	Email      string   `json:"email"`
+	Roles      []string `json:"roles"` // 角色编码列表
+	RoleIDs    []string `json:"role_ids"`
+	Status     int      `json:"status"`
+	CreatedAt  string   `json:"created_at"`
+	UpdatedAt  string   `json:"updated_at"`
+	DeletedAt  string   `json:"deleted_at,omitempty"` // 删除时间，仅已删除记录返回
+}
+
+// AssignUserRolesReq 为用户分配角色
+type AssignUserRolesReq struct {
+	RoleIDs []string `json:"role_ids" validate:"required,min=1"` // 角色ID列表，全覆盖式更新
 }
 
 // ChangePasswordReq 修改密码请求
@@ -67,8 +73,8 @@ type UpdateUserStatusReq struct {
 
 // BatchUpdateUserStatusReq 批量更新用户状态请求
 type BatchUpdateUserStatusReq struct {
-	IDs    []string `json:"ids" validate:"required,min=1"`   // 用户ID列表
-	Status int      `json:"status" validate:"oneof=0 1"` // 状态: 1-启用 0-禁用
+	IDs    []string `json:"ids" validate:"required,min=1"` // 用户ID列表
+	Status int      `json:"status" validate:"oneof=0 1"`    // 状态: 1-启用 0-禁用
 }
 
 // BatchDeleteUsersReq 批量删除用户请求

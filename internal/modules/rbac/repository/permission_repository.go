@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"meteorx/internal/modules/rbac/model"
 	"time"
 
@@ -15,6 +16,7 @@ type PermissionPO struct {
 	Description string    `gorm:"size:255;comment:权限描述"`
 	Resource    string    `gorm:"size:50;not null;comment:资源类型"`
 	Action      string    `gorm:"size:50;not null;comment:操作类型"`
+	Status      int       `gorm:"default:1;comment:状态:1-启用 0-禁用"`
 	CreatedAt   time.Time `gorm:"autoCreateTime;comment:创建时间"`
 	UpdatedAt   time.Time `gorm:"autoUpdateTime;comment:更新时间"`
 }
@@ -31,6 +33,7 @@ func (record PermissionPO) toDomain() *model.Permission {
 		Description: record.Description,
 		Resource:    record.Resource,
 		Action:      record.Action,
+		Status:      record.Status,
 		CreatedAt:   record.CreatedAt,
 		UpdatedAt:   record.UpdatedAt,
 	}
@@ -52,6 +55,7 @@ func (r *permissionRepository) Create(ctx context.Context, permission *model.Per
 		Description: permission.Description,
 		Resource:    permission.Resource,
 		Action:      permission.Action,
+		Status:      permission.Status,
 	}
 	return r.db.WithContext(ctx).Create(&record).Error
 }
@@ -113,10 +117,50 @@ func (r *permissionRepository) Update(ctx context.Context, permission *model.Per
 		"description": permission.Description,
 		"resource":    permission.Resource,
 		"action":      permission.Action,
+		"status":      permission.Status,
 		"updated_at":  time.Now(),
 	}).Error
 }
 
+func (r *permissionRepository) UpdateStatus(ctx context.Context, id string, status int) error {
+	result := r.db.WithContext(ctx).Model(&PermissionPO{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":     status,
+			"updated_at": time.Now(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("权限不存在")
+	}
+	return nil
+}
+
+func (r *permissionRepository) BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, error) {
+	result := r.db.WithContext(ctx).Model(&PermissionPO{}).
+		Where("id IN ?", ids).
+		Updates(map[string]interface{}{
+			"status":     status,
+			"updated_at": time.Now(),
+		})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
 func (r *permissionRepository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&PermissionPO{}, "id = ?", id).Error
+}
+
+func (r *permissionRepository) BatchDelete(ctx context.Context, ids []string) (int64, error) {
+	result := r.db.WithContext(ctx).Model(&PermissionPO{}).
+		Where("id IN ?", ids).
+		Delete(&PermissionPO{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
 }

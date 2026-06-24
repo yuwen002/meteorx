@@ -6,12 +6,11 @@ import (
 	"net/http"
 )
 
-// RequireRole 验证当前用户是否具有指定角色
+// RequireRole 验证当前用户是否具有指定角色（只要任意一个角色匹配即通过）
 func RequireRole(requiredRole string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			role := contextx.GetRole(r.Context())
-			if role != requiredRole {
+			if !contextx.HasRole(r.Context(), requiredRole) {
 				response.Fail(w, http.StatusForbidden, "权限不足")
 				return
 			}

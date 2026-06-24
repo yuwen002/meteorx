@@ -15,17 +15,20 @@ type RBACService struct {
 	roleRepo           repository.RoleRepository
 	permissionRepo     repository.PermissionRepository
 	rolePermissionRepo repository.RolePermissionRepository
+	userRoleRepo       repository.UserRoleRepository
 }
 
 func NewRBACService(
 	rr repository.RoleRepository,
 	pr repository.PermissionRepository,
 	rpr repository.RolePermissionRepository,
+	urr repository.UserRoleRepository,
 ) *RBACService {
 	return &RBACService{
 		roleRepo:           rr,
 		permissionRepo:     pr,
 		rolePermissionRepo: rpr,
+		userRoleRepo:       urr,
 	}
 }
 
@@ -168,6 +171,11 @@ func (s *RBACService) CreatePermission(ctx context.Context, req dto.CreatePermis
 		return nil, errors.New("权限编码已存在")
 	}
 
+	status := req.Status
+	if status == 0 {
+		status = model.PermissionStatusEnabled
+	}
+
 	permission := &model.Permission{
 		ID:          ulid.Generate(),
 		Name:        req.Name,
@@ -175,6 +183,7 @@ func (s *RBACService) CreatePermission(ctx context.Context, req dto.CreatePermis
 		Description: req.Description,
 		Resource:    req.Resource,
 		Action:      req.Action,
+		Status:      status,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -193,10 +202,10 @@ func (s *RBACService) ListPermissions(ctx context.Context, page, pageSize int, r
 	return s.permissionRepo.List(ctx, page, pageSize, resource, keyword)
 }
 
-func (s *RBACService) UpdatePermission(ctx context.Context, id string, req dto.UpdatePermissionReq) error {
+func (s *RBACService) UpdatePermission(ctx context.Context, id string, req dto.UpdatePermissionReq) (*model.Permission, error) {
 	permission, err := s.permissionRepo.GetByID(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	permission.Name = req.Name
@@ -204,13 +213,37 @@ func (s *RBACService) UpdatePermission(ctx context.Context, id string, req dto.U
 	permission.Description = req.Description
 	permission.Resource = req.Resource
 	permission.Action = req.Action
+	if req.Status != 0 {
+		permission.Status = req.Status
+	}
 	permission.UpdatedAt = time.Now()
 
-	return s.permissionRepo.Update(ctx, permission)
+	if err := s.permissionRepo.Update(ctx, permission); err != nil {
+		return nil, err
+	}
+	return permission, nil
+}
+
+func (s *RBACService) UpdatePermissionStatus(ctx context.Context, id string, status int) error {
+	return s.permissionRepo.UpdateStatus(ctx, id, status)
+}
+
+func (s *RBACService) BatchUpdatePermissionStatus(ctx context.Context, ids []string, status int) (int64, error) {
+	if len(ids) == 0 {
+		return 0, errors.New("权限ID列表不能为空")
+	}
+	return s.permissionRepo.BatchUpdateStatus(ctx, ids, status)
 }
 
 func (s *RBACService) DeletePermission(ctx context.Context, id string) error {
 	return s.permissionRepo.Delete(ctx, id)
+}
+
+func (s *RBACService) BatchDeletePermissions(ctx context.Context, ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, errors.New("权限ID列表不能为空")
+	}
+	return s.permissionRepo.BatchDelete(ctx, ids)
 }
 
 // --- Role Permission ---
@@ -234,4 +267,35 @@ func (s *RBACService) GetRolePermissionCodes(ctx context.Context, roleID string)
 
 func (s *RBACService) UnbindRolePermission(ctx context.Context, roleID, permissionID string) error {
 	return s.rolePermissionRepo.UnbindPermission(ctx, roleID, permissionID)
+}
+
+// --- User Role ---
+
+// GetUserPermissionCodes 获取用户的所有权限code集合（合并所有角色的权限）
+func (s *RBACService) GetUserPermissionCodes(ctx context.Context, userID string) ([]string, error) {
+	roleIDs, err := s.userRoleRepo.GetRoleIDsByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(roleIDs) == 0 {
+		return []string{}, nil
+	}
+
+	// 去重合并所有角色的权限code
+	codeSet := make(map[string]bool)
+	for _, roleID := range roleIDs {
+		codes, err := s.rolePermissionRepo.GetPermissionCodesByRoleID(ctx, roleID)
+		if err != nil {
+			continue
+		}
+		for _, code := range codes {
+			codeSet[code] = true
+		}
+	}
+
+	result := make([]string, 0, len(codeSet))
+	for code := range codeSet {
+		result = append(result, code)
+	}
+	return result, nil
 }

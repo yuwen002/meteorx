@@ -50,7 +50,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. 调用登录服务
-	user, token, err := h.svc.Login(r.Context(), req)
+	user, _, token, err := h.svc.Login(r.Context(), req)
 	if err != nil {
 		response.Fail(w, 401, err.Error())
 		return

@@ -16,7 +16,8 @@ func initHandler(db *gorm.DB) *handler.TenantHandler {
 	tenantRepo := tenantrepo.NewTenantRepository(db)
 	userRepo := userrepository.NewUserRepository(db)
 	roleRepo := rbacrepo.NewRoleRepository(db)
-	svc := service.NewTenantService(tenantRepo, userRepo, roleRepo)
+	userRoleRepo := rbacrepo.NewUserRoleRepository(db)
+	svc := service.NewTenantService(tenantRepo, userRepo, roleRepo, userRoleRepo)
 	return handler.NewTenantHandler(svc)
 }
 

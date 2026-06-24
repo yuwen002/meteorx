@@ -25,13 +25,24 @@ var (
 )
 
 type TenantService struct {
-	repo     repository.TenantRepository
-	userRepo userRepo.UserRepository
-	roleRepo rbacRepo.RoleRepository
+	repo         repository.TenantRepository
+	userRepo     userRepo.UserRepository
+	roleRepo     rbacRepo.RoleRepository
+	userRoleRepo rbacRepo.UserRoleRepository
 }
 
-func NewTenantService(repo repository.TenantRepository, userRepo userRepo.UserRepository, roleRepo rbacRepo.RoleRepository) *TenantService {
-	return &TenantService{repo: repo, userRepo: userRepo, roleRepo: roleRepo}
+func NewTenantService(
+	repo repository.TenantRepository,
+	userRepo userRepo.UserRepository,
+	roleRepo rbacRepo.RoleRepository,
+	userRoleRepo rbacRepo.UserRoleRepository,
+) *TenantService {
+	return &TenantService{
+		repo:         repo,
+		userRepo:     userRepo,
+		roleRepo:     roleRepo,
+		userRoleRepo: userRoleRepo,
+	}
 }
 
 // Register 注册新租户及其管理员用户
@@ -85,7 +96,7 @@ func (s *TenantService) Register(ctx context.Context, req dto.RegisterTenantReq)
 		Status:       1, // 默认正常激活
 	}
 
-	// 7. 构造数据库用户模型 PO
+	// 7. 构造数据库用户模型 PO (角色信息存放在 user_roles 关联表)
 	userPO := &userModel.User{
 		ID:       userID,
 		TenantID: tenantID,
@@ -93,14 +104,19 @@ func (s *TenantService) Register(ctx context.Context, req dto.RegisterTenantReq)
 		Password: hashedPassword,
 		Nickname: req.AdminUser.Nickname,
 		Email:    req.AdminUser.Email,
-		Role:     "tenant_admin", // 租户创始人，默认租户管理员角色
-		IsMaster: false,          // 绝不是 MaaS 平台上帝
-		Status:   1,              // 默认激活
+		Roles:    []string{defaultRole},
+		IsMaster: false, // 绝不是 MaaS 平台上帝
+		Status:   1,     // 默认激活
 	}
 
 	// 8. 抛给持久层执行事务
 	if err := s.repo.CreateTenantWithAdmin(ctx, tenantPO, userPO); err != nil {
 		return nil, err
+	}
+
+	// 9. 为用户分配角色（写入 user_roles 表）
+	if err := s.userRoleRepo.AssignRoles(ctx, userID, []string{role.ID}); err != nil {
+		return nil, fmt.Errorf("用户角色分配失败: %w", err)
 	}
 
 	return tenantPO, nil
@@ -141,7 +157,7 @@ func (s *TenantService) AdminCreate(ctx context.Context, req dto.AdminCreateTena
 		Status:       req.Status, // 使用后台指定的的状态
 	}
 
-	// 5. 组装纯业务用户模型
+	// 5. 组装纯业务用户模型 (角色信息存放在 user_roles 关联表)
 	user := &userModel.User{
 		ID:       userID,
 		TenantID: tenantID,
@@ -149,15 +165,19 @@ func (s *TenantService) AdminCreate(ctx context.Context, req dto.AdminCreateTena
 		Password: hashedPassword,
 		Nickname: req.AdminUser.Nickname,
 		Email:    req.AdminUser.Email,
-		Role:     "tenant_admin", // 租户主管理员角色
-		IsMaster: false,          // 后台创建的也只是普通租户管理员，绝非 MaaS 平台超级管理员
-		Status:   1,              // 默认激活用户状态
+		Roles:    []string{defaultRole},
+		IsMaster: false, // 后台创建的也只是普通租户管理员，绝非 MaaS 平台超级管理员
+		Status:   1,     // 默认激活用户状态
 	}
 
 	// 6. 交付底层 Repository 开启强一致性事务落库
-	// 完美复用你之前写好的 CreateTenantWithAdmin 事务方法
 	if err := s.repo.CreateTenantWithAdmin(ctx, tenant, user); err != nil {
 		return nil, err
+	}
+
+	// 7. 为用户分配角色（写入 user_roles 表）
+	if err := s.userRoleRepo.AssignRoles(ctx, userID, []string{role.ID}); err != nil {
+		return nil, fmt.Errorf("用户角色分配失败: %w", err)
 	}
 
 	return tenant, nil

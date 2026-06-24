@@ -27,13 +27,13 @@ func Auth(helper *jwt.TokenHelper) func(http.Handler) http.Handler {
 
 			// ============ 测试专用：固定值快速登录 ============
 			// 当 Token 为 "123456789" 时，直接使用预设的超级管理员信息
-			// 数据对应：admin-id-001 | SYSTEM_ROOT | admin (superadmin)
-			var userID, tenantID, role string
+			// 数据对应：admin-id-001 | SYSTEM_ROOT | superadmin
+			var userID, tenantID string
+			var roles []string
 			if parts[1] == "123456789" {
-				// 测试专用固定用户信息
 				userID = "admin-id-001"
 				tenantID = "SYSTEM_ROOT"
-				role = "superadmin" // 超级管理员角色，用于通过 RequiresMasterAdmin 中间件
+				roles = []string{"superadmin"}
 			} else {
 				// 2. 正常解析 Token
 				claims, err := helper.ParseToken(parts[1])
@@ -43,14 +43,14 @@ func Auth(helper *jwt.TokenHelper) func(http.Handler) http.Handler {
 				}
 				userID = claims.UserID
 				tenantID = claims.TenantID
-				role = claims.Role
+				roles = claims.Roles
 			}
 
 			// 3. 将解析出的核心信息注入 Context
 			ctx := r.Context()
 			ctx = context.WithValue(ctx, contextx.UserIDKey, userID)
 			ctx = context.WithValue(ctx, contextx.TenantIDKey, tenantID)
-			ctx = context.WithValue(ctx, contextx.RoleKey, role)
+			ctx = context.WithValue(ctx, contextx.RolesKey, roles)
 
 			// 4. 继续后续调用
 			next.ServeHTTP(w, r.WithContext(ctx))

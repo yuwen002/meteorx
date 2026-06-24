@@ -26,7 +26,10 @@ type PermissionRepository interface {
 	GetByCode(ctx context.Context, code string) (*model.Permission, error)
 	List(ctx context.Context, page, pageSize int, resource, keyword string) ([]*model.Permission, int64, error)
 	Update(ctx context.Context, permission *model.Permission) error
+	UpdateStatus(ctx context.Context, id string, status int) error
+	BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, error)
 	Delete(ctx context.Context, id string) error
+	BatchDelete(ctx context.Context, ids []string) (int64, error)
 }
 
 type RolePermissionRepository interface {
@@ -34,4 +37,13 @@ type RolePermissionRepository interface {
 	GetPermissionsByRoleID(ctx context.Context, roleID string) ([]*model.Permission, error)
 	GetPermissionCodesByRoleID(ctx context.Context, roleID string) ([]string, error)
 	UnbindPermission(ctx context.Context, roleID, permissionID string) error
+}
+
+type UserRoleRepository interface {
+	AssignRoles(ctx context.Context, userID string, roleIDs []string) error
+	GetRoleIDsByUserID(ctx context.Context, userID string) ([]string, error)
+	GetRoleCodesByUserID(ctx context.Context, userID string) ([]string, error)
+	BatchGetRoleIDsByUserIDs(ctx context.Context, userIDs []string) (map[string][]string, error)
+	DeleteByUserID(ctx context.Context, userID string) error
+	CountByRoleID(ctx context.Context, roleID string) (int64, error)
 }

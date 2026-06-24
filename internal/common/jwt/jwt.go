@@ -17,9 +17,9 @@ type TokenHelper struct {
 
 // CustomClaims 自定义载荷
 type CustomClaims struct {
-	UserID   string `json:"user_id"`
-	TenantID string `json:"tenant_id"`
-	Role     string `json:"role"`
+	UserID   string   `json:"user_id"`
+	TenantID string   `json:"tenant_id"`
+	Roles    []string `json:"roles"`
 	jwt.RegisteredClaims
 }
 
@@ -33,11 +33,11 @@ func NewTokenHelper(cfg config.JWTConfig) *TokenHelper {
 }
 
 // GenerateToken 生成 Token
-func (h *TokenHelper) GenerateToken(userID, tenantID, role string) (string, error) {
+func (h *TokenHelper) GenerateToken(userID, tenantID string, roles []string) (string, error) {
 	claims := CustomClaims{
 		UserID:   userID,
 		TenantID: tenantID,
-		Role:     role,
+		Roles:    roles,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(h.expiration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

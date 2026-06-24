@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// UserPO 内部数据库模型
+// UserPO 内部数据库模型（角色由 user_roles 关联表管理）
 type UserPO struct {
 	ID       string `gorm:"primaryKey;size:26;comment:用户ID"`
 	TenantID string `gorm:"index;size:26;not null;comment:租户ID"`
@@ -18,7 +18,6 @@ type UserPO struct {
 	Password  string         `gorm:"size:255;not null;comment:密码"`
 	Nickname  string         `gorm:"size:50;comment:昵称"`
 	Email     string         `gorm:"size:100;comment:邮箱"`
-	Role      string         `gorm:"size:20;default:'user';comment:角色"`
 	Status    int            `gorm:"default:1;comment:状态"`
 	IsMaster  bool           `gorm:"default:false;comment:是否为主管理员"`
 	CreatedAt time.Time      `gorm:"autoCreateTime;comment:创建时间"`
@@ -30,7 +29,7 @@ func (UserPO) TableName() string {
 	return "users"
 }
 
-// 转换逻辑
+// 转换逻辑（角色从 user_roles 关联查询，不在此处填充）
 func (record UserPO) toDomain() *model.User {
 	u := &model.User{
 		ID:        record.ID,
@@ -39,7 +38,6 @@ func (record UserPO) toDomain() *model.User {
 		Password:  record.Password,
 		Nickname:  record.Nickname,
 		Email:     record.Email,
-		Role:      record.Role,
 		Status:    record.Status,
 		IsMaster:  record.IsMaster,
 		CreatedAt: record.CreatedAt,
@@ -72,7 +70,6 @@ func (r *userRepository) Create(ctx context.Context, u *model.User) error {
 		Password: u.Password,
 		Nickname: u.Nickname,
 		Email:    u.Email,
-		Role:     u.Role,
 		Status:   u.Status,
 		IsMaster: u.IsMaster,
 	}
@@ -165,12 +162,11 @@ func (r *userRepository) ListByTenant(ctx context.Context, tenantID string, page
 	return users, total, nil
 }
 
-// Update 更新用户信息
+// Update 更新用户信息（角色由 user_roles 关联表管理，此处不处理）
 func (r *userRepository) Update(ctx context.Context, user *model.User) error {
 	updates := map[string]interface{}{
 		"nickname": user.Nickname,
 		"email":    user.Email,
-		"role":     user.Role,
 		"status":   user.Status,
 	}
 	if user.Password != "" {

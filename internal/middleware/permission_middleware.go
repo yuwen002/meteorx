@@ -9,27 +9,27 @@ import (
 
 // PermissionChecker 权限检查器接口
 type PermissionChecker interface {
-	GetRolePermissionCodes(ctx context.Context, roleID string) ([]string, error)
+	GetUserPermissionCodes(ctx context.Context, userID string) ([]string, error)
 }
 
 // RequirePermission 验证当前用户是否具有指定权限
 func RequirePermission(checker PermissionChecker, permissionCode string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			role := contextx.GetRole(r.Context())
-			if role == "" {
-				response.Fail(w, http.StatusForbidden, "权限不足")
-				return
-			}
-
 			// 超级管理员直接放行
-			if role == "superadmin" {
+			if contextx.HasRole(r.Context(), "superadmin") {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			// 查询该角色拥有的权限
-			codes, err := checker.GetRolePermissionCodes(r.Context(), role)
+			userID := contextx.GetUserID(r.Context())
+			if userID == "" {
+				response.Fail(w, http.StatusForbidden, "权限不足")
+				return
+			}
+
+			// 查询该用户拥有的所有权限（合并多角色）
+			codes, err := checker.GetUserPermissionCodes(r.Context(), userID)
 			if err != nil {
 				response.Fail(w, http.StatusInternalServerError, "权限检查失败")
 				return

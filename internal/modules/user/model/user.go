@@ -9,8 +9,8 @@ type User struct {
 	Password  string // 加密后的哈希值
 	Nickname  string
 	Email     string
-	Role      string // admin, user
-	Status    int    // 1: 正常, 0: 禁用
+	Roles     []string // 角色编码列表（从 user_roles 表关联查询得到）
+	Status    int      // 1: 正常, 0: 禁用
 	IsMaster  bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
