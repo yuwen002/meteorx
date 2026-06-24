@@ -78,15 +78,19 @@ meteorx/
 │       │   │   └── tenant_service.go
 │       │   ├── module.go
 │       │   └── routes.go
-│       └── user/                # 用户管理模块（部分实现）
+│       └── user/                # 用户管理模块（已实现）
 │           ├── dto/
 │           │   ├── user_converter.go
 │           │   └── user_dto.go
+│           ├── handler/
+│           │   └── user_handler.go
 │           ├── model/
 │           │   └── user.go
 │           ├── repository/
 │           │   ├── interface.go
 │           │   └── user_repository.go
+│           ├── service/
+│           │   └── user_service.go
 │           ├── module.go
 │           └── routes.go
 │
@@ -137,7 +141,7 @@ meteorx/
 ### 模块说明
 - **tenant** - 多租户核心模块（已实现完整 CRUD）
 - **auth** - 用户认证授权（已实现注册、登录）
-- **user** - 用户管理（已实现 Model、Repository，待实现 Handler、Service）
+- **user** - 用户管理（已实现完整 CRUD，包含租户用户管理、系统管理员管理、个人信息管理）
 - **rbac** - 基于角色的访问控制（待完善）
 - **audit** - 操作审计日志（待完善）
 
