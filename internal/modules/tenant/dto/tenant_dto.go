@@ -4,7 +4,7 @@ package dto
 type RegisterTenantReq struct {
 	// --- 租户基础信息 ---
 	Name         string `json:"name" validate:"required,min=2,max=100" label:"租户名称"`
-	Domain       string `json:"domain" validate:"required,alphanum,min=3,max=30" label:"租户域名"`
+	Domain       string `json:"domain" validate:"required,username,min=3,max=30" label:"租户域名"`
 	Description  string `json:"description,omitempty" validate:"max=255" label:"租户描述"`
 	ContactEmail string `json:"contact_email,omitempty" validate:"omitempty,email,max=100" label:"联系邮箱"`
 	Region       string `json:"region,omitempty" validate:"max=50" label:"地区"`
@@ -13,7 +13,7 @@ type RegisterTenantReq struct {
 
 	// --- 初始管理员信息 (必须成对出现) ---
 	AdminUser struct {
-		Username string `json:"username" validate:"required,alphanum,min=4,max=50" label:"管理员用户名"`
+		Username string `json:"username" validate:"required,username,min=4,max=50" label:"管理员用户名"`
 		Password string `json:"password" validate:"required,min=6,max=32" label:"管理员密码"`
 		Nickname string `json:"nickname" validate:"required,max=50" label:"管理员昵称"`
 		Email    string `json:"email,omitempty" validate:"omitempty,email,max=100" label:"管理员邮箱"`
@@ -68,6 +68,6 @@ type ApplyCancellationReq struct {
 // ApplyCancellationResp 租户申请注销响应
 type ApplyCancellationResp struct {
 	AppliedAt    string `json:"applied_at"`    // 申请时间
-	Status       string `json:"status"`       // pending, approved, rejected
+	Status       string `json:"status"`        // pending, approved, rejected
 	EstimatedDay int    `json:"estimated_day"` // 预计注销天数
 }

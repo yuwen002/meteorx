@@ -3,8 +3,10 @@ package validator
 import (
 	"encoding/json"
 	"meteorx/internal/common/response"
+	"meteorx/pkg/logger"
 	"net/http"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -23,6 +25,19 @@ func init() {
 		}
 		return name
 	})
+
+	// 注册自定义用户名验证器（允许字母、数字、下划线、连字符）
+	if err := validate.RegisterValidation("username", validateUsername); err != nil {
+		logger.NewLogger("[VALIDATOR]").Error("注册自定义验证器失败: " + err.Error())
+	}
+}
+
+// validateUsername 自定义用户名验证函数
+func validateUsername(fl validator.FieldLevel) bool {
+	username := fl.Field().String()
+	// 允许字母、数字、下划线、连字符
+	matched, _ := regexp.MatchString(`^[a-zA-Z0-9_-]+$`, username)
+	return matched
 }
 
 // ValidateStruct 验证结构体
@@ -115,6 +130,8 @@ func getValidationErrorMessage(e validator.FieldError) string {
 		return "格式不正确"
 	case "alphanum":
 		return "只能包含字母和数字"
+	case "username":
+		return "只能包含字母、数字、下划线和连字符"
 	case "oneof":
 		return "值必须是" + e.Param() + "中的一个"
 	default:
