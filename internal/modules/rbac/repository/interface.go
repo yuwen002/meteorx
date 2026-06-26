@@ -35,8 +35,11 @@ type PermissionRepository interface {
 type RolePermissionRepository interface {
 	BindPermissions(ctx context.Context, roleID string, permissionIDs []string) error
 	GetPermissionsByRoleID(ctx context.Context, roleID string) ([]*model.Permission, error)
+	GetPermissionsByRoleIDWithResource(ctx context.Context, roleID string, resource string) ([]*model.Permission, error)
 	GetPermissionCodesByRoleID(ctx context.Context, roleID string) ([]string, error)
 	UnbindPermission(ctx context.Context, roleID, permissionID string) error
+	BatchBindPermissions(ctx context.Context, roleIDs []string, permissionIDs []string) (int64, error)
+	BatchUnbindPermissions(ctx context.Context, roleIDs []string, permissionIDs []string) (int64, error)
 }
 
 type UserRoleRepository interface {
@@ -45,5 +48,7 @@ type UserRoleRepository interface {
 	GetRoleCodesByUserID(ctx context.Context, userID string) ([]string, error)
 	BatchGetRoleIDsByUserIDs(ctx context.Context, userIDs []string) (map[string][]string, error)
 	DeleteByUserID(ctx context.Context, userID string) error
+	DeleteByUserIDAndRoleID(ctx context.Context, userID, roleID string) error
+	GetUserIDsByRoleID(ctx context.Context, roleID string) ([]string, error)
 	CountByRoleID(ctx context.Context, roleID string) (int64, error)
 }

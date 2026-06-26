@@ -107,3 +107,23 @@ func (r *userRoleRepository) CountByRoleID(ctx context.Context, roleID string) (
 	err := r.db.WithContext(ctx).Model(&UserRolePO{}).Where("role_id = ?", roleID).Count(&count).Error
 	return count, err
 }
+
+// DeleteByUserIDAndRoleID 删除用户的单个角色
+func (r *userRoleRepository) DeleteByUserIDAndRoleID(ctx context.Context, userID, roleID string) error {
+	return r.db.WithContext(ctx).
+		Where("user_id = ? AND role_id = ?", userID, roleID).
+		Delete(&UserRolePO{}).Error
+}
+
+// GetUserIDsByRoleID 查询拥有某角色的所有用户ID
+func (r *userRoleRepository) GetUserIDsByRoleID(ctx context.Context, roleID string) ([]string, error) {
+	var records []UserRolePO
+	if err := r.db.WithContext(ctx).Where("role_id = ?", roleID).Find(&records).Error; err != nil {
+		return nil, err
+	}
+	userIDs := make([]string, len(records))
+	for i, record := range records {
+		userIDs[i] = record.UserID
+	}
+	return userIDs, nil
+}

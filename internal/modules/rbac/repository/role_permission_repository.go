@@ -63,6 +63,27 @@ func (r *rolePermissionRepository) GetPermissionsByRoleID(ctx context.Context, r
 	return permissions, nil
 }
 
+func (r *rolePermissionRepository) GetPermissionsByRoleIDWithResource(ctx context.Context, roleID string, resource string) ([]*model.Permission, error) {
+	var records []PermissionPO
+	query := r.db.WithContext(ctx).
+		Joins("JOIN role_permissions ON role_permissions.permission_id = permissions.id").
+		Where("role_permissions.role_id = ?", roleID)
+	
+	if resource != "" {
+		query = query.Where("permissions.resource = ?", resource)
+	}
+	
+	if err := query.Find(&records).Error; err != nil {
+		return nil, err
+	}
+
+	permissions := make([]*model.Permission, len(records))
+	for i, record := range records {
+		permissions[i] = record.toDomain()
+	}
+	return permissions, nil
+}
+
 func (r *rolePermissionRepository) GetPermissionCodesByRoleID(ctx context.Context, roleID string) ([]string, error) {
 	var codes []string
 	if err := r.db.WithContext(ctx).Model(&PermissionPO{}).
@@ -78,4 +99,44 @@ func (r *rolePermissionRepository) UnbindPermission(ctx context.Context, roleID,
 	return r.db.WithContext(ctx).
 		Where("role_id = ? AND permission_id = ?", roleID, permissionID).
 		Delete(&RolePermissionPO{}).Error
+}
+
+func (r *rolePermissionRepository) BatchBindPermissions(ctx context.Context, roleIDs []string, permissionIDs []string) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, roleID := range roleIDs {
+			for _, permissionID := range permissionIDs {
+				// 检查是否已存在
+				var existing int64
+				if err := tx.Model(&RolePermissionPO{}).
+					Where("role_id = ? AND permission_id = ?", roleID, permissionID).
+					Count(&existing).Error; err != nil {
+					return err
+				}
+				if existing > 0 {
+					continue
+				}
+				
+				record := RolePermissionPO{
+					RoleID:       roleID,
+					PermissionID: permissionID,
+					CreatedAt:    time.Now(),
+				}
+				if err := tx.Create(&record).Error; err != nil {
+					return err
+				}
+				count++
+			}
+		}
+		return nil
+	})
+	return count, err
+}
+
+func (r *rolePermissionRepository) BatchUnbindPermissions(ctx context.Context, roleIDs []string, permissionIDs []string) (int64, error) {
+	result := r.db.WithContext(ctx).
+		Where("role_id IN ?", roleIDs).
+		Where("permission_id IN ?", permissionIDs).
+		Delete(&RolePermissionPO{})
+	return result.RowsAffected, result.Error
 }

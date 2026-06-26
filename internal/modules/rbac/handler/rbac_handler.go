@@ -5,6 +5,7 @@
 package handler
 
 import (
+	"meteorx/internal/modules/rbac/model"
 	"net/http"
 	"strconv"
 
@@ -152,7 +153,11 @@ func (h *RBACHandler) DeleteRole(w http.ResponseWriter, r *http.Request) {
 // PUT /api/v1/rbac/roles/{id}/permissions
 // 将一组权限 ID 关联到指定角色，实现角色与权限的多对多关系
 func (h *RBACHandler) BindRolePermissions(w http.ResponseWriter, r *http.Request) {
-	roleID := chi.URLParam(r, "id")    // 获取角色 ID
+	roleID := chi.URLParam(r, "id") // 获取角色 ID
+	if roleID == "" {
+		response.Fail(w, http.StatusBadRequest, "角色ID不能为空")
+		return
+	}
 	var req dto.BindRolePermissionsReq // 权限绑定请求（包含权限 ID 列表）
 	// 解析并校验请求体
 	if !validator.ValidateJSON(w, r, &req) {
@@ -171,11 +176,25 @@ func (h *RBACHandler) BindRolePermissions(w http.ResponseWriter, r *http.Request
 
 // GetRolePermissions 获取角色拥有的权限列表
 // GET /api/v1/rbac/roles/{id}/permissions
-// 根据角色 ID 查询该角色被授予的所有权限
+// 根据角色 ID 查询该角色被授予的所有权限，支持按 resource 参数筛选
 func (h *RBACHandler) GetRolePermissions(w http.ResponseWriter, r *http.Request) {
 	roleID := chi.URLParam(r, "id") // 获取角色 ID
-	// 调用 service 获取角色关联的权限列表
-	permissions, err := h.svc.GetRolePermissions(r.Context(), roleID)
+	if roleID == "" {
+		response.Fail(w, http.StatusBadRequest, "角色ID不能为空")
+		return
+	}
+	resource := r.URL.Query().Get("resource") // 可选：按资源过滤
+
+	var permissions []*model.Permission
+	var err error
+
+	// 如果指定了 resource 参数，使用带资源筛选的方法
+	if resource != "" {
+		permissions, err = h.svc.GetRolePermissionsWithResource(r.Context(), roleID, resource)
+	} else {
+		permissions, err = h.svc.GetRolePermissions(r.Context(), roleID)
+	}
+
 	if err != nil {
 		// 查询失败，返回 500 状态码
 		response.Fail(w, http.StatusInternalServerError, "获取角色权限失败")
@@ -432,4 +451,173 @@ func (h *RBACHandler) BatchDeleteRoles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.Success(w, map[string]interface{}{"deleted": deleted})
+}
+
+// UnbindRolePermission 解绑角色单个权限
+// DELETE /api/v1/rbac/roles/{id}/permissions/{permission_id}
+// 根据角色 ID 和权限 ID 解绑单个权限
+func (h *RBACHandler) UnbindRolePermission(w http.ResponseWriter, r *http.Request) {
+	roleID := chi.URLParam(r, "id")
+	permissionID := chi.URLParam(r, "permission_id")
+
+	if roleID == "" {
+		response.Fail(w, http.StatusBadRequest, "角色ID不能为空")
+		return
+	}
+	if permissionID == "" {
+		response.Fail(w, http.StatusBadRequest, "权限ID不能为空")
+		return
+	}
+
+	if err := h.svc.UnbindRolePermission(r.Context(), roleID, permissionID); err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, nil)
+}
+
+// BatchBindRolesPermissions 批量为多个角色绑定权限
+// PUT /api/v1/rbac/roles/batch/permissions
+func (h *RBACHandler) BatchBindRolesPermissions(w http.ResponseWriter, r *http.Request) {
+	var req dto.BatchBindRolesPermissionsReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	bound, err := h.svc.BatchBindRolesPermissions(r.Context(), req)
+	if err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, map[string]interface{}{"bound": bound})
+}
+
+// BatchUnbindRolesPermissions 批量解绑多个角色的权限
+// DELETE /api/v1/rbac/roles/batch/permissions
+func (h *RBACHandler) BatchUnbindRolesPermissions(w http.ResponseWriter, r *http.Request) {
+	var req dto.BatchUnbindRolesPermissionsReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	unbound, err := h.svc.BatchUnbindRolesPermissions(r.Context(), req)
+	if err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, map[string]interface{}{"unbound": unbound})
+}
+
+// AssignUserRoles 为用户分配角色
+// POST /api/v1/rbac/user-roles/{user_id}/roles
+func (h *RBACHandler) AssignUserRoles(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "user_id")
+	if userID == "" {
+		response.Fail(w, http.StatusBadRequest, "用户ID不能为空")
+		return
+	}
+
+	var req dto.AssignUserRolesReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	if err := h.svc.AssignUserRoles(r.Context(), userID, req); err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, nil)
+}
+
+// GetUserRoles 获取用户的角色列表
+// GET /api/v1/rbac/user-roles/{user_id}/roles
+func (h *RBACHandler) GetUserRoles(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "user_id")
+	if userID == "" {
+		response.Fail(w, http.StatusBadRequest, "用户ID不能为空")
+		return
+	}
+
+	roles, err := h.svc.GetUserRoles(r.Context(), userID)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取用户角色失败")
+		return
+	}
+
+	resp := make([]*dto.RoleResp, len(roles))
+	for i, role := range roles {
+		resp[i] = dto.ToRoleResp(role)
+	}
+	response.Success(w, resp)
+}
+
+// RemoveUserRole 删除用户的单个角色
+// DELETE /api/v1/rbac/user-roles/{user_id}/roles/{role_id}
+func (h *RBACHandler) RemoveUserRole(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "user_id")
+	roleID := chi.URLParam(r, "role_id")
+
+	if userID == "" {
+		response.Fail(w, http.StatusBadRequest, "用户ID不能为空")
+		return
+	}
+	if roleID == "" {
+		response.Fail(w, http.StatusBadRequest, "角色ID不能为空")
+		return
+	}
+
+	if err := h.svc.RemoveUserRole(r.Context(), userID, roleID); err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, nil)
+}
+
+// RemoveAllUserRoles 删除用户的所有角色
+// DELETE /api/v1/rbac/user-roles/{user_id}/roles
+func (h *RBACHandler) RemoveAllUserRoles(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "user_id")
+	if userID == "" {
+		response.Fail(w, http.StatusBadRequest, "用户ID不能为空")
+		return
+	}
+
+	if err := h.svc.RemoveAllUserRoles(r.Context(), userID); err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, nil)
+}
+
+// GetRoleUsers 获取拥有某角色的用户列表
+// GET /api/v1/rbac/user-roles/roles/{role_id}/users
+func (h *RBACHandler) GetRoleUsers(w http.ResponseWriter, r *http.Request) {
+	roleID := chi.URLParam(r, "role_id")
+	if roleID == "" {
+		response.Fail(w, http.StatusBadRequest, "角色ID不能为空")
+		return
+	}
+
+	userIDs, err := h.svc.GetRoleUsers(r.Context(), roleID)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取角色用户列表失败")
+		return
+	}
+	response.Success(w, map[string]interface{}{"user_ids": userIDs})
+}
+
+// BatchAssignUserRoles 批量为用户分配角色
+// POST /api/v1/rbac/user-roles/batch/assign
+func (h *RBACHandler) BatchAssignUserRoles(w http.ResponseWriter, r *http.Request) {
+	var req dto.BatchAssignUserRolesReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	assigned, err := h.svc.BatchAssignUserRoles(r.Context(), req)
+	if err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, map[string]interface{}{"assigned": assigned})
 }

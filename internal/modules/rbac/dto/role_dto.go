@@ -80,3 +80,20 @@ type BatchUpdateRoleStatusReq struct {
 type BatchDeleteRolesReq struct {
 	IDs []string `json:"ids" validate:"required,min=1"` // 角色ID列表
 }
+
+// UnbindRolePermissionReq 解绑角色单个权限请求
+type UnbindRolePermissionReq struct {
+	PermissionID string `json:"permission_id" validate:"required"` // 权限ID
+}
+
+// BatchBindRolesPermissionsReq 批量为多个角色绑定权限请求
+type BatchBindRolesPermissionsReq struct {
+	RoleIDs       []string `json:"role_ids" validate:"required,min=1"`       // 角色ID列表
+	PermissionIDs []string `json:"permission_ids" validate:"required,min=1"` // 权限ID列表
+}
+
+// BatchUnbindRolesPermissionsReq 批量解绑多个角色的权限请求
+type BatchUnbindRolesPermissionsReq struct {
+	RoleIDs       []string `json:"role_ids" validate:"required,min=1"`       // 角色ID列表
+	PermissionIDs []string `json:"permission_ids" validate:"required,min=1"` // 权限ID列表
+}

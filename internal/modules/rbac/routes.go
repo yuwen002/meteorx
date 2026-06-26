@@ -22,6 +22,8 @@ func RegisterRoutes(r chi.Router, h *handler.RBACHandler) {
 			r.Get("/deleted", h.ListDeletedRoles)
 			r.Put("/batch/status", h.BatchUpdateRoleStatus)
 			r.Delete("/batch/delete", h.BatchDeleteRoles)
+			r.Put("/batch/permissions", h.BatchBindRolesPermissions)
+			r.Delete("/batch/permissions", h.BatchUnbindRolesPermissions)
 			r.Put("/{id}/restore", h.RestoreRole)
 			r.Get("/{id}/detail", h.GetRole)
 			r.Put("/{id}/update", h.UpdateRole)
@@ -29,6 +31,7 @@ func RegisterRoutes(r chi.Router, h *handler.RBACHandler) {
 			r.Delete("/{id}/delete", h.DeleteRole)
 			r.Put("/{id}/permissions", h.BindRolePermissions)
 			r.Get("/{id}/permissions", h.GetRolePermissions)
+			r.Delete("/{id}/permissions/{permission_id}", h.UnbindRolePermission)
 		})
 
 		// 权限管理
@@ -41,6 +44,20 @@ func RegisterRoutes(r chi.Router, h *handler.RBACHandler) {
 			r.Put("/{id}/update", h.UpdatePermission)
 			r.Put("/{id}/status", h.UpdatePermissionStatus)
 			r.Delete("/{id}/delete", h.DeletePermission)
+		})
+
+		// 用户角色管理
+		r.Route("/user-roles", func(r chi.Router) {
+			r.Post("/batch/assign", h.BatchAssignUserRoles)
+			r.Route("/{user_id}/roles", func(r chi.Router) {
+				r.Post("/", h.AssignUserRoles)
+				r.Get("/", h.GetUserRoles)
+				r.Delete("/", h.RemoveAllUserRoles)
+				r.Delete("/{role_id}", h.RemoveUserRole)
+			})
+			r.Route("/roles/{role_id}/users", func(r chi.Router) {
+				r.Get("/", h.GetRoleUsers)
+			})
 		})
 	})
 }

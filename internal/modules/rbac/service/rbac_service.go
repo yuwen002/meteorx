@@ -254,11 +254,24 @@ func (s *RBACService) BindRolePermissions(ctx context.Context, roleID string, re
 	if err != nil {
 		return errors.New("角色不存在")
 	}
+
+	// 验证所有权限ID是否存在
+	for _, permissionID := range req.PermissionIDs {
+		_, err := s.permissionRepo.GetByID(ctx, permissionID)
+		if err != nil {
+			return errors.New("权限ID不存在: " + permissionID)
+		}
+	}
+
 	return s.rolePermissionRepo.BindPermissions(ctx, roleID, req.PermissionIDs)
 }
 
 func (s *RBACService) GetRolePermissions(ctx context.Context, roleID string) ([]*model.Permission, error) {
 	return s.rolePermissionRepo.GetPermissionsByRoleID(ctx, roleID)
+}
+
+func (s *RBACService) GetRolePermissionsWithResource(ctx context.Context, roleID string, resource string) ([]*model.Permission, error) {
+	return s.rolePermissionRepo.GetPermissionsByRoleIDWithResource(ctx, roleID, resource)
 }
 
 func (s *RBACService) GetRolePermissionCodes(ctx context.Context, roleID string) ([]string, error) {
@@ -267,6 +280,35 @@ func (s *RBACService) GetRolePermissionCodes(ctx context.Context, roleID string)
 
 func (s *RBACService) UnbindRolePermission(ctx context.Context, roleID, permissionID string) error {
 	return s.rolePermissionRepo.UnbindPermission(ctx, roleID, permissionID)
+}
+
+func (s *RBACService) BatchBindRolesPermissions(ctx context.Context, req dto.BatchBindRolesPermissionsReq) (int64, error) {
+	if len(req.RoleIDs) == 0 {
+		return 0, errors.New("角色ID列表不能为空")
+	}
+	if len(req.PermissionIDs) == 0 {
+		return 0, errors.New("权限ID列表不能为空")
+	}
+
+	// 验证所有权限ID是否存在
+	for _, permissionID := range req.PermissionIDs {
+		_, err := s.permissionRepo.GetByID(ctx, permissionID)
+		if err != nil {
+			return 0, errors.New("权限ID不存在: " + permissionID)
+		}
+	}
+
+	return s.rolePermissionRepo.BatchBindPermissions(ctx, req.RoleIDs, req.PermissionIDs)
+}
+
+func (s *RBACService) BatchUnbindRolesPermissions(ctx context.Context, req dto.BatchUnbindRolesPermissionsReq) (int64, error) {
+	if len(req.RoleIDs) == 0 {
+		return 0, errors.New("角色ID列表不能为空")
+	}
+	if len(req.PermissionIDs) == 0 {
+		return 0, errors.New("权限ID列表不能为空")
+	}
+	return s.rolePermissionRepo.BatchUnbindPermissions(ctx, req.RoleIDs, req.PermissionIDs)
 }
 
 // --- User Role ---
@@ -298,4 +340,92 @@ func (s *RBACService) GetUserPermissionCodes(ctx context.Context, userID string)
 		result = append(result, code)
 	}
 	return result, nil
+}
+
+// AssignUserRoles 为用户分配角色
+func (s *RBACService) AssignUserRoles(ctx context.Context, userID string, req dto.AssignUserRolesReq) error {
+	if len(req.RoleIDs) == 0 {
+		return errors.New("角色ID列表不能为空")
+	}
+
+	// 验证所有角色ID是否存在
+	for _, roleID := range req.RoleIDs {
+		_, err := s.roleRepo.GetByID(ctx, roleID)
+		if err != nil {
+			return errors.New("角色ID不存在: " + roleID)
+		}
+	}
+
+	return s.userRoleRepo.AssignRoles(ctx, userID, req.RoleIDs)
+}
+
+// GetUserRoles 获取用户的角色列表
+func (s *RBACService) GetUserRoles(ctx context.Context, userID string) ([]*model.Role, error) {
+	roleIDs, err := s.userRoleRepo.GetRoleIDsByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(roleIDs) == 0 {
+		return []*model.Role{}, nil
+	}
+
+	roles := make([]*model.Role, 0, len(roleIDs))
+	for _, roleID := range roleIDs {
+		role, err := s.roleRepo.GetByID(ctx, roleID)
+		if err != nil {
+			continue
+		}
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
+// RemoveUserRole 删除用户的单个角色
+func (s *RBACService) RemoveUserRole(ctx context.Context, userID, roleID string) error {
+	return s.userRoleRepo.DeleteByUserIDAndRoleID(ctx, userID, roleID)
+}
+
+// RemoveAllUserRoles 删除用户的所有角色
+func (s *RBACService) RemoveAllUserRoles(ctx context.Context, userID string) error {
+	return s.userRoleRepo.DeleteByUserID(ctx, userID)
+}
+
+// GetRoleUsers 获取拥有某角色的用户列表
+func (s *RBACService) GetRoleUsers(ctx context.Context, roleID string) ([]string, error) {
+	return s.userRoleRepo.GetUserIDsByRoleID(ctx, roleID)
+}
+
+// BatchAssignUserRoles 批量为用户分配角色
+func (s *RBACService) BatchAssignUserRoles(ctx context.Context, req dto.BatchAssignUserRolesReq) (int64, error) {
+	if len(req.UserRoleAssignments) == 0 {
+		return 0, errors.New("用户角色分配列表不能为空")
+	}
+
+	// 收集所有需要验证的角色ID
+	allRoleIDs := make(map[string]bool)
+	for _, assignment := range req.UserRoleAssignments {
+		for _, roleID := range assignment.RoleIDs {
+			allRoleIDs[roleID] = true
+		}
+	}
+
+	// 验证所有角色ID是否存在
+	for roleID := range allRoleIDs {
+		_, err := s.roleRepo.GetByID(ctx, roleID)
+		if err != nil {
+			return 0, errors.New("角色ID不存在: " + roleID)
+		}
+	}
+
+	var count int64
+	for _, assignment := range req.UserRoleAssignments {
+		if len(assignment.RoleIDs) == 0 {
+			continue
+		}
+		if err := s.userRoleRepo.AssignRoles(ctx, assignment.UserID, assignment.RoleIDs); err != nil {
+			return count, err
+		}
+		count++
+	}
+	return count, nil
 }
