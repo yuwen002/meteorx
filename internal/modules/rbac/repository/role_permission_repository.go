@@ -140,3 +140,74 @@ func (r *rolePermissionRepository) BatchUnbindPermissions(ctx context.Context, r
 		Delete(&RolePermissionPO{})
 	return result.RowsAffected, result.Error
 }
+
+func (r *rolePermissionRepository) List(ctx context.Context, page, pageSize int, roleID, permissionID string) ([]*model.RolePermission, int64, error) {
+	type row struct {
+		RoleID        string    `gorm:"column:role_id"`
+		PermissionID  string    `gorm:"column:permission_id"`
+		CreatedAt     time.Time `gorm:"column:created_at"`
+		RoleName      string    `gorm:"column:role_name"`
+		RoleCode      string    `gorm:"column:role_code"`
+		PermissionName string   `gorm:"column:permission_name"`
+		PermissionCode string   `gorm:"column:permission_code"`
+		PermissionResource string `gorm:"column:permission_resource"`
+		PermissionAction string   `gorm:"column:permission_action"`
+	}
+
+	var total int64
+	var rows []row
+
+	baseQuery := r.db.WithContext(ctx).Table("role_permissions rp").
+		Joins("JOIN roles r ON r.id = rp.role_id").
+		Joins("JOIN permissions p ON p.id = rp.permission_id")
+
+	if roleID != "" {
+		baseQuery = baseQuery.Where("rp.role_id = ?", roleID)
+	}
+	if permissionID != "" {
+		baseQuery = baseQuery.Where("rp.permission_id = ?", permissionID)
+	}
+
+	// count
+	if err := baseQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// select with columns
+	query := baseQuery.Select(
+		"rp.role_id", "rp.permission_id", "rp.created_at",
+		"r.name as role_name", "r.code as role_code",
+		"p.name as permission_name", "p.code as permission_code",
+		"p.resource as permission_resource", "p.action as permission_action",
+	)
+
+	if page > 0 && pageSize > 0 {
+		query = query.Offset((page - 1) * pageSize).Limit(pageSize)
+	}
+
+	if err := query.Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+
+	list := make([]*model.RolePermission, len(rows))
+	for i, item := range rows {
+		list[i] = &model.RolePermission{
+			RoleID:       item.RoleID,
+			PermissionID: item.PermissionID,
+			CreatedAt:    item.CreatedAt,
+			Role: &model.Role{
+				ID:   item.RoleID,
+				Name: item.RoleName,
+				Code: item.RoleCode,
+			},
+			Permission: &model.Permission{
+				ID:       item.PermissionID,
+				Name:     item.PermissionName,
+				Code:     item.PermissionCode,
+				Resource: item.PermissionResource,
+				Action:   item.PermissionAction,
+			},
+		}
+	}
+	return list, total, nil
+}

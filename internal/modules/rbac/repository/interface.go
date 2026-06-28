@@ -40,6 +40,7 @@ type RolePermissionRepository interface {
 	UnbindPermission(ctx context.Context, roleID, permissionID string) error
 	BatchBindPermissions(ctx context.Context, roleIDs []string, permissionIDs []string) (int64, error)
 	BatchUnbindPermissions(ctx context.Context, roleIDs []string, permissionIDs []string) (int64, error)
+	List(ctx context.Context, page, pageSize int, roleID, permissionID string) ([]*model.RolePermission, int64, error)
 }
 
 type UserRoleRepository interface {

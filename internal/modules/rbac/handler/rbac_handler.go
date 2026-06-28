@@ -499,6 +499,33 @@ func (h *RBACHandler) UnbindRolePermissions(w http.ResponseWriter, r *http.Reque
 	response.Success(w, map[string]interface{}{"unbound": unbound})
 }
 
+// ListRolePermissions 获取角色权限关系列表（分页，支持按 role_id / permission_id 过滤）
+// GET /api/v1/rbac/role-permissions
+func (h *RBACHandler) ListRolePermissions(w http.ResponseWriter, r *http.Request) {
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("page_size")
+	page, _ := strconv.Atoi(pageStr)
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	pg := pagination.NewPagination(page, pageSize)
+
+	roleID := r.URL.Query().Get("role_id")
+	permissionID := r.URL.Query().Get("permission_id")
+
+	list, total, err := h.svc.ListRolePermissions(r.Context(), pg.Page, pg.PageSize, roleID, permissionID)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取角色权限关系列表失败")
+		return
+	}
+
+	resp := make([]*dto.RolePermissionResp, len(list))
+	for i, rp := range list {
+		resp[i] = dto.ToRolePermissionResp(rp)
+	}
+
+	result := pagination.NewPaginatedResult(resp, pg.Page, pg.PageSize, int(total))
+	response.Success(w, result)
+}
+
 // BatchBindRolesPermissions 批量为多个角色绑定权限
 // PUT /api/v1/rbac/roles/batch/permissions
 func (h *RBACHandler) BatchBindRolesPermissions(w http.ResponseWriter, r *http.Request) {

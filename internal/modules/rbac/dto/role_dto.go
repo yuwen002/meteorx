@@ -91,6 +91,57 @@ type UnbindRolePermissionsReq struct {
 	PermissionIDs []string `json:"permission_ids" validate:"required,min=1"` // 权限ID列表
 }
 
+// RolePermissionResp 角色权限关系响应
+type RolePermissionResp struct {
+	RoleID       string           `json:"role_id"`       // 角色ID
+	PermissionID string           `json:"permission_id"` // 权限ID
+	CreatedAt    string           `json:"created_at"`  // 绑定时间
+	Role         *SimpleRoleResp  `json:"role"`          // 角色信息
+	Permission   *SimplePermissionResp `json:"permission"` // 权限信息
+}
+
+// SimpleRoleResp 简化的角色信息
+type SimpleRoleResp struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Code string `json:"code"`
+}
+
+// SimplePermissionResp 简化的权限信息
+type SimplePermissionResp struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Code     string `json:"code"`
+	Resource string `json:"resource"`
+	Action   string `json:"action"`
+}
+
+// ToRolePermissionResp 将 model.RolePermission 转为 RolePermissionResp
+func ToRolePermissionResp(rp *model.RolePermission) *RolePermissionResp {
+	resp := &RolePermissionResp{
+		RoleID:       rp.RoleID,
+		PermissionID: rp.PermissionID,
+		CreatedAt:    rp.CreatedAt.Format("2006-01-02 15:04:05"),
+	}
+	if rp.Role != nil {
+		resp.Role = &SimpleRoleResp{
+			ID:   rp.Role.ID,
+			Name: rp.Role.Name,
+			Code: rp.Role.Code,
+		}
+	}
+	if rp.Permission != nil {
+		resp.Permission = &SimplePermissionResp{
+			ID:       rp.Permission.ID,
+			Name:     rp.Permission.Name,
+			Code:     rp.Permission.Code,
+			Resource: rp.Permission.Resource,
+			Action:   rp.Permission.Action,
+		}
+	}
+	return resp
+}
+
 // BatchBindRolesPermissionsReq 批量为多个角色绑定权限请求
 type BatchBindRolesPermissionsReq struct {
 	RoleIDs       []string `json:"role_ids" validate:"required,min=1"`       // 角色ID列表

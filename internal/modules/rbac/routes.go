@@ -47,6 +47,11 @@ func RegisterRoutes(r chi.Router, h *handler.RBACHandler) {
 			r.Delete("/{id}/delete", h.DeletePermission)
 		})
 
+		// 角色权限关系管理
+		r.Route("/role-permissions", func(r chi.Router) {
+			r.Get("/", h.ListRolePermissions)
+		})
+
 		// 用户角色管理
 		r.Route("/user-roles", func(r chi.Router) {
 			r.Post("/batch/assign", h.BatchAssignUserRoles)

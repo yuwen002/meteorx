@@ -329,6 +329,10 @@ func (s *RBACService) BatchUnbindRolesPermissions(ctx context.Context, req dto.B
 	return s.rolePermissionRepo.BatchUnbindPermissions(ctx, req.RoleIDs, req.PermissionIDs)
 }
 
+func (s *RBACService) ListRolePermissions(ctx context.Context, page, pageSize int, roleID, permissionID string) ([]*model.RolePermission, int64, error) {
+	return s.rolePermissionRepo.List(ctx, page, pageSize, roleID, permissionID)
+}
+
 // --- User Role ---
 
 // GetUserPermissionCodes 获取用户的所有权限code集合（合并所有角色的权限）
