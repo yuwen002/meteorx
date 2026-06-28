@@ -454,26 +454,49 @@ func (h *RBACHandler) BatchDeleteRoles(w http.ResponseWriter, r *http.Request) {
 }
 
 // UnbindRolePermission 解绑角色单个权限
-// DELETE /api/v1/rbac/roles/{id}/permissions/{permission_id}
+// DELETE /api/v1/rbac/roles/{id}/permissions
 // 根据角色 ID 和权限 ID 解绑单个权限
 func (h *RBACHandler) UnbindRolePermission(w http.ResponseWriter, r *http.Request) {
 	roleID := chi.URLParam(r, "id")
-	permissionID := chi.URLParam(r, "permission_id")
 
 	if roleID == "" {
 		response.Fail(w, http.StatusBadRequest, "角色ID不能为空")
 		return
 	}
-	if permissionID == "" {
-		response.Fail(w, http.StatusBadRequest, "权限ID不能为空")
+
+	var req dto.UnbindRolePermissionReq
+	if !validator.ValidateJSON(w, r, &req) {
 		return
 	}
 
-	if err := h.svc.UnbindRolePermission(r.Context(), roleID, permissionID); err != nil {
+	if err := h.svc.UnbindRolePermission(r.Context(), roleID, req.PermissionID); err != nil {
 		response.Fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	response.Success(w, nil)
+}
+
+// UnbindRolePermissions 解绑角色多个权限
+// DELETE /api/v1/rbac/roles/{id}/permissions/batch
+// 根据角色 ID 和权限 ID 列表批量解绑
+func (h *RBACHandler) UnbindRolePermissions(w http.ResponseWriter, r *http.Request) {
+	roleID := chi.URLParam(r, "id")
+	if roleID == "" {
+		response.Fail(w, http.StatusBadRequest, "角色ID不能为空")
+		return
+	}
+
+	var req dto.UnbindRolePermissionsReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	unbound, err := h.svc.UnbindRolePermissions(r.Context(), roleID, req.PermissionIDs)
+	if err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, map[string]interface{}{"unbound": unbound})
 }
 
 // BatchBindRolesPermissions 批量为多个角色绑定权限

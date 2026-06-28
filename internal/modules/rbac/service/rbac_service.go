@@ -279,7 +279,25 @@ func (s *RBACService) GetRolePermissionCodes(ctx context.Context, roleID string)
 }
 
 func (s *RBACService) UnbindRolePermission(ctx context.Context, roleID, permissionID string) error {
+	if _, err := s.roleRepo.GetByID(ctx, roleID); err != nil {
+		return errors.New("角色不存在")
+	}
+	if _, err := s.permissionRepo.GetByID(ctx, permissionID); err != nil {
+		return errors.New("权限不存在")
+	}
 	return s.rolePermissionRepo.UnbindPermission(ctx, roleID, permissionID)
+}
+
+func (s *RBACService) UnbindRolePermissions(ctx context.Context, roleID string, permissionIDs []string) (int64, error) {
+	if _, err := s.roleRepo.GetByID(ctx, roleID); err != nil {
+		return 0, errors.New("角色不存在")
+	}
+	for _, permissionID := range permissionIDs {
+		if _, err := s.permissionRepo.GetByID(ctx, permissionID); err != nil {
+			return 0, errors.New("权限不存在: " + permissionID)
+		}
+	}
+	return s.rolePermissionRepo.BatchUnbindPermissions(ctx, []string{roleID}, permissionIDs)
 }
 
 func (s *RBACService) BatchBindRolesPermissions(ctx context.Context, req dto.BatchBindRolesPermissionsReq) (int64, error) {
