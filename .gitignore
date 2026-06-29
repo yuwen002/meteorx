@@ -43,3 +43,4 @@ coverage/
 # Editor backups
 *.bak
 *.backup
+/web-admin/node_modules/
