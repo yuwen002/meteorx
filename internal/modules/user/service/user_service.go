@@ -12,6 +12,7 @@ import (
 	"meteorx/internal/modules/user/repository"
 	"meteorx/pkg/crypto"
 	ulpkg "meteorx/pkg/ulid"
+	"strconv"
 )
 
 type UserService struct {
@@ -290,6 +291,14 @@ func (s *UserService) GetUserRoles(ctx context.Context, userID string) ([]string
 }
 
 func (s *UserService) Delete(ctx context.Context, userID string) error {
+	// 检查关联：是否有角色绑定
+	roleCount, err := s.userRoleRepo.CountByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if roleCount > 0 {
+		return errors.New("该用户已绑定 " + strconv.FormatInt(roleCount, 10) + " 个角色，请先解除用户角色绑定后再删除")
+	}
 	return s.repo.Delete(ctx, userID)
 }
 
@@ -416,6 +425,16 @@ func (s *UserService) DeleteMasterAdmin(ctx context.Context, userID string) erro
 	if !user.IsMaster {
 		return fmt.Errorf("用户不是系统管理员")
 	}
+
+	// 检查关联：是否有角色绑定
+	roleCount, err := s.userRoleRepo.CountByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if roleCount > 0 {
+		return errors.New("该用户已绑定 " + strconv.FormatInt(roleCount, 10) + " 个角色，请先解除用户角色绑定后再删除")
+	}
+
 	return s.repo.Delete(ctx, userID)
 }
 
@@ -457,6 +476,26 @@ func (s *UserService) BatchDeleteMasterAdmins(ctx context.Context, ids []string)
 	if len(ids) == 0 {
 		return 0, fmt.Errorf("用户ID列表不能为空")
 	}
+
+	// 检查每个用户的关联
+	for _, id := range ids {
+		user, err := s.repo.GetByID(ctx, id)
+		if err != nil {
+			return 0, err
+		}
+		if !user.IsMaster {
+			return 0, fmt.Errorf("用户 [%s] 不是系统管理员", user.Username)
+		}
+
+		roleCount, err := s.userRoleRepo.CountByUserID(ctx, id)
+		if err != nil {
+			return 0, err
+		}
+		if roleCount > 0 {
+			return 0, errors.New("用户 [" + user.Username + "] 已绑定 " + strconv.FormatInt(roleCount, 10) + " 个角色，请先解除用户角色绑定后再删除")
+		}
+	}
+
 	return s.repo.BatchDelete(ctx, ids)
 }
 
@@ -573,6 +612,15 @@ func (s *UserService) AdminDeleteTenantUser(ctx context.Context, tenantID, userI
 		return fmt.Errorf("用户不属于指定租户")
 	}
 
+	// 检查关联：是否有角色绑定
+	roleCount, err := s.userRoleRepo.CountByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if roleCount > 0 {
+		return errors.New("该用户已绑定 " + strconv.FormatInt(roleCount, 10) + " 个角色，请先解除用户角色绑定后再删除")
+	}
+
 	return s.repo.Delete(ctx, userID)
 }
 
@@ -628,6 +676,26 @@ func (s *UserService) AdminBatchDeleteTenantUsers(ctx context.Context, tenantID 
 	if len(ids) == 0 {
 		return 0, fmt.Errorf("用户ID列表不能为空")
 	}
+
+	// 检查每个用户的关联
+	for _, id := range ids {
+		user, err := s.repo.GetByID(ctx, id)
+		if err != nil {
+			return 0, err
+		}
+		if user.TenantID != tenantID {
+			return 0, fmt.Errorf("用户 [%s] 不属于指定租户", user.Username)
+		}
+
+		roleCount, err := s.userRoleRepo.CountByUserID(ctx, id)
+		if err != nil {
+			return 0, err
+		}
+		if roleCount > 0 {
+			return 0, errors.New("用户 [" + user.Username + "] 已绑定 " + strconv.FormatInt(roleCount, 10) + " 个角色，请先解除用户角色绑定后再删除")
+		}
+	}
+
 	return s.repo.BatchDeleteTenantUsers(ctx, tenantID, ids)
 }
 

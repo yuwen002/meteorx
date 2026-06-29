@@ -93,18 +93,19 @@ type UnbindRolePermissionsReq struct {
 
 // RolePermissionResp 角色权限关系响应
 type RolePermissionResp struct {
-	RoleID       string           `json:"role_id"`       // 角色ID
-	PermissionID string           `json:"permission_id"` // 权限ID
-	CreatedAt    string           `json:"created_at"`  // 绑定时间
-	Role         *SimpleRoleResp  `json:"role"`          // 角色信息
-	Permission   *SimplePermissionResp `json:"permission"` // 权限信息
+	RoleID       string                 `json:"role_id"`       // 角色ID
+	PermissionID string                 `json:"permission_id"` // 权限ID
+	CreatedAt    string                 `json:"created_at"`    // 绑定时间
+	Role         *SimpleRoleResp        `json:"role"`          // 角色信息
+	Permission   *SimplePermissionResp  `json:"permission"`    // 权限信息
 }
 
 // SimpleRoleResp 简化的角色信息
 type SimpleRoleResp struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Code string `json:"code"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Code  string `json:"code"`
+	Scope string `json:"scope"`
 }
 
 // SimplePermissionResp 简化的权限信息
@@ -125,9 +126,10 @@ func ToRolePermissionResp(rp *model.RolePermission) *RolePermissionResp {
 	}
 	if rp.Role != nil {
 		resp.Role = &SimpleRoleResp{
-			ID:   rp.Role.ID,
-			Name: rp.Role.Name,
-			Code: rp.Role.Code,
+			ID:    rp.Role.ID,
+			Name:  rp.Role.Name,
+			Code:  rp.Role.Code,
+			Scope: rp.Role.Scope,
 		}
 	}
 	if rp.Permission != nil {

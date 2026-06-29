@@ -1,6 +1,7 @@
 package user
 
 import (
+	"meteorx/internal/middleware"
 	"meteorx/internal/modules/user/handler"
 
 	"github.com/go-chi/chi/v5"
@@ -16,17 +17,21 @@ func RegisterProfileRoutes(r chi.Router, h *handler.UserHandler) {
 }
 
 // RegisterRoutes 编排租户用户管理接口（需要登录，且属于当前租户）
-func RegisterRoutes(r chi.Router, h *handler.UserHandler) {
+// 路由组级使用 AutoRequirePermission 自动推导权限码，
+// 避免每个路由手动写权限码字符串
+func RegisterRoutes(r chi.Router, h *handler.UserHandler, checker middleware.PermissionChecker) {
 	r.Route("/users", func(r chi.Router) {
-		r.Get("/", h.ListUsers)                // 获取用户列表
-		r.Post("/", h.CreateUser)              // 创建用户
-		r.Get("/{id}/detail", h.GetUser)       // 获取用户详情
-		r.Put("/{id}/update", h.UpdateUser)    // 更新用户
-		r.Delete("/{id}/delete", h.DeleteUser) // 删除用户
+		r.Use(middleware.AutoRequirePermission(checker))
+		r.Get("/", h.ListUsers)                                // → 自动需要 user:list
+		r.Post("/", h.CreateUser)                               // → 自动需要 user:create
+		r.Get("/{id}/detail", h.GetUser)                        // → 自动需要 user:read
+		r.Put("/{id}/update", h.UpdateUser)                     // → 自动需要 user:update
+		r.Delete("/{id}/delete", h.DeleteUser)                  // → 自动需要 user:delete
 	})
 }
 
 // RegisterAdminRoutes 编排系统管理员管理接口（仅限平台超级管理员）
+// 超级管理员已通过外层 RequiresMasterAdmin 中间件放行，这里不再重复配置权限校验
 func RegisterAdminRoutes(r chi.Router, h *handler.UserHandler) {
 	r.Route("/admin/users", func(r chi.Router) {
 		r.Get("/", h.ListMasterAdmins)                         // 获取系统管理员列表

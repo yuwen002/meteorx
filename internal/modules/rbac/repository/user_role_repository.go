@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"meteorx/internal/modules/rbac/model"
 	"time"
 
@@ -126,4 +127,100 @@ func (r *userRoleRepository) GetUserIDsByRoleID(ctx context.Context, roleID stri
 		userIDs[i] = record.UserID
 	}
 	return userIDs, nil
+}
+
+// CheckUserExists 校验用户是否存在（用于存在性校验）
+func (r *userRoleRepository) CheckUserExists(ctx context.Context, userID string) error {
+	var count int64
+	err := r.db.WithContext(ctx).Table("users").Where("id = ?", userID).Count(&count).Error
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return errors.New("用户不存在")
+	}
+	return nil
+}
+
+// CountByUserID 查询某用户已绑定的角色数量
+func (r *userRoleRepository) CountByUserID(ctx context.Context, userID string) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&UserRolePO{}).Where("user_id = ?", userID).Count(&count).Error
+	return count, err
+}
+
+// ListUserRoles 分页查询用户-角色关系，联表返回用户和角色信息
+func (r *userRoleRepository) ListUserRoles(ctx context.Context, page, pageSize int, userID, roleID string) ([]*model.UserRole, int64, error) {
+	type row struct {
+		UserID     string    `gorm:"column:user_id"`
+		RoleID     string    `gorm:"column:role_id"`
+		CreatedAt  time.Time `gorm:"column:created_at"`
+		TenantID   string    `gorm:"column:tenant_id"`
+		Username   string    `gorm:"column:username"`
+		Nickname   string    `gorm:"column:nickname"`
+		Email      string    `gorm:"column:email"`
+		UserStatus int       `gorm:"column:user_status"`
+		IsMaster   bool      `gorm:"column:is_master"`
+		RoleName   string    `gorm:"column:role_name"`
+		RoleCode   string    `gorm:"column:role_code"`
+		RoleScope  string    `gorm:"column:role_scope"`
+	}
+
+	var total int64
+	var rows []row
+
+	baseQuery := r.db.WithContext(ctx).Table("user_roles ur").
+		Joins("JOIN users u ON u.id = ur.user_id").
+		Joins("JOIN roles r ON r.id = ur.role_id")
+
+	if userID != "" {
+		baseQuery = baseQuery.Where("ur.user_id = ?", userID)
+	}
+	if roleID != "" {
+		baseQuery = baseQuery.Where("ur.role_id = ?", roleID)
+	}
+
+	if err := baseQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	query := baseQuery.Select(
+		"ur.user_id", "ur.role_id", "ur.created_at",
+		"u.tenant_id", "u.username", "u.nickname", "u.email",
+		"u.status as user_status", "u.is_master",
+		"r.name as role_name", "r.code as role_code", "r.scope as role_scope",
+	)
+
+	if page > 0 && pageSize > 0 {
+		query = query.Offset((page - 1) * pageSize).Limit(pageSize)
+	}
+
+	if err := query.Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+
+	result := make([]*model.UserRole, len(rows))
+	for i, item := range rows {
+		result[i] = &model.UserRole{
+			UserID:    item.UserID,
+			RoleID:    item.RoleID,
+			CreatedAt: item.CreatedAt,
+			User: &model.RoleUserInfo{
+				ID:       item.UserID,
+				TenantID: item.TenantID,
+				Username: item.Username,
+				Nickname: item.Nickname,
+				Email:    item.Email,
+				Status:   item.UserStatus,
+				IsMaster: item.IsMaster,
+			},
+			Role: &model.Role{
+				ID:    item.RoleID,
+				Name:  item.RoleName,
+				Code:  item.RoleCode,
+				Scope: item.RoleScope,
+			},
+		}
+	}
+	return result, total, nil
 }

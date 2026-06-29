@@ -41,6 +41,8 @@ type RolePermissionRepository interface {
 	BatchBindPermissions(ctx context.Context, roleIDs []string, permissionIDs []string) (int64, error)
 	BatchUnbindPermissions(ctx context.Context, roleIDs []string, permissionIDs []string) (int64, error)
 	List(ctx context.Context, page, pageSize int, roleID, permissionID string) ([]*model.RolePermission, int64, error)
+	CountByRoleID(ctx context.Context, roleID string) (int64, error)
+	CountByPermissionID(ctx context.Context, permissionID string) (int64, error)
 }
 
 type UserRoleRepository interface {
@@ -52,4 +54,7 @@ type UserRoleRepository interface {
 	DeleteByUserIDAndRoleID(ctx context.Context, userID, roleID string) error
 	GetUserIDsByRoleID(ctx context.Context, roleID string) ([]string, error)
 	CountByRoleID(ctx context.Context, roleID string) (int64, error)
+	CountByUserID(ctx context.Context, userID string) (int64, error)
+	CheckUserExists(ctx context.Context, userID string) error
+	ListUserRoles(ctx context.Context, page, pageSize int, userID, roleID string) ([]*model.UserRole, int64, error)
 }

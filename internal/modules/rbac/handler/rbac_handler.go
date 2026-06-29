@@ -656,6 +656,33 @@ func (h *RBACHandler) GetRoleUsers(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, map[string]interface{}{"user_ids": userIDs})
 }
 
+// ListUserRoles 获取用户-角色关系列表（分页，支持按 user_id / role_id 过滤）
+// GET /api/v1/rbac/user-roles
+func (h *RBACHandler) ListUserRoles(w http.ResponseWriter, r *http.Request) {
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("page_size")
+	page, _ := strconv.Atoi(pageStr)
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	pg := pagination.NewPagination(page, pageSize)
+
+	userID := r.URL.Query().Get("user_id")
+	roleID := r.URL.Query().Get("role_id")
+
+	list, total, err := h.svc.ListUserRoles(r.Context(), pg.Page, pg.PageSize, userID, roleID)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取用户角色关系列表失败")
+		return
+	}
+
+	resp := make([]*dto.UserRoleResp, len(list))
+	for i, ur := range list {
+	resp[i] = dto.ToUserRoleResp(ur)
+	}
+
+	result := pagination.NewPaginatedResult(resp, pg.Page, pg.PageSize, int(total))
+	response.Success(w, result)
+}
+
 // BatchAssignUserRoles 批量为用户分配角色
 // POST /api/v1/rbac/user-roles/batch/assign
 func (h *RBACHandler) BatchAssignUserRoles(w http.ResponseWriter, r *http.Request) {

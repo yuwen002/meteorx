@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"meteorx/internal/common/contextx"
+	"meteorx/internal/common/response"
 	"net/http"
 	"strings"
 
@@ -16,19 +18,24 @@ import (
 //   Method:  GET
 //   步骤:   1) 去掉前缀 "/api/v1/"，得到 "users/{id}/detail"
 //           2) 提取第一个段作为"模块/资源"："users" → 单数化为 "user"
-//           3) 分析 Method + 剩余路径，推导动作：
-//              - GET  根路径          → list
-//              - POST 根路径          → create
-//              - GET  含 {id}/detail → read
-//              - PUT  含 /update     → update
-//              - DELETE 含 /delete   → delete
-//              - PUT  含 /status     → status
-//              - PUT  含 /permissions → bind_perm
-//              - DELETE 含 /permissions → unbind_perm
-//              - GET  含 /permissions → get_perms
-//              - PUT  含 {id}/roles  → assign
-//              - GET  含 /roles      → get_roles
+//           3) 分析 Method + 剩余路径，推导动作
 //           4) 组合为: "rbac:{资源}:{动作}" 或 "{资源}:{动作}"
+//
+// 推导示例：
+//   GET    /api/v1/users                   → user:list
+//   POST   /api/v1/users                   → user:create
+//   GET    /api/v1/users/{id}/detail       → user:read
+//   PUT    /api/v1/users/{id}/update       → user:update
+//   DELETE /api/v1/users/{id}/delete       → user:delete
+//   GET    /api/v1/rbac/roles              → rbac:role:list
+//   POST   /api/v1/rbac/roles              → rbac:role:create
+//   PUT    /api/v1/rbac/roles/{id}/permissions → rbac:role:bind_perm
+//   GET    /api/v1/rbac/role-permissions   → rbac:role_perm:list
+//   GET    /api/v1/rbac/user-roles         → rbac:user_role:list
+//   POST   /api/v1/rbac/user-roles/{user_id}/roles → rbac:user_role:assign
+//   GET    /api/v1/rbac/user-roles/{user_id}/roles → rbac:user_role:get_roles
+//   DELETE /api/v1/rbac/user-roles/{user_id}/roles/{role_id} → rbac:user_role:remove_one
+//   DELETE /api/v1/rbac/user-roles/{user_id}/roles → rbac:user_role:remove_all
 //
 // 用法示例：
 //
@@ -46,21 +53,22 @@ func AutoRequirePermission(checker PermissionChecker) func(http.Handler) http.Ha
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// 超级管理员直接放行
-			if contextxHasRole(r.Context(), "superadmin") {
+			if contextx.HasRole(r.Context(), "superadmin") {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			userID := contextxGetUserID(r.Context())
+			userID := contextx.GetUserID(r.Context())
 			if userID == "" {
-				responseFail(w, http.StatusForbidden, "权限不足")
+				response.Fail(w, http.StatusForbidden, "权限不足")
 				return
 			}
 
-			// 1. 从 chi 获取匹配到的路由 pattern
+			// 1. 从 chi 获取匹配到的路由 pattern，推导权限码
 			permCode := derivePermissionCode(r)
 			if permCode == "" {
-				// 无法自动推导权限码（如未匹配到 chi 路由），直接放行由业务层判断
+				// 无法自动推导权限码（如未匹配到 chi 路由），
+				// 直接放行由业务层判断
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -68,7 +76,7 @@ func AutoRequirePermission(checker PermissionChecker) func(http.Handler) http.Ha
 			// 2. 查询用户权限并校验
 			codes, err := checker.GetUserPermissionCodes(r.Context(), userID)
 			if err != nil {
-				responseFail(w, http.StatusInternalServerError, "权限检查失败")
+				response.Fail(w, http.StatusInternalServerError, "权限检查失败")
 				return
 			}
 			for _, code := range codes {
@@ -78,12 +86,13 @@ func AutoRequirePermission(checker PermissionChecker) func(http.Handler) http.Ha
 				}
 			}
 
-			responseFail(w, http.StatusForbidden, "权限不足，缺少权限: "+permCode)
+			response.Fail(w, http.StatusForbidden, "权限不足，缺少权限: "+permCode)
 		})
 	}
 }
 
 // derivePermissionCode 根据 HTTP 请求推导权限码
+// 返回空字符串表示无法推导（此时中间件放行，业务层自行判断）
 func derivePermissionCode(r *http.Request) string {
 	rc := chi.RouteContext(r.Context())
 	if rc == nil || len(rc.RoutePatterns) == 0 {
@@ -102,56 +111,35 @@ func derivePermissionCode(r *http.Request) string {
 		return ""
 	}
 
-	// 检测模块前缀：第一段是 "rbac" 说明是 rbac 子模块
+	// ====== Step 1: 判断模块前缀 ======
 	hasRBACPrefix := parts[0] == "rbac"
-	// 检测是否是用户模块（位于 /users 下的 user-roles 这类特殊路由）
-	hasUserPrefix := false
-	if !hasRBACPrefix && (parts[0] == "users" || strings.HasPrefix(parts[0], "user")) {
-		hasUserPrefix = true
-	}
 
-	// 核心资源名：去掉 "rbac" 前缀后取第一段
-	// 例如: rbac/roles/{id}/permissions → 核心资源 = "roles"
+	// 核心路径段（去掉 rbac 前缀后剩余）
 	var coreParts []string
 	if hasRBACPrefix {
 		coreParts = parts[1:]
-	} else if hasUserPrefix {
-		coreParts = parts[1:] // users/{id}/roles → 核心是 roles
-		// 但如果是 /users/ 本身的常规 CRUD，coreParts 为空，此时将 users 作为资源
-		if len(coreParts) == 0 {
-			coreParts = []string{"users"}
-		}
 	} else {
 		coreParts = parts
 	}
-
 	if len(coreParts) == 0 {
 		return ""
 	}
 
-	// 资源名：第一个段转为单数
-	// roles → role, permissions → perm, users → user
+	// ====== Step 2: 从核心路径中提取资源名 ======
 	resource := singularize(coreParts[0])
 
-	// 分析剩余路径
+	// ====== Step 3: 分析剩余路径段推导 action ======
 	remaining := strings.Join(coreParts[1:], "/")
 	method := strings.ToUpper(r.Method)
 
-	// ====== 基于剩余路径和 Method 推导动作 ======
 	action := deriveAction(method, remaining)
 	if action == "" {
 		return ""
 	}
 
-	// 组合权限码
+	// ====== Step 4: 组合权限码 ======
 	if hasRBACPrefix {
 		return "rbac:" + resource + ":" + action
-	}
-	if hasUserPrefix {
-		// /users/{id}/roles 这类在 /users 下的 user-role 分配接口
-		if resource == "role" {
-			return "rbac:user_role:" + action
-		}
 	}
 	return resource + ":" + action
 }
@@ -178,21 +166,27 @@ func singularize(part string) string {
 
 // deriveAction 根据 method + 剩余路径推导动作
 func deriveAction(method, remaining string) string {
-	// 特殊路径匹配（优先匹配更具体的路径）
+	// ===== 特殊路径：精确匹配（优先级最高）=====
 	switch {
-	case strings.Contains(remaining, "batch/status"):
-		return "batch_status"
-	case strings.Contains(remaining, "batch/delete"):
-		return "batch_delete"
-	case strings.Contains(remaining, "batch/permissions"):
-		if method == "PUT" {
-			return "batch_bind"
+	// 批量操作
+	case strings.Contains(remaining, "batch"):
+		switch {
+		case strings.Contains(remaining, "status"):
+			return "batch_status"
+		case strings.Contains(remaining, "delete"):
+			return "batch_delete"
+		case strings.Contains(remaining, "permissions"):
+			if method == "PUT" {
+				return "batch_bind"
+			}
+			if method == "DELETE" {
+				return "batch_unbind"
+			}
+		case strings.Contains(remaining, "assign"):
+			return "batch_assign"
 		}
-		if method == "DELETE" {
-			return "batch_unbind"
-		}
-	case strings.Contains(remaining, "batch/assign"):
-		return "batch_assign"
+
+	// 回收站
 	case strings.Contains(remaining, "deleted"):
 		if method == "GET" {
 			return "list_deleted"
@@ -202,11 +196,8 @@ func deriveAction(method, remaining string) string {
 		}
 	case strings.Contains(remaining, "restore"):
 		return "restore"
-	case strings.Contains(remaining, "status"):
-		if strings.Contains(remaining, "batch") {
-			return "batch_status"
-		}
-		return "status"
+
+	// 权限绑定/解绑
 	case strings.Contains(remaining, "permissions/batch"):
 		if method == "DELETE" {
 			return "batch_unbind_perm"
@@ -221,61 +212,47 @@ func deriveAction(method, remaining string) string {
 		if method == "GET" {
 			return "get_perms"
 		}
-	case strings.Contains(remaining, "roles/batch"):
-		if method == "DELETE" {
-			return "batch_unassign"
-		}
+
+	// 用户-角色分配（rbac/user-roles/{user_id}/roles 或 /users/{id}/roles）
 	case strings.Contains(remaining, "roles"):
 		if method == "POST" {
 			return "assign"
 		}
 		if method == "GET" {
-			// GET /users/{id}/roles → get_roles; GET /rbac/roles/{id}/users → get_users
-			if strings.Contains(remaining, "{id}/roles") || strings.Contains(remaining, "/roles") {
-				// 检查是否是 role/{id}/users
-				if strings.Contains(remaining, "roles/{id}/users") ||
-					strings.Contains(remaining, "role/{id}/users") ||
-					strings.Contains(remaining, "/users") {
-					return "get_users"
-				}
-				return "get_roles"
+			// 区分：GET /roles/{id}/users → get_users
+			//       GET /users/{id}/roles → get_roles
+			if strings.Contains(remaining, "/users") || strings.HasSuffix(remaining, "users") {
+				return "get_users"
 			}
 			return "get_roles"
 		}
 		if method == "DELETE" {
-			// DELETE /users/{id}/roles/{role_id} → remove_one
-			// DELETE /users/{id}/roles → remove_all
-			if strings.Count(remaining, "{") >= 2 || strings.Count(remaining, "}") >= 2 {
+			// DELETE /{user_id}/roles/{role_id} → remove_one
+			// DELETE /{user_id}/roles → remove_all
+			openBraces := strings.Count(remaining, "{")
+			if openBraces >= 2 {
 				return "remove_one"
 			}
-			// 判断是否以 /{role_id} 这种结尾
-			if strings.HasSuffix(remaining, "{role_id}") || strings.Contains(remaining, "{") && strings.Contains(remaining, "}") &&
-				!strings.Contains(remaining, "batch") {
+			if openBraces == 1 && strings.Contains(remaining, "role") {
 				return "remove_one"
 			}
 			return "remove_all"
 		}
-	case strings.Contains(remaining, "users"):
-		// GET /rbac/user-roles/roles/{id}/users → get_users
-		if method == "GET" {
-			return "get_users"
-		}
 	}
 
-	// 常规 REST CRUD：根据剩余路径中是否有 {id} 来判断
-	hasID := strings.Contains(remaining, "{") || strings.Contains(remaining, "}") ||
-		remaining == "" && false // 占位
+	// ===== 常规 REST CRUD =====
+	hasIDPlaceholder := strings.Contains(remaining, "{")
 
-	// 如果剩余路径为空，或含其他非详情路径
 	switch {
 	case remaining == "" || remaining == "/":
-		if method == "GET" {
+		switch method {
+		case "GET":
 			return "list"
-		}
-		if method == "POST" {
+		case "POST":
 			return "create"
 		}
-	case hasID || strings.Contains(remaining, "{id}"):
+
+	case hasIDPlaceholder:
 		switch {
 		case strings.Contains(remaining, "detail"):
 			if method == "GET" {
@@ -289,10 +266,14 @@ func deriveAction(method, remaining string) string {
 			if method == "DELETE" {
 				return "delete"
 			}
+		case strings.Contains(remaining, "status"):
+			if method == "PUT" {
+				return "status"
+			}
 		}
 	}
 
-	// 兜底：根据 method 映射
+	// ===== 兜底：按 Method 映射 =====
 	switch method {
 	case "GET":
 		return "list"

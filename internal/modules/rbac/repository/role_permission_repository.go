@@ -211,3 +211,17 @@ func (r *rolePermissionRepository) List(ctx context.Context, page, pageSize int,
 	}
 	return list, total, nil
 }
+
+// CountByRoleID 查询某角色已绑定的权限数量
+func (r *rolePermissionRepository) CountByRoleID(ctx context.Context, roleID string) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&RolePermissionPO{}).Where("role_id = ?", roleID).Count(&count).Error
+	return count, err
+}
+
+// CountByPermissionID 查询某权限被多少角色使用
+func (r *rolePermissionRepository) CountByPermissionID(ctx context.Context, permissionID string) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&RolePermissionPO{}).Where("permission_id = ?", permissionID).Count(&count).Error
+	return count, err
+}
