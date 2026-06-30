@@ -48,7 +48,7 @@
             </div>
             <div class="stat-info">
               <div class="stat-label">我的权限</div>
-              <div class="stat-value">{{ userStore.permissions.length }}</div>
+              <div class="stat-value">{{ stats.my_permission }}</div>
             </div>
           </div>
         </el-card>
@@ -86,25 +86,24 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { getUserList } from '@/api/modules/user'
-import { getRoleList } from '@/api/modules/role'
-import { getPermissionList } from '@/api/modules/permission'
+import { getUserStats } from '@/api/modules/user'
+import { getRBACStats } from '@/api/modules/role'
 
 const userStore = useUserStore()
-const stats = ref({ users: 0, roles: 0, permissions: 0 })
+const stats = ref({ users: 0, roles: 0, permissions: 0, my_permission: 0 })
 
 onMounted(async () => {
   try {
-    // 并行加载三项统计（只看总数，取 page_size=1 拿 total 即可）
-    const [u, r, p] = await Promise.all([
-      getUserList({ page: 1, page_size: 1 }).catch(() => ({ total: 0 })),
-      getRoleList({ page: 1, page_size: 1 }).catch(() => ({ total: 0 })),
-      getPermissionList({ page: 1, page_size: 1 }).catch(() => ({ total: 0 }))
-    ])
+    // 获取 RBAC 统计信息
+    const rbacStats = await getRBACStats()
+    // 获取用户总数
+    const userStats = await getUserStats()
+    
     stats.value = {
-      users: (u as any).total ?? 0,
-      roles: (r as any).total ?? 0,
-      permissions: (p as any).total ?? 0
+      users: userStats.data.user_count ?? 0,
+      roles: rbacStats.data.role_count ?? 0,
+      permissions: rbacStats.data.permission_count ?? 0,
+      my_permission: rbacStats.data.my_permission ?? 0
     }
   } catch (e) {
     ElMessage.warning('部分统计数据加载失败')

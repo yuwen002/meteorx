@@ -15,18 +15,20 @@ import (
 )
 
 type AuthService struct {
-	userRepo     repository.UserRepository
-	roleRepo     rbacRepo.RoleRepository
-	userRoleRepo rbacRepo.UserRoleRepository
-	tokenHelper  *jwt.TokenHelper
+	userRepo          repository.UserRepository
+	roleRepo          rbacRepo.RoleRepository
+	userRoleRepo      rbacRepo.UserRoleRepository
+	rolePermissionRepo rbacRepo.RolePermissionRepository
+	tokenHelper       *jwt.TokenHelper
 }
 
-func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, urr rbacRepo.UserRoleRepository, th *jwt.TokenHelper) *AuthService {
+func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, urr rbacRepo.UserRoleRepository, rpr rbacRepo.RolePermissionRepository, th *jwt.TokenHelper) *AuthService {
 	return &AuthService{
-		userRepo:     ur,
-		roleRepo:     rr,
-		userRoleRepo: urr,
-		tokenHelper:  th,
+		userRepo:          ur,
+		roleRepo:          rr,
+		userRoleRepo:      urr,
+		rolePermissionRepo: rpr,
+		tokenHelper:       th,
 	}
 }
 
@@ -71,24 +73,24 @@ func (s *AuthService) Register(ctx context.Context, req dto.RegisterUserReq) (*m
 	return user, nil
 }
 
-func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User, []string, string, error) {
+func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User, []string, []string, string, error) {
 	user, err := s.userRepo.GetByUsername(ctx, req.TenantID, req.Username)
 	if err != nil {
-		return nil, nil, "", errors.New("account or password is incorrect")
+		return nil, nil, nil, "", errors.New("account or password is incorrect")
 	}
 
 	if !crypto.CheckPassword(req.Password, user.Password) {
-		return nil, nil, "", errors.New("account or password is incorrect")
+		return nil, nil, nil, "", errors.New("account or password is incorrect")
 	}
 
 	if user.Status == 0 {
-		return nil, nil, "", errors.New("account is disabled")
+		return nil, nil, nil, "", errors.New("account is disabled")
 	}
 
 	// 查询用户关联的角色编码列表
 	roleCodes, err := s.userRoleRepo.GetRoleCodesByUserID(ctx, user.ID)
 	if err != nil {
-		return nil, nil, "", errors.New("failed to query user roles")
+		return nil, nil, nil, "", errors.New("failed to query user roles")
 	}
 
 	// 如果是系统管理员且没有角色，兜底返回 superadmin
@@ -98,10 +100,33 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User,
 
 	user.Roles = roleCodes
 
-	token, err := s.tokenHelper.GenerateToken(user.ID, user.TenantID, roleCodes)
-	if err != nil {
-		return nil, nil, "", errors.New("failed to generate token")
+	// 查询用户关联的所有权限码（通过角色 -> 权限关联表）
+	permissionCodes := make([]string, 0)
+	if user.IsMaster {
+		// 系统管理员兜底：返回空数组，前端通过 is_master 标志判断拥有所有权限
+	} else {
+		roleIDs, err := s.userRoleRepo.GetRoleIDsByUserID(ctx, user.ID)
+		if err == nil {
+			seen := make(map[string]bool)
+			for _, roleID := range roleIDs {
+				codes, err := s.rolePermissionRepo.GetPermissionCodesByRoleID(ctx, roleID)
+				if err != nil {
+					continue
+				}
+				for _, c := range codes {
+					if !seen[c] {
+						seen[c] = true
+						permissionCodes = append(permissionCodes, c)
+					}
+				}
+			}
+		}
 	}
 
-	return user, roleCodes, token, nil
+	token, err := s.tokenHelper.GenerateToken(user.ID, user.TenantID, roleCodes)
+	if err != nil {
+		return nil, nil, nil, "", errors.New("failed to generate token")
+	}
+
+	return user, roleCodes, permissionCodes, token, nil
 }

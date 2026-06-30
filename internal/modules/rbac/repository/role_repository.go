@@ -241,3 +241,14 @@ func (r *roleRepository) Restore(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+// Count 统计角色总数（按租户过滤，不传 tenantID 则统计全部）
+func (r *roleRepository) Count(ctx context.Context, tenantID string) (int64, error) {
+	var total int64
+	query := r.db.WithContext(ctx).Model(&RolePO{})
+	if tenantID != "" {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+	err := query.Count(&total).Error
+	return total, err
+}

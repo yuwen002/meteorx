@@ -454,3 +454,13 @@ func (r *userRepository) BatchUpdateTenantUserStatus(ctx context.Context, tenant
 	}
 	return result.RowsAffected, nil
 }
+// CountByTenant 统计指定租户下的用户总数
+func (r *userRepository) CountByTenant(ctx context.Context, tenantID string) (int64, error) {
+	var total int64
+	query := r.db.WithContext(ctx).Model(&UserPO{})
+	if tenantID != "" {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+	err := query.Count(&total).Error
+	return total, err
+}

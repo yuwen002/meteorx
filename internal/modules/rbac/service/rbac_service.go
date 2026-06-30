@@ -590,3 +590,41 @@ func (s *RBACService) BatchAssignUserRoles(ctx context.Context, req dto.BatchAss
 	}
 	return count, nil
 }
+// --- Dashboard Statistics ---
+
+// CountRoles 统计角色总数（按租户）
+func (s *RBACService) CountRoles(ctx context.Context, tenantID string) (int64, error) {
+	return s.roleRepo.Count(ctx, tenantID)
+}
+
+// CountPermissions 统计权限总数
+func (s *RBACService) CountPermissions(ctx context.Context) (int64, error) {
+	return s.permissionRepo.Count(ctx)
+}
+
+// CountUserPermissions 统计当前用户拥有的权限总数（去重）
+func (s *RBACService) CountUserPermissions(ctx context.Context, userID string) (int64, error) {
+	if userID == "" {
+		return 0, nil
+	}
+	// 1. 获取用户所有角色
+	roleIDs, err := s.userRoleRepo.GetRoleIDsByUserID(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+	if len(roleIDs) == 0 {
+		return 0, nil
+	}
+	// 2. 汇总所有角色的权限 code，去重
+	codeSet := make(map[string]bool)
+	for _, roleID := range roleIDs {
+		codes, err := s.rolePermissionRepo.GetPermissionCodesByRoleID(ctx, roleID)
+		if err != nil {
+			continue
+		}
+		for _, code := range codes {
+			codeSet[code] = true
+		}
+	}
+	return int64(len(codeSet)), nil
+}

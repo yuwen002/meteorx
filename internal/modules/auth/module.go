@@ -21,7 +21,8 @@ func InitModule(r chi.Router, db *gorm.DB, cfg config.JWTConfig) {
 	uRepo := userrepo.NewUserRepository(db)
 	rRepo := rbacRepo.NewRoleRepository(db)
 	urRepo := rbacRepo.NewUserRoleRepository(db)
-	svc := service.NewAuthService(uRepo, rRepo, urRepo, tokenHelper)
+	rpRepo := rbacRepo.NewRolePermissionRepository(db)
+	svc := service.NewAuthService(uRepo, rRepo, urRepo, rpRepo, tokenHelper)
 	h := handler.NewAuthHandler(svc)
 
 	// 3. 注册路由

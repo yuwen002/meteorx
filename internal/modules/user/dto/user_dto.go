@@ -46,9 +46,10 @@ type UserResp struct {
 	Username   string   `json:"username"`
 	Nickname   string   `json:"nickname"`
 	Email      string   `json:"email"`
-	Roles      []string `json:"roles"` // 角色编码列表
+	Roles      []string `json:"roles"`     // 角色编码列表
 	RoleIDs    []string `json:"role_ids"`
 	Status     int      `json:"status"`
+	IsMaster   bool     `json:"is_master"` // 是否系统管理员
 	CreatedAt  string   `json:"created_at"`
 	UpdatedAt  string   `json:"updated_at"`
 	DeletedAt  string   `json:"deleted_at,omitempty"` // 删除时间，仅已删除记录返回

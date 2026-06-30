@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
 	"meteorx/internal/modules/rbac/dto"
@@ -697,4 +698,35 @@ func (h *RBACHandler) BatchAssignUserRoles(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	response.Success(w, map[string]interface{}{"assigned": assigned})
+}
+
+// GetStats GET /api/v1/rbac/stats - 获取 RBAC 统计（角色总数、权限总数、我的权限数）
+func (h *RBACHandler) GetStats(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := contextx.GetTenantID(ctx)
+	userID := contextx.GetUserID(ctx)
+
+	roleCount, err := h.svc.CountRoles(ctx, tenantID)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取角色统计失败")
+		return
+	}
+
+	permCount, err := h.svc.CountPermissions(ctx)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取权限统计失败")
+		return
+	}
+
+	myPermCount, err := h.svc.CountUserPermissions(ctx, userID)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取用户权限统计失败")
+		return
+	}
+
+	response.Success(w, map[string]interface{}{
+		"role_count":       roleCount,
+		"permission_count": permCount,
+		"my_permission":    myPermCount,
+	})
 }

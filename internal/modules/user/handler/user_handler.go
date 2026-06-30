@@ -168,6 +168,17 @@ func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
+// GetStats GET /api/v1/profile/stats - 获取当前租户用户总数
+func (h *UserHandler) GetStats(w http.ResponseWriter, r *http.Request) {
+	tenantID := contextx.GetTenantID(r.Context())
+	count, err := h.svc.CountByTenant(r.Context(), tenantID)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取用户统计失败")
+		return
+	}
+	response.Success(w, map[string]interface{}{"user_count": count})
+}
+
 // ============ 系统管理员管理接口 ============
 
 // ListMasterAdmins GET /api/v1/admin/users?page=1&page_size=10&keyword=xxx - 获取系统管理员列表

@@ -1,4 +1,4 @@
-package repository
+﻿package repository
 
 import (
 	"context"
@@ -45,4 +45,7 @@ type UserRepository interface {
 	BatchUpdateTenantUserStatus(ctx context.Context, tenantID string, ids []string, status int) (int64, error)
 	// BatchDeleteTenantUsers 批量删除租户用户（指定租户）
 	BatchDeleteTenantUsers(ctx context.Context, tenantID string, ids []string) (int64, error)
+
+	// CountByTenant 统计指定租户下的用户总数
+	CountByTenant(ctx context.Context, tenantID string) (int64, error)
 }

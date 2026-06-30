@@ -18,6 +18,7 @@ type RegisterUserReq struct {
 
 // LoginResp 登录成功响应
 type LoginResp struct {
-	Token string            `json:"token"` // JWT 令牌
-	User  *userdto.UserResp `json:"user"`  // 返回用户信息给前端展示
+	Token       string            `json:"token"`       // JWT 令牌
+	User        *userdto.UserResp `json:"user"`  // 用户信息
+	Permissions []string          `json:"permissions"`    // 用户所有权限码（前端用于按钮/菜单权限控制）
 }

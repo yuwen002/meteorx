@@ -10,6 +10,7 @@ import (
 // RegisterProfileRoutes 编排当前用户个人信息管理接口（用户登录后可操作自己的信息）
 func RegisterProfileRoutes(r chi.Router, h *handler.UserHandler) {
 	r.Route("/profile", func(r chi.Router) {
+		r.Get("/stats", h.GetStats) // Dashboard: 用户总数
 		r.Get("/", h.GetProfile)             // 获取当前用户个人信息
 		r.Put("/", h.UpdateProfile)          // 更新当前用户个人信息
 		r.Put("/password", h.ChangePassword) // 修改当前用户密码

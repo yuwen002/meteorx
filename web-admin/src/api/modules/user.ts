@@ -1,4 +1,4 @@
-import { get, post, put, del } from '@/api/request'
+import { get, post, put, del, type ApiResult } from '@/api/request'
 
 export interface UserItem {
   id: string
@@ -64,4 +64,9 @@ export function updateUser(id: string, data: UserUpdateParams) {
 // 删除用户
 export function deleteUser(id: string) {
   return del(`/users/${id}`)
+}
+
+// 获取用户统计信息
+export function getUserStats() {
+  return get<ApiResult<{ user_count: number }>>('/profile/stats')
 }

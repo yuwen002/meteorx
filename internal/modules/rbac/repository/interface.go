@@ -1,4 +1,4 @@
-package repository
+﻿package repository
 
 import (
 	"context"
@@ -18,6 +18,7 @@ type RoleRepository interface {
 	BatchDelete(ctx context.Context, ids []string) (int64, error)
 	FindDeleted(ctx context.Context, page, pageSize int, keyword string) ([]*model.Role, int64, error)
 	Restore(ctx context.Context, id string) error
+	Count(ctx context.Context, tenantID string) (int64, error)
 }
 
 type PermissionRepository interface {
@@ -30,6 +31,7 @@ type PermissionRepository interface {
 	BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, error)
 	Delete(ctx context.Context, id string) error
 	BatchDelete(ctx context.Context, ids []string) (int64, error)
+	Count(ctx context.Context) (int64, error)
 }
 
 type RolePermissionRepository interface {

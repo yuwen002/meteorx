@@ -1,4 +1,4 @@
-import { get, post, put, del } from '@/api/request'
+import { get, post, put, del, type ApiResult } from '@/api/request'
 
 export interface RoleItem {
   id: string
@@ -63,4 +63,9 @@ export function getRolePermissionIds(roleId: string) {
   return get<{ ids?: string[]; permission_ids?: string[]; list?: { id: string }[] }>(
     `/rbac/roles/${roleId}/permissions`
   )
+}
+
+// 获取 RBAC 统计信息
+export function getRBACStats() {
+  return get<ApiResult<{ role_count: number; permission_count: number; my_permission: number }>>('/rbac/stats')
 }

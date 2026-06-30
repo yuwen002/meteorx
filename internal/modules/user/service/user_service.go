@@ -719,3 +719,7 @@ func (s *UserService) ChangePassword(ctx context.Context, userID, oldPassword, n
 	user.Password = hashedPassword
 	return s.repo.Update(ctx, user)
 }
+// CountByTenant 统计指定租户下的用户总数
+func (s *UserService) CountByTenant(ctx context.Context, tenantID string) (int64, error) {
+	return s.repo.CountByTenant(ctx, tenantID)
+}

@@ -50,17 +50,18 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. 调用登录服务
-	user, _, token, err := h.svc.Login(r.Context(), req)
+	user, _, permCodes, token, err := h.svc.Login(r.Context(), req)
 	if err != nil {
 		response.Fail(w, 401, err.Error())
 		return
 	}
 
-	// 3. 组装响应数据
+	// 3. 组装响应数据（包含用户信息 + 权限码列表）
 	converter := userdto.UserConverter{}
 	loginResp := dto.LoginResp{
-		Token: token,
-		User:  converter.ToResponse(user),
+		Token:       token,
+		User:        converter.ToResponse(user),
+		Permissions: permCodes,
 	}
 
 	response.Success(w, loginResp)

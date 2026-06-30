@@ -19,6 +19,7 @@ func (c *UserConverter) ToResponse(user *model.User) *UserResp {
 		Email:    user.Email,
 		Roles:    user.Roles,
 		Status:   user.Status,
+		IsMaster: user.IsMaster,
 		// 转换时间格式，前端更友好
 		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
