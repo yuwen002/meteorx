@@ -49,16 +49,16 @@ func RegisterRoutes(r chi.Router, h *handler.RBACHandler, checker middleware.Per
 			})
 
 			// 权限管理
-			r.Route("/permissions", func(r chi.Router) {
-				r.Get("/", h.ListPermissions)                          // rbac:perm:list
-				r.Post("/", h.CreatePermission)                        // rbac:perm:create
-				r.Put("/batch/status", h.BatchUpdatePermissionStatus)  // rbac:perm:batch_status
-				r.Delete("/batch/delete", h.BatchDeletePermissions)    // rbac:perm:batch_delete
-				r.Get("/{id}/detail", h.GetPermission)                 // rbac:perm:read
-				r.Put("/{id}/update", h.UpdatePermission)              // rbac:perm:update
-				r.Put("/{id}/status", h.UpdatePermissionStatus)        // rbac:perm:status
-				r.Delete("/{id}/delete", h.DeletePermission)           // rbac:perm:delete
-			})
+		r.Route("/permissions", func(r chi.Router) {
+			r.Get("/", h.ListPermissions)                          // rbac:perm:list
+			r.Post("/", h.CreatePermission)                        // rbac:perm:create
+			r.Put("/batch/status", h.BatchUpdatePermissionStatus)  // rbac:perm:batch_status
+			r.Delete("/batch/delete", h.BatchDeletePermissions)    // rbac:perm:batch_delete
+			r.Get("/{id}/detail", h.GetPermission)                 // rbac:perm:read
+			r.Put("/{id}/update", h.UpdatePermission)              // rbac:perm:update
+			r.Put("/{id}/status", h.UpdatePermissionStatus)        // rbac:perm:status
+			r.Delete("/{id}/delete", h.DeletePermission)           // rbac:perm:delete
+		})
 
 			// 角色权限关系管理
 			r.Route("/role-permissions", func(r chi.Router) {

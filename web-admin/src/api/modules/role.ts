@@ -11,6 +11,7 @@ export interface RoleItem {
   status?: number
   created_at?: string
   updated_at?: string
+  deleted_at?: string
 }
 
 export interface RoleCreateParams {
@@ -38,7 +39,7 @@ export function getRoleList(params: RoleListParams) {
 }
 
 export function getRoleDetail(id: string) {
-  return get<RoleItem>(`/rbac/roles/${id}`)
+  return get<RoleItem>(`/rbac/roles/${id}/detail`)
 }
 
 export function createRole(data: RoleCreateParams) {
@@ -54,7 +55,7 @@ export function updateRoleStatus(id: string, status: number) {
 }
 
 export function deleteRole(id: string) {
-  return del(`/rbac/roles/${id}`)
+  return del(`/rbac/roles/${id}/delete`)
 }
 
 export function batchDeleteRoles(ids: string[]) {
@@ -80,4 +81,14 @@ export function getRolePermissionIds(roleId: string) {
 // 获取 RBAC 统计信息
 export function getRBACStats() {
   return get<{ role_count: number; permission_count: number; my_permission: number }>('/rbac/stats')
+}
+
+// 获取已删除的角色列表（回收站）
+export function getDeletedRoleList(params: RoleListParams) {
+  return get<{ list: RoleItem[]; total: number }>('/rbac/roles/deleted', params)
+}
+
+// 恢复已删除的角色
+export function restoreRole(id: string) {
+  return put(`/rbac/roles/${id}/restore`)
 }

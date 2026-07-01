@@ -6,6 +6,9 @@
         <el-button type="primary" @click="loadList"><el-icon><Search /></el-icon>查询</el-button>
         <el-button @click="resetSearch">重置</el-button>
         <div class="flex-1"></div>
+        <el-button type="info" @click="openRecycleBin">
+          <el-icon><Delete /></el-icon>回收站
+        </el-button>
         <el-button type="success" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>新增角色
         </el-button>
@@ -80,6 +83,38 @@
       </template>
     </el-dialog>
 
+    <!-- 回收站弹窗 -->
+    <el-dialog v-model="recycleBinVisible" title="角色回收站" width="900px" :close-on-click-modal="false">
+      <div class="search-bar" style="margin-bottom: 16px;">
+        <el-input v-model="deletedSearch.keyword" placeholder="搜索已删除角色名" clearable style="width: 200px" @keyup.enter="loadDeletedList" />
+        <el-button type="primary" @click="loadDeletedList"><el-icon><Search /></el-icon>查询</el-button>
+        <el-button @click="resetDeletedSearch">重置</el-button>
+      </div>
+      <el-table :data="deletedList" border stripe v-loading="deletedLoading" style="width: 100%">
+        <el-table-column prop="name" label="角色名" min-width="140" />
+        <el-table-column prop="code" label="编码" min-width="140" />
+        <el-table-column prop="description" label="描述" min-width="200" />
+        <el-table-column prop="deleted_at" label="删除时间" width="180" />
+        <el-table-column label="操作" width="120" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="success" @click="handleRestore(row)">恢复</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="pagination">
+        <el-pagination
+          v-model:current-page="deletedPage"
+          v-model:page-size="deletedPageSize"
+          :total="deletedTotal"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="loadDeletedList"
+          @current-change="loadDeletedList"
+        />
+      </div>
+    </el-dialog>
+
     <!-- 绑定权限弹窗 -->
     <el-dialog v-model="bindDialogVisible" title="绑定权限" width="560px" :close-on-click-modal="false">
       <div style="margin-bottom: 10px; font-size: 14px; color: #6b7280">
@@ -124,6 +159,8 @@ import {
   batchUpdateRoleStatus,
   bindRolePermissions,
   getRolePermissionIds,
+  getDeletedRoleList,
+  restoreRole,
   type RoleItem
 } from '@/api/modules/role'
 import { getPermissionList } from '@/api/modules/permission'
@@ -155,6 +192,15 @@ const treeRef = ref<InstanceType<typeof ElTree>>()
 const permTreeData = ref<any[]>([])
 const allPermIds = ref<string[]>([])
 
+// 回收站相关
+const recycleBinVisible = ref(false)
+const deletedList = ref<RoleItem[]>([])
+const deletedTotal = ref(0)
+const deletedPage = ref(1)
+const deletedPageSize = ref(10)
+const deletedLoading = ref(false)
+const deletedSearch = reactive({ keyword: '' })
+
 async function loadList() {
   loading.value = true
   try {
@@ -182,6 +228,46 @@ async function loadAllPermissions() {
     groups.get(p.resource)!.children.push(p)
   }
   permTreeData.value = Array.from(groups.values())
+}
+
+// 回收站相关函数
+function openRecycleBin() {
+  recycleBinVisible.value = true
+  loadDeletedList()
+}
+
+async function loadDeletedList() {
+  deletedLoading.value = true
+  try {
+    const params: any = { page: deletedPage.value, page_size: deletedPageSize.value }
+    if (deletedSearch.keyword) params.keyword = deletedSearch.keyword
+    const res: any = await getDeletedRoleList(params)
+    deletedList.value = res.data || []
+    deletedTotal.value = res.pagination?.total || 0
+  } catch (e) {
+    deletedList.value = []
+    deletedTotal.value = 0
+  } finally {
+    deletedLoading.value = false
+  }
+}
+
+function resetDeletedSearch() {
+  deletedSearch.keyword = ''
+  deletedPage.value = 1
+  loadDeletedList()
+}
+
+function handleRestore(row: RoleItem) {
+  ElMessageBox.confirm(`确定要恢复角色 "${row.name}" 吗？`, '提示', { type: 'warning' })
+    .then(async () => {
+      if (!row.id) return
+      await restoreRole(row.id)
+      ElMessage.success('恢复成功')
+      loadDeletedList()
+      loadList()
+    })
+    .catch(() => {})
 }
 
 function resetSearch() {

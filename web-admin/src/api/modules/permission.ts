@@ -24,7 +24,7 @@ export function getPermissionList(params?: { page?: number; page_size?: number; 
 }
 
 export function getPermissionDetail(id: string) {
-  return get<PermissionItem>(`/rbac/permissions/${id}`)
+  return get<PermissionItem>(`/rbac/permissions/${id}/detail`)
 }
 
 export function createPermission(data: PermissionCreateParams) {
