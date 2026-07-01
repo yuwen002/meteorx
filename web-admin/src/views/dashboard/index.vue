@@ -86,7 +86,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { getUserStats } from '@/api/modules/user'
+import { getUserStats, getAllUserStats } from '@/api/modules/user'
 import { getRBACStats } from '@/api/modules/role'
 
 const userStore = useUserStore()
@@ -96,14 +96,16 @@ onMounted(async () => {
   try {
     // 获取 RBAC 统计信息
     const rbacStats = await getRBACStats()
-    // 获取用户总数
-    const userStats = await getUserStats()
-    
+    // 获取用户总数：管理员显示所有用户，普通用户显示当前租户用户
+    const userStats = userStore.userInfo?.is_master
+      ? await getAllUserStats()
+      : await getUserStats()
+
     stats.value = {
-      users: userStats.data.user_count ?? 0,
-      roles: rbacStats.data.role_count ?? 0,
-      permissions: rbacStats.data.permission_count ?? 0,
-      my_permission: rbacStats.data.my_permission ?? 0
+      users: userStats.user_count ?? 0,
+      roles: rbacStats.role_count ?? 0,
+      permissions: rbacStats.permission_count ?? 0,
+      my_permission: rbacStats.my_permission ?? 0
     }
   } catch (e) {
     ElMessage.warning('部分统计数据加载失败')

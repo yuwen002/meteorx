@@ -4,13 +4,22 @@
       <div class="search-bar">
         <el-input v-model="search.keyword" placeholder="搜索角色名" clearable style="width: 200px" @keyup.enter="loadList" />
         <el-button type="primary" @click="loadList"><el-icon><Search /></el-icon>查询</el-button>
+        <el-button @click="resetSearch">重置</el-button>
         <div class="flex-1"></div>
         <el-button type="success" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>新增角色
         </el-button>
       </div>
 
-      <el-table :data="list" border stripe v-loading="loading" style="width: 100%">
+      <div class="batch-bar" v-if="selectedIds.length > 0">
+        <el-button type="danger" @click="handleBatchDelete">批量删除</el-button>
+        <el-button type="warning" @click="handleBatchDisable">批量停用</el-button>
+        <el-button type="success" @click="handleBatchEnable">批量启用</el-button>
+        <span style="margin-left: 8px; color: #666;">已选择 {{ selectedIds.length }} 项</span>
+      </div>
+
+      <el-table :data="list" border stripe v-loading="loading" style="width: 100%" @selection-change="handleSelectionChange">
+        <el-table-column type="selection" width="55" :selectable="(row: RoleItem) => !row.is_system" />
         <el-table-column prop="name" label="角色名" min-width="140" />
         <el-table-column prop="code" label="编码" min-width="140" />
         <el-table-column prop="description" label="描述" min-width="200" />
@@ -26,9 +35,12 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180" />
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="340" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openBindPerm(row)">绑定权限</el-button>
+            <el-button link :type="row.status === 1 ? 'warning' : 'success'" @click="handleToggleStatus(row)" v-if="!row.is_system">
+              {{ row.status === 1 ? '停用' : '启用' }}
+            </el-button>
             <el-button link type="primary" @click="openEditDialog(row)" v-if="!row.is_system">编辑</el-button>
             <el-button link type="danger" @click="handleDelete(row)" v-if="!row.is_system">删除</el-button>
           </template>
@@ -106,7 +118,10 @@ import {
   getRoleList,
   createRole,
   updateRole,
+  updateRoleStatus,
   deleteRole,
+  batchDeleteRoles,
+  batchUpdateRoleStatus,
   bindRolePermissions,
   getRolePermissionIds,
   type RoleItem
@@ -119,6 +134,7 @@ const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
 const search = reactive({ keyword: '' })
+const selectedIds = ref<string[]>([])
 
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
@@ -145,8 +161,8 @@ async function loadList() {
     const params: any = { page: page.value, page_size: pageSize.value }
     if (search.keyword) params.keyword = search.keyword
     const res: any = await getRoleList(params)
-    list.value = res.list || []
-    total.value = res.total || 0
+    list.value = res.data || []
+    total.value = res.pagination?.total || 0
   } catch (e) {
     list.value = []
     total.value = 0
@@ -157,7 +173,7 @@ async function loadList() {
 
 async function loadAllPermissions() {
   const res: any = await getPermissionList({ page: 1, page_size: 500 })
-  const perms = (res.list || []) as any[]
+  const perms = (res.data || []) as any[]
   allPermIds.value = perms.map((p) => p.id)
   // 按 resource 分组（简单实现：resource 作为父节点，权限作为子节点）
   const groups = new Map<string, { name: string; children: any[] }>()
@@ -166,6 +182,12 @@ async function loadAllPermissions() {
     groups.get(p.resource)!.children.push(p)
   }
   permTreeData.value = Array.from(groups.values())
+}
+
+function resetSearch() {
+  search.keyword = ''
+  page.value = 1
+  loadList()
 }
 
 function openCreateDialog() {
@@ -209,6 +231,10 @@ async function submitForm() {
   })
 }
 
+function handleSelectionChange(selection: RoleItem[]) {
+  selectedIds.value = selection.map((row) => row.id).filter(Boolean) as string[]
+}
+
 function handleDelete(row: RoleItem) {
   ElMessageBox.confirm(`确定要删除角色 "${row.name}" 吗？`, '提示', { type: 'warning' })
     .then(async () => {
@@ -218,6 +244,56 @@ function handleDelete(row: RoleItem) {
       loadList()
     })
     .catch(() => {})
+}
+
+function handleBatchDelete() {
+  if (selectedIds.value.length === 0) return
+  ElMessageBox.confirm(`确定要删除选中的 ${selectedIds.value.length} 个角色吗？`, '提示', { type: 'warning' })
+    .then(async () => {
+      await batchDeleteRoles(selectedIds.value)
+      ElMessage.success('批量删除成功')
+      selectedIds.value = []
+      loadList()
+    })
+    .catch(() => {})
+}
+
+function handleBatchEnable() {
+  if (selectedIds.value.length === 0) return
+  ElMessageBox.confirm(`确定要启用选中的 ${selectedIds.value.length} 个角色吗？`, '提示', { type: 'warning' })
+    .then(async () => {
+      await batchUpdateRoleStatus(selectedIds.value, 1)
+      ElMessage.success('批量启用成功')
+      selectedIds.value = []
+      loadList()
+    })
+    .catch(() => {})
+}
+
+function handleBatchDisable() {
+  if (selectedIds.value.length === 0) return
+  ElMessageBox.confirm(`确定要停用选中的 ${selectedIds.value.length} 个角色吗？`, '提示', { type: 'warning' })
+    .then(async () => {
+      await batchUpdateRoleStatus(selectedIds.value, 0)
+      ElMessage.success('批量停用成功')
+      selectedIds.value = []
+      loadList()
+    })
+    .catch(() => {})
+}
+
+async function handleToggleStatus(row: RoleItem) {
+  if (!row.id) return
+  const newStatus = row.status === 1 ? 0 : 1
+  const actionText = newStatus === 1 ? '启用' : '停用'
+  try {
+    await ElMessageBox.confirm(`确定要${actionText}角色 "${row.name}" 吗？`, '提示', { type: 'warning' })
+    await updateRoleStatus(row.id, newStatus)
+    ElMessage.success(`${actionText}成功`)
+    loadList()
+  } catch (e) {
+    // 用户取消或请求失败
+  }
 }
 
 const checkedPermIds = ref<string[]>([])
@@ -232,8 +308,8 @@ async function openBindPerm(row: RoleItem) {
     let ids: string[] = []
     if (res && Array.isArray(res.ids)) ids = res.ids
     else if (res && Array.isArray(res.permission_ids)) ids = res.permission_ids
-    else if (res && res.data && Array.isArray(res.data)) ids = res.data.map((p: any) => p.id)
-    else if (res && res.data && Array.isArray(res.data.ids)) ids = res.data.ids
+    else if (res && Array.isArray(res)) ids = res.map((p: any) => p.id)
+    else if (res && Array.isArray(res.list)) ids = res.list.map((p: any) => p.id)
     checkedPermIds.value = ids
     bindDialogVisible.value = true
   } catch (e) {
@@ -266,6 +342,7 @@ onMounted(async () => {
 <style scoped>
 .page { display: flex; flex-direction: column; gap: 16px; }
 .search-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; }
+.batch-bar { display: flex; align-items: center; margin-bottom: 12px; padding: 8px 12px; background: #fef0f0; border-radius: 4px; }
 .flex-1 { flex: 1; }
 .pagination { display: flex; justify-content: flex-end; padding-top: 16px; }
 </style>

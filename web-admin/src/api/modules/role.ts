@@ -46,11 +46,23 @@ export function createRole(data: RoleCreateParams) {
 }
 
 export function updateRole(id: string, data: RoleUpdateParams) {
-  return put<RoleItem>(`/rbac/roles/${id}`, data)
+  return put<RoleItem>(`/rbac/roles/${id}/update`, data)
+}
+
+export function updateRoleStatus(id: string, status: number) {
+  return put(`/rbac/roles/${id}/status`, { status })
 }
 
 export function deleteRole(id: string) {
   return del(`/rbac/roles/${id}`)
+}
+
+export function batchDeleteRoles(ids: string[]) {
+  return del('/rbac/roles/batch/delete', { data: { ids } })
+}
+
+export function batchUpdateRoleStatus(ids: string[], status: number) {
+  return put('/rbac/roles/batch/status', { ids, status })
 }
 
 // 角色绑定权限
@@ -67,5 +79,5 @@ export function getRolePermissionIds(roleId: string) {
 
 // 获取 RBAC 统计信息
 export function getRBACStats() {
-  return get<ApiResult<{ role_count: number; permission_count: number; my_permission: number }>>('/rbac/stats')
+  return get<{ role_count: number; permission_count: number; my_permission: number }>('/rbac/stats')
 }

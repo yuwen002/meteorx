@@ -34,6 +34,8 @@ func RegisterRoutes(r chi.Router, h *handler.UserHandler, checker middleware.Per
 // RegisterAdminRoutes 编排系统管理员管理接口（仅限平台超级管理员）
 // 超级管理员已通过外层 RequiresMasterAdmin 中间件放行，这里不再重复配置权限校验
 func RegisterAdminRoutes(r chi.Router, h *handler.UserHandler) {
+	r.Get("/admin/stats", h.GetAllStats) // Dashboard: 所有用户总数
+
 	r.Route("/admin/users", func(r chi.Router) {
 		r.Get("/", h.ListMasterAdmins)                         // 获取系统管理员列表
 		r.Post("/", h.CreateMasterAdmin)                       // 创建系统管理员

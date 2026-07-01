@@ -1,4 +1,4 @@
-﻿package repository
+﻿﻿package repository
 
 import (
 	"context"
@@ -14,8 +14,8 @@ type UserRepository interface {
 	GetByID(ctx context.Context, id string) (*model.User, error)
 	// UsernameExists 全局检查用户名是否已存在（跨所有租户）
 	UsernameExists(ctx context.Context, username string) (bool, error)
-	// ListByTenant 根据租户ID查询用户列表（支持分页）
-	ListByTenant(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*model.User, int64, error)
+	// ListByTenant 根据租户ID查询用户列表（支持分页和状态筛选）
+	ListByTenant(ctx context.Context, tenantID string, page, pageSize int, keyword string, status *int) ([]*model.User, int64, error)
 	// ListMasterAdmins 查询所有系统管理员（is_master = true，支持分页和关键词搜索）
 	ListMasterAdmins(ctx context.Context, page, pageSize int, keyword string) ([]*model.User, int64, error)
 	// ListAllTenantUsers 查询所有租户用户（不包括系统管理员，支持分页和关键词搜索）
@@ -48,4 +48,6 @@ type UserRepository interface {
 
 	// CountByTenant 统计指定租户下的用户总数
 	CountByTenant(ctx context.Context, tenantID string) (int64, error)
+	// CountAllUsers 统计所有用户总数（跨租户）
+	CountAllUsers(ctx context.Context) (int64, error)
 }

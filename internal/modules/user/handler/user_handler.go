@@ -44,7 +44,15 @@ func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	// 解析搜索关键字
 	keyword := r.URL.Query().Get("keyword")
 
-	users, total, err := h.svc.ListByTenant(r.Context(), tenantID, pg.Page, pg.PageSize, keyword)
+	// 解析状态筛选
+	statusStr := r.URL.Query().Get("status")
+	var status *int
+	if statusStr != "" {
+		s, _ := strconv.Atoi(statusStr)
+		status = &s
+	}
+
+	users, total, err := h.svc.ListByTenant(r.Context(), tenantID, pg.Page, pg.PageSize, keyword, status)
 	if err != nil {
 		response.Fail(w, http.StatusInternalServerError, "获取用户列表失败")
 		return
@@ -172,6 +180,16 @@ func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	count, err := h.svc.CountByTenant(r.Context(), tenantID)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取用户统计失败")
+		return
+	}
+	response.Success(w, map[string]interface{}{"user_count": count})
+}
+
+// GetAllStats GET /api/v1/admin/stats - 获取所有用户总数（跨租户，仅限管理员）
+func (h *UserHandler) GetAllStats(w http.ResponseWriter, r *http.Request) {
+	count, err := h.svc.CountAllUsers(r.Context())
 	if err != nil {
 		response.Fail(w, http.StatusInternalServerError, "获取用户统计失败")
 		return

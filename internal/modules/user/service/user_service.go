@@ -169,8 +169,8 @@ func (s *UserService) buildUserRespList(ctx context.Context, users []*model.User
 
 // ============ 租户用户管理 ============
 
-func (s *UserService) ListByTenant(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error) {
-	users, total, err := s.repo.ListByTenant(ctx, tenantID, page, pageSize, keyword)
+func (s *UserService) ListByTenant(ctx context.Context, tenantID string, page, pageSize int, keyword string, status *int) ([]*dto.UserResp, int64, error) {
+	users, total, err := s.repo.ListByTenant(ctx, tenantID, page, pageSize, keyword, status)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -543,7 +543,7 @@ func (s *UserService) AdminCreateTenantUser(ctx context.Context, req dto.AdminCr
 }
 
 func (s *UserService) AdminListTenantUsers(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error) {
-	users, total, err := s.repo.ListByTenant(ctx, tenantID, page, pageSize, keyword)
+	users, total, err := s.repo.ListByTenant(ctx, tenantID, page, pageSize, keyword, nil)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -722,4 +722,9 @@ func (s *UserService) ChangePassword(ctx context.Context, userID, oldPassword, n
 // CountByTenant 统计指定租户下的用户总数
 func (s *UserService) CountByTenant(ctx context.Context, tenantID string) (int64, error) {
 	return s.repo.CountByTenant(ctx, tenantID)
+}
+
+// CountAllUsers 统计所有用户总数（跨租户）
+func (s *UserService) CountAllUsers(ctx context.Context) (int64, error) {
+	return s.repo.CountAllUsers(ctx)
 }

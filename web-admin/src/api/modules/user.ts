@@ -66,7 +66,12 @@ export function deleteUser(id: string) {
   return del(`/users/${id}`)
 }
 
-// 获取用户统计信息
+// 获取用户统计信息（当前租户）
 export function getUserStats() {
-  return get<ApiResult<{ user_count: number }>>('/profile/stats')
+  return get<{ user_count: number }>('/profile/stats')
+}
+
+// 获取所有用户统计信息（跨租户，管理员用）
+export function getAllUserStats() {
+  return get<{ user_count: number }>('/admin/stats')
 }

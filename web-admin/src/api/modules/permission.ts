@@ -32,9 +32,21 @@ export function createPermission(data: PermissionCreateParams) {
 }
 
 export function updatePermission(id: string, data: Partial<PermissionCreateParams>) {
-  return put<PermissionItem>(`/rbac/permissions/${id}`, data)
+  return put<PermissionItem>(`/rbac/permissions/${id}/update`, data)
 }
 
 export function deletePermission(id: string) {
-  return del(`/rbac/permissions/${id}`)
+  return del(`/rbac/permissions/${id}/delete`)
+}
+
+export function updatePermissionStatus(id: string, status: number) {
+  return put(`/rbac/permissions/${id}/status`, { status })
+}
+
+export function batchUpdatePermissionStatus(ids: string[], status: number) {
+  return put('/rbac/permissions/batch/status', { ids, status })
+}
+
+export function batchDeletePermissions(ids: string[]) {
+  return del('/rbac/permissions/batch/delete', { data: { ids } })
 }

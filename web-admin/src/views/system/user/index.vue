@@ -176,8 +176,8 @@ async function loadList() {
     if (search.keyword) params.keyword = search.keyword
     if (search.status !== undefined && search.status !== null) params.status = search.status
     const res: any = await getUserList(params)
-    list.value = res.list || []
-    total.value = res.total || 0
+    list.value = res.data || []
+    total.value = res.pagination?.total || 0
   } catch (e) {
     list.value = []
     total.value = 0

@@ -126,8 +126,8 @@ func (r *userRepository) UsernameExists(ctx context.Context, username string) (b
 	return count > 0, nil
 }
 
-// ListByTenant 根据租户ID查询用户列表（支持分页和关键字搜索）
-func (r *userRepository) ListByTenant(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*model.User, int64, error) {
+// ListByTenant 根据租户ID查询用户列表（支持分页、关键字搜索和状态筛选）
+func (r *userRepository) ListByTenant(ctx context.Context, tenantID string, page, pageSize int, keyword string, status *int) ([]*model.User, int64, error) {
 	var records []UserPO
 	var total int64
 
@@ -137,6 +137,11 @@ func (r *userRepository) ListByTenant(ctx context.Context, tenantID string, page
 	// 如果有搜索关键字，按用户名、昵称、邮箱模糊搜索
 	if keyword != "" {
 		query = query.Where("username LIKE ? OR nickname LIKE ? OR email LIKE ?", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+	}
+
+	// 如果指定了状态，按状态筛选
+	if status != nil {
+		query = query.Where("status = ?", *status)
 	}
 
 	// 查询总数
@@ -462,5 +467,12 @@ func (r *userRepository) CountByTenant(ctx context.Context, tenantID string) (in
 		query = query.Where("tenant_id = ?", tenantID)
 	}
 	err := query.Count(&total).Error
+	return total, err
+}
+
+// CountAllUsers 统计所有用户总数（跨租户）
+func (r *userRepository) CountAllUsers(ctx context.Context) (int64, error) {
+	var total int64
+	err := r.db.WithContext(ctx).Model(&UserPO{}).Count(&total).Error
 	return total, err
 }

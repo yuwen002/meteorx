@@ -1,0 +1,1 @@
+import{z as t,A as r,B as n,C as u}from"./index-D83gZU-C.js";function o(s){return t("/users",s)}function i(s){return r("/users",s)}function c(s,e){return n(`/users/${s}`,e)}function f(s){return u(`/users/${s}`)}function p(){return t("/profile/stats")}function U(){return t("/admin/stats")}export{p as a,o as b,i as c,f as d,U as g,c as u};

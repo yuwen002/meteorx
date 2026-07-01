@@ -34,7 +34,8 @@ service.interceptors.response.use(
       }
       return Promise.reject(new Error(res.message || 'Error'))
     }
-    return res
+    // 统一返回 data 字段内容，避免每个页面都写 res.data.xxx
+    return res.data ?? res
   },
   (error) => {
     if (error.response) {
