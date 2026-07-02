@@ -29,24 +29,25 @@ func RegisterRoutes(r chi.Router, h *handler.RBACHandler, checker middleware.Per
 			r.Use(middleware.AutoRequirePermission(checker))
 
 			// 角色管理
-			r.Route("/roles", func(r chi.Router) {
-				r.Get("/", h.ListRoles)                          // rbac:role:list
-				r.Post("/", h.CreateRole)                        // rbac:role:create
-				r.Get("/deleted", h.ListDeletedRoles)           // rbac:role:list_deleted
-				r.Put("/batch/status", h.BatchUpdateRoleStatus)  // rbac:role:batch_status
-				r.Delete("/batch/delete", h.BatchDeleteRoles)    // rbac:role:batch_delete
-				r.Put("/batch/permissions", h.BatchBindRolesPermissions)     // rbac:role:batch_bind
-				r.Delete("/batch/permissions", h.BatchUnbindRolesPermissions) // rbac:role:batch_unbind
-				r.Put("/{id}/restore", h.RestoreRole)            // rbac:role:restore
-				r.Get("/{id}/detail", h.GetRole)                 // rbac:role:read
-				r.Put("/{id}/update", h.UpdateRole)              // rbac:role:update
-				r.Put("/{id}/status", h.UpdateRoleStatus)        // rbac:role:status
-				r.Delete("/{id}/delete", h.DeleteRole)           // rbac:role:delete
-				r.Put("/{id}/permissions", h.BindRolePermissions)            // rbac:role:bind_perm
-				r.Get("/{id}/permissions", h.GetRolePermissions)            // rbac:role:get_perms
-				r.Delete("/{id}/permissions", h.UnbindRolePermission)       // rbac:role:unbind_perm
-				r.Delete("/{id}/permissions/batch", h.UnbindRolePermissions) // rbac:role:batch_unbind_perm
-			})
+		r.Route("/roles", func(r chi.Router) {
+			r.Get("/", h.ListRoles)                          // rbac:role:list
+			r.Get("/select", h.ListRolesForSelect)           // rbac:role:list_select（下拉列表，不分页）
+			r.Post("/", h.CreateRole)                        // rbac:role:create
+			r.Get("/deleted", h.ListDeletedRoles)           // rbac:role:list_deleted
+			r.Put("/batch/status", h.BatchUpdateRoleStatus)  // rbac:role:batch_status
+			r.Delete("/batch/delete", h.BatchDeleteRoles)    // rbac:role:batch_delete
+			r.Put("/batch/permissions", h.BatchBindRolesPermissions)     // rbac:role:batch_bind
+			r.Delete("/batch/permissions", h.BatchUnbindRolesPermissions) // rbac:role:batch_unbind
+			r.Put("/{id}/restore", h.RestoreRole)            // rbac:role:restore
+			r.Get("/{id}/detail", h.GetRole)                 // rbac:role:read
+			r.Put("/{id}/update", h.UpdateRole)              // rbac:role:update
+			r.Put("/{id}/status", h.UpdateRoleStatus)        // rbac:role:status
+			r.Delete("/{id}/delete", h.DeleteRole)           // rbac:role:delete
+			r.Put("/{id}/permissions", h.BindRolePermissions)            // rbac:role:bind_perm
+			r.Get("/{id}/permissions", h.GetRolePermissions)            // rbac:role:get_perms
+			r.Delete("/{id}/permissions", h.UnbindRolePermission)       // rbac:role:unbind_perm
+			r.Delete("/{id}/permissions/batch", h.UnbindRolePermissions) // rbac:role:batch_unbind_perm
+		})
 
 			// 权限管理
 		r.Route("/permissions", func(r chi.Router) {

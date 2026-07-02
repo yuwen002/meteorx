@@ -344,15 +344,6 @@ func (s *UserService) CreateMasterAdmin(ctx context.Context, req dto.CreateMaste
 		return nil, fmt.Errorf("用户名已被使用")
 	}
 
-	// 校验 superadmin 角色是否存在且启用
-	superadminRole, err := s.roleRepo.GetByCode(ctx, "", "superadmin")
-	if err != nil {
-		return nil, fmt.Errorf("系统管理员角色未配置，请先在 roles 表中初始化 superadmin 角色")
-	}
-	if superadminRole.Status == 0 {
-		return nil, fmt.Errorf("系统管理员角色已禁用")
-	}
-
 	hashedPassword, err := crypto.HashPassword(req.Password)
 	if err != nil {
 		return nil, err
@@ -373,8 +364,28 @@ func (s *UserService) CreateMasterAdmin(ctx context.Context, req dto.CreateMaste
 		return nil, err
 	}
 
-	// 分配 superadmin 角色
-	if err := s.userRoleRepo.AssignRoles(ctx, user.ID, []string{superadminRole.ID}); err != nil {
+	// 确定要分配的角色
+	var roleIDs []string
+	if len(req.RoleIDs) > 0 {
+		// 校验指定的角色是否存在且属于系统级别
+		if err := s.validateRoleIDs(ctx, req.RoleIDs, rbacModel.RoleScopeSystem); err != nil {
+			return nil, err
+		}
+		roleIDs = req.RoleIDs
+	} else {
+		// 未指定角色，默认分配 superadmin
+		superadminRole, err := s.roleRepo.GetByCode(ctx, "", "superadmin")
+		if err != nil {
+			return nil, fmt.Errorf("系统管理员角色未配置，请先在 roles 表中初始化 superadmin 角色")
+		}
+		if superadminRole.Status == 0 {
+			return nil, fmt.Errorf("系统管理员角色已禁用")
+		}
+		roleIDs = []string{superadminRole.ID}
+	}
+
+	// 分配角色
+	if err := s.userRoleRepo.AssignRoles(ctx, user.ID, roleIDs); err != nil {
 		return nil, err
 	}
 

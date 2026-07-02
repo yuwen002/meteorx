@@ -14,12 +14,13 @@ type CreateUserReq struct {
 	RoleIDs  []string `json:"role_ids" validate:"required,min=1"` // 角色ID列表，需存在于 roles 表中
 }
 
-// CreateMasterAdminReq 创建系统管理员请求（不需要指定角色，自动设为 superadmin）
+// CreateMasterAdminReq 创建系统管理员请求（可指定角色，不指定则默认为 superadmin）
 type CreateMasterAdminReq struct {
-	Username string `json:"username" validate:"required,alphanum,min=4,max=50"`
-	Password string `json:"password" validate:"required,min=6,max=32"`
-	Nickname string `json:"nickname" validate:"required,max=50"`
-	Email    string `json:"email,omitempty" validate:"omitempty,email"`
+	Username string   `json:"username" validate:"required,alphanum,min=4,max=50"`
+	Password string   `json:"password" validate:"required,min=6,max=32"`
+	Nickname string   `json:"nickname" validate:"required,max=50"`
+	Email    string   `json:"email,omitempty" validate:"omitempty,email"`
+	RoleIDs  []string `json:"role_ids,omitempty" validate:"omitempty,min=1"` // 角色ID列表，不指定则默认为 superadmin
 }
 
 // AdminCreateTenantUserReq 系统管理员为指定租户创建用户请求

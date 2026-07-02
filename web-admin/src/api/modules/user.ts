@@ -18,6 +18,7 @@ export interface UserCreateParams {
   password: string
   nickname?: string
   email?: string
+  role_ids?: string[]
 }
 
 export interface UserUpdateParams {
@@ -25,6 +26,7 @@ export interface UserUpdateParams {
   email?: string
   status?: number
   password?: string
+  role_ids?: string[]
 }
 
 export interface UserListParams {
@@ -40,6 +42,8 @@ export interface PageResult<T> {
   page: number
   page_size: number
 }
+
+// ==================== 普通用户接口 ====================
 
 // 用户列表（租户内用户或管理员接口）
 export function getUserList(params: UserListParams) {
@@ -74,4 +78,46 @@ export function getUserStats() {
 // 获取所有用户统计信息（跨租户，管理员用）
 export function getAllUserStats() {
   return get<{ user_count: number }>('/admin/stats')
+}
+
+// ==================== 系统管理员接口 ====================
+
+// 系统管理员列表
+export function getMasterAdminList(params: UserListParams) {
+  return get<PageResult<UserItem>>('/admin/users', params)
+}
+
+// 系统管理员详情
+export function getMasterAdminDetail(id: string) {
+  return get<UserItem>(`/admin/users/${id}/detail`)
+}
+
+// 创建系统管理员
+export function createMasterAdmin(data: UserCreateParams) {
+  return post<UserItem>('/admin/users', data)
+}
+
+// 更新系统管理员
+export function updateMasterAdmin(id: string, data: UserUpdateParams) {
+  return put<UserItem>(`/admin/users/${id}/update`, data)
+}
+
+// 删除系统管理员
+export function deleteMasterAdmin(id: string) {
+  return del(`/admin/users/${id}/delete`)
+}
+
+// 更新系统管理员状态
+export function updateMasterAdminStatus(id: string, status: number) {
+  return put(`/admin/users/${id}/status`, { status })
+}
+
+// 批量更新系统管理员状态
+export function batchUpdateMasterAdminStatus(ids: string[], status: number) {
+  return put('/admin/users/batch/status', { ids, status })
+}
+
+// 批量删除系统管理员
+export function batchDeleteMasterAdmins(ids: string[]) {
+  return del('/admin/users/batch/delete', { data: { ids } })
 }

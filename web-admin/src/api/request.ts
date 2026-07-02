@@ -28,7 +28,7 @@ service.interceptors.response.use(
     // 如果有业务错误，这里提示
     if (res && typeof res === 'object' && 'code' in res && res.code !== 0 && res.code !== 200) {
       if (res.code === 401 || res.code === 40001) {
-        handleLogout()
+        handleLogoutSync()
       } else {
         ElMessage.error(res.message || '请求失败')
       }
@@ -41,7 +41,7 @@ service.interceptors.response.use(
     if (error.response) {
       const status = error.response.status
       if (status === 401) {
-        handleLogout()
+        handleLogoutSync()
       } else {
         const msg = error.response.data?.message || error.response.statusText || `HTTP ${status}`
         ElMessage.error(msg)
@@ -53,9 +53,15 @@ service.interceptors.response.use(
   }
 )
 
-function handleLogout() {
+// 同步处理登出（用于拦截器中，不等待 API 响应）
+function handleLogoutSync() {
   const userStore = useUserStore()
-  userStore.logout()
+  // 不等待异步 logout API 调用，直接清理本地状态
+  if (userStore.logoutSync) {
+    userStore.logoutSync()
+  } else {
+    userStore.logout()
+  }
   ElMessage.warning('登录状态已过期，请重新登录')
   router.push('/login')
 }

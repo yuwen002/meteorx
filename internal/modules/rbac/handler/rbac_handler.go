@@ -103,6 +103,30 @@ func (h *RBACHandler) ListRoles(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, result)
 }
 
+// ListRolesForSelect 获取角色下拉列表（不分页，用于选择）
+// GET /api/v1/rbac/roles/select
+// 支持通过 scope 参数过滤角色作用域：system/tenant/all
+func (h *RBACHandler) ListRolesForSelect(w http.ResponseWriter, r *http.Request) {
+	scope := r.URL.Query().Get("scope")
+	if scope == "" {
+		scope = "system" // 默认返回系统级角色
+	}
+
+	roles, err := h.svc.ListRolesByScope(r.Context(), scope)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取角色列表失败")
+		return
+	}
+
+	// 转换为 RoleResp
+	resp := make([]*dto.RoleResp, len(roles))
+	for i, role := range roles {
+		resp[i] = dto.ToRoleResp(role)
+	}
+
+	response.Success(w, resp)
+}
+
 // UpdateRole 更新角色信息
 // PUT /api/v1/rbac/roles/{id}/update
 // 根据角色 ID 和请求体参数更新角色的属性

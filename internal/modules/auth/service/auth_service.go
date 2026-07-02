@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
+	"meteorx/internal/cache"
 	"meteorx/internal/common/jwt"
 	"meteorx/internal/modules/auth/dto"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
@@ -14,21 +16,27 @@ import (
 	"meteorx/pkg/uuid"
 )
 
+const (
+	tokenBlacklistPrefix = "token:blacklist:"
+)
+
 type AuthService struct {
-	userRepo          repository.UserRepository
-	roleRepo          rbacRepo.RoleRepository
-	userRoleRepo      rbacRepo.UserRoleRepository
+	userRepo           repository.UserRepository
+	roleRepo           rbacRepo.RoleRepository
+	userRoleRepo       rbacRepo.UserRoleRepository
 	rolePermissionRepo rbacRepo.RolePermissionRepository
-	tokenHelper       *jwt.TokenHelper
+	tokenHelper        *jwt.TokenHelper
+	redis              *cache.Redis
 }
 
-func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, urr rbacRepo.UserRoleRepository, rpr rbacRepo.RolePermissionRepository, th *jwt.TokenHelper) *AuthService {
+func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, urr rbacRepo.UserRoleRepository, rpr rbacRepo.RolePermissionRepository, th *jwt.TokenHelper, redis *cache.Redis) *AuthService {
 	return &AuthService{
-		userRepo:          ur,
-		roleRepo:          rr,
-		userRoleRepo:      urr,
+		userRepo:           ur,
+		roleRepo:           rr,
+		userRoleRepo:       urr,
 		rolePermissionRepo: rpr,
-		tokenHelper:       th,
+		tokenHelper:        th,
+		redis:              redis,
 	}
 }
 
@@ -129,4 +137,41 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User,
 	}
 
 	return user, roleCodes, permissionCodes, token, nil
+}
+
+// Logout 用户登出，将 token 加入黑名单
+func (s *AuthService) Logout(ctx context.Context, tokenString string) error {
+	if s.redis == nil {
+		return errors.New("redis not initialized")
+	}
+
+	// 解析 token 获取过期时间
+	claims, err := s.tokenHelper.ParseToken(tokenString)
+	if err != nil {
+		return errors.New("invalid token")
+	}
+
+	// 计算 token 剩余有效期
+	now := time.Now()
+	var expiration time.Duration
+	if claims.ExpiresAt != nil && claims.ExpiresAt.Time.After(now) {
+		expiration = claims.ExpiresAt.Time.Sub(now)
+	} else {
+		// token 已过期，无需加入黑名单
+		return nil
+	}
+
+	// 将 token 加入黑名单，有效期与 token 剩余有效期相同
+	key := fmt.Sprintf("%s%s", tokenBlacklistPrefix, tokenString)
+	return s.redis.Set(ctx, key, "1", expiration)
+}
+
+// IsTokenBlacklisted 检查 token 是否在黑名单中
+func (s *AuthService) IsTokenBlacklisted(ctx context.Context, tokenString string) (bool, error) {
+	if s.redis == nil {
+		return false, nil
+	}
+
+	key := fmt.Sprintf("%s%s", tokenBlacklistPrefix, tokenString)
+	return s.redis.Exists(ctx, key)
 }

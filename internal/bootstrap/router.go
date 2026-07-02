@@ -1,6 +1,12 @@
 package bootstrap
 
 import (
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"gorm.io/gorm"
+
+	"meteorx/internal/cache"
 	"meteorx/internal/common/jwt"
 	"meteorx/internal/config"
 	"meteorx/internal/middleware"
@@ -8,13 +14,9 @@ import (
 	"meteorx/internal/modules/rbac"
 	"meteorx/internal/modules/tenant"
 	"meteorx/internal/modules/user"
-	"net/http"
-
-	"github.com/go-chi/chi/v5"
-	"gorm.io/gorm"
 )
 
-func InitRouter(db *gorm.DB, cfg *config.Config) *chi.Mux {
+func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 	r := chi.NewRouter()
 	SetupMiddleware(r)
 
@@ -30,7 +32,7 @@ func InitRouter(db *gorm.DB, cfg *config.Config) *chi.Mux {
 		// --- 分组一：公开接口 (Public) ---
 		r.Group(func(r chi.Router) {
 			// 1. 认证模块（登录、签发 Token）
-			auth.InitModule(r, db, cfg.JWT)
+			auth.InitModule(r, db, cfg.JWT, rdb)
 
 			// 2. 租户公开接口（仅限注册）
 			tenant.InitPublicModule(r, db)
@@ -39,7 +41,9 @@ func InitRouter(db *gorm.DB, cfg *config.Config) *chi.Mux {
 		// --- 分组二：受保护接口 (Protected) ---
 		r.Group(func(r chi.Router) {
 			// 【第一层防线】挂载认证中间件，解析 Token 并注入 UserID, TenantID, Role
-			r.Use(middleware.Auth(tokenHelper))
+			// 同时检查 token 是否在黑名单中（已登出的 token）
+			blacklistChecker := &middleware.RedisBlacklistChecker{Redis: rdb}
+			r.Use(middleware.Auth(tokenHelper, blacklistChecker))
 
 			// 3. 租户私有接口（租户管理员登录后：管理本公司信息、查看套餐等）
 			tenant.InitPrivateModule(r, db)

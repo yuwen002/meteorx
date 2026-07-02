@@ -123,12 +123,20 @@ func (r *roleRepository) List(ctx context.Context, tenantID string, page, pageSi
 }
 
 // ListByScope 查询指定作用域下可用角色（scope 匹配或为 all，且状态为启用）
+// 当 scope = "all" 时，返回所有启用的角色（不限定作用域）
 func (r *roleRepository) ListByScope(ctx context.Context, scope string) ([]*model.Role, error) {
 	var records []RolePO
-	if err := r.db.WithContext(ctx).
-		Where("(scope = ? OR scope = ?) AND status = ?", scope, model.RoleScopeAll, model.RoleStatusEnabled).
-		Order("created_at ASC").
-		Find(&records).Error; err != nil {
+	db := r.db.WithContext(ctx)
+
+	if scope == model.RoleScopeAll {
+		// scope=all 时返回所有启用的角色
+		db = db.Where("status = ?", model.RoleStatusEnabled)
+	} else {
+		// 指定 scope 时，返回该 scope 或 scope=all 的角色
+		db = db.Where("(scope = ? OR scope = ?) AND status = ?", scope, model.RoleScopeAll, model.RoleStatusEnabled)
+	}
+
+	if err := db.Order("created_at ASC").Find(&records).Error; err != nil {
 		return nil, err
 	}
 	roles := make([]*model.Role, len(records))

@@ -86,6 +86,11 @@ func (s *RBACService) ListRoles(ctx context.Context, tenantID string, page, page
 	return s.roleRepo.List(ctx, tenantID, page, pageSize, keyword)
 }
 
+// ListRolesByScope 根据作用域获取角色列表（用于下拉选择）
+func (s *RBACService) ListRolesByScope(ctx context.Context, scope string) ([]*model.Role, error) {
+	return s.roleRepo.ListByScope(ctx, scope)
+}
+
 func (s *RBACService) UpdateRole(ctx context.Context, id string, req dto.UpdateRoleReq) (*model.Role, error) {
 	role, err := s.roleRepo.GetByID(ctx, id)
 	if err != nil {

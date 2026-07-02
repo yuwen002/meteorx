@@ -17,12 +17,14 @@ export interface RoleItem {
 export interface RoleCreateParams {
   name: string
   code: string
+  scope?: string
   description?: string
   status?: number
 }
 
 export interface RoleUpdateParams {
   name?: string
+  code?: string
   description?: string
   status?: number
 }
@@ -36,6 +38,12 @@ export interface RoleListParams {
 
 export function getRoleList(params: RoleListParams) {
   return get<{ list: RoleItem[]; total: number }>('/rbac/roles', params)
+}
+
+// 获取角色下拉列表（不分页，用于选择）
+// scope: system/tenant/all，默认为 system
+export function getRoleListForSelect(scope?: string) {
+  return get<RoleItem[]>('/rbac/roles/select', { scope })
 }
 
 export function getRoleDetail(id: string) {

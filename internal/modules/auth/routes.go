@@ -11,5 +11,6 @@ func RegisterRoutes(r chi.Router, h *handler.AuthHandler) {
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", h.Register)
 		r.Post("/login", h.Login)
+		r.Post("/logout", h.Logout)
 	})
 }

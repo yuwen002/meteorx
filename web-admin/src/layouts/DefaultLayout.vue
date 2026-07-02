@@ -37,6 +37,10 @@
             <el-icon><Lock /></el-icon>
             <template #title>权限管理</template>
           </el-menu-item>
+          <el-menu-item index="/system/master-admin" v-if="userStore.isAdmin">
+            <el-icon><Avatar /></el-icon>
+            <template #title>系统管理员</template>
+          </el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>
@@ -105,15 +109,15 @@ const appStore = useAppStore()
 
 const activeMenu = computed(() => currentRoute.path)
 
-function handleCommand(cmd: string) {
+async function handleCommand(cmd: string) {
   if (cmd === 'logout') {
     ElMessageBox.confirm('确定要退出登录吗？', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
-      .then(() => {
-        userStore.logout()
+      .then(async () => {
+        await userStore.logout()
         ElMessage.success('已退出登录')
         router.push('/login')
       })

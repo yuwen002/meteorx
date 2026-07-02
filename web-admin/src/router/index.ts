@@ -36,6 +36,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Permission',
         component: () => import('@/views/system/permission/index.vue'),
         meta: { title: '权限管理', icon: 'Lock', permission: 'rbac:perm:list' }
+      },
+      {
+        path: 'system/master-admin',
+        name: 'MasterAdmin',
+        component: () => import('@/views/system/master-admin/index.vue'),
+        meta: { title: '系统管理员', icon: 'Avatar', permission: 'admin:master:list', requireMaster: true }
       }
     ]
   },

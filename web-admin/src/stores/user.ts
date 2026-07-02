@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { login, type LoginParams, type LoginUserInfo } from '@/api/auth'
+import { login, logout as apiLogout, type LoginParams, type LoginUserInfo } from '@/api/auth'
 
 const TOKEN_KEY = 'meteorx_token'
 const USER_KEY = 'meteorx_user'
@@ -44,7 +44,25 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem(PERMS_KEY, JSON.stringify(list))
   }
 
-  function logout() {
+  async function logout() {
+    // 调用后端登出接口，将 token 加入黑名单
+    try {
+      await apiLogout()
+    } catch (error) {
+      // 即使后端调用失败，也继续清理本地状态
+      console.error('Logout API call failed:', error)
+    }
+
+    // 清理本地状态
+    clearLocalState()
+  }
+
+  // 同步登出（用于拦截器等不需要等待 API 响应的场景）
+  function logoutSync() {
+    clearLocalState()
+  }
+
+  function clearLocalState() {
     token.value = ''
     userInfo.value = null
     permissions.value = []
@@ -75,6 +93,7 @@ export const useUserStore = defineStore('user', () => {
     doLogin,
     setPermissions,
     logout,
+    logoutSync,
     hasPermission,
     hasAnyPermission
   }

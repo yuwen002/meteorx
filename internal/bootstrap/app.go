@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
+	"meteorx/internal/cache"
 )
 
 func StartApp() {
@@ -26,11 +28,15 @@ func StartApp() {
 		log.Printf("Warning: Seed data initialization failed: %v", err)
 	}
 
-	// 5. 初始化路由并注入依赖
-	// 这样你的路由、中间件、业务模块都能拿到这个 db 实例
-	r := InitRouter(db, cfg)
+	// 5. 初始化 Redis
+	redisAddr := fmt.Sprintf("%s:%d", cfg.Redis.Host, cfg.Redis.Port)
+	rdb := cache.NewRedis(redisAddr, cfg.Redis.Password, cfg.Redis.DB)
 
-	// 5. 启动服务
+	// 6. 初始化路由并注入依赖
+	// 这样你的路由、中间件、业务模块都能拿到这个 db 实例
+	r := InitRouter(db, cfg, rdb)
+
+	// 7. 启动服务
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	log.Printf("MeteorX server started on port %d [%s mode]", cfg.Server.Port, cfg.Server.Mode)
 

@@ -69,6 +69,13 @@
       <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
         <el-form-item label="角色名" prop="name"><el-input v-model="form.name" /></el-form-item>
         <el-form-item label="编码" prop="code"><el-input v-model="form.code" :disabled="dialogMode === 'edit'" /></el-form-item>
+        <el-form-item label="作用域" prop="scope">
+          <el-select v-model="form.scope" style="width: 100%" :disabled="dialogMode === 'edit'">
+            <el-option label="系统级" value="system" />
+            <el-option label="租户级" value="tenant" />
+            <el-option label="全部" value="all" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="描述" prop="description"><el-input v-model="form.description" type="textarea" :rows="3" /></el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="form.status">
@@ -178,7 +185,7 @@ const dialogMode = ref<'create' | 'edit'>('create')
 const formRef = ref<FormInstance>()
 const saving = ref(false)
 const editingId = ref<string | null>(null)
-const form = reactive({ name: '', code: '', description: '', status: 1 })
+const form = reactive({ name: '', code: '', description: '', scope: 'system', status: 1 })
 
 const rules: FormRules = {
   name: [{ required: true, message: '请输入角色名', trigger: 'blur' }],
@@ -282,6 +289,7 @@ function openCreateDialog() {
   form.name = ''
   form.code = ''
   form.description = ''
+  form.scope = 'system'
   form.status = 1
   dialogVisible.value = true
 }
@@ -291,6 +299,7 @@ function openEditDialog(row: RoleItem) {
   editingId.value = row.id
   form.name = row.name
   form.code = row.code
+  form.scope = row.scope || 'system'
   form.description = row.description || ''
   form.status = row.status ?? 1
   dialogVisible.value = true
@@ -303,10 +312,11 @@ async function submitForm() {
     saving.value = true
     try {
       if (dialogMode.value === 'create') {
-        await createRole({ name: form.name, code: form.code, description: form.description, status: form.status })
+        await createRole({ name: form.name, code: form.code, scope: form.scope, description: form.description, status: form.status })
         ElMessage.success('新增成功')
       } else if (editingId.value) {
-        await updateRole(editingId.value, { name: form.name, description: form.description, status: form.status })
+        // 编辑时也要传递 code，防止后端将其清空
+        await updateRole(editingId.value, { name: form.name, code: form.code, description: form.description, status: form.status })
         ElMessage.success('更新成功')
       }
       dialogVisible.value = false

@@ -59,6 +59,13 @@
         <el-table-column prop="username" label="用户名" min-width="140" />
         <el-table-column prop="nickname" label="昵称" min-width="120" />
         <el-table-column prop="email" label="邮箱" min-width="180" />
+        <el-table-column label="角色" min-width="150">
+          <template #default="{ row }">
+            <el-tag v-for="role in row.roles" :key="role" size="small" style="margin-right: 4px;">
+              {{ role }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '启用' : '禁用' }}</el-tag>
@@ -95,14 +102,14 @@
     <el-dialog
       v-model="dialogVisible"
       :title="dialogMode === 'create' ? '新增系统管理员' : '编辑系统管理员'"
-      width="480px"
+      width="520px"
       :close-on-click-modal="false"
     >
       <el-form
         ref="formRef"
         :model="form"
         :rules="rules"
-        label-width="90px"
+        label-width="100px"
       >
         <el-form-item label="用户名" prop="username">
           <el-input v-model="form.username" :disabled="dialogMode === 'edit'" placeholder="请输入用户名" />
@@ -118,6 +125,25 @@
         </el-form-item>
         <el-form-item label="邮箱" prop="email">
           <el-input v-model="form.email" placeholder="请输入邮箱" />
+        </el-form-item>
+        <el-form-item label="角色" prop="role_ids">
+          <el-select
+            v-model="form.role_ids"
+            multiple
+            placeholder="请选择角色（不选默认为 superadmin）"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="role in systemRoles"
+              :key="role.id"
+              :label="`${role.name} (${role.code})`"
+              :value="role.id"
+            >
+              <span style="float: left">{{ role.name }}</span>
+              <span style="float: right; color: #8492a6; font-size: 13px">{{ role.code }}</span>
+            </el-option>
+          </el-select>
+          <div class="form-tip">不选择角色时，系统会自动分配 superadmin 角色</div>
         </el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="form.status">
@@ -149,6 +175,16 @@ import {
   type UserCreateParams,
   type UserUpdateParams
 } from '@/api/modules/user'
+import { getRoleListForSelect, type RoleItem } from '@/api/modules/role'
+
+interface MasterAdminForm {
+  username: string
+  password: string
+  nickname: string
+  email: string
+  status: number
+  role_ids?: string[]
+}
 
 const list = ref<UserItem[]>([])
 const total = ref(0)
@@ -156,6 +192,7 @@ const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
 const selectedIds = ref<string[]>([])
+const systemRoles = ref<RoleItem[]>([])
 
 const search = reactive({ keyword: '', status: undefined as number | undefined })
 
@@ -164,12 +201,13 @@ const dialogMode = ref<'create' | 'edit'>('create')
 const formRef = ref<FormInstance>()
 const saving = ref(false)
 const editingId = ref<string | null>(null)
-const form = reactive<UserCreateParams & UserUpdateParams>({
+const form = reactive<MasterAdminForm>({
   username: '',
   password: '',
   nickname: '',
   email: '',
-  status: 1
+  status: 1,
+  role_ids: []
 })
 
 const rules: FormRules = {
@@ -195,6 +233,16 @@ async function loadList() {
   }
 }
 
+async function loadSystemRoles() {
+  try {
+    // 使用专门的接口获取系统级角色（不分页，只返回启用的角色）
+    const res: any = await getRoleListForSelect('system')
+    systemRoles.value = res || []
+  } catch (e) {
+    systemRoles.value = []
+  }
+}
+
 function resetSearch() {
   search.keyword = ''
   search.status = undefined
@@ -214,10 +262,11 @@ function openCreateDialog() {
   form.nickname = ''
   form.email = ''
   form.status = 1
+  form.role_ids = []
   dialogVisible.value = true
 }
 
-function openEditDialog(row: UserItem) {
+function openEditDialog(row: UserItem & { role_ids?: string[] }) {
   dialogMode.value = 'edit'
   editingId.value = row.id
   form.username = row.username
@@ -225,6 +274,7 @@ function openEditDialog(row: UserItem) {
   form.nickname = row.nickname || ''
   form.email = row.email || ''
   form.status = row.status ?? 1
+  form.role_ids = row.role_ids || []
   dialogVisible.value = true
 }
 
@@ -235,20 +285,27 @@ async function submitForm() {
     saving.value = true
     try {
       if (dialogMode.value === 'create') {
-        await createMasterAdmin({
+        const createData: any = {
           username: form.username.trim(),
           password: form.password,
           nickname: form.nickname,
           email: form.email
-        })
+        }
+        if (form.role_ids && form.role_ids.length > 0) {
+          createData.role_ids = form.role_ids
+        }
+        await createMasterAdmin(createData)
         ElMessage.success('新增成功')
       } else if (editingId.value) {
-        const updateData: UserUpdateParams = {
+        const updateData: any = {
           nickname: form.nickname,
           email: form.email,
           status: form.status
         }
         if (form.password) updateData.password = form.password
+        if (form.role_ids && form.role_ids.length > 0) {
+          updateData.role_ids = form.role_ids
+        }
         await updateMasterAdmin(editingId.value, updateData)
         ElMessage.success('更新成功')
       }
@@ -325,7 +382,10 @@ function handleBatchDelete() {
     .catch(() => {})
 }
 
-onMounted(loadList)
+onMounted(() => {
+  loadList()
+  loadSystemRoles()
+})
 </script>
 
 <style scoped>
@@ -350,5 +410,10 @@ onMounted(loadList)
   display: flex;
   justify-content: flex-end;
   padding-top: 16px;
+}
+.form-tip {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
 }
 </style>

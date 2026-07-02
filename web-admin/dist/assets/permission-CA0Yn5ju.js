@@ -1,1 +1,0 @@
-import{z as e,A as i,B as n,C as t}from"./index-D83gZU-C.js";function a(s){return e("/rbac/permissions",s)}function u(s){return i("/rbac/permissions",s)}function c(s,r){return n(`/rbac/permissions/${s}`,r)}function m(s){return t(`/rbac/permissions/${s}`)}export{u as c,m as d,a as g,c as u};
