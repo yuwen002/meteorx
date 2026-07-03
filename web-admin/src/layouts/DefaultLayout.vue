@@ -41,6 +41,10 @@
             <el-icon><Avatar /></el-icon>
             <template #title>系统管理员</template>
           </el-menu-item>
+          <el-menu-item index="/system/tenant" v-if="userStore.isAdmin">
+            <el-icon><OfficeBuilding /></el-icon>
+            <template #title>租户管理</template>
+          </el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>

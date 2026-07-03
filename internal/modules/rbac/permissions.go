@@ -31,37 +31,38 @@ const (
 // 角色管理权限码（/api/v1/rbac/roles 相关）
 // ============================================================
 const (
-	RoleList           = "rbac:role:list"            // 查询角色列表
-	RoleCreate         = "rbac:role:create"          // 创建角色
-	RoleRead           = "rbac:role:read"            // 查询角色详情
-	RoleUpdate         = "rbac:role:update"          // 更新角色
-	RoleDelete         = "rbac:role:delete"          // 删除角色
-	RoleStatus         = "rbac:role:status"          // 切换角色状态
-	RoleBatchStatus    = "rbac:role:batch:status"    // 批量切换角色状态
-	RoleBatchDelete    = "rbac:role:batch:delete"    // 批量删除角色
-	RoleListDeleted    = "rbac:role:list_deleted"    // 查询已删除角色（回收站）
-	RoleRestore        = "rbac:role:restore"         // 恢复已删除角色
-	RoleBindPerm       = "rbac:role:bind_perm"       // 角色绑定权限
-	RoleUnbindPerm     = "rbac:role:unbind_perm"     // 角色解绑单个权限
-	RoleUnbindPerms    = "rbac:role:unbind_perms"    // 角色批量解绑权限
-	RoleGetPerms       = "rbac:role:get_perms"       // 查询角色的权限列表
-	RolesBatchBind     = "rbac:roles:batch:bind"     // 批量为多个角色绑定权限
-	RolesBatchUnbind   = "rbac:roles:batch:unbind"   // 批量为多个角色解绑权限
+	RoleList            = "rbac:role:list"              // 查询角色列表
+	RoleListSelect      = "rbac:role:list_select"       // 查询角色下拉列表（不分页）
 	RoleListSystemAdmin = "rbac:role:list_system_admin" // 查询系统管理员角色列表
+	RoleCreate          = "rbac:role:create"            // 创建角色
+	RoleRead            = "rbac:role:read"              // 查询角色详情
+	RoleUpdate          = "rbac:role:update"            // 更新角色
+	RoleDelete          = "rbac:role:delete"            // 删除角色
+	RoleStatus          = "rbac:role:status"            // 切换角色状态
+	RoleBatchStatus     = "rbac:role:batch_status"      // 批量切换角色状态
+	RoleBatchDelete     = "rbac:role:batch_delete"      // 批量删除角色
+	RoleListDeleted     = "rbac:role:list_deleted"      // 查询已删除角色（回收站）
+	RoleRestore         = "rbac:role:restore"           // 恢复已删除角色
+	RoleBindPerm        = "rbac:role:bind_perm"         // 角色绑定权限
+	RoleUnbindPerm      = "rbac:role:unbind_perm"       // 角色解绑单个权限
+	RoleBatchUnbindPerm = "rbac:role:batch_unbind_perm" // 角色批量解绑权限
+	RoleGetPerms        = "rbac:role:get_perms"         // 查询角色的权限列表
+	RolesBatchBind      = "rbac:role:batch_bind"        // 批量为多个角色绑定权限
+	RolesBatchUnbind    = "rbac:role:batch_unbind"      // 批量为多个角色解绑权限
 )
 
 // ============================================================
 // 权限管理权限码（/api/v1/rbac/permissions 相关）
 // ============================================================
 const (
-	PermissionList        = "rbac:perm:list"            // 查询权限列表
-	PermissionCreate      = "rbac:perm:create"          // 创建权限
-	PermissionRead        = "rbac:perm:read"            // 查询权限详情
-	PermissionUpdate      = "rbac:perm:update"          // 更新权限
-	PermissionDelete      = "rbac:perm:delete"          // 删除权限
-	PermissionStatus      = "rbac:perm:status"          // 切换权限状态
-	PermissionBatchStatus = "rbac:perm:batch:status"    // 批量切换权限状态
-	PermissionBatchDelete = "rbac:perm:batch:delete"    // 批量删除权限
+	PermissionList        = "rbac:perm:list"             // 查询权限列表
+	PermissionCreate      = "rbac:perm:create"           // 创建权限
+	PermissionRead        = "rbac:perm:read"             // 查询权限详情
+	PermissionUpdate      = "rbac:perm:update"           // 更新权限
+	PermissionDelete      = "rbac:perm:delete"           // 删除权限
+	PermissionStatus      = "rbac:perm:status"           // 切换权限状态
+	PermissionBatchStatus = "rbac:perm:batch_status"     // 批量切换权限状态
+	PermissionBatchDelete = "rbac:perm:batch_delete"     // 批量删除权限
 )
 
 // ============================================================
@@ -75,13 +76,13 @@ const (
 // 用户-角色分配权限码
 // ============================================================
 const (
-	UserRoleList         = "rbac:user_role:list"         // 查询用户角色关系列表
-	UserRoleAssign       = "rbac:user_role:assign"       // 为用户分配角色
-	UserRoleGetRoles     = "rbac:user_role:get_roles"    // 查询用户拥有的角色
-	UserRoleRemoveOne    = "rbac:user_role:remove_one"   // 删除用户的单个角色
-	UserRoleRemoveAll    = "rbac:user_role:remove_all"   // 删除用户的所有角色
-	UserRoleGetUsers     = "rbac:user_role:get_users"    // 查询拥有某角色的用户ID列表
-	UserRoleBatchAssign  = "rbac:user_role:batch:assign" // 批量为多个用户分配角色
+	UserRoleList        = "rbac:user_role:list"          // 查询用户角色关系列表
+	UserRoleBatchAssign = "rbac:user_role:batch_assign"  // 批量为多个用户分配角色
+	UserRoleAssign      = "rbac:user_role:assign"        // 为用户分配角色
+	UserRoleGetRoles    = "rbac:user_role:get_roles"     // 查询用户拥有的角色
+	UserRoleRemoveOne   = "rbac:user_role:remove_one"    // 删除用户的单个角色
+	UserRoleRemoveAll   = "rbac:user_role:remove_all"    // 删除用户的所有角色
+	UserRoleGetUsers    = "rbac:user_role:get_users"     // 查询拥有某角色的用户ID列表
 )
 
 // ============================================================
@@ -98,6 +99,8 @@ func GetPermissionDefs() []PermissionDef {
 
 		// 角色管理
 		{Name: "查询角色列表", Code: RoleList, Description: "查询所有角色", Resource: "role", Action: "list"},
+		{Name: "查询角色下拉列表", Code: RoleListSelect, Description: "查询角色下拉列表（不分页）", Resource: "role", Action: "list_select"},
+		{Name: "查询系统管理员角色列表", Code: RoleListSystemAdmin, Description: "查询系统管理员角色列表（用于创建系统管理员时选择角色）", Resource: "role", Action: "list_system_admin"},
 		{Name: "创建角色", Code: RoleCreate, Description: "创建新角色", Resource: "role", Action: "create"},
 		{Name: "查询角色详情", Code: RoleRead, Description: "查看角色详情", Resource: "role", Action: "read"},
 		{Name: "更新角色", Code: RoleUpdate, Description: "修改角色信息", Resource: "role", Action: "update"},
@@ -109,11 +112,10 @@ func GetPermissionDefs() []PermissionDef {
 		{Name: "恢复已删除角色", Code: RoleRestore, Description: "从回收站恢复角色", Resource: "role", Action: "restore"},
 		{Name: "角色绑定权限", Code: RoleBindPerm, Description: "为角色分配权限", Resource: "role", Action: "bind_perm"},
 		{Name: "角色解绑权限", Code: RoleUnbindPerm, Description: "移除角色的单个权限", Resource: "role", Action: "unbind_perm"},
-		{Name: "角色批量解绑权限", Code: RoleUnbindPerms, Description: "移除角色的多个权限", Resource: "role", Action: "batch_unbind_perm"},
+		{Name: "角色批量解绑权限", Code: RoleBatchUnbindPerm, Description: "移除角色的多个权限", Resource: "role", Action: "batch_unbind_perm"},
 		{Name: "查询角色权限", Code: RoleGetPerms, Description: "查询角色拥有的权限列表", Resource: "role", Action: "get_perms"},
 		{Name: "多角色批量绑定权限", Code: RolesBatchBind, Description: "批量为多个角色绑定权限", Resource: "role", Action: "batch_bind"},
 		{Name: "多角色批量解绑权限", Code: RolesBatchUnbind, Description: "批量为多个角色解绑权限", Resource: "role", Action: "batch_unbind"},
-		{Name: "查询系统管理员角色列表", Code: RoleListSystemAdmin, Description: "查询系统管理员角色列表（用于创建系统管理员时选择角色）", Resource: "role", Action: "list_system_admin"},
 
 		// 权限管理
 		{Name: "查询权限列表", Code: PermissionList, Description: "查询所有权限", Resource: "permission", Action: "list"},

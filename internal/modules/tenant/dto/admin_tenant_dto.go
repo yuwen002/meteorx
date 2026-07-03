@@ -7,7 +7,7 @@ import (
 // AdminCreateTenantReq 运营后台管理员手工创建租户请求
 type AdminCreateTenantReq struct {
 	Name         string `json:"name" validate:"required,min=2,max=100" label:"租户名称"`
-	Domain       string `json:"domain" validate:"required,alphanum,min=3,max=30" label:"租户域名"`
+	Domain       string `json:"domain" validate:"required,hostname,min=3,max=30" label:"租户域名"`
 	Description  string `json:"description,omitempty" validate:"max=255" label:"租户描述"`
 	ContactEmail string `json:"contact_email,omitempty" validate:"omitempty,email,max=100" label:"联系邮箱"`
 	Region       string `json:"region,omitempty" validate:"max=50" label:"地区"`
@@ -17,7 +17,7 @@ type AdminCreateTenantReq struct {
 
 	// 初始绑定的管理员信息
 	AdminUser struct {
-		Username string `json:"username" validate:"required,alphanum,min=4,max=50" label:"管理员用户名"`
+		Username string `json:"username" validate:"required,username,min=4,max=50" label:"管理员用户名"`
 		Password string `json:"password" validate:"required,min=6,max=32" label:"管理员密码"`
 		Nickname string `json:"nickname" validate:"required,max=50" label:"管理员昵称"`
 		Email    string `json:"email,omitempty" validate:"omitempty,email,max=100" label:"管理员邮箱"`

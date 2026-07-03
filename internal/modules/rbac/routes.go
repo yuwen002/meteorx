@@ -30,55 +30,55 @@ func RegisterRoutes(r chi.Router, h *handler.RBACHandler, checker middleware.Per
 
 			// 角色管理
 		r.Route("/roles", func(r chi.Router) {
-			r.Get("/", h.ListRoles)                          // rbac:role:list
+			r.Get("/", h.ListRoles)                          // rbac:role:list（角色列表）
 			r.Get("/select", h.ListRolesForSelect)           // rbac:role:list_select（下拉列表，不分页）
 			r.Get("/system-admin", h.ListSystemAdminRoles)   // rbac:role:list_system_admin（系统管理员角色列表）
-			r.Post("/", h.CreateRole)                        // rbac:role:create
-			r.Get("/deleted", h.ListDeletedRoles)           // rbac:role:list_deleted
-			r.Put("/batch/status", h.BatchUpdateRoleStatus)  // rbac:role:batch_status
-			r.Delete("/batch/delete", h.BatchDeleteRoles)    // rbac:role:batch_delete
-			r.Put("/batch/permissions", h.BatchBindRolesPermissions)     // rbac:role:batch_bind
-			r.Delete("/batch/permissions", h.BatchUnbindRolesPermissions) // rbac:role:batch_unbind
-			r.Put("/{id}/restore", h.RestoreRole)            // rbac:role:restore
-			r.Get("/{id}/detail", h.GetRole)                 // rbac:role:read
-			r.Put("/{id}/update", h.UpdateRole)              // rbac:role:update
-			r.Put("/{id}/status", h.UpdateRoleStatus)        // rbac:role:status
-			r.Delete("/{id}/delete", h.DeleteRole)           // rbac:role:delete
-			r.Put("/{id}/permissions", h.BindRolePermissions)            // rbac:role:bind_perm
-			r.Get("/{id}/permissions", h.GetRolePermissions)            // rbac:role:get_perms
-			r.Delete("/{id}/permissions", h.UnbindRolePermission)       // rbac:role:unbind_perm
-			r.Delete("/{id}/permissions/batch", h.UnbindRolePermissions) // rbac:role:batch_unbind_perm
+			r.Post("/", h.CreateRole)                        // rbac:role:create（创建角色）
+			r.Get("/deleted", h.ListDeletedRoles)            // rbac:role:list_deleted（已删除角色列表）
+			r.Put("/batch/status", h.BatchUpdateRoleStatus)  // rbac:role:batch_status（批量更新角色状态）
+			r.Delete("/batch/delete", h.BatchDeleteRoles)    // rbac:role:batch_delete（批量删除角色）
+			r.Put("/batch/permissions", h.BatchBindRolesPermissions)      // rbac:role:batch_bind（批量绑定权限）
+			r.Delete("/batch/permissions", h.BatchUnbindRolesPermissions) // rbac:role:batch_unbind（批量解绑权限）
+			r.Put("/{id}/restore", h.RestoreRole)            // rbac:role:restore（恢复已删除角色）
+			r.Get("/{id}/detail", h.GetRole)                 // rbac:role:read（角色详情）
+			r.Put("/{id}/update", h.UpdateRole)              // rbac:role:update（更新角色）
+			r.Put("/{id}/status", h.UpdateRoleStatus)        // rbac:role:status（更新角色状态）
+			r.Delete("/{id}/delete", h.DeleteRole)           // rbac:role:delete（删除角色）
+			r.Put("/{id}/permissions", h.BindRolePermissions)             // rbac:role:bind_perm（绑定权限）
+			r.Get("/{id}/permissions", h.GetRolePermissions)              // rbac:role:get_perms（获取角色权限）
+			r.Delete("/{id}/permissions", h.UnbindRolePermission)         // rbac:role:unbind_perm（解绑权限）
+			r.Delete("/{id}/permissions/batch", h.UnbindRolePermissions)  // rbac:role:batch_unbind_perm（批量解绑权限）
 		})
 
 			// 权限管理
 		r.Route("/permissions", func(r chi.Router) {
-			r.Get("/", h.ListPermissions)                          // rbac:perm:list
-			r.Post("/", h.CreatePermission)                        // rbac:perm:create
-			r.Put("/batch/status", h.BatchUpdatePermissionStatus)  // rbac:perm:batch_status
-			r.Delete("/batch/delete", h.BatchDeletePermissions)    // rbac:perm:batch_delete
-			r.Get("/{id}/detail", h.GetPermission)                 // rbac:perm:read
-			r.Put("/{id}/update", h.UpdatePermission)              // rbac:perm:update
-			r.Put("/{id}/status", h.UpdatePermissionStatus)        // rbac:perm:status
-			r.Delete("/{id}/delete", h.DeletePermission)           // rbac:perm:delete
+			r.Get("/", h.ListPermissions)                          // rbac:perm:list（权限列表）
+			r.Post("/", h.CreatePermission)                        // rbac:perm:create（创建权限）
+			r.Put("/batch/status", h.BatchUpdatePermissionStatus)  // rbac:perm:batch_status（批量更新权限状态）
+			r.Delete("/batch/delete", h.BatchDeletePermissions)    // rbac:perm:batch_delete（批量删除权限）
+			r.Get("/{id}/detail", h.GetPermission)                 // rbac:perm:read（权限详情）
+			r.Put("/{id}/update", h.UpdatePermission)              // rbac:perm:update（更新权限）
+			r.Put("/{id}/status", h.UpdatePermissionStatus)        // rbac:perm:status（更新权限状态）
+			r.Delete("/{id}/delete", h.DeletePermission)           // rbac:perm:delete（删除权限）
 		})
 
 			// 角色权限关系管理
 			r.Route("/role-permissions", func(r chi.Router) {
-				r.Get("/", h.ListRolePermissions)                      // rbac:role_perm:list
+				r.Get("/", h.ListRolePermissions)                      // rbac:role_perm:list（角色权限关系列表）
 			})
 
 			// 用户角色管理
 			r.Route("/user-roles", func(r chi.Router) {
-				r.Get("/", h.ListUserRoles)                             // rbac:user_role:list
-				r.Post("/batch/assign", h.BatchAssignUserRoles)         // rbac:user_role:batch_assign
+				r.Get("/", h.ListUserRoles)                             // rbac:user_role:list（用户角色关系列表）
+				r.Post("/batch/assign", h.BatchAssignUserRoles)         // rbac:user_role:batch_assign（批量分配用户角色）
 				r.Route("/{user_id}/roles", func(r chi.Router) {
-					r.Post("/", h.AssignUserRoles)                       // rbac:user_role:assign
-					r.Get("/", h.GetUserRoles)                           // rbac:user_role:get_roles
-					r.Delete("/", h.RemoveAllUserRoles)                  // rbac:user_role:remove_all
-					r.Delete("/{role_id}", h.RemoveUserRole)             // rbac:user_role:remove_one
+					r.Post("/", h.AssignUserRoles)                       // rbac:user_role:assign（分配用户角色）
+					r.Get("/", h.GetUserRoles)                           // rbac:user_role:get_roles（获取用户角色）
+					r.Delete("/", h.RemoveAllUserRoles)                  // rbac:user_role:remove_all（移除用户所有角色）
+					r.Delete("/{role_id}", h.RemoveUserRole)             // rbac:user_role:remove_one（移除用户单个角色）
 				})
 				r.Route("/roles/{role_id}/users", func(r chi.Router) {
-					r.Get("/", h.GetRoleUsers)                            // rbac:user_role:get_users
+					r.Get("/", h.GetRoleUsers)                            // rbac:user_role:get_users（获取角色下的用户）
 				})
 			})
 		})

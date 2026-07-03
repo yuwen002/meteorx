@@ -119,7 +119,7 @@ func getFieldLabel(s interface{}, fieldName string) string {
 func getValidationErrorMessage(e validator.FieldError) string {
 	switch e.Tag() {
 	case "required":
-		return "字段不能为空"
+		return "不能为空"
 	case "min":
 		return "长度不能少于" + e.Param() + "个字符"
 	case "max":
@@ -132,6 +132,8 @@ func getValidationErrorMessage(e validator.FieldError) string {
 		return "只能包含字母和数字"
 	case "username":
 		return "只能包含字母、数字、下划线和连字符"
+	case "hostname":
+		return "只能包含字母、数字、连字符(-)，且不能以连字符开头或结尾"
 	case "oneof":
 		return "值必须是" + e.Param() + "中的一个"
 	default:

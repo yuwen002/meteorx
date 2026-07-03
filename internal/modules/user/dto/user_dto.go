@@ -25,12 +25,12 @@ type CreateMasterAdminReq struct {
 
 // AdminCreateTenantUserReq 系统管理员为指定租户创建用户请求
 type AdminCreateTenantUserReq struct {
-	TenantID string   `json:"tenant_id" validate:"required"` // 需要指定租户ID
-	Username string   `json:"username" validate:"required,alphanum,min=4,max=50"`
-	Password string   `json:"password" validate:"required,min=6,max=32"`
-	Nickname string   `json:"nickname" validate:"required,max=50"`
-	Email    string   `json:"email,omitempty" validate:"omitempty,email"`
-	RoleIDs  []string `json:"role_ids" validate:"required,min=1"` // 角色ID列表
+	TenantID string   `json:"tenant_id" validate:"required" label:"租户ID"` // 需要指定租户ID
+	Username string   `json:"username" validate:"required,username,min=4,max=50" label:"用户名"`
+	Password string   `json:"password" validate:"required,min=6,max=32" label:"密码"`
+	Nickname string   `json:"nickname" validate:"required,max=50" label:"昵称"`
+	Email    string   `json:"email,omitempty" validate:"omitempty,email" label:"邮箱"`
+	RoleIDs  []string `json:"role_ids" validate:"required,min=1" label:"角色"` // 角色ID列表
 }
 
 type UpdateUserReq struct {

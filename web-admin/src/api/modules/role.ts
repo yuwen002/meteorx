@@ -60,6 +60,12 @@ export function getSystemAdminRoles() {
   return get<RoleItem[]>('/rbac/roles/system-admin')
 }
 
+// 获取角色下拉列表（不分页，用于选择）
+// scope: system-系统级角色, tenant-租户级角色, all-所有角色
+export function getRolesForSelect(scope: 'system' | 'tenant' | 'all' = 'system') {
+  return get<RoleItem[]>(`/rbac/roles/select?scope=${scope}`)
+}
+
 export function getRoleDetail(id: string) {
   return get<RoleItem>(`/rbac/roles/${id}/detail`)
 }

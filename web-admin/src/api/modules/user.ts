@@ -160,6 +160,48 @@ export function permanentDeleteMasterAdmin(id: string) {
   return del(`/admin/users/${id}/permanent`)
 }
 
+// ==================== 系统管理员跨租户用户管理接口 ====================
+
+// 获取所有租户用户列表（系统管理员使用）
+export function getAllTenantUsers(params: UserListParams) {
+  return get<PageResult<UserItem>>('/admin/tenant-users/all', params)
+}
+
+// 获取指定租户的用户列表（系统管理员使用）
+export function getTenantUsers(tenantId: string, params: UserListParams) {
+  return get<PageResult<UserItem>>(`/admin/tenant-users/${tenantId}/list`, params)
+}
+
+// 为指定租户创建用户（系统管理员使用）
+export function createTenantUser(tenantId: string, data: UserCreateParams) {
+  return post<UserItem>('/admin/tenant-users', { ...data, tenant_id: tenantId })
+}
+
+// 更新指定租户的用户（系统管理员使用）
+export function updateTenantUser(tenantId: string, userId: string, data: UserUpdateParams) {
+  return put<UserItem>(`/admin/tenant-users/${tenantId}/${userId}/update`, data)
+}
+
+// 删除指定租户的用户（系统管理员使用）
+export function deleteTenantUser(tenantId: string, userId: string) {
+  return del(`/admin/tenant-users/${tenantId}/${userId}/delete`)
+}
+
+// 更新指定租户的用户状态（系统管理员使用）
+export function updateTenantUserStatus(tenantId: string, userId: string, status: number) {
+  return put(`/admin/tenant-users/${tenantId}/${userId}/status`, { status })
+}
+
+// 批量删除指定租户的用户（系统管理员使用）
+export function batchDeleteTenantUsers(tenantId: string, ids: string[]) {
+  return del(`/admin/tenant-users/${tenantId}/batch/delete`, { data: { ids } })
+}
+
+// 批量更新指定租户的用户状态（系统管理员使用）
+export function batchUpdateTenantUserStatus(tenantId: string, ids: string[], status: number) {
+  return put(`/admin/tenant-users/${tenantId}/batch/status`, { ids, status })
+}
+
 // ==================== 用户角色管理接口 ====================
 
 // 解除用户角色绑定

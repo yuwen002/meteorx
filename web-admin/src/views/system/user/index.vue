@@ -35,6 +35,12 @@
         <el-table-column prop="username" label="用户名" min-width="140" />
         <el-table-column prop="nickname" label="昵称" min-width="120" />
         <el-table-column prop="email" label="邮箱" min-width="180" />
+        <el-table-column v-if="userStore.isAdmin" prop="tenant_id" label="租户ID" min-width="180">
+          <template #default="{ row }">
+            <el-tag v-if="row.tenant_id" size="small" type="info">{{ row.tenant_id }}</el-tag>
+            <span v-else style="color: #9ca3af">-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '启用' : '禁用' }}</el-tag>
@@ -132,6 +138,7 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { useUserStore } from '@/stores/user'
 import {
   getUserList,
+  getAllTenantUsers,
   createUser,
   updateUser,
   deleteUser,
@@ -175,7 +182,8 @@ async function loadList() {
     const params: any = { page: page.value, page_size: pageSize.value }
     if (search.keyword) params.keyword = search.keyword
     if (search.status !== undefined && search.status !== null) params.status = search.status
-    const res: any = await getUserList(params)
+    // 系统管理员查看所有租户用户，普通租户管理员只看当前租户用户
+    const res: any = userStore.isAdmin ? await getAllTenantUsers(params) : await getUserList(params)
     list.value = res.data || []
     total.value = res.pagination?.total || 0
   } catch (e) {

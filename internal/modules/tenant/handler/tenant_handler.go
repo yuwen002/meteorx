@@ -130,25 +130,35 @@ func (h *TenantHandler) AdminUpdateStatus(w http.ResponseWriter, r *http.Request
 	response.Success(w, nil)
 }
 
-// List GET /api/v1/admin/tenants?page=1&page_size=10&name=极客
+// List GET /api/v1/admin/tenants?page=1&page_size=10&name=极客&status=1
 // List 是一个处理 HTTP 请求的方法，用于获取租户列表
 // 它接收一个 http.ResponseWriter 和 http.Request 作为参数，并返回租户列表的分页数据
 func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 	// 1. 从 URL query 获取参数
-	// 从请求的 URL 查询参数中获取分页页码、每页大小和租户名称
+	// 从请求的 URL 查询参数中获取分页页码、每页大小、租户名称和状态
 	pageStr := r.URL.Query().Get("page")
 	pageSizeStr := r.URL.Query().Get("page_size")
 	name := r.URL.Query().Get("name")
+	statusStr := r.URL.Query().Get("status")
 
-	// 2. 解析分页参数
+	// 2. 解析分页参数和状态
 	// 将获取到的页码和每页大小从字符串转换为整数
 	page, _ := strconv.Atoi(pageStr)
 	pageSize, _ := strconv.Atoi(pageSizeStr)
 	pg := pagination.NewPagination(page, pageSize)
+	
+	// 解析状态参数（如果有）
+	var status *int
+	if statusStr != "" {
+		s, err := strconv.Atoi(statusStr)
+		if err == nil && (s == 0 || s == 1) {
+			status = &s
+		}
+	}
 
 	// 3. 调用服务层查询
-	// 调用服务层的 QueryTenantList 方法查询租户列表，传入上下文、页码、每页大小和租户名称
-	tenants, total, err := h.svc.QueryTenantList(r.Context(), pg.Page, pg.PageSize, name)
+	// 调用服务层的 QueryTenantList 方法查询租户列表，传入上下文、页码、每页大小、租户名称和状态
+	tenants, total, err := h.svc.QueryTenantList(r.Context(), pg.Page, pg.PageSize, name, status)
 	if err != nil {
 		// 如果查询失败，返回错误响应
 		response.Fail(w, http.StatusInternalServerError, "查询租户列表失败")

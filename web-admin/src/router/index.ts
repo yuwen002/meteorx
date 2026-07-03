@@ -54,6 +54,18 @@ const routes: RouteRecordRaw[] = [
         name: 'RoleRecycle',
         component: () => import('@/views/system/role/recycle.vue'),
         meta: { title: '角色回收站', icon: 'DeleteFilled', permission: 'rbac:role:list' }
+      },
+      {
+        path: 'system/tenant',
+        name: 'Tenant',
+        component: () => import('@/views/system/tenant/index.vue'),
+        meta: { title: '租户管理', icon: 'OfficeBuilding', permission: 'admin:tenant:list', requireMaster: true }
+      },
+      {
+        path: 'system/tenant/recycle',
+        name: 'TenantRecycle',
+        component: () => import('@/views/system/tenant/recycle.vue'),
+        meta: { title: '租户回收站', icon: 'DeleteFilled', permission: 'admin:tenant:list', requireMaster: true }
       }
     ]
   },

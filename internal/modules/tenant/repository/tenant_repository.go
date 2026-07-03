@@ -301,13 +301,16 @@ func (r *tenantRepository) Delete(ctx context.Context, id string) error {
 }
 
 // FindPage 分页查询租户列表
-func (r *tenantRepository) FindPage(ctx context.Context, page, pageSize int, name string) ([]*model.Tenant, int64, error) {
+func (r *tenantRepository) FindPage(ctx context.Context, page, pageSize int, name string, status *int) ([]*model.Tenant, int64, error) {
 	var pos []*TenantPO
 	var total int64
 
 	query := r.db.WithContext(ctx).Model(&TenantPO{})
 	if name != "" {
 		query = query.Where("name LIKE ?", "%"+name+"%")
+	}
+	if status != nil {
+		query = query.Where("status = ?", *status)
 	}
 
 	// 统计总数

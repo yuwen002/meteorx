@@ -196,8 +196,8 @@ func (s *TenantService) UpdateTenantStatus(ctx context.Context, id string, statu
 }
 
 // QueryTenantList 分页查询租户列表
-func (s *TenantService) QueryTenantList(ctx context.Context, page, pageSize int, name string) ([]*tenantModel.Tenant, int64, error) {
-	return s.repo.FindPage(ctx, page, pageSize, name)
+func (s *TenantService) QueryTenantList(ctx context.Context, page, pageSize int, name string, status *int) ([]*tenantModel.Tenant, int64, error) {
+	return s.repo.FindPage(ctx, page, pageSize, name, status)
 }
 
 // AdminUpdate 后台更新租户信息

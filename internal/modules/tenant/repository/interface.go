@@ -27,7 +27,7 @@ type TenantRepository interface {
 	// Delete 软删除租户
 	Delete(ctx context.Context, id string) error
 	// FindPage 分页查询租户列表
-	FindPage(ctx context.Context, page, pageSize int, name string) ([]*model.Tenant, int64, error)
+	FindPage(ctx context.Context, page, pageSize int, name string, status *int) ([]*model.Tenant, int64, error)
 	// BatchUpdateStatus 批量更新租户状态，返回受影响行数和失败的ID列表
 	BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, []string, error)
 	// BatchDelete 批量软删除租户，返回受影响行数和失败的ID列表
