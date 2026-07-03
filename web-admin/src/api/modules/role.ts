@@ -46,6 +46,12 @@ export function getRoleListForSelect(scope?: string) {
   return get<RoleItem[]>('/rbac/roles/select', { scope })
 }
 
+// 获取系统管理员角色列表（用于创建系统管理员时选择角色）
+// 只返回 IsSystem=true 且 scope 为 system 或 all 的角色
+export function getSystemAdminRoles() {
+  return get<RoleItem[]>('/rbac/roles/system-admin')
+}
+
 export function getRoleDetail(id: string) {
   return get<RoleItem>(`/rbac/roles/${id}/detail`)
 }

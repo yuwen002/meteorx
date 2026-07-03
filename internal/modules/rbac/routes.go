@@ -32,6 +32,7 @@ func RegisterRoutes(r chi.Router, h *handler.RBACHandler, checker middleware.Per
 		r.Route("/roles", func(r chi.Router) {
 			r.Get("/", h.ListRoles)                          // rbac:role:list
 			r.Get("/select", h.ListRolesForSelect)           // rbac:role:list_select（下拉列表，不分页）
+			r.Get("/system-admin", h.ListSystemAdminRoles)   // rbac:role:list_system_admin（系统管理员角色列表）
 			r.Post("/", h.CreateRole)                        // rbac:role:create
 			r.Get("/deleted", h.ListDeletedRoles)           // rbac:role:list_deleted
 			r.Put("/batch/status", h.BatchUpdateRoleStatus)  // rbac:role:batch_status

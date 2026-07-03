@@ -11,6 +11,8 @@ type RoleRepository interface {
 	GetByCode(ctx context.Context, tenantID, code string) (*model.Role, error)
 	List(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*model.Role, int64, error)
 	ListByScope(ctx context.Context, scope string) ([]*model.Role, error)
+	// ListSystemAdminRoles 查询系统管理员角色（IsSystem=true 且 scope 为 system 或 all）
+	ListSystemAdminRoles(ctx context.Context) ([]*model.Role, error)
 	Update(ctx context.Context, role *model.Role) error
 	UpdateStatus(ctx context.Context, id string, status int) error
 	BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, error)

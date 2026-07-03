@@ -270,7 +270,7 @@ func (h *UserHandler) UpdateMasterAdmin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var req dto.UpdateUserReq
+	var req dto.UpdateMasterAdminReq
 	if !validator.ValidateJSON(w, r, &req) {
 		return
 	}

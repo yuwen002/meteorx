@@ -91,6 +91,11 @@ func (s *RBACService) ListRolesByScope(ctx context.Context, scope string) ([]*mo
 	return s.roleRepo.ListByScope(ctx, scope)
 }
 
+// ListSystemAdminRoles 获取系统管理员角色列表（用于创建系统管理员时选择角色）
+func (s *RBACService) ListSystemAdminRoles(ctx context.Context) ([]*model.Role, error) {
+	return s.roleRepo.ListSystemAdminRoles(ctx)
+}
+
 func (s *RBACService) UpdateRole(ctx context.Context, id string, req dto.UpdateRoleReq) (*model.Role, error) {
 	role, err := s.roleRepo.GetByID(ctx, id)
 	if err != nil {

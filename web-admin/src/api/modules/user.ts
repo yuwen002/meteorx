@@ -29,6 +29,24 @@ export interface UserUpdateParams {
   role_ids?: string[]
 }
 
+// 系统管理员创建参数（单角色）
+export interface MasterAdminCreateParams {
+  username: string
+  password: string
+  nickname?: string
+  email?: string
+  role_id?: string  // 单个角色ID
+}
+
+// 系统管理员更新参数（单角色）
+export interface MasterAdminUpdateParams {
+  nickname?: string
+  email?: string
+  status?: number
+  password?: string
+  role_id?: string  // 单个角色ID
+}
+
 export interface UserListParams {
   page?: number
   page_size?: number
@@ -93,12 +111,12 @@ export function getMasterAdminDetail(id: string) {
 }
 
 // 创建系统管理员
-export function createMasterAdmin(data: UserCreateParams) {
+export function createMasterAdmin(data: MasterAdminCreateParams) {
   return post<UserItem>('/admin/users', data)
 }
 
 // 更新系统管理员
-export function updateMasterAdmin(id: string, data: UserUpdateParams) {
+export function updateMasterAdmin(id: string, data: MasterAdminUpdateParams) {
   return put<UserItem>(`/admin/users/${id}/update`, data)
 }
 

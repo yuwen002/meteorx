@@ -127,6 +127,25 @@ func (h *RBACHandler) ListRolesForSelect(w http.ResponseWriter, r *http.Request)
 	response.Success(w, resp)
 }
 
+// ListSystemAdminRoles 获取系统管理员角色列表（用于创建系统管理员时选择角色）
+// GET /api/v1/rbac/roles/system-admin
+// 只返回 IsSystem=true 且 scope 为 system 或 all 的角色
+func (h *RBACHandler) ListSystemAdminRoles(w http.ResponseWriter, r *http.Request) {
+	roles, err := h.svc.ListSystemAdminRoles(r.Context())
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取系统管理员角色列表失败")
+		return
+	}
+
+	// 转换为 RoleResp
+	resp := make([]*dto.RoleResp, len(roles))
+	for i, role := range roles {
+		resp[i] = dto.ToRoleResp(role)
+	}
+
+	response.Success(w, resp)
+}
+
 // UpdateRole 更新角色信息
 // PUT /api/v1/rbac/roles/{id}/update
 // 根据角色 ID 和请求体参数更新角色的属性

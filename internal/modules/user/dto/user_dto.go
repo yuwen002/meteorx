@@ -16,11 +16,11 @@ type CreateUserReq struct {
 
 // CreateMasterAdminReq 创建系统管理员请求（可指定角色，不指定则默认为 superadmin）
 type CreateMasterAdminReq struct {
-	Username string   `json:"username" validate:"required,alphanum,min=4,max=50"`
-	Password string   `json:"password" validate:"required,min=6,max=32"`
-	Nickname string   `json:"nickname" validate:"required,max=50"`
-	Email    string   `json:"email,omitempty" validate:"omitempty,email"`
-	RoleIDs  []string `json:"role_ids,omitempty" validate:"omitempty,min=1"` // 角色ID列表，不指定则默认为 superadmin
+	Username string `json:"username" validate:"required,alphanum,min=4,max=50"`
+	Password string `json:"password" validate:"required,min=6,max=32"`
+	Nickname string `json:"nickname" validate:"required,max=50"`
+	Email    string `json:"email,omitempty" validate:"omitempty,email"`
+	RoleID   string `json:"role_id,omitempty" validate:"omitempty"` // 角色ID，只能指定一个，不指定则默认为 superadmin
 }
 
 // AdminCreateTenantUserReq 系统管理员为指定租户创建用户请求
@@ -38,6 +38,14 @@ type UpdateUserReq struct {
 	Email    string   `json:"email,omitempty" validate:"omitempty,email"`
 	RoleIDs  []string `json:"role_ids,omitempty" validate:"omitempty,min=1"` // 可选，用于单独更新角色
 	Status   *int     `json:"status,omitempty" validate:"omitempty,oneof=0 1"`
+}
+
+// UpdateMasterAdminReq 更新系统管理员请求
+ type UpdateMasterAdminReq struct {
+	Nickname string `json:"nickname,omitempty" validate:"max=50"`
+	Email    string `json:"email,omitempty" validate:"omitempty,email"`
+	RoleID   string `json:"role_id,omitempty" validate:"omitempty"` // 角色ID，只能指定一个
+	Status   *int   `json:"status,omitempty" validate:"omitempty,oneof=0 1"`
 }
 
 type UserResp struct {

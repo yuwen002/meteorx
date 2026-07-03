@@ -146,6 +146,25 @@ func (r *roleRepository) ListByScope(ctx context.Context, scope string) ([]*mode
 	return roles, nil
 }
 
+// ListSystemAdminRoles 查询系统管理员角色（scope 为 system 或 all，且状态为启用）
+func (r *roleRepository) ListSystemAdminRoles(ctx context.Context) ([]*model.Role, error) {
+	var records []RolePO
+	db := r.db.WithContext(ctx)
+
+	// 查询 scope 为 system 或 all 且状态为启用的角色（不限制 is_system）
+	db = db.Where("(scope = ? OR scope = ?) AND status = ?",
+		model.RoleScopeSystem, model.RoleScopeAll, model.RoleStatusEnabled)
+
+	if err := db.Order("created_at ASC").Find(&records).Error; err != nil {
+		return nil, err
+	}
+	roles := make([]*model.Role, len(records))
+	for i, record := range records {
+		roles[i] = record.toDomain()
+	}
+	return roles, nil
+}
+
 func (r *roleRepository) Update(ctx context.Context, role *model.Role) error {
 	return r.db.WithContext(ctx).Model(&RolePO{}).Where("id = ?", role.ID).Updates(map[string]interface{}{
 		"name":        role.Name,

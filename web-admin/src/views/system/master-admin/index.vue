@@ -126,10 +126,10 @@
         <el-form-item label="邮箱" prop="email">
           <el-input v-model="form.email" placeholder="请输入邮箱" />
         </el-form-item>
-        <el-form-item label="角色" prop="role_ids">
+        <el-form-item label="角色" prop="role_id">
           <el-select
-            v-model="form.role_ids"
-            multiple
+            v-model="form.role_id"
+            clearable
             placeholder="请选择角色（不选默认为 superadmin）"
             style="width: 100%"
           >
@@ -172,10 +172,10 @@ import {
   batchUpdateMasterAdminStatus,
   batchDeleteMasterAdmins,
   type UserItem,
-  type UserCreateParams,
-  type UserUpdateParams
+  type MasterAdminCreateParams,
+  type MasterAdminUpdateParams
 } from '@/api/modules/user'
-import { getRoleListForSelect, type RoleItem } from '@/api/modules/role'
+import { getSystemAdminRoles, type RoleItem } from '@/api/modules/role'
 
 interface MasterAdminForm {
   username: string
@@ -183,7 +183,7 @@ interface MasterAdminForm {
   nickname: string
   email: string
   status: number
-  role_ids?: string[]
+  role_id?: string  // 单个角色ID
 }
 
 const list = ref<UserItem[]>([])
@@ -207,7 +207,7 @@ const form = reactive<MasterAdminForm>({
   nickname: '',
   email: '',
   status: 1,
-  role_ids: []
+  role_id: undefined
 })
 
 const rules: FormRules = {
@@ -235,8 +235,8 @@ async function loadList() {
 
 async function loadSystemRoles() {
   try {
-    // 使用专门的接口获取系统级角色（不分页，只返回启用的角色）
-    const res: any = await getRoleListForSelect('system')
+    // 使用专门的接口获取系统管理员角色（只返回 scope=system 或 all 的角色）
+    const res: any = await getSystemAdminRoles()
     systemRoles.value = res || []
   } catch (e) {
     systemRoles.value = []
@@ -262,11 +262,11 @@ function openCreateDialog() {
   form.nickname = ''
   form.email = ''
   form.status = 1
-  form.role_ids = []
+  form.role_id = undefined
   dialogVisible.value = true
 }
 
-function openEditDialog(row: UserItem & { role_ids?: string[] }) {
+function openEditDialog(row: UserItem & { role_ids?: string[]; role_id?: string }) {
   dialogMode.value = 'edit'
   editingId.value = row.id
   form.username = row.username
@@ -274,7 +274,8 @@ function openEditDialog(row: UserItem & { role_ids?: string[] }) {
   form.nickname = row.nickname || ''
   form.email = row.email || ''
   form.status = row.status ?? 1
-  form.role_ids = row.role_ids || []
+  // 优先使用 role_id，如果没有则取 role_ids 的第一个
+  form.role_id = row.role_id || (row.role_ids && row.role_ids.length > 0 ? row.role_ids[0] : undefined)
   dialogVisible.value = true
 }
 
@@ -291,8 +292,8 @@ async function submitForm() {
           nickname: form.nickname,
           email: form.email
         }
-        if (form.role_ids && form.role_ids.length > 0) {
-          createData.role_ids = form.role_ids
+        if (form.role_id) {
+          createData.role_id = form.role_id
         }
         await createMasterAdmin(createData)
         ElMessage.success('新增成功')
@@ -303,8 +304,8 @@ async function submitForm() {
           status: form.status
         }
         if (form.password) updateData.password = form.password
-        if (form.role_ids && form.role_ids.length > 0) {
-          updateData.role_ids = form.role_ids
+        if (form.role_id) {
+          updateData.role_id = form.role_id
         }
         await updateMasterAdmin(editingId.value, updateData)
         ElMessage.success('更新成功')

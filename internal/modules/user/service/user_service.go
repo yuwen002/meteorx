@@ -53,6 +53,22 @@ func (s *UserService) validateRoleIDs(ctx context.Context, roleIDs []string, sco
 	return nil
 }
 
+// validateSystemAdminRoleID 校验角色ID是否为系统级别角色（scope 为 system 或 all）
+func (s *UserService) validateSystemAdminRoleID(ctx context.Context, roleID string) error {
+	role, err := s.roleRepo.GetByID(ctx, roleID)
+	if err != nil {
+		return fmt.Errorf("角色 '%s' 不存在", roleID)
+	}
+	if role.Status == 0 {
+		return fmt.Errorf("角色 '%s' 已禁用", role.Code)
+	}
+	// 必须是系统级别角色：scope 为 system 或 all
+	if role.Scope != rbacModel.RoleScopeSystem && role.Scope != rbacModel.RoleScopeAll {
+		return fmt.Errorf("角色 '%s' 不是系统级别角色，无法分配给系统管理员", role.Code)
+	}
+	return nil
+}
+
 // buildUserResp 构建用户响应（含角色信息）
 func (s *UserService) buildUserResp(ctx context.Context, user *model.User) (*dto.UserResp, error) {
 	tenant, _ := s.tenantRepo.GetByID(ctx, user.TenantID)
@@ -365,13 +381,13 @@ func (s *UserService) CreateMasterAdmin(ctx context.Context, req dto.CreateMaste
 	}
 
 	// 确定要分配的角色
-	var roleIDs []string
-	if len(req.RoleIDs) > 0 {
-		// 校验指定的角色是否存在且属于系统级别
-		if err := s.validateRoleIDs(ctx, req.RoleIDs, rbacModel.RoleScopeSystem); err != nil {
+	var roleID string
+	if req.RoleID != "" {
+		// 校验指定的角色是否为系统级别角色（scope 为 system 或 all）
+		if err := s.validateSystemAdminRoleID(ctx, req.RoleID); err != nil {
 			return nil, err
 		}
-		roleIDs = req.RoleIDs
+		roleID = req.RoleID
 	} else {
 		// 未指定角色，默认分配 superadmin
 		superadminRole, err := s.roleRepo.GetByCode(ctx, "", "superadmin")
@@ -381,18 +397,18 @@ func (s *UserService) CreateMasterAdmin(ctx context.Context, req dto.CreateMaste
 		if superadminRole.Status == 0 {
 			return nil, fmt.Errorf("系统管理员角色已禁用")
 		}
-		roleIDs = []string{superadminRole.ID}
+		roleID = superadminRole.ID
 	}
 
-	// 分配角色
-	if err := s.userRoleRepo.AssignRoles(ctx, user.ID, roleIDs); err != nil {
+	// 分配角色（单个）
+	if err := s.userRoleRepo.AssignRoles(ctx, user.ID, []string{roleID}); err != nil {
 		return nil, err
 	}
 
 	return s.buildUserResp(ctx, user)
 }
 
-func (s *UserService) UpdateMasterAdmin(ctx context.Context, userID string, req dto.UpdateUserReq) (*dto.UserResp, error) {
+func (s *UserService) UpdateMasterAdmin(ctx context.Context, userID string, req dto.UpdateMasterAdminReq) (*dto.UserResp, error) {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -416,11 +432,12 @@ func (s *UserService) UpdateMasterAdmin(ctx context.Context, userID string, req 
 	}
 
 	// 如果指定了角色ID，则更新角色
-	if len(req.RoleIDs) > 0 {
-		if err := s.validateRoleIDs(ctx, req.RoleIDs, rbacModel.RoleScopeSystem); err != nil {
+	if req.RoleID != "" {
+		// 校验指定的角色是否为系统级别角色（scope 为 system 或 all）
+		if err := s.validateSystemAdminRoleID(ctx, req.RoleID); err != nil {
 			return nil, err
 		}
-		if err := s.userRoleRepo.AssignRoles(ctx, user.ID, req.RoleIDs); err != nil {
+		if err := s.userRoleRepo.AssignRoles(ctx, user.ID, []string{req.RoleID}); err != nil {
 			return nil, err
 		}
 	}
