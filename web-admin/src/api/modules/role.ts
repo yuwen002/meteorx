@@ -1,4 +1,5 @@
 import { get, post, put, del, type ApiResult } from '@/api/request'
+import type { PermissionItem } from './permission'
 
 export interface RoleItem {
   id: string
@@ -92,11 +93,19 @@ export function bindRolePermissions(roleId: string, permissionIds: string[]) {
   return put(`/rbac/roles/${roleId}/permissions`, { permission_ids: permissionIds })
 }
 
-// 获取角色已绑定的权限 ID 列表
-export function getRolePermissionIds(roleId: string) {
-  return get<{ ids?: string[]; permission_ids?: string[]; list?: { id: string }[] }>(
-    `/rbac/roles/${roleId}/permissions`
-  )
+// 获取角色已绑定的权限列表
+export function getRolePermissions(roleId: string) {
+  return get<PermissionItem[]>(`/rbac/roles/${roleId}/permissions`)
+}
+
+// 解绑角色的单个权限
+export function unbindRolePermission(roleId: string, permissionId: string) {
+  return del(`/rbac/roles/${roleId}/permissions`, { data: { permission_id: permissionId } })
+}
+
+// 批量解绑角色的权限
+export function unbindRolePermissions(roleId: string, permissionIds: string[]) {
+  return del(`/rbac/roles/${roleId}/permissions/batch`, { data: { permission_ids: permissionIds } })
 }
 
 // 获取 RBAC 统计信息

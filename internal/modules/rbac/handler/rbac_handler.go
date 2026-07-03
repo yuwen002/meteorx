@@ -244,8 +244,12 @@ func (h *RBACHandler) GetRolePermissions(w http.ResponseWriter, r *http.Request)
 		response.Fail(w, http.StatusInternalServerError, "获取角色权限失败")
 		return
 	}
-	// 返回权限列表
-	response.Success(w, permissions)
+	// 转换为 DTO 返回
+	resp := make([]*dto.PermissionResp, len(permissions))
+	for i, p := range permissions {
+		resp[i] = dto.ToPermissionResp(p)
+	}
+	response.Success(w, resp)
 }
 
 // CreatePermission 创建权限

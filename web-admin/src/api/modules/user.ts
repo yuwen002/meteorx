@@ -159,3 +159,15 @@ export function restoreMasterAdmin(id: string) {
 export function permanentDeleteMasterAdmin(id: string) {
   return del(`/admin/users/${id}/permanent`)
 }
+
+// ==================== 用户角色管理接口 ====================
+
+// 解除用户角色绑定
+export function unbindUserRole(userId: string, roleId: string) {
+  return del(`/rbac/user-roles/${userId}/roles/${roleId}`)
+}
+
+// 获取用户已绑定的角色列表
+export function getUserRoles(userId: string) {
+  return get<{ id: string; name: string; code: string }[]>(`/rbac/user-roles/${userId}/roles`)
+}

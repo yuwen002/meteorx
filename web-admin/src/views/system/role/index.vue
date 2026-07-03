@@ -38,9 +38,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180" />
-        <el-table-column label="操作" width="340" fixed="right">
+        <el-table-column label="操作" width="380" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openBindPerm(row)">绑定权限</el-button>
+            <el-button link type="primary" @click="openViewPerms(row)">查看权限</el-button>
+            <el-button link type="success" @click="openBindPerm(row)">绑定权限</el-button>
             <el-button link :type="row.status === 1 ? 'warning' : 'success'" @click="handleToggleStatus(row)" v-if="!row.is_system">
               {{ row.status === 1 ? '停用' : '启用' }}
             </el-button>
@@ -90,36 +91,42 @@
       </template>
     </el-dialog>
 
-    <!-- 回收站弹窗 -->
-    <el-dialog v-model="recycleBinVisible" title="角色回收站" width="900px" :close-on-click-modal="false">
-      <div class="search-bar" style="margin-bottom: 16px;">
-        <el-input v-model="deletedSearch.keyword" placeholder="搜索已删除角色名" clearable style="width: 200px" @keyup.enter="loadDeletedList" />
-        <el-button type="primary" @click="loadDeletedList"><el-icon><Search /></el-icon>查询</el-button>
-        <el-button @click="resetDeletedSearch">重置</el-button>
+    <!-- 查看权限弹窗 -->
+    <el-dialog v-model="viewPermsDialogVisible" title="查看已绑定权限" width="700px" :close-on-click-modal="false">
+      <div style="margin-bottom: 10px; font-size: 14px; color: #6b7280">
+        当前角色：<b style="color: #111827">{{ currentRole?.name }}</b>
+        ，已绑定 <b style="color: #2563eb">{{ currentRolePerms.length }}</b> 个权限
+        <span v-if="selectedPermIds.length > 0" style="margin-left: 16px; color: #f56c6c;">已选择 {{ selectedPermIds.length }} 个权限</span>
       </div>
-      <el-table :data="deletedList" border stripe v-loading="deletedLoading" style="width: 100%">
-        <el-table-column prop="name" label="角色名" min-width="140" />
-        <el-table-column prop="code" label="编码" min-width="140" />
-        <el-table-column prop="description" label="描述" min-width="200" />
-        <el-table-column prop="deleted_at" label="删除时间" width="180" />
-        <el-table-column label="操作" width="120" fixed="right">
+      <div v-if="selectedPermIds.length > 0" style="margin-bottom: 10px;">
+        <el-button type="danger" size="small" @click="handleBatchUnbindPerms">批量解绑</el-button>
+      </div>
+      <el-table
+        :data="currentRolePerms"
+        border
+        stripe
+        style="width: 100%"
+        max-height="400"
+        @selection-change="handlePermSelectionChange"
+      >
+        <el-table-column type="selection" width="55" />
+        <el-table-column prop="name" label="权限名称" min-width="140" />
+        <el-table-column prop="code" label="编码" min-width="180">
           <template #default="{ row }">
-            <el-button link type="success" @click="handleRestore(row)">恢复</el-button>
+            <el-tag size="small" type="info">{{ row.code }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="resource" label="资源" width="100" />
+        <el-table-column prop="action" label="操作" width="100" />
+        <el-table-column label="操作" width="100" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="danger" @click="handleUnbindPerm(row)">解绑</el-button>
           </template>
         </el-table-column>
       </el-table>
-      <div class="pagination">
-        <el-pagination
-          v-model:current-page="deletedPage"
-          v-model:page-size="deletedPageSize"
-          :total="deletedTotal"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next, jumper"
-          background
-          @size-change="loadDeletedList"
-          @current-change="loadDeletedList"
-        />
-      </div>
+      <template #footer>
+        <el-button @click="viewPermsDialogVisible = false">关闭</el-button>
+      </template>
     </el-dialog>
 
     <!-- 绑定权限弹窗 -->
@@ -165,15 +172,18 @@ import {
   batchDeleteRoles,
   batchUpdateRoleStatus,
   bindRolePermissions,
-  getRolePermissionIds,
-  getDeletedRoleList,
-  restoreRole,
+  getRolePermissions,
+  unbindRolePermission,
+  unbindRolePermissions,
   type RoleItem
 } from '@/api/modules/role'
+import type { PermissionItem } from '@/api/modules/permission'
 import { getPermissionList } from '@/api/modules/permission'
+import { useRouter } from 'vue-router'
 
 const list = ref<RoleItem[]>([])
 const total = ref(0)
+const router = useRouter()
 const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
@@ -199,14 +209,10 @@ const treeRef = ref<InstanceType<typeof ElTree>>()
 const permTreeData = ref<any[]>([])
 const allPermIds = ref<string[]>([])
 
-// 回收站相关
-const recycleBinVisible = ref(false)
-const deletedList = ref<RoleItem[]>([])
-const deletedTotal = ref(0)
-const deletedPage = ref(1)
-const deletedPageSize = ref(10)
-const deletedLoading = ref(false)
-const deletedSearch = reactive({ keyword: '' })
+// 查看权限相关
+const viewPermsDialogVisible = ref(false)
+const currentRolePerms = ref<PermissionItem[]>([])
+const selectedPermIds = ref<string[]>([])
 
 async function loadList() {
   loading.value = true
@@ -226,7 +232,8 @@ async function loadList() {
 
 async function loadAllPermissions() {
   const res: any = await getPermissionList({ page: 1, page_size: 500 })
-  const perms = (res.data || []) as any[]
+  const perms = (res.data || []) as PermissionItem[]
+  allPermissions.value = perms  // 存储所有权限
   allPermIds.value = perms.map((p) => p.id)
   // 按 resource 分组（简单实现：resource 作为父节点，权限作为子节点）
   const groups = new Map<string, { name: string; children: any[] }>()
@@ -237,44 +244,9 @@ async function loadAllPermissions() {
   permTreeData.value = Array.from(groups.values())
 }
 
-// 回收站相关函数
+// 跳转到回收站页面
 function openRecycleBin() {
-  recycleBinVisible.value = true
-  loadDeletedList()
-}
-
-async function loadDeletedList() {
-  deletedLoading.value = true
-  try {
-    const params: any = { page: deletedPage.value, page_size: deletedPageSize.value }
-    if (deletedSearch.keyword) params.keyword = deletedSearch.keyword
-    const res: any = await getDeletedRoleList(params)
-    deletedList.value = res.data || []
-    deletedTotal.value = res.pagination?.total || 0
-  } catch (e) {
-    deletedList.value = []
-    deletedTotal.value = 0
-  } finally {
-    deletedLoading.value = false
-  }
-}
-
-function resetDeletedSearch() {
-  deletedSearch.keyword = ''
-  deletedPage.value = 1
-  loadDeletedList()
-}
-
-function handleRestore(row: RoleItem) {
-  ElMessageBox.confirm(`确定要恢复角色 "${row.name}" 吗？`, '提示', { type: 'warning' })
-    .then(async () => {
-      if (!row.id) return
-      await restoreRole(row.id)
-      ElMessage.success('恢复成功')
-      loadDeletedList()
-      loadList()
-    })
-    .catch(() => {})
+  router.push('/system/role/recycle')
 }
 
 function resetSearch() {
@@ -394,19 +366,75 @@ async function handleToggleStatus(row: RoleItem) {
 
 const checkedPermIds = ref<string[]>([])
 
+// 查看角色已绑定的权限
+async function openViewPerms(row: RoleItem) {
+  currentRole.value = row
+  saving.value = true
+  try {
+    // 直接获取角色已绑定的权限列表
+    const perms = await getRolePermissions(row.id)
+    currentRolePerms.value = perms || []
+    viewPermsDialogVisible.value = true
+  } catch (e) {
+    ElMessage.error('加载权限数据失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+// 解绑权限
+async function handleUnbindPerm(perm: PermissionItem) {
+  if (!currentRole.value) return
+  try {
+    await ElMessageBox.confirm(
+      `确定要解除角色 "${currentRole.value.name}" 的权限 "${perm.name}" 吗？`,
+      '确认解绑',
+      { type: 'warning' }
+    )
+    await unbindRolePermission(currentRole.value.id, perm.id)
+    ElMessage.success('权限解绑成功')
+    // 刷新列表
+    currentRolePerms.value = currentRolePerms.value.filter(p => p.id !== perm.id)
+  } catch (e) {
+    // 用户取消或失败
+  }
+}
+
+// 权限选择变化
+function handlePermSelectionChange(selection: PermissionItem[]) {
+  selectedPermIds.value = selection.map(p => p.id)
+}
+
+// 批量解绑权限
+async function handleBatchUnbindPerms() {
+  if (!currentRole.value || selectedPermIds.value.length === 0) return
+  try {
+    await ElMessageBox.confirm(
+      `确定要解除角色 "${currentRole.value.name}" 的 ${selectedPermIds.value.length} 个权限吗？`,
+      '确认批量解绑',
+      { type: 'warning' }
+    )
+    await unbindRolePermissions(currentRole.value.id, selectedPermIds.value)
+    ElMessage.success('批量解绑成功')
+    // 刷新列表
+    currentRolePerms.value = currentRolePerms.value.filter(p => !selectedPermIds.value.includes(p.id))
+    selectedPermIds.value = []
+  } catch (e) {
+    // 用户取消或失败
+  }
+}
+
+// 存储所有权限列表
+const allPermissions = ref<PermissionItem[]>([])
+
 async function openBindPerm(row: RoleItem) {
   currentRole.value = row
   saving.value = true
   try {
     if (allPermIds.value.length === 0) await loadAllPermissions()
-    const res: any = await getRolePermissionIds(row.id)
-    // 兼容不同返回结构
-    let ids: string[] = []
-    if (res && Array.isArray(res.ids)) ids = res.ids
-    else if (res && Array.isArray(res.permission_ids)) ids = res.permission_ids
-    else if (res && Array.isArray(res)) ids = res.map((p: any) => p.id)
-    else if (res && Array.isArray(res.list)) ids = res.list.map((p: any) => p.id)
-    checkedPermIds.value = ids
+    // 获取角色已绑定的权限列表，提取ID
+    const perms = await getRolePermissions(row.id)
+    checkedPermIds.value = (perms || []).map((p: PermissionItem) => p.id)
     bindDialogVisible.value = true
   } catch (e) {
     ElMessage.error('加载权限数据失败')

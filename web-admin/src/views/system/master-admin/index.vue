@@ -62,11 +62,21 @@
         <el-table-column label="用户名" prop="username" min-width="120" />
         <el-table-column label="昵称" prop="nickname" min-width="120" />
         <el-table-column label="邮箱" prop="email" min-width="180" />
-        <el-table-column label="角色" min-width="150">
+        <el-table-column label="角色" min-width="200">
           <template #default="{ row }">
-            <el-tag v-for="role in row.roles" :key="role" size="small" class="role-tag">
-              {{ role }}
-            </el-tag>
+            <div v-if="row.role_ids && row.role_ids.length > 0">，
+              <el-tag
+                v-for="(roleId, index) in row.role_ids"
+                :key="roleId"
+                size="small"
+                class="role-tag"
+                closable
+                @close="handleUnbindRole(row, roleId, row.roles[index])"
+              >
+                {{ row.roles[index] || roleId }}
+              </el-tag>
+            </div>
+            <el-tag v-else type="info" size="small">未分配角色</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="状态" width="80">
@@ -184,6 +194,7 @@ import {
   updateMasterAdminStatus,
   batchUpdateMasterAdminStatus,
   batchDeleteMasterAdmins,
+  unbindUserRole,
   type UserItem,
   type UserListParams,
   type MasterAdminCreateParams,
@@ -362,6 +373,25 @@ function handleDelete(row: UserItem) {
     .then(async () => {
       await deleteMasterAdmin(row.id)
       ElMessage.success('删除成功')
+      loadList()
+    })
+    .catch(() => {})
+}
+
+// 解绑角色
+function handleUnbindRole(row: UserItem, roleId: string, roleName: string) {
+  ElMessageBox.confirm(
+    `确定要解除用户 "${row.username}" 的角色 "${roleName || roleId}" 吗？`,
+    '确认解绑角色',
+    {
+      type: 'warning',
+      confirmButtonText: '确定解绑',
+      cancelButtonText: '取消'
+    }
+  )
+    .then(async () => {
+      await unbindUserRole(row.id, roleId)
+      ElMessage.success('角色解绑成功')
       loadList()
     })
     .catch(() => {})
