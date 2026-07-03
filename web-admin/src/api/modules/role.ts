@@ -119,6 +119,21 @@ export function getRBACStats() {
   return get<{ role_count: number; permission_count: number; my_permission: number }>('/rbac/stats')
 }
 
+// 获取用户的角色列表
+export function getUserRoles(userId: string) {
+  return get<RoleItem[]>(`/rbac/user-roles/${userId}/roles`)
+}
+
+// 移除用户的单个角色
+export function removeUserRole(userId: string, roleId: string) {
+  return del(`/rbac/user-roles/${userId}/roles/${roleId}`)
+}
+
+// 移除用户的所有角色
+export function removeAllUserRoles(userId: string) {
+  return del(`/rbac/user-roles/${userId}/roles`)
+}
+
 // 获取已删除的角色列表（回收站）
 export function getDeletedRoleList(params: RoleListParams) {
   return get<{ list: RoleItem[]; total: number }>('/rbac/roles/deleted', params)

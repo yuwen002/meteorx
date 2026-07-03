@@ -1,5 +1,11 @@
 import { get, post, put, del, type ApiResult } from '@/api/request'
 
+export interface UserRoleInfo {
+  id: string
+  name: string
+  code: string
+}
+
 export interface UserItem {
   id: string
   tenant_id?: string
@@ -8,8 +14,9 @@ export interface UserItem {
   email?: string
   status?: number
   is_master?: boolean
-  roles?: string[]
-  role_ids?: string[]
+  roles?: string[]        // 角色编码列表（兼容旧版）
+  role_ids?: string[]     // 角色ID列表
+  role_list?: UserRoleInfo[]  // 角色详细信息列表
   deleted_at?: string
   created_at?: string
   updated_at?: string

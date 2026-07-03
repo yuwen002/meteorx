@@ -48,20 +48,28 @@ type UpdateUserReq struct {
 	Status   *int   `json:"status,omitempty" validate:"omitempty,oneof=0 1"`
 }
 
+// UserRoleInfo 用户角色信息（简化版）
+type UserRoleInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Code string `json:"code"`
+}
+
 type UserResp struct {
-	ID         string   `json:"id"`
-	TenantID   string   `json:"tenant_id"`
-	TenantName string   `json:"tenant_name"`
-	Username   string   `json:"username"`
-	Nickname   string   `json:"nickname"`
-	Email      string   `json:"email"`
-	Roles      []string `json:"roles"`     // 角色编码列表
-	RoleIDs    []string `json:"role_ids"`
-	Status     int      `json:"status"`
-	IsMaster   bool     `json:"is_master"` // 是否系统管理员
-	CreatedAt  string   `json:"created_at"`
-	UpdatedAt  string   `json:"updated_at"`
-	DeletedAt  string   `json:"deleted_at,omitempty"` // 删除时间，仅已删除记录返回
+	ID         string         `json:"id"`
+	TenantID   string         `json:"tenant_id"`
+	TenantName string         `json:"tenant_name"`
+	Username   string         `json:"username"`
+	Nickname   string         `json:"nickname"`
+	Email      string         `json:"email"`
+	Roles      []string       `json:"roles"`     // 角色编码列表（兼容旧版）
+	RoleIDs    []string       `json:"role_ids"`  // 角色ID列表
+	RoleList   []UserRoleInfo `json:"role_list"` // 角色详细信息列表
+	Status     int            `json:"status"`
+	IsMaster   bool           `json:"is_master"` // 是否系统管理员
+	CreatedAt  string         `json:"created_at"`
+	UpdatedAt  string         `json:"updated_at"`
+	DeletedAt  string         `json:"deleted_at,omitempty"` // 删除时间，仅已删除记录返回
 }
 
 // AssignUserRolesReq 为用户分配角色

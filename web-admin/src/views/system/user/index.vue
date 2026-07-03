@@ -53,7 +53,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180" />
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button
               link
@@ -61,6 +61,11 @@
               v-if="userStore.hasPermission('user:update')"
               @click="openEditDialog(row)"
             >编辑</el-button>
+            <el-button
+              link
+              type="info"
+              @click="openViewPermissions(row)"
+            >查看权限</el-button>
             <el-button
               link
               type="warning"
@@ -91,6 +96,42 @@
         />
       </div>
     </el-card>
+
+    <!-- 查看权限弹窗 -->
+    <el-dialog
+      v-model="permsDialogVisible"
+      :title="`用户权限 - ${currentUser?.username || ''}`"
+      width="700px"
+      :close-on-click-modal="false"
+    >
+      <div v-loading="permsLoading">
+        <!-- 角色列表 -->
+        <div class="section" style="margin-bottom: 20px;">
+          <h4 style="margin-bottom: 12px; color: #606266;">所属角色</h4>
+          <el-tag
+            v-for="role in userRoles"
+            :key="role.id"
+            type="primary"
+            style="margin-right: 8px; margin-bottom: 8px;"
+          >
+            {{ role.name }}
+          </el-tag>
+          <el-empty v-if="userRoles.length === 0" description="暂无角色" :image-size="60" />
+        </div>
+
+        <!-- 权限列表 -->
+        <div class="section">
+          <h4 style="margin-bottom: 12px; color: #606266;">权限列表</h4>
+          <el-table :data="userPermissions" border stripe size="small">
+            <el-table-column prop="name" label="权限名称" min-width="150" />
+            <el-table-column prop="code" label="权限码" min-width="180" />
+            <el-table-column prop="resource" label="资源" width="100" />
+            <el-table-column prop="action" label="操作" width="100" />
+          </el-table>
+          <el-empty v-if="userPermissions.length === 0" description="暂无权限" :image-size="60" />
+        </div>
+      </div>
+    </el-dialog>
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog
@@ -146,6 +187,8 @@ import {
   type UserCreateParams,
   type UserUpdateParams
 } from '@/api/modules/user'
+import { getUserRoles, getRolePermissions, type RoleItem } from '@/api/modules/role'
+import { type PermissionItem } from '@/api/modules/permission'
 
 const userStore = useUserStore()
 
@@ -175,6 +218,13 @@ const rules: FormRules = {
   password: [{ required: true, min: 6, max: 32, message: '密码长度 6-32 位', trigger: 'blur' }],
   email: [{ type: 'email', message: '请输入正确的邮箱', trigger: 'blur' }]
 }
+
+// 查看权限相关
+const permsDialogVisible = ref(false)
+const currentUser = ref<UserItem | null>(null)
+const userRoles = ref<RoleItem[]>([])
+const userPermissions = ref<PermissionItem[]>([])
+const permsLoading = ref(false)
 
 async function loadList() {
   loading.value = true
@@ -280,6 +330,51 @@ function handleDelete(row: UserItem) {
       loadList()
     })
     .catch(() => {})
+}
+
+// 查看用户权限
+async function openViewPermissions(row: UserItem) {
+  currentUser.value = row
+  permsDialogVisible.value = true
+  permsLoading.value = true
+  userRoles.value = []
+  userPermissions.value = []
+
+  try {
+    if (!row.id) return
+
+    // 1. 获取用户的角色列表
+    const roles = await getUserRoles(row.id)
+    userRoles.value = roles || []
+
+    // 2. 获取每个角色的权限并合并
+    const allPermissions: PermissionItem[] = []
+    const permissionIds = new Set<string>()
+
+    for (const role of userRoles.value) {
+      if (role.id) {
+        try {
+          const perms = await getRolePermissions(role.id)
+          if (perms && Array.isArray(perms)) {
+            for (const perm of perms) {
+              if (perm.id && !permissionIds.has(perm.id)) {
+                permissionIds.add(perm.id)
+                allPermissions.push(perm)
+              }
+            }
+          }
+        } catch (e) {
+          // 忽略单个角色权限获取失败
+        }
+      }
+    }
+
+    userPermissions.value = allPermissions
+  } catch (e) {
+    ElMessage.error('获取权限信息失败')
+  } finally {
+    permsLoading.value = false
+  }
 }
 
 onMounted(loadList)

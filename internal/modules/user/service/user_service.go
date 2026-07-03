@@ -140,8 +140,9 @@ func (s *UserService) buildUserRespList(ctx context.Context, users []*model.User
 		}
 	}
 
-	// 查询角色code（简化处理：逐个查询）
+	// 查询角色信息（简化处理：逐个查询）
 	roleIDToCode := make(map[string]string)
+	roleIDToName := make(map[string]string)
 	for _, roleID := range allRoleIDs {
 		if _, ok := roleIDToCode[roleID]; ok {
 			continue
@@ -149,6 +150,7 @@ func (s *UserService) buildUserRespList(ctx context.Context, users []*model.User
 		role, err := s.roleRepo.GetByID(ctx, roleID)
 		if err == nil {
 			roleIDToCode[roleID] = role.Code
+			roleIDToName[roleID] = role.Name
 		}
 	}
 
@@ -156,9 +158,19 @@ func (s *UserService) buildUserRespList(ctx context.Context, users []*model.User
 	for _, user := range users {
 		roleIDs := userRoleIDsMap[user.ID]
 		roleCodes := make([]string, 0, len(roleIDs))
+		roleList := make([]dto.UserRoleInfo, 0, len(roleIDs))
 		for _, rid := range roleIDs {
-			if code, ok := roleIDToCode[rid]; ok {
+			code, hasCode := roleIDToCode[rid]
+			name, hasName := roleIDToName[rid]
+			if hasCode {
 				roleCodes = append(roleCodes, code)
+			}
+			if hasCode && hasName {
+				roleList = append(roleList, dto.UserRoleInfo{
+					ID:   rid,
+					Name: name,
+					Code: code,
+				})
 			}
 		}
 
@@ -171,6 +183,7 @@ func (s *UserService) buildUserRespList(ctx context.Context, users []*model.User
 			Email:      user.Email,
 			Roles:      roleCodes,
 			RoleIDs:    roleIDs,
+			RoleList:   roleList,
 			Status:     user.Status,
 			CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
 			UpdatedAt:  user.UpdatedAt.Format("2006-01-02 15:04:05"),

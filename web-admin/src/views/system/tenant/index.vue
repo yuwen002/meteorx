@@ -138,6 +138,20 @@
         <el-table-column prop="username" label="用户名" min-width="120" />
         <el-table-column prop="nickname" label="昵称" min-width="120" />
         <el-table-column prop="email" label="邮箱" min-width="180" />
+        <el-table-column label="角色" min-width="150">
+          <template #default="{ row }">
+            <el-tag
+              v-for="role in row.role_list"
+              :key="role.id"
+              size="small"
+              type="primary"
+              style="margin-right: 4px; margin-bottom: 4px;"
+            >
+              {{ role.name }}
+            </el-tag>
+            <span v-if="!row.role_list || row.role_list.length === 0" style="color: #909399; font-size: 12px;">无角色</span>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
@@ -146,9 +160,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openEditUserDialog(row)">编辑</el-button>
+            <el-button link type="info" @click="openViewUserRoles(row)">查看角色</el-button>
             <el-button
               link
               :type="row.status === 1 ? 'warning' : 'success'"
@@ -177,6 +192,32 @@
     </el-dialog>
 
     <!-- 新增/编辑用户弹窗 -->
+    <!-- 查看用户角色弹窗 -->
+    <el-dialog
+      v-model="userRolesDialogVisible"
+      :title="`用户角色 - ${currentUser?.username || ''}`"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <div v-loading="userRolesLoading">
+        <div v-if="currentUserRoles.length > 0">
+          <el-table :data="currentUserRoles" border stripe size="small">
+            <el-table-column prop="name" label="角色名称" min-width="120" />
+            <el-table-column prop="code" label="角色编码" min-width="120" />
+            <el-table-column label="操作" width="100" fixed="right">
+              <template #default="{ row }">
+                <el-button link type="danger" size="small" @click="handleRemoveUserRole(row)">移除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div style="margin-top: 16px; text-align: center;">
+            <el-button type="danger" @click="handleRemoveAllUserRoles">移除所有角色</el-button>
+          </div>
+        </div>
+        <el-empty v-else description="该用户暂无角色" />
+      </div>
+    </el-dialog>
+
     <el-dialog
       v-model="userDialogVisible"
       :title="userDialogMode === 'create' ? '新增用户' : '编辑用户'"
@@ -308,7 +349,7 @@ import {
   type UserCreateParams,
   type UserUpdateParams
 } from '@/api/modules/user'
-import { getRoleList, getRolesForSelect, type RoleItem } from '@/api/modules/role'
+import { getRoleList, getRolesForSelect, getUserRoles, removeUserRole, removeAllUserRoles, type RoleItem } from '@/api/modules/role'
 
 const router = useRouter()
 
@@ -363,6 +404,12 @@ const userRules: FormRules = {
 // 角色列表
 const roleList = ref<RoleItem[]>([])
 const roleLoading = ref(false)
+
+// 查看用户角色相关
+const userRolesDialogVisible = ref(false)
+const currentUser = ref<UserItem | null>(null)
+const currentUserRoles = ref<RoleItem[]>([])
+const userRolesLoading = ref(false)
 
 const form = reactive<CreateTenantParams & UpdateTenantParams>({
   name: '',
@@ -670,13 +717,85 @@ async function handleToggleUserStatus(row: UserItem) {
 // 删除用户
 async function handleDeleteUser(row: UserItem) {
   if (!currentTenant.value) return
+
+  // 检查用户是否绑定了角色
+  const roleCount = row.role_list?.length || 0
+  if (roleCount > 0) {
+    try {
+      await ElMessageBox.confirm(
+        `用户 "${row.username}" 还绑定了 ${roleCount} 个角色，删除用户将同时移除这些角色绑定。确定要删除吗？`,
+        '删除确认',
+        { type: 'warning' }
+      )
+    } catch (e) {
+      return // 用户取消
+    }
+  } else {
+    try {
+      await ElMessageBox.confirm(`确定要删除用户 "${row.username}" 吗？`, '提示', { type: 'warning' })
+    } catch (e) {
+      return // 用户取消
+    }
+  }
+
   try {
-    await ElMessageBox.confirm(`确定要删除用户 "${row.username}" 吗？`, '提示', { type: 'warning' })
     await deleteTenantUser(currentTenant.value.id, row.id)
     ElMessage.success('删除成功')
     loadTenantUsers()
   } catch (e) {
-    // 用户取消
+    // 删除失败
+  }
+}
+
+// 查看用户角色
+async function openViewUserRoles(row: UserItem) {
+  currentUser.value = row
+  userRolesDialogVisible.value = true
+  userRolesLoading.value = true
+  currentUserRoles.value = []
+
+  try {
+    if (!row.id) return
+    const roles = await getUserRoles(row.id)
+    currentUserRoles.value = roles || []
+  } catch (e) {
+    ElMessage.error('获取角色信息失败')
+  } finally {
+    userRolesLoading.value = false
+  }
+}
+
+// 移除用户单个角色
+async function handleRemoveUserRole(role: RoleItem) {
+  if (!currentUser.value || !currentTenant.value) return
+
+  try {
+    await ElMessageBox.confirm(`确定要移除角色 "${role.name}" 吗？`, '提示', { type: 'warning' })
+    await removeUserRole(currentUser.value.id, role.id)
+    ElMessage.success('移除成功')
+    // 刷新角色列表
+    const roles = await getUserRoles(currentUser.value.id)
+    currentUserRoles.value = roles || []
+    // 刷新用户列表（更新角色显示）
+    loadTenantUsers()
+  } catch (e) {
+    // 用户取消或操作失败
+  }
+}
+
+// 移除用户所有角色
+async function handleRemoveAllUserRoles() {
+  if (!currentUser.value || !currentTenant.value) return
+
+  try {
+    await ElMessageBox.confirm(`确定要移除该用户的所有角色吗？`, '提示', { type: 'warning' })
+    await removeAllUserRoles(currentUser.value.id)
+    ElMessage.success('移除成功')
+    currentUserRoles.value = []
+    // 刷新用户列表（更新角色显示）
+    loadTenantUsers()
+  } catch (e) {
+    // 用户取消或操作失败
   }
 }
 
