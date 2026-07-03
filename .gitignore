@@ -43,4 +43,7 @@ coverage/
 # Editor backups
 *.bak
 *.backup
+
+# Frontend build output
 /web-admin/node_modules/
+/web-admin/dist/

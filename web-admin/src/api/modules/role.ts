@@ -14,6 +14,13 @@ export interface RoleItem {
   deleted_at?: string
 }
 
+// 角色下拉选项（简化版，用于选择器）
+export interface RoleOption {
+  id: string
+  name: string
+  code?: string
+}
+
 export interface RoleCreateParams {
   name: string
   code: string

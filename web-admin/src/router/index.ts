@@ -42,6 +42,12 @@ const routes: RouteRecordRaw[] = [
         name: 'MasterAdmin',
         component: () => import('@/views/system/master-admin/index.vue'),
         meta: { title: '系统管理员', icon: 'Avatar', permission: 'admin:master:list', requireMaster: true }
+      },
+      {
+        path: 'system/master-admin/recycle',
+        name: 'MasterAdminRecycle',
+        component: () => import('@/views/system/master-admin/recycle.vue'),
+        meta: { title: '系统管理员回收站', icon: 'DeleteFilled', permission: 'admin:master:list', requireMaster: true }
       }
     ]
   },

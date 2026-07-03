@@ -30,6 +30,8 @@ type UserRepository interface {
 	FindDeletedMasterAdmins(ctx context.Context, page, pageSize int, keyword string) ([]*model.User, int64, error)
 	// RestoreMasterAdmin 恢复已删除的系统管理员
 	RestoreMasterAdmin(ctx context.Context, id string) error
+	// PermanentDeleteMasterAdmin 永久删除系统管理员（物理删除）
+	PermanentDeleteMasterAdmin(ctx context.Context, id string) error
 	// BatchUpdateStatus 批量更新系统管理员状态
 	BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, error)
 	// BatchDelete 批量删除系统管理员

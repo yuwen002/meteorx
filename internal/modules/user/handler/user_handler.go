@@ -300,7 +300,7 @@ func (h *UserHandler) DeleteMasterAdmin(w http.ResponseWriter, r *http.Request) 
 		if err.Error() == "用户不是系统管理员" {
 			response.Fail(w, http.StatusNotFound, "系统管理员不存在")
 		} else {
-			response.Fail(w, http.StatusInternalServerError, "删除系统管理员失败")
+			response.Fail(w, http.StatusBadRequest, err.Error())
 		}
 		return
 	}
@@ -370,6 +370,26 @@ func (h *UserHandler) RestoreMasterAdmin(w http.ResponseWriter, r *http.Request)
 			response.Fail(w, http.StatusNotFound, "系统管理员不存在或未删除")
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "恢复系统管理员失败")
+		}
+		return
+	}
+	response.Success(w, nil)
+}
+
+// PermanentDeleteMasterAdmin DELETE /api/v1/admin/users/{id}/permanent - 永久删除系统管理员
+func (h *UserHandler) PermanentDeleteMasterAdmin(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "id")
+	if userID == "" {
+		response.Fail(w, http.StatusBadRequest, "用户ID不能为空")
+		return
+	}
+
+	err := h.svc.PermanentDeleteMasterAdmin(r.Context(), userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(w, http.StatusNotFound, "系统管理员不存在")
+		} else {
+			response.Fail(w, http.StatusInternalServerError, "永久删除系统管理员失败")
 		}
 		return
 	}

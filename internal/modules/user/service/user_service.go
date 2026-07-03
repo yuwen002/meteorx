@@ -454,6 +454,11 @@ func (s *UserService) DeleteMasterAdmin(ctx context.Context, userID string) erro
 		return fmt.Errorf("用户不是系统管理员")
 	}
 
+	// 检查是否为系统保护用户（初始管理员，不允许删除）
+	if isProtectedUser(userID) {
+		return fmt.Errorf("系统初始管理员 [%s] 不允许删除", user.Username)
+	}
+
 	// 检查关联：是否有角色绑定
 	roleCount, err := s.userRoleRepo.CountByUserID(ctx, userID)
 	if err != nil {
@@ -493,6 +498,14 @@ func (s *UserService) RestoreMasterAdmin(ctx context.Context, userID string) err
 	return s.repo.RestoreMasterAdmin(ctx, userID)
 }
 
+func (s *UserService) PermanentDeleteMasterAdmin(ctx context.Context, userID string) error {
+	// 检查是否为系统保护用户（初始管理员，不允许删除）
+	if isProtectedUser(userID) {
+		return fmt.Errorf("系统初始管理员不允许永久删除")
+	}
+	return s.repo.PermanentDeleteMasterAdmin(ctx, userID)
+}
+
 func (s *UserService) BatchUpdateMasterAdminStatus(ctx context.Context, ids []string, status int) (int64, error) {
 	if len(ids) == 0 {
 		return 0, fmt.Errorf("用户ID列表不能为空")
@@ -515,6 +528,11 @@ func (s *UserService) BatchDeleteMasterAdmins(ctx context.Context, ids []string)
 			return 0, fmt.Errorf("用户 [%s] 不是系统管理员", user.Username)
 		}
 
+		// 检查是否为系统保护用户（初始管理员，不允许删除）
+		if isProtectedUser(id) {
+			return 0, fmt.Errorf("系统初始管理员 [%s] 不允许删除", user.Username)
+		}
+
 		roleCount, err := s.userRoleRepo.CountByUserID(ctx, id)
 		if err != nil {
 			return 0, err
@@ -525,6 +543,18 @@ func (s *UserService) BatchDeleteMasterAdmins(ctx context.Context, ids []string)
 	}
 
 	return s.repo.BatchDelete(ctx, ids)
+}
+
+// ============ 辅助函数 ============
+
+// isProtectedUser 检查用户是否为系统保护用户（初始管理员，不允许删除）
+// 保护用户ID列表，这些用户是系统初始化的关键用户，不允许删除
+var protectedUserIDs = map[string]bool{
+	"admin-id-000001": true, // 初始系统管理员
+}
+
+func isProtectedUser(userID string) bool {
+	return protectedUserIDs[userID]
 }
 
 // ============ 系统管理员管理租户用户 ============

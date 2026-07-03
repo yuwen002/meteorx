@@ -3,30 +3,36 @@
     <el-card shadow="never">
       <!-- 搜索栏 -->
       <div class="search-bar">
-        <el-input
-          v-model="search.keyword"
-          placeholder="搜索用户名/昵称"
-          clearable
-          style="width: 220px"
-          @keyup.enter="loadList"
-        />
-        <el-select
-          v-model="search.status"
-          placeholder="状态"
-          clearable
-          style="width: 120px"
-        >
-          <el-option label="启用" :value="1" />
-          <el-option label="禁用" :value="0" />
-        </el-select>
-        <el-button type="primary" @click="loadList">
-          <el-icon><Search /></el-icon>查询
-        </el-button>
-        <el-button @click="resetSearch">重置</el-button>
-        <div class="flex-1"></div>
-        <el-button type="success" @click="openCreateDialog">
-          <el-icon><Plus /></el-icon>新增系统管理员
-        </el-button>
+        <div class="search-left">
+          <el-input
+            v-model="search.keyword"
+            placeholder="搜索用户名/昵称"
+            clearable
+            style="width: 220px"
+            @keyup.enter="loadList"
+          />
+          <el-select
+            v-model="search.status"
+            placeholder="状态"
+            clearable
+            style="width: 120px"
+          >
+            <el-option label="启用" :value="1" />
+            <el-option label="禁用" :value="0" />
+          </el-select>
+          <el-button type="primary" @click="loadList">
+            <el-icon><Search /></el-icon>查询
+          </el-button>
+          <el-button @click="resetSearch">重置</el-button>
+        </div>
+        <div class="search-right">
+          <el-button type="info" @click="goToRecycle">
+            <el-icon><DeleteFilled /></el-icon>回收站
+          </el-button>
+          <el-button type="success" @click="openCreateDialog">
+            <el-icon><Plus /></el-icon>新增系统管理员
+          </el-button>
+        </div>
       </div>
 
       <!-- 批量操作 -->
@@ -48,54 +54,59 @@
       <!-- 列表 -->
       <el-table
         :data="list"
-        border
-        stripe
         v-loading="loading"
-        style="width: 100%"
         @selection-change="handleSelectionChange"
+        row-key="id"
       >
         <el-table-column type="selection" width="55" />
-        <el-table-column type="index" label="#" width="60" :index="(i: number) => (page - 1) * pageSize + i + 1" />
-        <el-table-column prop="username" label="用户名" min-width="140" />
-        <el-table-column prop="nickname" label="昵称" min-width="120" />
-        <el-table-column prop="email" label="邮箱" min-width="180" />
+        <el-table-column label="用户名" prop="username" min-width="120" />
+        <el-table-column label="昵称" prop="nickname" min-width="120" />
+        <el-table-column label="邮箱" prop="email" min-width="180" />
         <el-table-column label="角色" min-width="150">
           <template #default="{ row }">
-            <el-tag v-for="role in row.roles" :key="role" size="small" style="margin-right: 4px;">
+            <el-tag v-for="role in row.roles" :key="role" size="small" class="role-tag">
               {{ role }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100">
+        <el-table-column label="状态" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '启用' : '禁用' }}</el-tag>
+            <el-tag :type="row.status === 1 ? 'success' : 'danger'">
+              {{ row.status === 1 ? '启用' : '禁用' }}
+            </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180" />
+        <el-table-column label="创建时间" prop="created_at" min-width="160" />
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
             <el-button link type="warning" @click="toggleStatus(row)">
               {{ row.status === 1 ? '禁用' : '启用' }}
             </el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button
+              v-if="!isProtectedUser(row)"
+              link
+              type="danger"
+              @click="handleDelete(row)"
+            >
+              删除
+            </el-button>
+            <el-tag v-else type="info" size="small">系统保护</el-tag>
           </template>
         </el-table-column>
       </el-table>
 
       <!-- 分页 -->
-      <div class="pagination">
-        <el-pagination
-          v-model:current-page="page"
-          v-model:page-size="pageSize"
-          :total="total"
-          :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next, jumper"
-          background
-          @size-change="loadList"
-          @current-change="loadList"
-        />
-      </div>
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next"
+        class="pagination"
+        @size-change="loadList"
+        @current-change="loadList"
+      />
     </el-card>
 
     <!-- 新增/编辑弹窗 -->
@@ -112,13 +123,27 @@
         label-width="100px"
       >
         <el-form-item label="用户名" prop="username">
-          <el-input v-model="form.username" :disabled="dialogMode === 'edit'" placeholder="请输入用户名" />
+          <el-input
+            v-model="form.username"
+            placeholder="请输入用户名"
+            :disabled="dialogMode === 'edit'"
+          />
         </el-form-item>
-        <el-form-item v-if="dialogMode === 'create'" label="密码" prop="password">
-          <el-input v-model="form.password" type="password" show-password placeholder="6-32 位" />
+        <el-form-item label="密码" prop="password" v-if="dialogMode === 'create'">
+          <el-input
+            v-model="form.password"
+            type="password"
+            placeholder="请输入密码"
+            show-password
+          />
         </el-form-item>
-        <el-form-item v-else label="密码">
-          <el-input v-model="form.password" type="password" show-password placeholder="不修改请留空" />
+        <el-form-item label="密码" prop="password" v-else>
+          <el-input
+            v-model="form.password"
+            type="password"
+            placeholder="不修改请留空"
+            show-password
+          />
         </el-form-item>
         <el-form-item label="昵称" prop="nickname">
           <el-input v-model="form.nickname" placeholder="请输入昵称" />
@@ -127,42 +152,30 @@
           <el-input v-model="form.email" placeholder="请输入邮箱" />
         </el-form-item>
         <el-form-item label="角色" prop="role_id">
-          <el-select
-            v-model="form.role_id"
-            clearable
-            placeholder="请选择角色（不选默认为 superadmin）"
-            style="width: 100%"
-          >
+          <el-select v-model="form.role_id" placeholder="请选择角色" style="width: 100%">
             <el-option
-              v-for="role in systemRoles"
+              v-for="role in roleOptions"
               :key="role.id"
-              :label="`${role.name} (${role.code})`"
+              :label="role.name"
               :value="role.id"
-            >
-              <span style="float: left">{{ role.name }}</span>
-              <span style="float: right; color: #8492a6; font-size: 13px">{{ role.code }}</span>
-            </el-option>
+            />
           </el-select>
-          <div class="form-tip">不选择角色时，系统会自动分配 superadmin 角色</div>
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-radio-group v-model="form.status">
-            <el-radio :value="1">启用</el-radio>
-            <el-radio :value="0">禁用</el-radio>
-          </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submitForm">确定</el-button>
+        <el-button type="primary" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
+import { Search, Plus, DeleteFilled } from '@element-plus/icons-vue'
 import {
   getMasterAdminList,
   createMasterAdmin,
@@ -172,48 +185,62 @@ import {
   batchUpdateMasterAdminStatus,
   batchDeleteMasterAdmins,
   type UserItem,
+  type UserListParams,
   type MasterAdminCreateParams,
   type MasterAdminUpdateParams
 } from '@/api/modules/user'
-import { getSystemAdminRoles, type RoleItem } from '@/api/modules/role'
+import { getSystemAdminRoles, type RoleOption } from '@/api/modules/role'
 
-interface MasterAdminForm {
-  username: string
-  password: string
-  nickname: string
-  email: string
-  status: number
-  role_id?: string  // 单个角色ID
-}
+const router = useRouter()
 
+const loading = ref(false)
 const list = ref<UserItem[]>([])
-const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
-const loading = ref(false)
+const total = ref(0)
 const selectedIds = ref<string[]>([])
-const systemRoles = ref<RoleItem[]>([])
 
 const search = reactive({ keyword: '', status: undefined as number | undefined })
 
+// 系统保护用户ID列表（初始管理员，不允许删除）
+const protectedUserIDs = ['admin-id-000001']
+
+// 检查用户是否为系统保护用户
+function isProtectedUser(row: UserItem): boolean {
+  return protectedUserIDs.includes(row.id)
+}
+
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
-const formRef = ref<FormInstance>()
-const saving = ref(false)
 const editingId = ref<string | null>(null)
-const form = reactive<MasterAdminForm>({
+const formRef = ref<FormInstance>()
+const roleOptions = ref<RoleOption[]>([])
+
+const form = reactive({
   username: '',
   password: '',
   nickname: '',
   email: '',
-  status: 1,
-  role_id: undefined
+  role_id: ''
 })
 
 const rules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, min: 6, max: 32, message: '密码长度 6-32 位', trigger: 'blur' }],
-  email: [{ type: 'email', message: '请输入正确的邮箱', trigger: 'blur' }]
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, max: 50, message: '长度在 3 到 50 个字符', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur', validator: (rule, value, callback) => {
+      if (dialogMode.value === 'create' && !value) {
+        callback(new Error('请输入密码'))
+      } else {
+        callback()
+      }
+    }}
+  ],
+  nickname: [{ max: 50, message: '最多 50 个字符', trigger: 'blur' }],
+  email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }],
+  role_id: [{ required: true, message: '请选择角色', trigger: 'change' }]
 }
 
 async function loadList() {
@@ -223,23 +250,14 @@ async function loadList() {
     if (search.keyword) params.keyword = search.keyword
     if (search.status !== undefined && search.status !== null) params.status = search.status
     const res: any = await getMasterAdminList(params)
-    list.value = res.list || []
-    total.value = res.total || 0
+    // 适配后端分页数据结构: { data: [...], pagination: { page, page_size, total } }
+    list.value = res.data || []
+    total.value = res.pagination?.total || 0
   } catch (e) {
     list.value = []
     total.value = 0
   } finally {
     loading.value = false
-  }
-}
-
-async function loadSystemRoles() {
-  try {
-    // 使用专门的接口获取系统管理员角色（只返回 scope=system 或 all 的角色）
-    const res: any = await getSystemAdminRoles()
-    systemRoles.value = res || []
-  } catch (e) {
-    systemRoles.value = []
   }
 }
 
@@ -254,6 +272,15 @@ function handleSelectionChange(selection: UserItem[]) {
   selectedIds.value = selection.map(item => item.id)
 }
 
+async function loadRoles() {
+  try {
+    const res: any = await getSystemAdminRoles()
+    roleOptions.value = res || []
+  } catch (e) {
+    roleOptions.value = []
+  }
+}
+
 function openCreateDialog() {
   dialogMode.value = 'create'
   editingId.value = null
@@ -261,84 +288,78 @@ function openCreateDialog() {
   form.password = ''
   form.nickname = ''
   form.email = ''
-  form.status = 1
-  form.role_id = undefined
+  form.role_id = ''
   dialogVisible.value = true
 }
 
-function openEditDialog(row: UserItem & { role_ids?: string[]; role_id?: string }) {
+function openEditDialog(row: UserItem) {
   dialogMode.value = 'edit'
   editingId.value = row.id
   form.username = row.username
   form.password = ''
   form.nickname = row.nickname || ''
   form.email = row.email || ''
-  form.status = row.status ?? 1
-  // 优先使用 role_id，如果没有则取 role_ids 的第一个
-  form.role_id = row.role_id || (row.role_ids && row.role_ids.length > 0 ? row.role_ids[0] : undefined)
+  form.role_id = row.role_ids && row.role_ids.length > 0 ? row.role_ids[0] : ''
   dialogVisible.value = true
 }
 
-async function submitForm() {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
+function handleSubmit() {
+  formRef.value?.validate(async (valid) => {
     if (!valid) return
-    saving.value = true
     try {
       if (dialogMode.value === 'create') {
-        const createData: any = {
-          username: form.username.trim(),
+        const data: MasterAdminCreateParams = {
+          username: form.username,
           password: form.password,
           nickname: form.nickname,
-          email: form.email
+          email: form.email,
+          role_id: form.role_id
         }
-        if (form.role_id) {
-          createData.role_id = form.role_id
-        }
-        await createMasterAdmin(createData)
-        ElMessage.success('新增成功')
-      } else if (editingId.value) {
-        const updateData: any = {
+        await createMasterAdmin(data)
+        ElMessage.success('创建成功')
+      } else {
+        const data: MasterAdminUpdateParams = {
           nickname: form.nickname,
           email: form.email,
-          status: form.status
+          role_id: form.role_id
         }
-        if (form.password) updateData.password = form.password
-        if (form.role_id) {
-          updateData.role_id = form.role_id
+        if (form.password) {
+          data.password = form.password
         }
-        await updateMasterAdmin(editingId.value, updateData)
+        await updateMasterAdmin(editingId.value!, data)
         ElMessage.success('更新成功')
       }
       dialogVisible.value = false
       loadList()
-    } finally {
-      saving.value = false
+    } catch (e: any) {
+      ElMessage.error(e?.response?.data?.message || '操作失败')
     }
   })
 }
 
 function toggleStatus(row: UserItem) {
-  ElMessageBox.confirm(`确定要${row.status === 1 ? '禁用' : '启用'}该系统管理员吗？`, '提示', {
+  const newStatus = row.status === 1 ? 0 : 1
+  const action = newStatus === 1 ? '启用' : '禁用'
+  ElMessageBox.confirm(`确定要${action}系统管理员 "${row.username}" 吗？`, '确认', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
     type: 'warning'
   })
     .then(async () => {
-      if (!row.id) return
-      await updateMasterAdminStatus(row.id, row.status === 1 ? 0 : 1)
-      ElMessage.success('操作成功')
+      await updateMasterAdminStatus(row.id, newStatus)
+      ElMessage.success(`${action}成功`)
       loadList()
     })
     .catch(() => {})
 }
 
 function handleDelete(row: UserItem) {
-  ElMessageBox.confirm(`确定要删除系统管理员 "${row.username}" 吗？此操作不可恢复`, '危险操作', {
+  ElMessageBox.confirm(`确定要删除系统管理员 "${row.username}" 吗？`, '确认删除', {
     type: 'error',
     confirmButtonText: '确定删除',
     cancelButtonText: '取消'
   })
     .then(async () => {
-      if (!row.id) return
       await deleteMasterAdmin(row.id)
       ElMessage.success('删除成功')
       loadList()
@@ -347,21 +368,29 @@ function handleDelete(row: UserItem) {
 }
 
 function handleBatchEnable() {
-  handleBatchStatus(1)
-}
-
-function handleBatchDisable() {
-  handleBatchStatus(0)
-}
-
-function handleBatchStatus(status: number) {
-  const action = status === 1 ? '启用' : '禁用'
-  ElMessageBox.confirm(`确定要${action}选中的 ${selectedIds.value.length} 个系统管理员吗？`, '提示', {
+  ElMessageBox.confirm(`确定要启用选中的 ${selectedIds.value.length} 个系统管理员吗？`, '批量启用', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
     type: 'warning'
   })
     .then(async () => {
-      await batchUpdateMasterAdminStatus(selectedIds.value, status)
-      ElMessage.success('批量操作成功')
+      await batchUpdateMasterAdminStatus(selectedIds.value, 1)
+      ElMessage.success('批量启用成功')
+      selectedIds.value = []
+      loadList()
+    })
+    .catch(() => {})
+}
+
+function handleBatchDisable() {
+  ElMessageBox.confirm(`确定要禁用选中的 ${selectedIds.value.length} 个系统管理员吗？`, '批量禁用', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+    .then(async () => {
+      await batchUpdateMasterAdminStatus(selectedIds.value, 0)
+      ElMessage.success('批量禁用成功')
       selectedIds.value = []
       loadList()
     })
@@ -369,13 +398,27 @@ function handleBatchStatus(status: number) {
 }
 
 function handleBatchDelete() {
-  ElMessageBox.confirm(`确定要删除选中的 ${selectedIds.value.length} 个系统管理员吗？此操作不可恢复`, '危险操作', {
+  // 过滤掉保护用户
+  const deletableIds = selectedIds.value.filter(id => !protectedUserIDs.includes(id))
+  const protectedCount = selectedIds.value.length - deletableIds.length
+
+  if (deletableIds.length === 0) {
+    ElMessage.warning('选中的用户中包含系统保护用户，无法删除')
+    return
+  }
+
+  let confirmMessage = `确定要删除选中的 ${deletableIds.length} 个系统管理员吗？此操作不可恢复`
+  if (protectedCount > 0) {
+    confirmMessage += `（已自动跳过 ${protectedCount} 个系统保护用户）`
+  }
+
+  ElMessageBox.confirm(confirmMessage, '危险操作', {
     type: 'error',
     confirmButtonText: '确定删除',
     cancelButtonText: '取消'
   })
     .then(async () => {
-      await batchDeleteMasterAdmins(selectedIds.value)
+      await batchDeleteMasterAdmins(deletableIds)
       ElMessage.success('批量删除成功')
       selectedIds.value = []
       loadList()
@@ -383,38 +426,51 @@ function handleBatchDelete() {
     .catch(() => {})
 }
 
+// 跳转到回收站
+function goToRecycle() {
+  router.push('/system/master-admin/recycle')
+}
+
 onMounted(() => {
   loadList()
-  loadSystemRoles()
+  loadRoles()
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  padding: 20px;
 }
+
 .search-bar {
   display: flex;
-  gap: 10px;
+  justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+
+  .search-left {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .search-right {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
 }
+
 .batch-bar {
   margin-bottom: 16px;
 }
-.flex-1 {
-  flex: 1;
+
+.role-tag {
+  margin-right: 4px;
 }
+
 .pagination {
-  display: flex;
+  margin-top: 20px;
   justify-content: flex-end;
-  padding-top: 16px;
-}
-.form-tip {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
 }
 </style>

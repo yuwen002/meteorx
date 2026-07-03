@@ -8,6 +8,9 @@ export interface UserItem {
   email?: string
   status?: number
   is_master?: boolean
+  roles?: string[]
+  role_ids?: string[]
+  deleted_at?: string
   created_at?: string
   updated_at?: string
 }
@@ -138,4 +141,21 @@ export function batchUpdateMasterAdminStatus(ids: string[], status: number) {
 // 批量删除系统管理员
 export function batchDeleteMasterAdmins(ids: string[]) {
   return del('/admin/users/batch/delete', { data: { ids } })
+}
+
+// ==================== 系统管理员回收站接口 ====================
+
+// 获取已删除的系统管理员列表（回收站）
+export function getDeletedMasterAdminList(params: UserListParams) {
+  return get<PageResult<UserItem>>('/admin/users/deleted', params)
+}
+
+// 恢复已删除的系统管理员
+export function restoreMasterAdmin(id: string) {
+  return put(`/admin/users/${id}/restore`)
+}
+
+// 永久删除系统管理员（从回收站彻底删除）
+export function permanentDeleteMasterAdmin(id: string) {
+  return del(`/admin/users/${id}/permanent`)
 }

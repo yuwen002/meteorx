@@ -290,6 +290,20 @@ func (r *userRepository) RestoreMasterAdmin(ctx context.Context, id string) erro
 	return nil
 }
 
+// PermanentDeleteMasterAdmin 永久删除系统管理员（从数据库中物理删除）
+func (r *userRepository) PermanentDeleteMasterAdmin(ctx context.Context, id string) error {
+	result := r.db.WithContext(ctx).Unscoped().
+		Where("id = ? AND is_master = ? AND deleted_at IS NOT NULL", id, true).
+		Delete(&UserPO{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
 // BatchUpdateStatus 批量更新系统管理员状态
 func (r *userRepository) BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, error) {
 	result := r.db.WithContext(ctx).Model(&UserPO{}).
