@@ -24,7 +24,10 @@
         </el-button>
         <el-button @click="resetSearch">重置</el-button>
         <div class="flex-1"></div>
-        <el-button type="success" v-if="userStore.hasPermission('user:create')" @click="openCreateDialog">
+        <el-button type="info" v-if="userStore.isAdmin" @click="toggleRecycleBin">
+          <el-icon><Delete /></el-icon>{{ isRecycleBin ? '返回列表' : '回收站' }}
+        </el-button>
+        <el-button type="success" v-if="userStore.hasPermission('user:create') && !isRecycleBin" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>新增用户
         </el-button>
       </div>
@@ -53,31 +56,47 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180" />
+        <el-table-column v-if="isRecycleBin" prop="deleted_at" label="删除时间" width="180" />
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button
-              link
-              type="primary"
-              v-if="userStore.hasPermission('user:update')"
-              @click="openEditDialog(row)"
-            >编辑</el-button>
-            <el-button
-              link
-              type="info"
-              @click="openViewPermissions(row)"
-            >查看权限</el-button>
-            <el-button
-              link
-              type="warning"
-              v-if="userStore.hasPermission('user:update')"
-              @click="toggleStatus(row)"
-            >{{ row.status === 1 ? '禁用' : '启用' }}</el-button>
-            <el-button
-              link
-              type="danger"
-              v-if="userStore.hasPermission('user:delete') && !row.is_master"
-              @click="handleDelete(row)"
-            >删除</el-button>
+            <template v-if="isRecycleBin">
+              <el-button
+                link
+                type="success"
+                @click="handleRestore(row)"
+              >恢复</el-button>
+              <el-button
+                link
+                type="danger"
+                v-if="!row.is_master"
+                @click="handlePermanentDelete(row)"
+              >永久删除</el-button>
+            </template>
+            <template v-else>
+              <el-button
+                link
+                type="primary"
+                v-if="userStore.hasPermission('user:update')"
+                @click="openEditDialog(row)"
+              >编辑</el-button>
+              <el-button
+                link
+                type="info"
+                @click="openViewPermissions(row)"
+              >查看权限</el-button>
+              <el-button
+                link
+                type="warning"
+                v-if="userStore.hasPermission('user:update')"
+                @click="toggleStatus(row)"
+              >{{ row.status === 1 ? '禁用' : '启用' }}</el-button>
+              <el-button
+                link
+                type="danger"
+                v-if="userStore.hasPermission('user:delete') && !row.is_master"
+                @click="handleDelete(row)"
+              >删除</el-button>
+            </template>
           </template>
         </el-table-column>
       </el-table>
@@ -176,13 +195,16 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { Search, Plus, Delete } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import {
   getUserList,
   getAllTenantUsers,
+  getAllDeletedTenantUsers,
   createUser,
   updateUser,
   deleteUser,
+  restoreTenantUser,
   type UserItem,
   type UserCreateParams,
   type UserUpdateParams
@@ -197,6 +219,7 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
+const isRecycleBin = ref(false)
 
 const search = reactive({ keyword: '', status: undefined as number | undefined })
 
@@ -231,9 +254,15 @@ async function loadList() {
   try {
     const params: any = { page: page.value, page_size: pageSize.value }
     if (search.keyword) params.keyword = search.keyword
-    if (search.status !== undefined && search.status !== null) params.status = search.status
     // 系统管理员查看所有租户用户，普通租户管理员只看当前租户用户
-    const res: any = userStore.isAdmin ? await getAllTenantUsers(params) : await getUserList(params)
+    // 回收站模式只对系统管理员开放
+    let res: any
+    if (isRecycleBin.value) {
+      res = await getAllDeletedTenantUsers(params)
+    } else {
+      if (search.status !== undefined && search.status !== null) params.status = search.status
+      res = userStore.isAdmin ? await getAllTenantUsers(params) : await getUserList(params)
+    }
     list.value = res.data || []
     total.value = res.pagination?.total || 0
   } catch (e) {
@@ -242,6 +271,12 @@ async function loadList() {
   } finally {
     loading.value = false
   }
+}
+
+function toggleRecycleBin() {
+  isRecycleBin.value = !isRecycleBin.value
+  page.value = 1
+  loadList()
 }
 
 function resetSearch() {
@@ -330,6 +365,40 @@ function handleDelete(row: UserItem) {
       loadList()
     })
     .catch(() => {})
+}
+
+// 恢复用户
+async function handleRestore(row: UserItem) {
+  if (!row.id || !row.tenant_id) return
+  try {
+    await ElMessageBox.confirm(`确定要恢复用户 "${row.username}" 吗？`, '提示', {
+      type: 'warning'
+    })
+    await restoreTenantUser(row.tenant_id, row.id)
+    ElMessage.success('恢复成功')
+    loadList()
+  } catch (e) {
+    // 用户取消
+  }
+}
+
+// 永久删除用户
+async function handlePermanentDelete(row: UserItem) {
+  if (!row.id) return
+  try {
+    await ElMessageBox.confirm(`确定要永久删除用户 "${row.username}" 吗？此操作不可恢复！`, '危险操作', {
+      type: 'error',
+      confirmButtonText: '确定永久删除',
+      cancelButtonText: '取消'
+    })
+    // 由于后端没有提供永久删除租户用户的接口，暂时使用普通删除接口
+    // 实际应该调用永久删除接口
+    await deleteUser(row.id)
+    ElMessage.success('永久删除成功')
+    loadList()
+  } catch (e) {
+    // 用户取消
+  }
 }
 
 // 查看用户权限

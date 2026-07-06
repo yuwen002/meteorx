@@ -167,6 +167,23 @@ export function permanentDeleteMasterAdmin(id: string) {
   return del(`/admin/users/${id}/permanent`)
 }
 
+// ==================== 租户用户回收站接口（系统管理员使用） ====================
+
+// 获取所有租户的已删除用户列表（回收站）
+export function getAllDeletedTenantUsers(params: UserListParams) {
+  return get<PageResult<UserItem>>('/admin/tenant-users/deleted/all', params)
+}
+
+// 恢复已删除的租户用户
+export function restoreTenantUser(tenantId: string, userId: string) {
+  return put(`/admin/tenant-users/${tenantId}/${userId}/restore`)
+}
+
+// 永久删除租户用户（从回收站彻底删除）
+export function permanentDeleteTenantUser(tenantId: string, userId: string) {
+  return del(`/admin/tenant-users/${tenantId}/${userId}/permanent`)
+}
+
 // ==================== 系统管理员跨租户用户管理接口 ====================
 
 // 获取所有租户用户列表（系统管理员使用）

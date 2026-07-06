@@ -12,7 +12,6 @@ import (
 	"meteorx/internal/modules/user/repository"
 	"meteorx/pkg/crypto"
 	ulpkg "meteorx/pkg/ulid"
-	"strconv"
 )
 
 type UserService struct {
@@ -320,13 +319,9 @@ func (s *UserService) GetUserRoles(ctx context.Context, userID string) ([]string
 }
 
 func (s *UserService) Delete(ctx context.Context, userID string) error {
-	// 检查关联：是否有角色绑定
-	roleCount, err := s.userRoleRepo.CountByUserID(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if roleCount > 0 {
-		return errors.New("该用户已绑定 " + strconv.FormatInt(roleCount, 10) + " 个角色，请先解除用户角色绑定后再删除")
+	// 删除用户前先解除所有角色绑定
+	if err := s.userRoleRepo.DeleteByUserID(ctx, userID); err != nil {
+		return fmt.Errorf("解除用户角色绑定失败: %w", err)
 	}
 	return s.repo.Delete(ctx, userID)
 }
@@ -472,13 +467,9 @@ func (s *UserService) DeleteMasterAdmin(ctx context.Context, userID string) erro
 		return fmt.Errorf("系统初始管理员 [%s] 不允许删除", user.Username)
 	}
 
-	// 检查关联：是否有角色绑定
-	roleCount, err := s.userRoleRepo.CountByUserID(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if roleCount > 0 {
-		return errors.New("该用户已绑定 " + strconv.FormatInt(roleCount, 10) + " 个角色，请先解除用户角色绑定后再删除")
+	// 删除用户前先解除所有角色绑定
+	if err := s.userRoleRepo.DeleteByUserID(ctx, userID); err != nil {
+		return fmt.Errorf("解除用户角色绑定失败: %w", err)
 	}
 
 	return s.repo.Delete(ctx, userID)
@@ -531,7 +522,7 @@ func (s *UserService) BatchDeleteMasterAdmins(ctx context.Context, ids []string)
 		return 0, fmt.Errorf("用户ID列表不能为空")
 	}
 
-	// 检查每个用户的关联
+	// 检查每个用户
 	for _, id := range ids {
 		user, err := s.repo.GetByID(ctx, id)
 		if err != nil {
@@ -546,12 +537,9 @@ func (s *UserService) BatchDeleteMasterAdmins(ctx context.Context, ids []string)
 			return 0, fmt.Errorf("系统初始管理员 [%s] 不允许删除", user.Username)
 		}
 
-		roleCount, err := s.userRoleRepo.CountByUserID(ctx, id)
-		if err != nil {
-			return 0, err
-		}
-		if roleCount > 0 {
-			return 0, errors.New("用户 [" + user.Username + "] 已绑定 " + strconv.FormatInt(roleCount, 10) + " 个角色，请先解除用户角色绑定后再删除")
+		// 解除用户所有角色绑定
+		if err := s.userRoleRepo.DeleteByUserID(ctx, id); err != nil {
+			return 0, fmt.Errorf("解除用户 [%s] 角色绑定失败: %w", user.Username, err)
 		}
 	}
 
@@ -683,13 +671,9 @@ func (s *UserService) AdminDeleteTenantUser(ctx context.Context, tenantID, userI
 		return fmt.Errorf("用户不属于指定租户")
 	}
 
-	// 检查关联：是否有角色绑定
-	roleCount, err := s.userRoleRepo.CountByUserID(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if roleCount > 0 {
-		return errors.New("该用户已绑定 " + strconv.FormatInt(roleCount, 10) + " 个角色，请先解除用户角色绑定后再删除")
+	// 删除用户前先解除所有角色绑定
+	if err := s.userRoleRepo.DeleteByUserID(ctx, userID); err != nil {
+		return fmt.Errorf("解除用户角色绑定失败: %w", err)
 	}
 
 	return s.repo.Delete(ctx, userID)
@@ -723,6 +707,10 @@ func (s *UserService) AdminRestoreTenantUser(ctx context.Context, tenantID, user
 	return s.repo.RestoreTenantUser(ctx, tenantID, userID)
 }
 
+func (s *UserService) AdminPermanentDeleteTenantUser(ctx context.Context, tenantID, userID string) error {
+	return s.repo.PermanentDeleteTenantUser(ctx, tenantID, userID)
+}
+
 func (s *UserService) AdminUpdateTenantUserStatus(ctx context.Context, tenantID, userID string, status int) error {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -748,7 +736,7 @@ func (s *UserService) AdminBatchDeleteTenantUsers(ctx context.Context, tenantID 
 		return 0, fmt.Errorf("用户ID列表不能为空")
 	}
 
-	// 检查每个用户的关联
+	// 检查每个用户是否属于指定租户，并解除角色绑定
 	for _, id := range ids {
 		user, err := s.repo.GetByID(ctx, id)
 		if err != nil {
@@ -758,12 +746,9 @@ func (s *UserService) AdminBatchDeleteTenantUsers(ctx context.Context, tenantID 
 			return 0, fmt.Errorf("用户 [%s] 不属于指定租户", user.Username)
 		}
 
-		roleCount, err := s.userRoleRepo.CountByUserID(ctx, id)
-		if err != nil {
-			return 0, err
-		}
-		if roleCount > 0 {
-			return 0, errors.New("用户 [" + user.Username + "] 已绑定 " + strconv.FormatInt(roleCount, 10) + " 个角色，请先解除用户角色绑定后再删除")
+		// 解除用户所有角色绑定
+		if err := s.userRoleRepo.DeleteByUserID(ctx, id); err != nil {
+			return 0, fmt.Errorf("解除用户 [%s] 角色绑定失败: %w", user.Username, err)
 		}
 	}
 
@@ -790,6 +775,7 @@ func (s *UserService) ChangePassword(ctx context.Context, userID, oldPassword, n
 	user.Password = hashedPassword
 	return s.repo.Update(ctx, user)
 }
+
 // CountByTenant 统计指定租户下的用户总数
 func (s *UserService) CountByTenant(ctx context.Context, tenantID string) (int64, error) {
 	return s.repo.CountByTenant(ctx, tenantID)

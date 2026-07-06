@@ -613,6 +613,27 @@ func (h *UserHandler) AdminRestoreTenantUser(w http.ResponseWriter, r *http.Requ
 	response.Success(w, nil)
 }
 
+// AdminPermanentDeleteTenantUser DELETE /api/v1/admin/tenant-users/{tenantID}/{userID}/permanent - 系统管理员永久删除租户用户
+func (h *UserHandler) AdminPermanentDeleteTenantUser(w http.ResponseWriter, r *http.Request) {
+	tenantID := chi.URLParam(r, "tenantID")
+	userID := chi.URLParam(r, "userID")
+	if tenantID == "" || userID == "" {
+		response.Fail(w, http.StatusBadRequest, "租户ID和用户ID不能为空")
+		return
+	}
+
+	err := h.svc.AdminPermanentDeleteTenantUser(r.Context(), tenantID, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(w, http.StatusNotFound, "用户不存在或未删除")
+		} else {
+			response.Fail(w, http.StatusInternalServerError, "永久删除用户失败")
+		}
+		return
+	}
+	response.Success(w, nil)
+}
+
 // AdminUpdateTenantUserStatus PUT /api/v1/admin/tenant-users/{tenantID}/{userID}/status - 系统管理员更新指定租户的用户状态
 func (h *UserHandler) AdminUpdateTenantUserStatus(w http.ResponseWriter, r *http.Request) {
 	tenantID := chi.URLParam(r, "tenantID")

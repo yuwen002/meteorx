@@ -43,6 +43,8 @@ type UserRepository interface {
 	FindAllDeletedTenantUsers(ctx context.Context, page, pageSize int, keyword string) ([]*model.User, int64, error)
 	// RestoreTenantUser 恢复已删除的租户用户
 	RestoreTenantUser(ctx context.Context, tenantID, userID string) error
+	// PermanentDeleteTenantUser 永久删除租户用户（物理删除）
+	PermanentDeleteTenantUser(ctx context.Context, tenantID, userID string) error
 	// BatchUpdateTenantUserStatus 批量更新租户用户状态（指定租户，排除系统管理员）
 	BatchUpdateTenantUserStatus(ctx context.Context, tenantID string, ids []string, status int) (int64, error)
 	// BatchDeleteTenantUsers 批量删除租户用户（指定租户）

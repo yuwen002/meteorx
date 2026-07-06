@@ -449,6 +449,20 @@ func (r *userRepository) RestoreTenantUser(ctx context.Context, tenantID, userID
 	return nil
 }
 
+// PermanentDeleteTenantUser 永久删除租户用户（物理删除）
+func (r *userRepository) PermanentDeleteTenantUser(ctx context.Context, tenantID, userID string) error {
+	result := r.db.WithContext(ctx).Unscoped().
+		Where("id = ? AND tenant_id = ? AND is_master = ? AND deleted_at IS NOT NULL", userID, tenantID, false).
+		Delete(&UserPO{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
 // BatchDeleteTenantUsers 批量删除租户用户（指定租户，排除系统管理员）
 func (r *userRepository) BatchDeleteTenantUsers(ctx context.Context, tenantID string, ids []string) (int64, error) {
 	result := r.db.WithContext(ctx).Model(&UserPO{}).

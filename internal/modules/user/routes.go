@@ -61,6 +61,7 @@ func RegisterAdminRoutes(r chi.Router, h *handler.UserHandler) {
 		r.Put("/{tenantID}/{userID}/status", h.AdminUpdateTenantUserStatus) // 更新指定租户的用户状态
 		r.Put("/{tenantID}/{userID}/restore", h.AdminRestoreTenantUser)  // 恢复已删除的租户用户
 		r.Delete("/{tenantID}/{userID}/delete", h.AdminDeleteTenantUser) // 删除指定租户的用户
+		r.Delete("/{tenantID}/{userID}/permanent", h.AdminPermanentDeleteTenantUser) // 永久删除租户用户
 		r.Put("/{tenantID}/batch/status", h.AdminBatchUpdateTenantUserStatus) // 批量更新指定租户的用户状态
 		r.Delete("/{tenantID}/batch/delete", h.AdminBatchDeleteTenantUsers)  // 批量删除指定租户的用户
 	})

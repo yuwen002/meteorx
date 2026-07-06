@@ -113,13 +113,16 @@
         </el-button>
         <el-button @click="resetUserSearch">重置</el-button>
         <div class="flex-1"></div>
-        <el-button type="success" @click="openCreateUserDialog">
+        <el-button type="info" @click="toggleUserRecycleBin">
+          <el-icon><Delete /></el-icon>{{ isUserRecycleBin ? '返回列表' : '回收站' }}
+        </el-button>
+        <el-button type="success" v-if="!isUserRecycleBin" @click="openCreateUserDialog">
           <el-icon><Plus /></el-icon>新增用户
         </el-button>
       </div>
 
       <!-- 批量操作 -->
-      <div v-if="userSelectedIds.length > 0" class="batch-bar" style="margin-bottom: 16px;">
+      <div v-if="userSelectedIds.length > 0 && !isUserRecycleBin" class="batch-bar" style="margin-bottom: 16px;">
         <el-button type="danger" size="small" @click="handleBatchDeleteUsers">批量删除</el-button>
         <el-button type="warning" size="small" @click="handleBatchDisableUsers">批量禁用</el-button>
         <el-button type="success" size="small" @click="handleBatchEnableUsers">批量启用</el-button>
@@ -134,7 +137,7 @@
         stripe
         @selection-change="handleUserSelectionChange"
       >
-        <el-table-column type="selection" width="55" />
+        <el-table-column v-if="!isUserRecycleBin" type="selection" width="55" />
         <el-table-column prop="username" label="用户名" min-width="120" />
         <el-table-column prop="nickname" label="昵称" min-width="120" />
         <el-table-column prop="email" label="邮箱" min-width="180" />
@@ -160,18 +163,25 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="160" />
+        <el-table-column v-if="isUserRecycleBin" prop="deleted_at" label="删除时间" width="160" />
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEditUserDialog(row)">编辑</el-button>
-            <el-button link type="info" @click="openViewUserRoles(row)">查看角色</el-button>
-            <el-button
-              link
-              :type="row.status === 1 ? 'warning' : 'success'"
-              @click="handleToggleUserStatus(row)"
-            >
-              {{ row.status === 1 ? '禁用' : '启用' }}
-            </el-button>
-            <el-button link type="danger" @click="handleDeleteUser(row)">删除</el-button>
+            <template v-if="isUserRecycleBin">
+              <el-button link type="success" @click="handleRestoreUser(row)">恢复</el-button>
+              <el-button link type="danger" @click="handlePermanentDeleteUser(row)">永久删除</el-button>
+            </template>
+            <template v-else>
+              <el-button link type="primary" @click="openEditUserDialog(row)">编辑</el-button>
+              <el-button link type="info" @click="openViewUserRoles(row)">查看角色</el-button>
+              <el-button
+                link
+                :type="row.status === 1 ? 'warning' : 'success'"
+                @click="handleToggleUserStatus(row)"
+              >
+                {{ row.status === 1 ? '禁用' : '启用' }}
+              </el-button>
+              <el-button link type="danger" @click="handleDeleteUser(row)">删除</el-button>
+            </template>
           </template>
         </el-table-column>
       </el-table>
@@ -179,6 +189,7 @@
       <!-- 分页 -->
       <div class="pagination" style="margin-top: 16px;">
         <el-pagination
+          v-if="!isUserRecycleBin"
           v-model:current-page="userPage"
           v-model:page-size="userPageSize"
           :total="userTotal"
@@ -188,6 +199,9 @@
           @size-change="loadTenantUsers"
           @current-change="loadTenantUsers"
         />
+        <div v-else style="text-align: center; color: #909399; font-size: 14px;">
+          共 {{ userTotal }} 条已删除记录
+        </div>
       </div>
     </el-dialog>
 
@@ -339,12 +353,15 @@ import {
 } from '@/api/modules/tenant'
 import {
   getTenantUsers,
+  getAllDeletedTenantUsers,
   createTenantUser,
   updateTenantUser,
   deleteTenantUser,
   updateTenantUserStatus,
   batchDeleteTenantUsers,
   batchUpdateTenantUserStatus,
+  restoreTenantUser,
+  permanentDeleteTenantUser,
   type UserItem,
   type UserCreateParams,
   type UserUpdateParams
@@ -377,6 +394,7 @@ const userTotal = ref(0)
 const userLoading = ref(false)
 const userSearch = reactive({ keyword: '' })
 const userSelectedIds = ref<string[]>([])
+const isUserRecycleBin = ref(false)
 
 // 用户新增/编辑相关
 const userDialogVisible = ref(false)
@@ -594,6 +612,13 @@ function openViewUsers(row: TenantItem) {
   usersDialogVisible.value = true
   userPage.value = 1
   userSearch.keyword = ''
+  isUserRecycleBin.value = false
+  loadTenantUsers()
+}
+
+function toggleUserRecycleBin() {
+  isUserRecycleBin.value = !isUserRecycleBin.value
+  userPage.value = 1
   loadTenantUsers()
 }
 
@@ -603,9 +628,20 @@ async function loadTenantUsers() {
   try {
     const params: any = { page: userPage.value, page_size: userPageSize.value }
     if (userSearch.keyword) params.keyword = userSearch.keyword
-    const res: any = await getTenantUsers(currentTenant.value.id, params)
-    userList.value = res.data || []
-    userTotal.value = res.pagination?.total || 0
+    let res: any
+    if (isUserRecycleBin.value) {
+      // 回收站模式：获取所有已删除的用户，然后过滤当前租户的
+      res = await getAllDeletedTenantUsers(params)
+      // 过滤出当前租户的用户
+      const allDeletedUsers = res.data || []
+      const filteredUsers = allDeletedUsers.filter((u: UserItem) => u.tenant_id === currentTenant.value?.id)
+      userList.value = filteredUsers
+      userTotal.value = filteredUsers.length
+    } else {
+      res = await getTenantUsers(currentTenant.value.id, params)
+      userList.value = res.data || []
+      userTotal.value = res.pagination?.total || 0
+    }
   } catch (e) {
     userList.value = []
     userTotal.value = 0
@@ -718,32 +754,43 @@ async function handleToggleUserStatus(row: UserItem) {
 async function handleDeleteUser(row: UserItem) {
   if (!currentTenant.value) return
 
-  // 检查用户是否绑定了角色
-  const roleCount = row.role_list?.length || 0
-  if (roleCount > 0) {
-    try {
-      await ElMessageBox.confirm(
-        `用户 "${row.username}" 还绑定了 ${roleCount} 个角色，删除用户将同时移除这些角色绑定。确定要删除吗？`,
-        '删除确认',
-        { type: 'warning' }
-      )
-    } catch (e) {
-      return // 用户取消
-    }
-  } else {
-    try {
-      await ElMessageBox.confirm(`确定要删除用户 "${row.username}" 吗？`, '提示', { type: 'warning' })
-    } catch (e) {
-      return // 用户取消
-    }
-  }
-
   try {
+    await ElMessageBox.confirm(`确定要删除用户 "${row.username}" 吗？删除后将自动解除角色绑定。`, '提示', { type: 'warning' })
     await deleteTenantUser(currentTenant.value.id, row.id)
     ElMessage.success('删除成功')
     loadTenantUsers()
   } catch (e) {
-    // 删除失败
+    // 用户取消或删除失败
+  }
+}
+
+// 恢复用户
+async function handleRestoreUser(row: UserItem) {
+  if (!row.id || !row.tenant_id) return
+  try {
+    await ElMessageBox.confirm(`确定要恢复用户 "${row.username}" 吗？`, '提示', { type: 'warning' })
+    await restoreTenantUser(row.tenant_id, row.id)
+    ElMessage.success('恢复成功')
+    loadTenantUsers()
+  } catch (e) {
+    // 用户取消
+  }
+}
+
+// 永久删除用户
+async function handlePermanentDeleteUser(row: UserItem) {
+  if (!row.id || !row.tenant_id) return
+  try {
+    await ElMessageBox.confirm(`确定要永久删除用户 "${row.username}" 吗？此操作不可恢复！`, '危险操作', {
+      type: 'error',
+      confirmButtonText: '确定永久删除',
+      cancelButtonText: '取消'
+    })
+    await permanentDeleteTenantUser(row.tenant_id, row.id)
+    ElMessage.success('永久删除成功')
+    loadTenantUsers()
+  } catch (e) {
+    // 用户取消
   }
 }
 

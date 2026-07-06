@@ -1483,13 +1483,18 @@
                   "email": {
                     "type": "string",
                     "title": "电子邮件"
+                  },
+                  "role_id": {
+                    "type": "string",
+                    "title": "角色ID"
                   }
                 },
                 "required": [
                   "username",
                   "password",
                   "nickname",
-                  "email"
+                  "email",
+                  "role_id"
                 ]
               },
               "example": {
@@ -1742,7 +1747,7 @@
     },
     "/api/v1/admin/users/{id}/delete": {
       "delete": {
-        "summary": "删除系统管理员",
+        "summary": "永久删除系统管理员",
         "deprecated": false,
         "description": "",
         "tags": [],
@@ -1767,8 +1772,7 @@
                   "properties": {}
                 }
               }
-            },
-            "headers": {}
+            }
           }
         },
         "security": [
@@ -2238,7 +2242,7 @@
     },
     "/api/v1/admin/tenant-users/{tenantID}/deleted": {
       "get": {
-        "summary": "租户用户列表（回收站、指定租户）",
+        "summary": "指定租户用户列表（回收站）",
         "deprecated": false,
         "description": "",
         "tags": [],
@@ -2557,6 +2561,81 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/tenant-users/{tenantID}/{userID}/permanent": {
+      "delete": {
+        "summary": "永久删除租户用户",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "tenantID",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userID",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/stats": {
+      "get": {
+        "summary": "所有用户统计",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [],
         "responses": {
           "200": {
             "description": "",
@@ -3111,6 +3190,44 @@
           },
           "required": true
         },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/rbac/roles/select": {
+      "get": {
+        "summary": "角色下拉列表",
+        "deprecated": false,
+        "description": "",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
