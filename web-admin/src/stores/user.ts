@@ -84,6 +84,14 @@ export const useUserStore = defineStore('user', () => {
     return codes.some((c) => permissions.value.includes(c))
   }
 
+  // 更新用户信息（用于个人中心编辑资料）
+  function updateUserInfo(data: Partial<LoginUserInfo>) {
+    if (userInfo.value) {
+      userInfo.value = { ...userInfo.value, ...data }
+      localStorage.setItem(USER_KEY, JSON.stringify(userInfo.value))
+    }
+  }
+
   return {
     token,
     userInfo,
@@ -95,6 +103,7 @@ export const useUserStore = defineStore('user', () => {
     logout,
     logoutSync,
     hasPermission,
-    hasAnyPermission
+    hasAnyPermission,
+    updateUserInfo
   }
 })

@@ -132,7 +132,7 @@ async function handleCommand(cmd: string) {
       })
       .catch(() => {})
   } else if (cmd === 'profile') {
-    ElMessage.info('个人信息页面建设中')
+    router.push('/profile')
   }
 }
 </script>

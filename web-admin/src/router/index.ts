@@ -20,6 +20,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '首页', icon: 'HomeFilled' }
       },
       {
+        path: 'profile',
+        name: 'Profile',
+        component: () => import('@/views/profile/index.vue'),
+        meta: { title: '个人中心', icon: 'User' }
+      },
+      {
         path: 'system/user',
         name: 'User',
         component: () => import('@/views/system/user/index.vue'),

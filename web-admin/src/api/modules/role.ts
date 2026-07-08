@@ -124,6 +124,11 @@ export function getUserRoles(userId: string) {
   return get<RoleItem[]>(`/rbac/user-roles/${userId}/roles`)
 }
 
+// 分配角色给用户
+export function assignUserRoles(userId: string, roleIds: string[]) {
+  return post(`/rbac/user-roles/${userId}/roles`, { role_ids: roleIds })
+}
+
 // 移除用户的单个角色
 export function removeUserRole(userId: string, roleId: string) {
   return del(`/rbac/user-roles/${userId}/roles/${roleId}`)

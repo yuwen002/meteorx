@@ -86,6 +86,12 @@
               >查看权限</el-button>
               <el-button
                 link
+                type="success"
+                v-if="userStore.hasPermission('rbac:user_role:assign') || userStore.isAdmin"
+                @click="openAssignRoles(row)"
+              >分配角色</el-button>
+              <el-button
+                link
                 type="warning"
                 v-if="userStore.hasPermission('user:update')"
                 @click="toggleStatus(row)"
@@ -152,6 +158,36 @@
       </div>
     </el-dialog>
 
+    <!-- 分配角色弹窗 -->
+    <el-dialog
+      v-model="assignRolesDialogVisible"
+      :title="`分配角色 - ${currentUser?.username || ''}`"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <div v-loading="assignRolesLoading">
+        <div style="margin-bottom: 10px; font-size: 14px; color: #6b7280">
+          已选择 <b style="color: #2563eb">{{ selectedRoleIds.length }}</b> 个角色
+        </div>
+        <el-checkbox-group v-model="selectedRoleIds">
+          <el-checkbox
+            v-for="role in availableRoles"
+            :key="role.id"
+            :label="role.id"
+            style="display: block; margin-bottom: 8px;"
+          >
+            {{ role.name }}
+            <el-tag size="small" type="info" style="margin-left: 8px;">{{ role.code }}</el-tag>
+          </el-checkbox>
+        </el-checkbox-group>
+        <el-empty v-if="availableRoles.length === 0" description="暂无可分配角色" :image-size="60" />
+      </div>
+      <template #footer>
+        <el-button @click="assignRolesDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="savingRoles" @click="submitAssignRoles">确定</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 新增/编辑弹窗 -->
     <el-dialog
       v-model="dialogVisible"
@@ -209,7 +245,7 @@ import {
   type UserCreateParams,
   type UserUpdateParams
 } from '@/api/modules/user'
-import { getUserRoles, getRolePermissions, type RoleItem } from '@/api/modules/role'
+import { getUserRoles, getRolePermissions, type RoleItem, getRoleListForSelect, assignUserRoles, removeAllUserRoles } from '@/api/modules/role'
 import { type PermissionItem } from '@/api/modules/permission'
 
 const userStore = useUserStore()
@@ -248,6 +284,13 @@ const currentUser = ref<UserItem | null>(null)
 const userRoles = ref<RoleItem[]>([])
 const userPermissions = ref<PermissionItem[]>([])
 const permsLoading = ref(false)
+
+// 分配角色相关
+const assignRolesDialogVisible = ref(false)
+const assignRolesLoading = ref(false)
+const savingRoles = ref(false)
+const availableRoles = ref<RoleItem[]>([])
+const selectedRoleIds = ref<string[]>([])
 
 async function loadList() {
   loading.value = true
@@ -443,6 +486,54 @@ async function openViewPermissions(row: UserItem) {
     ElMessage.error('获取权限信息失败')
   } finally {
     permsLoading.value = false
+  }
+}
+
+// 打开分配角色弹窗
+async function openAssignRoles(row: UserItem) {
+  currentUser.value = row
+  assignRolesDialogVisible.value = true
+  assignRolesLoading.value = true
+  selectedRoleIds.value = []
+  
+  try {
+    // 1. 获取所有可用角色
+    const scope = userStore.isAdmin ? 'all' : 'tenant'
+    const rolesRes = await getRoleListForSelect(scope)
+    availableRoles.value = rolesRes || []
+    
+    // 2. 获取用户当前已分配的角色
+    if (row.id) {
+      const userRolesRes = await getUserRoles(row.id)
+      selectedRoleIds.value = (userRolesRes || []).map((r: any) => r.id)
+    }
+  } catch (e) {
+    ElMessage.error('加载角色数据失败')
+  } finally {
+    assignRolesLoading.value = false
+  }
+}
+
+// 提交分配角色
+async function submitAssignRoles() {
+  if (!currentUser.value?.id) return
+  
+  savingRoles.value = true
+  try {
+    // 先移除所有角色，再重新分配
+    await removeAllUserRoles(currentUser.value.id)
+    
+    // 如果有选中的角色，则重新分配
+    if (selectedRoleIds.value.length > 0) {
+      await assignUserRoles(currentUser.value.id, selectedRoleIds.value)
+    }
+    
+    ElMessage.success('角色分配成功')
+    assignRolesDialogVisible.value = false
+  } catch (e: any) {
+    ElMessage.error(e.message || '角色分配失败')
+  } finally {
+    savingRoles.value = false
   }
 }
 
