@@ -62,5 +62,5 @@ export function getAuditStats(): Promise<AuditLogStats> {
 }
 
 export function cleanupAuditLogs(days: number): Promise<{ deleted_count: number }> {
-  return del('/audit/logs/cleanup', { days })
+  return del('/audit/logs/cleanup', { params: { days } })
 }

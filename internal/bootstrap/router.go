@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"meteorx/internal/modules/audit"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -10,6 +11,8 @@ import (
 	"meteorx/internal/common/jwt"
 	"meteorx/internal/config"
 	"meteorx/internal/middleware"
+	auditRepo "meteorx/internal/modules/audit/repository"
+	auditSvc "meteorx/internal/modules/audit/service"
 	"meteorx/internal/modules/auth"
 	"meteorx/internal/modules/rbac"
 	"meteorx/internal/modules/tenant"
@@ -45,6 +48,11 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 			blacklistChecker := &middleware.RedisBlacklistChecker{Redis: rdb}
 			r.Use(middleware.Auth(tokenHelper, blacklistChecker))
 
+			// 审计日志中间件：自动记录所有请求（挂载在认证之后，确保能获取用户信息）
+			repo := auditRepo.NewAuditLogRepository(db)
+			auditService := auditSvc.NewAuditService(repo)
+			r.Use(middleware.AuditMiddleware(auditService))
+
 			// 3. 租户私有接口（租户管理员登录后：管理本公司信息、查看套餐等）
 			tenant.InitPrivateModule(r, db)
 
@@ -69,6 +77,9 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 
 				// 7. RBAC 角色权限管理接口（仅后台管理员可操作）
 				rbac.InitModule(r, db)
+
+				// 8. 审计日志管理接口（仅后台管理员可操作）
+				audit.InitModule(r, db)
 			})
 		})
 	})

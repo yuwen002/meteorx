@@ -2,7 +2,6 @@ package dto
 
 import (
 	"meteorx/internal/modules/audit/model"
-	"time"
 )
 
 // CreateAuditLogReq 创建审计日志请求（内部使用，不对外暴露为API）
@@ -76,15 +75,15 @@ func ToAuditLogResp(log *model.AuditLog) *AuditLogResp {
 
 // ListAuditLogsQuery 审计日志列表查询参数
 type ListAuditLogsQuery struct {
-	Page     int    `json:"page" form:"page"`
-	PageSize int    `json:"page_size" form:"page_size"`
-	UserID   string `json:"user_id" form:"user_id"`
-	Username string `json:"username" form:"username"`
-	TenantID string `json:"tenant_id" form:"tenant_id"`
-	Module   string `json:"module" form:"module"`
-	Action   string `json:"action" form:"action"`
-	Resource string `json:"resource" form:"resource"`
-	Result   string `json:"result" form:"result"`
+	Page      int    `json:"page" form:"page"`
+	PageSize  int    `json:"page_size" form:"page_size"`
+	UserID    string `json:"user_id" form:"user_id"`
+	Username  string `json:"username" form:"username"`
+	TenantID  string `json:"tenant_id" form:"tenant_id"`
+	Module    string `json:"module" form:"module"`
+	Action    string `json:"action" form:"action"`
+	Resource  string `json:"resource" form:"resource"`
+	Result    string `json:"result" form:"result"`
 	StartTime string `json:"start_time" form:"start_time"`
 	EndTime   string `json:"end_time" form:"end_time"`
 	Keyword   string `json:"keyword" form:"keyword"`

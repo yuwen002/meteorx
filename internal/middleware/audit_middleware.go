@@ -11,15 +11,16 @@ import (
 
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/modules/audit/dto"
+	"meteorx/internal/modules/audit/model"
 	"meteorx/internal/modules/audit/service"
 )
 
 // responseRecorder 包装 ResponseWriter 以捕获响应状态码和body
 type responseRecorder struct {
 	http.ResponseWriter
-	statusCode   int
-	body         *bytes.Buffer
-	wroteHeader  bool
+	statusCode  int
+	body        *bytes.Buffer
+	wroteHeader bool
 }
 
 func newResponseRecorder(w http.ResponseWriter) *responseRecorder {
@@ -84,7 +85,7 @@ func recordAuditLog(auditSvc *service.AuditService, r *http.Request, recorder *r
 	userID := contextx.GetUserID(r.Context())
 	username := "anonymous"
 	if userID != "" {
-		username = userID // 简化处理，实际可以从用户信息中获取用户名
+		username = userID
 	}
 	tenantID := contextx.GetTenantID(r.Context())
 
@@ -104,9 +105,9 @@ func recordAuditLog(auditSvc *service.AuditService, r *http.Request, recorder *r
 	}
 
 	// 判断结果
-	result := dto.ResultSuccess
+	result := model.ResultSuccess
 	if recorder.statusCode >= 400 {
-		result = dto.ResultFailure
+		result = model.ResultFailure
 	}
 
 	// 获取客户端IP
@@ -166,21 +167,21 @@ func parseModuleAndAction(path, method string) (module, action string) {
 	// 解析操作类型
 	switch strings.ToUpper(method) {
 	case "GET":
-		action = dto.ActionTypeQuery
+		action = model.ActionTypeQuery
 	case "POST":
 		if strings.Contains(path, "login") {
-			action = dto.ActionTypeLogin
+			action = model.ActionTypeLogin
 		} else if strings.Contains(path, "logout") {
-			action = dto.ActionTypeLogout
+			action = model.ActionTypeLogout
 		} else {
-			action = dto.ActionTypeCreate
+			action = model.ActionTypeCreate
 		}
 	case "PUT", "PATCH":
-		action = dto.ActionTypeUpdate
+		action = model.ActionTypeUpdate
 	case "DELETE":
-		action = dto.ActionTypeDelete
+		action = model.ActionTypeDelete
 	default:
-		action = dto.ActionTypeOther
+		action = model.ActionTypeOther
 	}
 
 	return module, action

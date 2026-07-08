@@ -1,19 +1,23 @@
 package audit
 
 import (
-	"net/http"
+	"meteorx/internal/modules/audit/handler"
 
 	"github.com/go-chi/chi/v5"
-	"gorm.io/gorm"
 )
 
-func RegisterRoutes(r chi.Router, db *gorm.DB) {
+// RegisterRoutes 注册审计日志模块路由
+func RegisterRoutes(r chi.Router, h *handler.AuditHandler) {
 	r.Route("/audit", func(r chi.Router) {
-		r.Get("/logs", notImplemented)
-		r.Get("/logs/{id}", notImplemented)
-	})
-}
+		// Dashboard 统计
+		r.Get("/stats", h.GetStats)
 
-func notImplemented(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "audit module is not implemented", http.StatusNotImplemented)
+		// 审计日志列表和详情
+		r.Route("/logs", func(r chi.Router) {
+			r.Get("/", h.ListLogs)              // 审计日志列表
+			r.Post("/", h.CreateLog)            // 创建审计日志（内部使用）
+			r.Get("/{id}", h.GetLog)            // 审计日志详情
+			r.Delete("/cleanup", h.CleanupLogs) // 清理日志
+		})
+	})
 }

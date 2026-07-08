@@ -66,6 +66,12 @@ const routes: RouteRecordRaw[] = [
         name: 'TenantRecycle',
         component: () => import('@/views/system/tenant/recycle.vue'),
         meta: { title: '租户回收站', icon: 'DeleteFilled', permission: 'admin:tenant:list', requireMaster: true }
+      },
+      {
+        path: 'system/audit',
+        name: 'AuditLog',
+        component: () => import('@/views/system/audit/index.vue'),
+        meta: { title: '审计日志', icon: 'Document', permission: 'audit:log:list', requireMaster: true }
       }
     ]
   },

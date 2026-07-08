@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"fmt"
 	"log"
+	"meteorx/internal/modules/audit/repository"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,6 +34,12 @@ func AutoMigrate(db *gorm.DB) error {
 	err = rbacrepo.AutoMigrate(db)
 	if err != nil {
 		log.Printf("RBAC migration failed: %v", err)
+		return err
+	}
+
+	err = repository.AutoMigrate(db)
+	if err != nil {
+		log.Printf("Audit migration failed: %v", err)
 		return err
 	}
 
