@@ -148,7 +148,12 @@ func recordAuditLog(auditSvc *service.AuditService, r *http.Request, recorder *r
 		return
 	}
 
-	_, _ = auditSvc.CreateLog(ctx, req)
+	// 使用批量处理器（如果已初始化）
+	if GlobalBatchProcessor != nil {
+		GlobalBatchProcessor.Add(&req)
+	} else {
+		_, _ = auditSvc.CreateLog(ctx, req)
+	}
 }
 
 // parseModuleAndAction 从路径和方法解析模块和操作类型

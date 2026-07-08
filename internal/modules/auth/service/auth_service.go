@@ -22,6 +22,18 @@ const (
 	tokenBlacklistPrefix = "token:blacklist:"
 )
 
+// LoginError 登录错误（包含安全信息）
+type LoginError struct {
+	Message           string
+	RemainingAttempts int
+	Locked            bool
+	LockoutDuration   int64
+}
+
+func (e *LoginError) Error() string {
+	return e.Message
+}
+
 type AuthService struct {
 	userRepo           repository.UserRepository
 	roleRepo           rbacRepo.RoleRepository
@@ -92,6 +104,18 @@ func (s *AuthService) Register(ctx context.Context, req dto.RegisterUserReq) (*m
 	return user, nil
 }
 
+// LoginResult 登录结果（包含安全信息）
+type LoginResult struct {
+	User             *model.User
+	Roles            []string
+	Permissions      []string
+	Token            string
+	RemainingAttempts int
+	Locked           bool
+	LockoutDuration  int64
+	Error            error
+}
+
 func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User, []string, []string, string, error) {
 	lockoutKey := req.Username + ":" + req.TenantID
 
@@ -101,25 +125,38 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User,
 		return nil, nil, nil, "", errors.New("登录安全检查失败")
 	}
 	if locked {
-		return nil, nil, nil, "", errors.New("账号已被锁定，请稍后再试")
+		duration := s.lockout.GetLockoutDuration(ctx, lockoutKey)
+		return nil, nil, nil, "", &LoginError{
+			Message:         "账号已被锁定，请稍后再试",
+			Locked:          true,
+			LockoutDuration: duration,
+		}
 	}
 
 	user, err := s.userRepo.GetByUsername(ctx, req.TenantID, req.Username)
 	if err != nil {
 		_ = s.lockout.RecordFailedAttempt(ctx, lockoutKey)
-		return nil, nil, nil, "", errors.New("account or password is incorrect")
+		remaining := s.lockout.GetRemainingAttempts(ctx, lockoutKey)
+		return nil, nil, nil, "", &LoginError{
+			Message:           "用户名或密码错误",
+			RemainingAttempts: remaining,
+		}
 	}
 
 	if !crypto.CheckPassword(req.Password, user.Password) {
 		_ = s.lockout.RecordFailedAttempt(ctx, lockoutKey)
-		return nil, nil, nil, "", errors.New("account or password is incorrect")
+		remaining := s.lockout.GetRemainingAttempts(ctx, lockoutKey)
+		return nil, nil, nil, "", &LoginError{
+			Message:           "用户名或密码错误",
+			RemainingAttempts: remaining,
+		}
 	}
 
 	// 登录成功，清除失败计数
 	_ = s.lockout.RecordSuccessAttempt(ctx, lockoutKey)
 
 	if user.Status == 0 {
-		return nil, nil, nil, "", errors.New("account is disabled")
+		return nil, nil, nil, "", errors.New("账号已被禁用")
 	}
 
 	// 查询用户关联的角色编码列表

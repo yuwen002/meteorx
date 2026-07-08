@@ -34,6 +34,15 @@ func Fail(w http.ResponseWriter, code int, message string) {
 	JSON(w, httpStatus, code, message, nil)
 }
 
+// FailWithData 返回失败响应并附带数据（用于登录失败等场景）
+func FailWithData(w http.ResponseWriter, code int, message string, data interface{}) {
+	httpStatus := http.StatusInternalServerError
+	if code >= 400 && code <= 599 {
+		httpStatus = code
+	}
+	JSON(w, httpStatus, code, message, data)
+}
+
 func BadRequest(w http.ResponseWriter, message string) {
 	JSON(w, http.StatusBadRequest, http.StatusBadRequest, message, nil)
 }

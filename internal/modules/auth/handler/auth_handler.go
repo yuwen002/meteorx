@@ -54,6 +54,17 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	// 2. 调用登录服务
 	user, _, permCodes, token, err := h.svc.Login(r.Context(), req)
 	if err != nil {
+		// 检查是否为登录错误（包含安全信息）
+		if loginErr, ok := err.(*service.LoginError); ok {
+			errorResp := dto.LoginErrorResp{
+				Message:           loginErr.Message,
+				RemainingAttempts: loginErr.RemainingAttempts,
+				Locked:            loginErr.Locked,
+				LockoutDuration:   loginErr.LockoutDuration,
+			}
+			response.FailWithData(w, 401, loginErr.Message, errorResp)
+			return
+		}
 		response.Fail(w, 401, err.Error())
 		return
 	}

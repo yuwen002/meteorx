@@ -22,3 +22,11 @@ type LoginResp struct {
 	User        *userdto.UserResp `json:"user"`  // 用户信息
 	Permissions []string          `json:"permissions"`    // 用户所有权限码（前端用于按钮/菜单权限控制）
 }
+
+// LoginErrorResp 登录失败响应（包含安全提示）
+type LoginErrorResp struct {
+	Message          string `json:"message"`           // 错误信息
+	RemainingAttempts int   `json:"remaining_attempts"` // 剩余尝试次数
+	Locked           bool   `json:"locked"`            // 是否已锁定
+	LockoutDuration  int64  `json:"lockout_duration"`  // 锁定剩余时间（秒）
+}

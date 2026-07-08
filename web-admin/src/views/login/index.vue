@@ -34,6 +34,17 @@
             登 录
           </el-button>
         </el-form-item>
+        <!-- 登录错误提示 -->
+        <div v-if="loginError.show" class="login-error" :class="{ 'locked': loginError.locked }">
+          <el-icon><Warning /></el-icon>
+          <span>{{ loginError.message }}</span>
+          <div v-if="!loginError.locked && loginError.remainingAttempts > 0" class="attempts-warning">
+            剩余尝试次数：{{ loginError.remainingAttempts }} 次
+          </div>
+          <div v-if="loginError.locked" class="lockout-info">
+            账号已锁定，请 {{ Math.ceil(loginError.lockoutDuration / 60) }} 分钟后重试
+          </div>
+        </div>
         <div class="tips">
           <el-icon><InfoFilled /></el-icon>
           默认管理员账号：admin / 123456
@@ -48,14 +59,29 @@ import { reactive, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
+import { InfoFilled, Warning } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import type { LoginParams } from '@/api/auth'
+import type { LoginParams, LoginErrorData } from '@/api/auth'
+import axios from 'axios'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
+const loginError = reactive<{
+  show: boolean
+  message: string
+  remainingAttempts: number
+  locked: boolean
+  lockoutDuration: number
+}>({
+  show: false,
+  message: '',
+  remainingAttempts: 5,
+  locked: false,
+  lockoutDuration: 0
+})
 
 const form = reactive<LoginParams>({
   username: '',
@@ -73,6 +99,7 @@ async function handleLogin() {
   await formRef.value.validate(async (valid) => {
     if (!valid) return
     loading.value = true
+    loginError.show = false
     try {
       await userStore.doLogin({
         username: form.username.trim(),
@@ -83,7 +110,15 @@ async function handleLogin() {
       const redirect = (route.query.redirect as string) || '/'
       router.push(redirect)
     } catch (e: any) {
-      // 错误信息已经在 request.ts 中提示了
+      // 处理登录错误，显示剩余尝试次数
+      if (e.response?.status === 401 && e.response?.data?.data) {
+        const errorData: LoginErrorData = e.response.data.data
+        loginError.show = true
+        loginError.message = errorData.message
+        loginError.remainingAttempts = errorData.remaining_attempts
+        loginError.locked = errorData.locked
+        loginError.lockoutDuration = errorData.lockout_duration
+      }
     } finally {
       loading.value = false
     }
@@ -132,5 +167,39 @@ async function handleLogin() {
   font-size: 12px;
   color: #9ca3af;
   margin-top: 8px;
+}
+
+.login-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  color: #dc2626;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.login-error.locked {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #d97706;
+}
+
+.login-error .el-icon {
+  font-size: 16px;
+}
+
+.attempts-warning {
+  font-size: 12px;
+  color: #ef4444;
+}
+
+.lockout-info {
+  font-size: 12px;
+  color: #d97706;
 }
 </style>

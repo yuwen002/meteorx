@@ -1,15 +1,17 @@
 package handler
 
 import (
-	"net/http"
-	"strconv"
-
+	"encoding/csv"
+	"fmt"
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
 	"meteorx/internal/modules/audit/dto"
 	"meteorx/internal/modules/audit/service"
 	"meteorx/pkg/pagination"
+	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -127,4 +129,85 @@ func (h *AuditHandler) CleanupLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, map[string]int64{"deleted_count": affected})
+}
+
+// ExportLogs 导出审计日志
+// GET /api/v1/audit/logs/export?format=csv&module=&action=&result=&start_time=&end_time=
+func (h *AuditHandler) ExportLogs(w http.ResponseWriter, r *http.Request) {
+	format := r.URL.Query().Get("format")
+	if format == "" {
+		format = "csv"
+	}
+
+	query := &dto.ListAuditLogsQuery{
+		Page:      1,
+		PageSize:  10000, // 最多导出10000条
+		Module:    r.URL.Query().Get("module"),
+		Action:    r.URL.Query().Get("action"),
+		Result:    r.URL.Query().Get("result"),
+		StartTime: r.URL.Query().Get("start_time"),
+		EndTime:   r.URL.Query().Get("end_time"),
+		Keyword:   r.URL.Query().Get("keyword"),
+	}
+
+	result, err := h.svc.ListLogs(r.Context(), query)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取审计日志失败")
+		return
+	}
+
+	switch format {
+	case "csv":
+		h.exportCSV(w, result.Items)
+	default:
+		response.Fail(w, http.StatusBadRequest, "不支持的导出格式")
+	}
+}
+
+// exportCSV 导出为 CSV 格式
+func (h *AuditHandler) exportCSV(w http.ResponseWriter, logs []*dto.AuditLogResp) {
+	filename := fmt.Sprintf("audit_logs_%s.csv", time.Now().Format("20060102_150405"))
+
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+
+	// 添加 BOM 以支持 Excel 中文显示
+	w.Write([]byte{0xEF, 0xBB, 0xBF})
+
+	writer := csv.NewWriter(w)
+	defer writer.Flush()
+
+	// 写入表头
+	headers := []string{"日志ID", "用户ID", "用户名", "租户ID", "模块", "操作", "资源", "资源ID",
+		"HTTP方法", "请求路径", "状态码", "结果", "客户端IP", "用户代理", "耗时(ms)", "错误信息", "操作时间"}
+	writer.Write(headers)
+
+	// 写入数据
+	for _, log := range logs {
+		result := "成功"
+		if log.Result == "failure" {
+			result = "失败"
+		}
+
+		record := []string{
+			log.ID,
+			log.UserID,
+			log.Username,
+			log.TenantID,
+			log.Module,
+			log.Action,
+			log.Resource,
+			log.ResourceID,
+			log.Method,
+			log.Path,
+			strconv.Itoa(log.StatusCode),
+			result,
+			log.ClientIP,
+			log.UserAgent,
+			strconv.FormatInt(log.Duration, 10),
+			log.ErrorMessage,
+			log.CreatedAt,
+		}
+		writer.Write(record)
+	}
 }

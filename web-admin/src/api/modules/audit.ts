@@ -37,6 +37,15 @@ export interface AuditLogStats {
   result_stats: Record<string, number>
 }
 
+export interface PaginatedResponse<T> {
+  data: T[]
+  pagination: {
+    page: number
+    page_size: number
+    total: number
+  }
+}
+
 export function getAuditLogList(params: {
   page?: number
   page_size?: number
@@ -50,7 +59,14 @@ export function getAuditLogList(params: {
   end_time?: string
   keyword?: string
 }): Promise<AuditLogListResult> {
-  return get('/audit/logs', params)
+  return get('/audit/logs', params).then((res: PaginatedResponse<AuditLogItem>) => {
+    return {
+      items: res.data,
+      page: res.pagination.page,
+      page_size: res.pagination.page_size,
+      total: res.pagination.total
+    }
+  })
 }
 
 export function getAuditLogDetail(id: string): Promise<AuditLogItem> {
@@ -63,4 +79,26 @@ export function getAuditStats(): Promise<AuditLogStats> {
 
 export function cleanupAuditLogs(days: number): Promise<{ deleted_count: number }> {
   return del('/audit/logs/cleanup', { params: { days } })
+}
+
+// 导出审计日志
+export function exportAuditLogs(params: {
+  format?: 'csv'
+  module?: string
+  action?: string
+  result?: string
+  start_time?: string
+  end_time?: string
+  keyword?: string
+}): string {
+  const query = new URLSearchParams()
+  if (params.format) query.append('format', params.format)
+  if (params.module) query.append('module', params.module)
+  if (params.action) query.append('action', params.action)
+  if (params.result) query.append('result', params.result)
+  if (params.start_time) query.append('start_time', params.start_time)
+  if (params.end_time) query.append('end_time', params.end_time)
+  if (params.keyword) query.append('keyword', params.keyword)
+  
+  return `/api/v1/audit/logs/export?${query.toString()}`
 }

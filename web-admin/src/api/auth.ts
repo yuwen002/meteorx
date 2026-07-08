@@ -23,6 +23,13 @@ export interface LoginResult {
   permissions?: string[]
 }
 
+export interface LoginErrorData {
+  message: string
+  remaining_attempts: number
+  locked: boolean
+  lockout_duration: number
+}
+
 // 登录
 export function login(params: LoginParams) {
   return post<LoginResult>('/auth/login', params)

@@ -99,6 +99,9 @@
           <el-icon><Search /></el-icon>查询
         </el-button>
         <el-button @click="resetSearch">重置</el-button>
+        <el-button type="success" @click="handleExport">
+          <el-icon><Download /></el-icon>导出
+        </el-button>
         <div class="flex-1"></div>
         <el-button type="danger" @click="handleCleanup">
           <el-icon><Delete /></el-icon>清理日志
@@ -221,8 +224,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Document, Calendar, CircleCheck, CircleClose, Search, Delete } from '@element-plus/icons-vue'
-import { getAuditLogList, getAuditStats, cleanupAuditLogs } from '@/api/modules/audit'
+import { Document, Calendar, CircleCheck, CircleClose, Search, Delete, Download } from '@element-plus/icons-vue'
+import { getAuditLogList, getAuditStats, cleanupAuditLogs, exportAuditLogs } from '@/api/modules/audit'
 import type { AuditLogItem, AuditLogStats } from '@/api/modules/audit'
 
 const loading = ref(false)
@@ -380,6 +383,33 @@ function formatJson(jsonStr: string): string {
   } catch {
     return jsonStr
   }
+}
+
+// 导出审计日志
+function handleExport() {
+  const params: any = {
+    format: 'csv',
+    module: search.module || undefined,
+    action: search.action || undefined,
+    result: search.result || undefined,
+    keyword: search.keyword || undefined
+  }
+  if (search.dateRange && search.dateRange.length === 2) {
+    params.start_time = search.dateRange[0] + ' 00:00:00'
+    params.end_time = search.dateRange[1] + ' 23:59:59'
+  }
+  
+  const exportUrl = exportAuditLogs(params)
+  
+  // 创建临时链接下载
+  const link = document.createElement('a')
+  link.href = exportUrl
+  link.download = `audit_logs_${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  
+  ElMessage.success('开始导出审计日志')
 }
 </script>
 

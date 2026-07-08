@@ -58,6 +58,10 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 			// 审计日志中间件：自动记录所有请求（挂载在认证之后，确保能获取用户信息）
 			repo := auditRepo.NewAuditLogRepository(db)
 			auditService := auditSvc.NewAuditService(repo)
+
+			// 初始化批量处理器（性能优化）
+			middleware.InitAuditBatchProcessor(auditService)
+
 			r.Use(middleware.AuditMiddleware(auditService))
 
 			// 3. 租户私有接口（租户管理员登录后：管理本公司信息、查看套餐等）
