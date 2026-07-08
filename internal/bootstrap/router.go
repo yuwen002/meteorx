@@ -17,6 +17,7 @@ import (
 	"meteorx/internal/modules/rbac"
 	"meteorx/internal/modules/tenant"
 	"meteorx/internal/modules/user"
+	"meteorx/pkg/security"
 )
 
 func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
@@ -24,6 +25,9 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 	SetupMiddleware(r)
 
 	tokenHelper := jwt.NewTokenHelper(cfg.JWT)
+
+	// 初始化限流器
+	rateLimiter := security.NewRateLimiter(rdb, cfg.Security.RateLimit)
 
 	// 基础检查
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -34,8 +38,11 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 
 		// --- 分组一：公开接口 (Public) ---
 		r.Group(func(r chi.Router) {
+			// 全局接口限流
+			r.Use(middleware.RateLimitMiddleware(rateLimiter))
+
 			// 1. 认证模块（登录、签发 Token）
-			auth.InitModule(r, db, cfg.JWT, rdb)
+			auth.InitModule(r, db, *cfg, rdb)
 
 			// 2. 租户公开接口（仅限注册）
 			tenant.InitPublicModule(r, db)

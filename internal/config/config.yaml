@@ -25,3 +25,23 @@ jwt:
 log:
   level: info
   format: json       # 生产环境选 json，开发环境可以改为 text
+
+security:
+  login_lockout:
+    enabled: true
+    max_attempts: 5           # 最多允许 5 次失败
+    lockout_duration: 30m     # 锁定 30 分钟
+    reset_after: 24h          # 24 小时后重置计数
+  password_policy:
+    enabled: true
+    min_length: 8             # 最少 8 位
+    max_length: 32            # 最多 32 位
+    require_uppercase: true   # 需要大写字母
+    require_lowercase: true   # 需要小写字母
+    require_digit: true       # 需要数字
+    require_special: true     # 需要特殊字符
+  rate_limit:
+    enabled: true
+    requests: 100             # 每个窗口最多 100 请求
+    window: 1m                # 1 分钟窗口
+    burst_size: 10            # 突发请求 10 个

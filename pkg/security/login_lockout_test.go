@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"meteorx/internal/cache"
 	"meteorx/internal/config"
 
 	"github.com/stretchr/testify/assert"

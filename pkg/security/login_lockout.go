@@ -3,11 +3,9 @@ package security
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"time"
-
 	"meteorx/internal/cache"
 	"meteorx/internal/config"
+	"strconv"
 )
 
 const (
@@ -54,7 +52,7 @@ func (l *LoginLockout) IsLocked(ctx context.Context, identifier string) (bool, e
 
 // RecordFailedAttempt 记录一次登录失败
 func (l *LoginLockout) RecordFailedAttempt(ctx context.Context, identifier string) error {
-	if !l.config.Enabled {
+	if !l.config.Enabled || l.redis == nil {
 		return nil
 	}
 
@@ -90,7 +88,7 @@ func (l *LoginLockout) RecordFailedAttempt(ctx context.Context, identifier strin
 
 // RecordSuccessAttempt 记录登录成功，清除失败计数
 func (l *LoginLockout) RecordSuccessAttempt(ctx context.Context, identifier string) error {
-	if !l.config.Enabled {
+	if !l.config.Enabled || l.redis == nil {
 		return nil
 	}
 
@@ -100,7 +98,7 @@ func (l *LoginLockout) RecordSuccessAttempt(ctx context.Context, identifier stri
 
 // GetRemainingAttempts 获取剩余可尝试次数
 func (l *LoginLockout) GetRemainingAttempts(ctx context.Context, identifier string) int {
-	if !l.config.Enabled {
+	if !l.config.Enabled || l.redis == nil {
 		return l.config.MaxAttempts
 	}
 

@@ -55,6 +55,9 @@ func (s *AuditService) GetLog(ctx context.Context, id string) (*dto.AuditLogResp
 	if err != nil {
 		return nil, err
 	}
+	if log == nil {
+		return nil, nil
+	}
 	return dto.ToAuditLogResp(log), nil
 }
 

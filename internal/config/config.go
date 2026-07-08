@@ -8,6 +8,7 @@ type Config struct {
 	Redis    RedisConfig    `mapstructure:"redis"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	Log      LogConfig      `mapstructure:"log"`
+	Security SecurityConfig `mapstructure:"security"`
 }
 
 type ServerConfig struct {
@@ -51,4 +52,34 @@ func (j JWTConfig) GetExpiration() time.Duration {
 type LogConfig struct {
 	Level  string `mapstructure:"level"`
 	Format string `mapstructure:"format"`
+}
+
+type SecurityConfig struct {
+	LoginLockout     LoginLockoutConfig     `mapstructure:"login_lockout"`
+	PasswordPolicy   PasswordPolicyConfig   `mapstructure:"password_policy"`
+	RateLimit        RateLimitConfig        `mapstructure:"rate_limit"`
+}
+
+type LoginLockoutConfig struct {
+	Enabled          bool          `mapstructure:"enabled"`
+	MaxAttempts      int           `mapstructure:"max_attempts"`
+	LockoutDuration  time.Duration `mapstructure:"lockout_duration"`
+	ResetAfter       time.Duration `mapstructure:"reset_after"`
+}
+
+type PasswordPolicyConfig struct {
+	Enabled          bool `mapstructure:"enabled"`
+	MinLength        int  `mapstructure:"min_length"`
+	MaxLength        int  `mapstructure:"max_length"`
+	RequireUppercase bool `mapstructure:"require_uppercase"`
+	RequireLowercase bool `mapstructure:"require_lowercase"`
+	RequireDigit     bool `mapstructure:"require_digit"`
+	RequireSpecial   bool `mapstructure:"require_special"`
+}
+
+type RateLimitConfig struct {
+	Enabled    bool          `mapstructure:"enabled"`
+	Requests   int           `mapstructure:"requests"`
+	Window     time.Duration `mapstructure:"window"`
+	BurstSize  int           `mapstructure:"burst_size"`
 }

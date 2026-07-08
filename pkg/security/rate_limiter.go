@@ -39,6 +39,10 @@ func (r *RateLimiter) Allow(ctx context.Context, identifier string) (bool, error
 		return true, nil
 	}
 
+	if r.redis == nil {
+		return true, nil
+	}
+
 	key := r.getKey(identifier)
 
 	// 获取当前窗口的请求数

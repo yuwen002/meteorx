@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"meteorx/internal/config"
+	"meteorx/pkg/security"
 	"time"
 
 	"meteorx/internal/cache"
@@ -27,9 +29,11 @@ type AuthService struct {
 	rolePermissionRepo rbacRepo.RolePermissionRepository
 	tokenHelper        *jwt.TokenHelper
 	redis              *cache.Redis
+	securityCfg        config.SecurityConfig
+	lockout            *security.LoginLockout
 }
 
-func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, urr rbacRepo.UserRoleRepository, rpr rbacRepo.RolePermissionRepository, th *jwt.TokenHelper, redis *cache.Redis) *AuthService {
+func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, urr rbacRepo.UserRoleRepository, rpr rbacRepo.RolePermissionRepository, th *jwt.TokenHelper, redis *cache.Redis, securityCfg config.SecurityConfig) *AuthService {
 	return &AuthService{
 		userRepo:           ur,
 		roleRepo:           rr,
@@ -37,10 +41,17 @@ func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, ur
 		rolePermissionRepo: rpr,
 		tokenHelper:        th,
 		redis:              redis,
+		securityCfg:        securityCfg,
+		lockout:            security.NewLoginLockout(redis, securityCfg.LoginLockout),
 	}
 }
 
 func (s *AuthService) Register(ctx context.Context, req dto.RegisterUserReq) (*model.User, error) {
+	// 校验密码策略
+	if err := security.ValidatePassword(req.Password, s.securityCfg.PasswordPolicy); err != nil {
+		return nil, err
+	}
+
 	// 默认角色为 tenant_admin，校验其是否存在且启用
 	defaultRole := "tenant_admin"
 	role, err := s.roleRepo.GetByCode(ctx, "", defaultRole)
@@ -82,14 +93,30 @@ func (s *AuthService) Register(ctx context.Context, req dto.RegisterUserReq) (*m
 }
 
 func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User, []string, []string, string, error) {
+	lockoutKey := req.Username + ":" + req.TenantID
+
+	// 检查账号是否被锁定
+	locked, err := s.lockout.IsLocked(ctx, lockoutKey)
+	if err != nil {
+		return nil, nil, nil, "", errors.New("登录安全检查失败")
+	}
+	if locked {
+		return nil, nil, nil, "", errors.New("账号已被锁定，请稍后再试")
+	}
+
 	user, err := s.userRepo.GetByUsername(ctx, req.TenantID, req.Username)
 	if err != nil {
+		_ = s.lockout.RecordFailedAttempt(ctx, lockoutKey)
 		return nil, nil, nil, "", errors.New("account or password is incorrect")
 	}
 
 	if !crypto.CheckPassword(req.Password, user.Password) {
+		_ = s.lockout.RecordFailedAttempt(ctx, lockoutKey)
 		return nil, nil, nil, "", errors.New("account or password is incorrect")
 	}
+
+	// 登录成功，清除失败计数
+	_ = s.lockout.RecordSuccessAttempt(ctx, lockoutKey)
 
 	if user.Status == 0 {
 		return nil, nil, nil, "", errors.New("account is disabled")

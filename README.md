@@ -16,7 +16,9 @@
 | **回收站** | 用户 / 租户 / 角色 均支持软删除 → 回收站查询 → 恢复的完整闭环 |
 | **批量操作** | 批量删除 / 批量更新状态；幂等返回影响行数 |
 | **审计日志** | 自动记录所有请求；支持多维度筛选查询；敏感信息脱敏；定时清理 |
+| **安全增强** | 登录失败锁定；密码复杂度策略；接口限流（基于 Redis） |
 | **工程化** | Viper 配置 + `.env` 覆盖；Chi 路由；GORM 自动迁移；ULID 主键 |
+| **测试覆盖** | 审计模块、安全模块单元测试；Mock 仓库实现 |
 
 ---
 
@@ -313,6 +315,15 @@ docker-compose logs -f api
 | `jwt.issuer` | `METEORX_JWT_ISSUER` | `meteorx-auth` | Token Issuer |
 | `log.level` | — | `info` | 日志等级 |
 | `log.format` | — | `json` | `json` / `text` |
+| `security.login_lockout.enabled` | — | `true` | 启用登录失败锁定 |
+| `security.login_lockout.max_attempts` | — | `5` | 最大失败次数 |
+| `security.login_lockout.lockout_duration` | — | `30m` | 锁定持续时间 |
+| `security.password_policy.enabled` | — | `true` | 启用密码策略 |
+| `security.password_policy.min_length` | — | `8` | 密码最小长度 |
+| `security.password_policy.require_uppercase` | — | `true` | 需要大写字母 |
+| `security.rate_limit.enabled` | — | `true` | 启用接口限流 |
+| `security.rate_limit.requests` | — | `100` | 每窗口最大请求数 |
+| `security.rate_limit.window` | — | `1m` | 限流窗口时长 |
 
 ---
 
@@ -323,6 +334,25 @@ docker-compose logs -f api
 - 建议通过环境变量 / 密钥管理服务注入敏感配置，不要写入 YAML
 - 部署时将 `server.mode` 改为 `release`，`database.debug` 改为 `false`
 - 建议启用 HTTPS 反向代理（Nginx / Traefik）
+- **登录失败锁定**：连续失败 5 次后账号锁定 30 分钟，防止暴力破解
+- **密码策略**：默认要求 8 位以上，包含大小写字母、数字和特殊字符
+- **接口限流**：每个 IP 每分钟最多 100 个请求，防止 DDoS 攻击
+
+---
+
+## 🧪 测试
+
+```bash
+# 运行所有测试
+go test ./...
+
+# 运行特定模块测试
+go test ./internal/modules/audit/service/... -v
+go test ./pkg/security/... -v
+
+# 运行基准测试
+go test -bench=. ./pkg/security/...
+```
 
 ---
 
