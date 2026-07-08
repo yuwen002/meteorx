@@ -1,0 +1,251 @@
+package repository
+
+import (
+	"context"
+	"meteorx/internal/modules/audit/model"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+// AuditLogPO 审计日志数据库模型
+type AuditLogPO struct {
+	ID           string    `gorm:"primaryKey;size:26;comment:日志ID"`
+	UserID       string    `gorm:"index;size:26;comment:操作用户ID"`
+	Username     string    `gorm:"index;size:50;comment:操作用户名"`
+	TenantID     string    `gorm:"index;size:26;comment:租户ID"`
+	Module       string    `gorm:"index;size:50;comment:操作模块"`
+	Action       string    `gorm:"index;size:20;comment:操作类型"`
+	Resource     string    `gorm:"size:100;comment:操作资源"`
+	ResourceID   string    `gorm:"size:26;comment:被操作资源ID"`
+	Method       string    `gorm:"size:10;comment:HTTP方法"`
+	Path         string    `gorm:"size:255;comment:请求路径"`
+	RequestBody  string    `gorm:"type:text;comment:请求参数"`
+	ResponseBody string    `gorm:"type:text;comment:响应结果"`
+	StatusCode   int       `gorm:"comment:HTTP状态码"`
+	Result       string    `gorm:"index;size:10;comment:操作结果"`
+	ErrorMessage string    `gorm:"type:text;comment:错误信息"`
+	ClientIP     string    `gorm:"size:50;comment:客户端IP"`
+	UserAgent    string    `gorm:"size:255;comment:用户代理"`
+	Duration     int64     `gorm:"comment:请求耗时(毫秒)"`
+	CreatedAt    time.Time `gorm:"index;autoCreateTime;comment:创建时间"`
+}
+
+func (AuditLogPO) TableName() string {
+	return "audit_logs"
+}
+
+// toDomain 转换为领域模型
+func (po AuditLogPO) toDomain() *model.AuditLog {
+	return &model.AuditLog{
+		ID:           po.ID,
+		UserID:       po.UserID,
+		Username:     po.Username,
+		TenantID:     po.TenantID,
+		Module:       po.Module,
+		Action:       po.Action,
+		Resource:     po.Resource,
+		ResourceID:   po.ResourceID,
+		Method:       po.Method,
+		Path:         po.Path,
+		RequestBody:  po.RequestBody,
+		ResponseBody: po.ResponseBody,
+		StatusCode:   po.StatusCode,
+		Result:       po.Result,
+		ErrorMessage: po.ErrorMessage,
+		ClientIP:     po.ClientIP,
+		UserAgent:    po.UserAgent,
+		Duration:     po.Duration,
+		CreatedAt:    po.CreatedAt,
+	}
+}
+
+// fromDomain 从领域模型转换
+func auditLogFromDomain(l *model.AuditLog) *AuditLogPO {
+	return &AuditLogPO{
+		ID:           l.ID,
+		UserID:       l.UserID,
+		Username:     l.Username,
+		TenantID:     l.TenantID,
+		Module:       l.Module,
+		Action:       l.Action,
+		Resource:     l.Resource,
+		ResourceID:   l.ResourceID,
+		Method:       l.Method,
+		Path:         l.Path,
+		RequestBody:  l.RequestBody,
+		ResponseBody: l.ResponseBody,
+		StatusCode:   l.StatusCode,
+		Result:       l.Result,
+		ErrorMessage: l.ErrorMessage,
+		ClientIP:     l.ClientIP,
+		UserAgent:    l.UserAgent,
+		Duration:     l.Duration,
+		CreatedAt:    l.CreatedAt,
+	}
+}
+
+// auditLogRepository 审计日志仓库实现
+type auditLogRepository struct {
+	db *gorm.DB
+}
+
+// NewAuditLogRepository 创建审计日志仓库
+func NewAuditLogRepository(db *gorm.DB) AuditLogRepository {
+	return &auditLogRepository{db: db}
+}
+
+// AutoMigrate 自动迁移表结构
+func AutoMigrate(db *gorm.DB) error {
+	return db.AutoMigrate(&AuditLogPO{})
+}
+
+func (r *auditLogRepository) Create(ctx context.Context, log *model.AuditLog) error {
+	po := auditLogFromDomain(log)
+	return r.db.WithContext(ctx).Create(po).Error
+}
+
+func (r *auditLogRepository) GetByID(ctx context.Context, id string) (*model.AuditLog, error) {
+	var po AuditLogPO
+	if err := r.db.WithContext(ctx).First(&po, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return po.toDomain(), nil
+}
+
+func (r *auditLogRepository) List(ctx context.Context, query *AuditLogQuery) ([]*model.AuditLog, int64, error) {
+	db := r.db.WithContext(ctx).Model(&AuditLogPO{})
+
+	// 动态条件
+	if query.UserID != "" {
+		db = db.Where("user_id = ?", query.UserID)
+	}
+	if query.Username != "" {
+		db = db.Where("username LIKE ?", "%"+query.Username+"%")
+	}
+	if query.TenantID != "" {
+		db = db.Where("tenant_id = ?", query.TenantID)
+	}
+	if query.Module != "" {
+		db = db.Where("module = ?", query.Module)
+	}
+	if query.Action != "" {
+		db = db.Where("action = ?", query.Action)
+	}
+	if query.Resource != "" {
+		db = db.Where("resource LIKE ?", "%"+query.Resource+"%")
+	}
+	if query.Result != "" {
+		db = db.Where("result = ?", query.Result)
+	}
+	if query.StartTime != "" {
+		db = db.Where("created_at >= ?", query.StartTime)
+	}
+	if query.EndTime != "" {
+		db = db.Where("created_at <= ?", query.EndTime)
+	}
+	if query.Keyword != "" {
+		db = db.Where("path LIKE ? OR username LIKE ? OR resource LIKE ?",
+			"%"+query.Keyword+"%", "%"+query.Keyword+"%", "%"+query.Keyword+"%")
+	}
+
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var pos []AuditLogPO
+	if err := db.Order("created_at DESC").Offset((query.Page - 1) * query.PageSize).Limit(query.PageSize).Find(&pos).Error; err != nil {
+		return nil, 0, err
+	}
+
+	logs := make([]*model.AuditLog, len(pos))
+	for i, po := range pos {
+		logs[i] = po.toDomain()
+	}
+	return logs, total, nil
+}
+
+func (r *auditLogRepository) GetStats(ctx context.Context) (*model.AuditLogStats, error) {
+	var totalCount int64
+	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).Count(&totalCount).Error; err != nil {
+		return nil, err
+	}
+
+	var todayCount int64
+	today := time.Now().Format("2006-01-02")
+	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).Where("DATE(created_at) = ?", today).Count(&todayCount).Error; err != nil {
+		return nil, err
+	}
+
+	actionStats, err := r.GetActionStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	moduleStats, err := r.GetModuleStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var resultStats = make(map[string]int64)
+	var successCount, failureCount int64
+	r.db.WithContext(ctx).Model(&AuditLogPO{}).Where("result = ?", model.ResultSuccess).Count(&successCount)
+	r.db.WithContext(ctx).Model(&AuditLogPO{}).Where("result = ?", model.ResultFailure).Count(&failureCount)
+	resultStats[model.ResultSuccess] = successCount
+	resultStats[model.ResultFailure] = failureCount
+
+	return &model.AuditLogStats{
+		TotalCount:  totalCount,
+		TodayCount:  todayCount,
+		ActionStats: actionStats,
+		ModuleStats: moduleStats,
+		ResultStats: resultStats,
+	}, nil
+}
+
+func (r *auditLogRepository) GetActionStats(ctx context.Context) (map[string]int64, error) {
+	type result struct {
+		Action string
+		Count  int64
+	}
+	var results []result
+	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).
+		Select("action, COUNT(*) as count").
+		Group("action").
+		Scan(&results).Error; err != nil {
+		return nil, err
+	}
+
+	stats := make(map[string]int64)
+	for _, r := range results {
+		stats[r.Action] = r.Count
+	}
+	return stats, nil
+}
+
+func (r *auditLogRepository) GetModuleStats(ctx context.Context) (map[string]int64, error) {
+	type result struct {
+		Module string
+		Count  int64
+	}
+	var results []result
+	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).
+		Select("module, COUNT(*) as count").
+		Group("module").
+		Scan(&results).Error; err != nil {
+		return nil, err
+	}
+
+	stats := make(map[string]int64)
+	for _, r := range results {
+		stats[r.Module] = r.Count
+	}
+	return stats, nil
+}
+
+func (r *auditLogRepository) Cleanup(ctx context.Context, days int) (int64, error) {
+	cutoff := time.Now().AddDate(0, 0, -days)
+	result := r.db.WithContext(ctx).Where("created_at < ?", cutoff).Delete(&AuditLogPO{})
+	return result.RowsAffected, result.Error
+}
