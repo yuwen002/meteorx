@@ -1,4 +1,4 @@
-<template>
+<e></e><template>
   <div class="page">
     <el-row :gutter="20">
       <!-- 个人信息卡片 -->
@@ -155,6 +155,8 @@ import { reactive, ref, onMounted } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Edit } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { getProfile, updateProfile, changePassword, type UserItem } from '@/api/modules/user'
+import { getUserRoles, type RoleItem } from '@/api/modules/role'
 
 const userStore = useUserStore()
 
@@ -221,11 +223,12 @@ const pwdRules: FormRules = {
 async function loadUserInfo() {
   loading.value = true
   try {
-    // 从 store 获取用户信息
-    const storeUser = userStore.userInfo
-    if (storeUser) {
-      Object.assign(userInfo, storeUser)
-    }
+    const data = await getProfile()
+    Object.assign(userInfo, data)
+    // 同时更新 store
+    userStore.updateUserInfo(data)
+  } catch (e) {
+    ElMessage.error('获取用户信息失败')
   } finally {
     loading.value = false
   }
@@ -236,14 +239,8 @@ async function loadUserRoles() {
   if (!userInfo.id) return
   rolesLoading.value = true
   try {
-    const res = await fetch(`/api/v1/rbac/user-roles/${userInfo.id}/roles`, {
-      headers: {
-        'Authorization': `Bearer ${userStore.token}`
-      }
-    }).then(r => r.json())
-    if (res.code === 0 || res.code === 200) {
-      userRoles.value = res.data || []
-    }
+    const data = await getUserRoles(userInfo.id)
+    userRoles.value = data || []
   } catch (e) {
     console.error('加载角色失败', e)
   } finally {
@@ -265,28 +262,16 @@ async function submitEdit() {
     if (!valid) return
     editLoading.value = true
     try {
-      const res = await fetch('/api/v1/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${userStore.token}`
-        },
-        body: JSON.stringify(editForm)
-      }).then(r => r.json())
-      
-      if (res.code === 0 || res.code === 200) {
-        ElMessage.success('更新成功')
-        // 更新本地信息
-        userInfo.nickname = editForm.nickname
-        userInfo.email = editForm.email
-        // 更新 store
-        userStore.updateUserInfo({ nickname: editForm.nickname, email: editForm.email })
-        editDialogVisible.value = false
-      } else {
-        ElMessage.error(res.message || '更新失败')
-      }
-    } catch (e) {
-      ElMessage.error('更新失败')
+      await updateProfile(editForm)
+      ElMessage.success('更新成功')
+      // 更新本地信息
+      userInfo.nickname = editForm.nickname
+      userInfo.email = editForm.email
+      // 更新 store
+      userStore.updateUserInfo({ nickname: editForm.nickname, email: editForm.email })
+      editDialogVisible.value = false
+    } catch (e: any) {
+      ElMessage.error(e.message || '更新失败')
     } finally {
       editLoading.value = false
     }
@@ -300,33 +285,22 @@ async function submitPassword() {
     if (!valid) return
     pwdLoading.value = true
     try {
-      const res = await fetch('/api/v1/profile/password', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${userStore.token}`
-        },
-        body: JSON.stringify({
-          old_password: pwdForm.old_password,
-          new_password: pwdForm.new_password
-        })
-      }).then(r => r.json())
+      await changePassword({
+        old_password: pwdForm.old_password,
+        new_password: pwdForm.new_password
+      })
       
-      if (res.code === 0 || res.code === 200) {
-        ElMessage.success('密码修改成功，请重新登录')
-        // 清空表单
-        pwdForm.old_password = ''
-        pwdForm.new_password = ''
-        pwdForm.confirm_password = ''
-        // 退出登录
-        setTimeout(() => {
-          userStore.logout()
-        }, 1500)
-      } else {
-        ElMessage.error(res.message || '密码修改失败')
-      }
-    } catch (e) {
-      ElMessage.error('密码修改失败')
+      ElMessage.success('密码修改成功，请重新登录')
+      // 清空表单
+      pwdForm.old_password = ''
+      pwdForm.new_password = ''
+      pwdForm.confirm_password = ''
+      // 退出登录
+      setTimeout(() => {
+        userStore.logout()
+      }, 1500)
+    } catch (e: any) {
+      ElMessage.error(e.message || '密码修改失败')
     } finally {
       pwdLoading.value = false
     }

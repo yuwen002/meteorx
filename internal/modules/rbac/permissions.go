@@ -86,6 +86,17 @@ const (
 )
 
 // ============================================================
+// 审计日志权限码（/api/v1/audit 相关）
+// ============================================================
+const (
+	AuditLogList     = "audit:log:list"     // 查询审计日志列表
+	AuditLogExport   = "audit:log:export"   // 导出审计日志
+	AuditLogCreate   = "audit:log:create"   // 创建审计日志（内部使用）
+	AuditLogRead     = "audit:log:read"     // 查询审计日志详情
+	AuditLogCleanup  = "audit:log:cleanup"  // 清理审计日志
+)
+
+// ============================================================
 // 预定义权限列表（服务启动时自动注册到 permissions 表）
 // ============================================================
 func GetPermissionDefs() []PermissionDef {
@@ -138,6 +149,13 @@ func GetPermissionDefs() []PermissionDef {
 		{Name: "删除用户全部角色", Code: UserRoleRemoveAll, Description: "清空用户的所有角色", Resource: "user_role", Action: "remove_all"},
 		{Name: "查询角色下的用户", Code: UserRoleGetUsers, Description: "查询拥有某角色的用户ID列表", Resource: "user_role", Action: "get_users"},
 		{Name: "批量为用户分配角色", Code: UserRoleBatchAssign, Description: "批量为多个用户分配角色", Resource: "user_role", Action: "batch_assign"},
+
+		// 审计日志
+		{Name: "查询审计日志列表", Code: AuditLogList, Description: "查询系统审计日志列表", Resource: "audit_log", Action: "list"},
+		{Name: "导出审计日志", Code: AuditLogExport, Description: "导出审计日志为 CSV 文件", Resource: "audit_log", Action: "export"},
+		{Name: "创建审计日志", Code: AuditLogCreate, Description: "创建审计日志记录（内部使用）", Resource: "audit_log", Action: "create"},
+		{Name: "查询审计日志详情", Code: AuditLogRead, Description: "查看单个审计日志详情", Resource: "audit_log", Action: "read"},
+		{Name: "清理审计日志", Code: AuditLogCleanup, Description: "清理过期审计日志", Resource: "audit_log", Action: "cleanup"},
 	}
 }
 

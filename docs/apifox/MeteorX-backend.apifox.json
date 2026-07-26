@@ -38,6 +38,10 @@
       "publishedDocUrlRules": {
         "defaultRule": "RESOURCE_KEY_ONLY",
         "resourceKeyStandard": "NEW"
+      },
+      "folderShareExpandModeSettings": {
+        "expandId": [],
+        "mode": "AUTO"
       }
     },
     "initialDisabledMockIds": [],
@@ -1759,6 +1763,78 @@
                 "commonResponseStatus": {},
                 "responseChildren": [],
                 "maintainer": "yuwen002",
+                "visibility": "INHERITED",
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "用户登出",
+              "api": {
+                "id": "489080462",
+                "method": "post",
+                "path": "/api/v1/auth/logout",
+                "parameters": {},
+                "auth": {
+                  "type": "bearer",
+                  "bearer": {
+                    "token": "123456789"
+                  }
+                },
+                "securityScheme": {},
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "responses": [
+                  {
+                    "id": "133513202",
+                    "code": 200,
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {}
+                    },
+                    "itemSchema": {},
+                    "description": "",
+                    "contentType": "json",
+                    "mediaType": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "required": true,
+                  "mediaType": "",
+                  "examples": [],
+                  "oasExtensions": ""
+                },
+                "description": "",
+                "tags": [],
+                "status": "developing",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 30,
+                "cases": [],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
                 "visibility": "INHERITED",
                 "moduleId": 7675120,
                 "oasExtensions": "",
@@ -7944,6 +8020,444 @@
                     "operationId": "",
                     "sourceUrl": "",
                     "ordering": 76,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "maintainer": "yuwen002",
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                }
+              ]
+            },
+            {
+              "name": "审计日志",
+              "id": 90347441,
+              "auth": {},
+              "securityScheme": {},
+              "parentId": 85929832,
+              "serverId": "",
+              "description": "",
+              "identityPattern": {
+                "httpApi": {
+                  "type": "inherit",
+                  "bodyType": "",
+                  "fields": []
+                }
+              },
+              "shareSettings": {},
+              "visibility": "INHERITED",
+              "moduleId": 7675120,
+              "preProcessors": [
+                {
+                  "id": "inheritProcessors",
+                  "type": "inheritProcessors",
+                  "data": {}
+                }
+              ],
+              "postProcessors": [
+                {
+                  "id": "inheritProcessors",
+                  "type": "inheritProcessors",
+                  "data": {}
+                }
+              ],
+              "inheritPostProcessors": {},
+              "inheritPreProcessors": {},
+              "items": [
+                {
+                  "name": "审计日志统计",
+                  "api": {
+                    "id": "484238888",
+                    "method": "get",
+                    "path": "/api/v1/audit/stats",
+                    "parameters": {},
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": {
+                        "token": "123456789"
+                      }
+                    },
+                    "securityScheme": {},
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "responses": [
+                      {
+                        "id": "151755909",
+                        "code": 200,
+                        "name": "成功",
+                        "jsonSchema": {
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "itemSchema": {},
+                        "contentType": "json"
+                      }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": {
+                      "type": "none",
+                      "parameters": [],
+                      "required": true,
+                      "mediaType": "",
+                      "examples": [],
+                      "oasExtensions": ""
+                    },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 40,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "maintainer": "yuwen002",
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "审计日志列表",
+                  "api": {
+                    "id": "483926494",
+                    "method": "get",
+                    "path": "/api/v1/audit/logs",
+                    "parameters": {
+                      "query": [
+                        {
+                          "id": "UyWQCl7bBj",
+                          "name": "page",
+                          "example": "1",
+                          "required": false,
+                          "description": "",
+                          "enable": true,
+                          "type": "string"
+                        },
+                        {
+                          "id": "3uXqK379v6",
+                          "name": "page_size",
+                          "example": "10",
+                          "required": false,
+                          "description": "",
+                          "enable": true,
+                          "type": "string"
+                        },
+                        {
+                          "id": "TmBoLeIw6b",
+                          "name": "user_id",
+                          "example": "",
+                          "required": false,
+                          "description": "",
+                          "enable": true,
+                          "type": "string"
+                        },
+                        {
+                          "id": "5ya33Jq1cF",
+                          "name": "username",
+                          "example": "",
+                          "required": false,
+                          "description": "",
+                          "enable": true,
+                          "type": "string"
+                        },
+                        {
+                          "id": "ii6hF0ajtE",
+                          "name": "module",
+                          "example": "",
+                          "required": false,
+                          "description": "",
+                          "enable": true,
+                          "type": "string"
+                        },
+                        {
+                          "id": "bBXMhpCpyu",
+                          "name": "action",
+                          "example": "",
+                          "required": false,
+                          "description": "",
+                          "enable": true,
+                          "type": "string"
+                        },
+                        {
+                          "id": "wkcCypS5jS",
+                          "name": "result",
+                          "example": "",
+                          "required": false,
+                          "description": "",
+                          "enable": true,
+                          "type": "string"
+                        },
+                        {
+                          "id": "FyMtuOVHX2",
+                          "name": "start_time",
+                          "example": "",
+                          "required": false,
+                          "description": "",
+                          "enable": true,
+                          "type": "string"
+                        },
+                        {
+                          "id": "mauo2u2xpp",
+                          "name": "end_time",
+                          "example": "",
+                          "required": false,
+                          "description": "",
+                          "enable": true,
+                          "type": "string"
+                        },
+                        {
+                          "id": "WDSM1Jchjw",
+                          "name": "keyword",
+                          "example": "",
+                          "required": false,
+                          "description": "",
+                          "enable": true,
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": {
+                        "token": "123456789"
+                      }
+                    },
+                    "securityScheme": {},
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "responses": [
+                      {
+                        "id": "164060256",
+                        "code": 200,
+                        "name": "成功",
+                        "headers": [],
+                        "jsonSchema": {
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "itemSchema": {},
+                        "description": "",
+                        "contentType": "json",
+                        "mediaType": ""
+                      }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": {
+                      "type": "none",
+                      "parameters": [],
+                      "required": true,
+                      "mediaType": "",
+                      "examples": [],
+                      "oasExtensions": ""
+                    },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 10,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "maintainer": "yuwen002",
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "审计日志详情",
+                  "api": {
+                    "id": "483955922",
+                    "method": "get",
+                    "path": "/api/v1/audit/logs/{id}",
+                    "parameters": {
+                      "path": [
+                        {
+                          "id": "id#0",
+                          "name": "id",
+                          "required": true,
+                          "description": "",
+                          "type": "string",
+                          "enable": true
+                        }
+                      ]
+                    },
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": {
+                        "token": "123456789"
+                      }
+                    },
+                    "securityScheme": {},
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "responses": [
+                      {
+                        "id": "191628125",
+                        "code": 200,
+                        "name": "成功",
+                        "jsonSchema": {
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "itemSchema": {},
+                        "contentType": "json"
+                      }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": {
+                      "type": "none",
+                      "parameters": [],
+                      "required": true,
+                      "mediaType": "",
+                      "examples": [],
+                      "oasExtensions": ""
+                    },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 20,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "清理审计日志",
+                  "api": {
+                    "id": "483965019",
+                    "method": "delete",
+                    "path": "/api/v1/audit/logs/cleanup",
+                    "parameters": {
+                      "query": [
+                        {
+                          "id": "8JZusQOYIs",
+                          "name": "days",
+                          "example": "30",
+                          "required": false,
+                          "description": "",
+                          "enable": true,
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": {
+                        "token": "123456789"
+                      }
+                    },
+                    "securityScheme": {},
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "responses": [
+                      {
+                        "id": "135742001",
+                        "code": 200,
+                        "name": "成功",
+                        "headers": [],
+                        "jsonSchema": {
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "itemSchema": {},
+                        "description": "",
+                        "contentType": "json",
+                        "mediaType": ""
+                      }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": {
+                      "type": "none",
+                      "parameters": [],
+                      "required": true,
+                      "mediaType": "",
+                      "examples": [],
+                      "oasExtensions": ""
+                    },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 30,
                     "cases": [],
                     "mocks": [],
                     "customApiFields": "{}",

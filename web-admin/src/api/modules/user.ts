@@ -98,6 +98,23 @@ export function deleteUser(id: string) {
   return del(`/users/${id}`)
 }
 
+// ==================== 个人中心接口 ====================
+
+// 获取当前用户个人信息
+export function getProfile() {
+  return get<UserItem>('/profile')
+}
+
+// 更新当前用户个人信息
+export function updateProfile(data: { nickname?: string; email?: string }) {
+  return put<UserItem>('/profile', data)
+}
+
+// 修改当前用户密码
+export function changePassword(data: { old_password: string; new_password: string }) {
+  return put('/profile/password', data)
+}
+
 // 获取用户统计信息（当前租户）
 export function getUserStats() {
   return get<{ user_count: number }>('/profile/stats')

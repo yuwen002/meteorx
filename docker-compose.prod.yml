@@ -1,0 +1,128 @@
+version: '3.8'
+
+services:
+  # Backend API Service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: meteorx-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Application
+      - METEORX_APP_PORT=8080
+      - METEORX_APP_MODE=release
+      
+      # Database
+      - METEORX_DB_HOST=mysql
+      - METEORX_DB_PORT=3306
+      - METEORX_DB_USER=root
+      - METEORX_DB_PASSWORD=${DB_PASSWORD:-meteorx_secure_password}
+      - METEORX_DB_NAME=meteorx
+      - METEORX_DB_TLS=false
+      - METEORX_DB_DEBUG=false
+      
+      # Redis
+      - METEORX_REDIS_HOST=redis
+      - METEORX_REDIS_PORT=6379
+      - METEORX_REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - METEORX_REDIS_DB=0
+      
+      # JWT
+      - METEORX_JWT_SECRET=${JWT_SECRET:-change-this-secret-key-in-production}
+      - METEORX_JWT_EXPIRATION=24h
+      - METEORX_JWT_ISSUER=meteorx-auth
+      
+      # Log
+      - METEORX_LOG_LEVEL=info
+      - METEORX_LOG_FORMAT=json
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - meteorx-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Web Admin
+  web:
+    build:
+      context: ./web-admin
+      dockerfile: Dockerfile
+    container_name: meteorx-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    networks:
+      - meteorx-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MySQL Database
+  mysql:
+    image: mysql:8.4
+    container_name: meteorx-mysql
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD:-meteorx_secure_password}
+      - MYSQL_DATABASE=meteorx
+      - MYSQL_USER=meteorx
+      - MYSQL_PASSWORD=${DB_PASSWORD:-meteorx_secure_password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - meteorx-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-meteorx_secure_password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: meteorx-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD:-}"
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - meteorx-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  meteorx-network:
+    driver: bridge

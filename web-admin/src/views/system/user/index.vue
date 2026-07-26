@@ -241,6 +241,7 @@ import {
   updateUser,
   deleteUser,
   restoreTenantUser,
+  permanentDeleteTenantUser,
   type UserItem,
   type UserCreateParams,
   type UserUpdateParams
@@ -427,16 +428,14 @@ async function handleRestore(row: UserItem) {
 
 // 永久删除用户
 async function handlePermanentDelete(row: UserItem) {
-  if (!row.id) return
+  if (!row.id || !row.tenant_id) return
   try {
     await ElMessageBox.confirm(`确定要永久删除用户 "${row.username}" 吗？此操作不可恢复！`, '危险操作', {
       type: 'error',
       confirmButtonText: '确定永久删除',
       cancelButtonText: '取消'
     })
-    // 由于后端没有提供永久删除租户用户的接口，暂时使用普通删除接口
-    // 实际应该调用永久删除接口
-    await deleteUser(row.id)
+    await permanentDeleteTenantUser(row.tenant_id, row.id)
     ElMessage.success('永久删除成功')
     loadList()
   } catch (e) {

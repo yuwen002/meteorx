@@ -103,7 +103,18 @@
           <el-icon><Download /></el-icon>导出
         </el-button>
         <div class="flex-1"></div>
-        <el-button type="danger" @click="handleCleanup">
+        <el-button-group>
+          <el-button :type="search.action === 'login' ? 'primary' : 'default'" @click="quickFilter('login')">
+            <el-icon><User /></el-icon>登录日志
+          </el-button>
+          <el-button :type="search.action === 'logout' ? 'primary' : 'default'" @click="quickFilter('logout')">
+            <el-icon><SwitchButton /></el-icon>登出日志
+          </el-button>
+          <el-button :type="search.action === '' ? 'primary' : 'default'" @click="quickFilter('')">
+            <el-icon><Document /></el-icon>全部
+          </el-button>
+        </el-button-group>
+        <el-button type="danger" @click="handleCleanup" style="margin-left: 10px;">
           <el-icon><Delete /></el-icon>清理日志
         </el-button>
       </div>
@@ -224,7 +235,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Document, Calendar, CircleCheck, CircleClose, Search, Delete, Download } from '@element-plus/icons-vue'
+import { Document, Calendar, CircleCheck, CircleClose, Search, Delete, Download, User, SwitchButton } from '@element-plus/icons-vue'
 import { getAuditLogList, getAuditStats, cleanupAuditLogs, exportAuditLogs } from '@/api/modules/audit'
 import type { AuditLogItem, AuditLogStats } from '@/api/modules/audit'
 
@@ -301,6 +312,13 @@ function resetSearch() {
   search.action = ''
   search.result = ''
   search.dateRange = []
+  page.value = 1
+  loadList()
+}
+
+// 快捷筛选
+function quickFilter(action: string) {
+  search.action = action
   page.value = 1
   loadList()
 }
