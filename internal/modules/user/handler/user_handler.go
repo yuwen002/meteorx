@@ -1,4 +1,4 @@
-package handler
+﻿package handler
 
 import (
 	"errors"
@@ -768,6 +768,120 @@ func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 			response.Fail(w, http.StatusBadRequest, "原密码错误")
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "修改密码失败")
+		}
+		return
+	}
+	response.Success(w, nil)
+}
+
+// ResetPassword PUT /api/v1/users/{id}/reset-password - 管理员重置用户密码
+func (h *UserHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "id")
+	if userID == "" {
+		response.Fail(w, http.StatusBadRequest, "用户ID不能为空")
+		return
+	}
+
+	tenantID := contextx.GetTenantID(r.Context())
+	if tenantID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到租户信息")
+		return
+	}
+
+	// 检查用户是否属于当前租户
+	if !h.svc.BelongsToTenant(r.Context(), userID, tenantID) {
+		response.Fail(w, http.StatusForbidden, "无权操作该用户")
+		return
+	}
+
+	var req dto.ResetPasswordReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	if req.NewPassword != req.ConfirmPassword {
+		response.Fail(w, http.StatusBadRequest, "新密码与确认密码不一致")
+		return
+	}
+
+	if err := h.svc.ResetPassword(r.Context(), userID, req.NewPassword); err != nil {
+		response.Fail(w, http.StatusInternalServerError, "重置密码失败")
+		return
+	}
+	response.Success(w, nil)
+}
+// ListDeletedUsers GET /api/v1/users/deleted
+func (h *UserHandler) ListDeletedUsers(w http.ResponseWriter, r *http.Request) {
+	tenantID := contextx.GetTenantID(r.Context())
+	if tenantID == "" {
+		response.Fail(w, http.StatusUnauthorized, "tenant not found")
+		return
+	}
+
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("page_size")
+	page, _ := strconv.Atoi(pageStr)
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	pg := pagination.NewPagination(page, pageSize)
+
+	keyword := r.URL.Query().Get("keyword")
+
+	users, total, err := h.svc.ListDeletedUsers(r.Context(), tenantID, pg.Page, pg.PageSize, keyword)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "get deleted users failed")
+		return
+	}
+
+	result := pagination.NewPaginatedResult(users, pg.Page, pg.PageSize, int(total))
+	response.Success(w, result)
+}
+
+// RestoreUser PUT /api/v1/users/{id}/restore
+func (h *UserHandler) RestoreUser(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "id")
+	if userID == "" {
+		response.Fail(w, http.StatusBadRequest, "user id required")
+		return
+	}
+
+	tenantID := contextx.GetTenantID(r.Context())
+	if tenantID == "" {
+		response.Fail(w, http.StatusUnauthorized, "tenant not found")
+		return
+	}
+
+	err := h.svc.RestoreUser(r.Context(), tenantID, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(w, http.StatusNotFound, "user not found")
+		} else {
+			response.Fail(w, http.StatusInternalServerError, "restore user failed")
+		}
+		return
+	}
+	response.Success(w, nil)
+}
+
+// PermanentDeleteUser DELETE /api/v1/users/{id}/permanent
+func (h *UserHandler) PermanentDeleteUser(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "id")
+	if userID == "" {
+		response.Fail(w, http.StatusBadRequest, "user id required")
+		return
+	}
+
+	tenantID := contextx.GetTenantID(r.Context())
+	if tenantID == "" {
+		response.Fail(w, http.StatusUnauthorized, "tenant not found")
+		return
+	}
+
+	err := h.svc.PermanentDeleteUser(r.Context(), tenantID, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(w, http.StatusNotFound, "user not found")
+		} else {
+			response.Fail(w, http.StatusInternalServerError, "permanent delete user failed")
 		}
 		return
 	}

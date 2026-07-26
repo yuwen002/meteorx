@@ -90,7 +90,12 @@ export function createUser(data: UserCreateParams) {
 
 // 更新用户
 export function updateUser(id: string, data: UserUpdateParams) {
-  return put<UserItem>(`/users/${id}`, data)
+  return put<UserItem>(`/users/${id}/update`, data)
+}
+
+// 重置用户密码（管理员使用，不需要原密码）
+export function resetUserPassword(id: string, data: { new_password: string; confirm_password: string }) {
+  return put(`/users/${id}/reset-password`, data)
 }
 
 // 删除用户
@@ -253,4 +258,21 @@ export function unbindUserRole(userId: string, roleId: string) {
 // 获取用户已绑定的角色列表
 export function getUserRoles(userId: string) {
   return get<{ id: string; name: string; code: string }[]>(`/rbac/user-roles/${userId}/roles`)
+}
+
+// ==================== 租户用户回收站接口 ====================
+
+// 获取当前租户的已删除用户列表（回收站）
+export function getDeletedUserList(params: UserListParams) {
+  return get<PageResult<UserItem>>('/users/deleted', params)
+}
+
+// 恢复已删除的用户
+export function restoreUser(id: string) {
+  return put(`/users/${id}/restore`)
+}
+
+// 永久删除用户（从回收站彻底删除）
+export function permanentDeleteUser(id: string) {
+  return del(`/users/${id}/permanent`)
 }

@@ -1,4 +1,4 @@
-package user
+﻿package user
 
 import (
 	"meteorx/internal/middleware"
@@ -25,9 +25,13 @@ func RegisterRoutes(r chi.Router, h *handler.UserHandler, checker middleware.Per
 		r.Use(middleware.AutoRequirePermission(checker))
 		r.Get("/", h.ListUsers)                                // → 自动需要 user:list
 		r.Post("/", h.CreateUser)                               // → 自动需要 user:create
+		r.Get("/deleted", h.ListDeletedUsers)                   // recycle: list deleted users
 		r.Get("/{id}/detail", h.GetUser)                        // → 自动需要 user:read
 		r.Put("/{id}/update", h.UpdateUser)                     // → 自动需要 user:update
+		r.Put("/{id}/reset-password", h.ResetPassword)          // → 自动需要 user:reset_password
 		r.Delete("/{id}/delete", h.DeleteUser)                  // → 自动需要 user:delete
+		r.Put("/{id}/restore", h.RestoreUser)                   // recycle: restore user
+		r.Delete("/{id}/permanent", h.PermanentDeleteUser)      // recycle: permanent delete
 	})
 }
 

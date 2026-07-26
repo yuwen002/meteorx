@@ -711,6 +711,31 @@ func (s *UserService) AdminPermanentDeleteTenantUser(ctx context.Context, tenant
 	return s.repo.PermanentDeleteTenantUser(ctx, tenantID, userID)
 }
 
+// ==================== 普通租户管理员回收站功能 ====================
+
+// ListDeletedUsers 获取当前租户的已删除用户列表（回收站）
+func (s *UserService) ListDeletedUsers(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error) {
+	users, total, err := s.repo.FindDeletedTenantUsers(ctx, tenantID, page, pageSize, keyword)
+	if err != nil {
+		return nil, 0, err
+	}
+	resp, err := s.buildUserRespList(ctx, users)
+	if err != nil {
+		return nil, 0, err
+	}
+	return resp, total, nil
+}
+
+// RestoreUser 恢复已删除的用户
+func (s *UserService) RestoreUser(ctx context.Context, tenantID, userID string) error {
+	return s.repo.RestoreTenantUser(ctx, tenantID, userID)
+}
+
+// PermanentDeleteUser 永久删除用户（物理删除）
+func (s *UserService) PermanentDeleteUser(ctx context.Context, tenantID, userID string) error {
+	return s.repo.PermanentDeleteTenantUser(ctx, tenantID, userID)
+}
+
 func (s *UserService) AdminUpdateTenantUserStatus(ctx context.Context, tenantID, userID string, status int) error {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -765,6 +790,22 @@ func (s *UserService) ChangePassword(ctx context.Context, userID, oldPassword, n
 
 	if !crypto.CheckPassword(oldPassword, user.Password) {
 		return fmt.Errorf("原密码错误")
+	}
+
+	hashedPassword, err := crypto.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	user.Password = hashedPassword
+	return s.repo.Update(ctx, user)
+}
+
+// ResetPassword 管理员重置用户密码（不需要原密码）
+func (s *UserService) ResetPassword(ctx context.Context, userID, newPassword string) error {
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return err
 	}
 
 	hashedPassword, err := crypto.HashPassword(newPassword)

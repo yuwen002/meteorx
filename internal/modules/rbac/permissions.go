@@ -20,11 +20,12 @@ type PermissionDef struct {
 // 用户模块权限码（/api/v1/users 相关）
 // ============================================================
 const (
-	UserList   = "user:list"   // 查询用户列表
-	UserCreate = "user:create" // 创建用户
-	UserRead   = "user:read"   // 查询用户详情
-	UserUpdate = "user:update" // 更新用户信息
-	UserDelete = "user:delete" // 删除用户
+	UserList        = "user:list"         // 查询用户列表
+	UserCreate      = "user:create"       // 创建用户
+	UserRead        = "user:read"         // 查询用户详情
+	UserUpdate      = "user:update"       // 更新用户信息
+	UserDelete      = "user:delete"       // 删除用户
+	UserResetPassword = "user:reset_password" // 重置用户密码
 )
 
 // ============================================================
@@ -107,6 +108,7 @@ func GetPermissionDefs() []PermissionDef {
 		{Name: "查询用户详情", Code: UserRead, Description: "查看单个用户详细信息", Resource: "user", Action: "read"},
 		{Name: "更新用户", Code: UserUpdate, Description: "修改用户信息", Resource: "user", Action: "update"},
 		{Name: "删除用户", Code: UserDelete, Description: "删除用户", Resource: "user", Action: "delete"},
+		{Name: "重置用户密码", Code: UserResetPassword, Description: "管理员重置用户密码（不需要原密码）", Resource: "user", Action: "reset_password"},
 
 		// 角色管理
 		{Name: "查询角色列表", Code: RoleList, Description: "查询所有角色", Resource: "role", Action: "list"},

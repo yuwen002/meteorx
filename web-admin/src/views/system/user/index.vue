@@ -24,7 +24,7 @@
         </el-button>
         <el-button @click="resetSearch">重置</el-button>
         <div class="flex-1"></div>
-        <el-button type="info" v-if="userStore.isAdmin" @click="toggleRecycleBin">
+        <el-button type="info" @click="toggleRecycleBin">
           <el-icon><Delete /></el-icon>{{ isRecycleBin ? '返回列表' : '回收站' }}
         </el-button>
         <el-button type="success" v-if="userStore.hasPermission('user:create') && !isRecycleBin" @click="openCreateDialog">
@@ -79,6 +79,12 @@
                 v-if="userStore.hasPermission('user:update')"
                 @click="openEditDialog(row)"
               >编辑</el-button>
+              <el-button
+                link
+                type="warning"
+                v-if="userStore.hasPermission('user:reset_password')"
+                @click="openResetPasswordDialog(row)"
+              >重置密码</el-button>
               <el-button
                 link
                 type="info"
@@ -225,6 +231,44 @@
         <el-button type="primary" :loading="saving" @click="submitForm">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 重置密码弹窗 -->
+    <el-dialog
+      v-model="resetPwdDialogVisible"
+      title="重置密码"
+      width="400px"
+      :close-on-click-modal="false"
+      @close="closeResetPwdDialog"
+    >
+      <p style="margin-bottom: 16px;">正在为用户 <strong>{{ resetPwdUser?.username }}</strong> 重置密码</p>
+      <el-form
+        ref="resetPwdFormRef"
+        :model="resetPwdForm"
+        :rules="resetPwdRules"
+        label-width="100px"
+      >
+        <el-form-item label="新密码" prop="new_password">
+          <el-input
+            v-model="resetPwdForm.new_password"
+            type="password"
+            placeholder="请输入新密码"
+            show-password
+          />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirm_password">
+          <el-input
+            v-model="resetPwdForm.confirm_password"
+            type="password"
+            placeholder="请再次输入新密码"
+            show-password
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="closeResetPwdDialog">取消</el-button>
+        <el-button type="primary" :loading="resetPwdSaving" @click="submitResetPassword">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -237,11 +281,16 @@ import {
   getUserList,
   getAllTenantUsers,
   getAllDeletedTenantUsers,
+  getDeletedUserList,
   createUser,
   updateUser,
+  updateTenantUser,
+  resetUserPassword,
   deleteUser,
   restoreTenantUser,
   permanentDeleteTenantUser,
+  restoreUser,
+  permanentDeleteUser,
   type UserItem,
   type UserCreateParams,
   type UserUpdateParams
@@ -265,6 +314,7 @@ const dialogMode = ref<'create' | 'edit'>('create')
 const formRef = ref<FormInstance>()
 const saving = ref(false)
 const editingId = ref<string | null>(null)
+const editingTenantId = ref<string | null>(null)
 const form = reactive<UserCreateParams & UserUpdateParams>({
   username: '',
   password: '',
@@ -293,16 +343,42 @@ const savingRoles = ref(false)
 const availableRoles = ref<RoleItem[]>([])
 const selectedRoleIds = ref<string[]>([])
 
+// 重置密码相关
+const resetPwdDialogVisible = ref(false)
+const resetPwdFormRef = ref<FormInstance>()
+const resetPwdSaving = ref(false)
+const resetPwdUser = ref<UserItem | null>(null)
+const resetPwdForm = reactive({
+  new_password: '',
+  confirm_password: ''
+})
+const resetPwdRules: FormRules = {
+  new_password: [{ required: true, min: 6, max: 32, message: '密码长度 6-32 位', trigger: 'blur' }],
+  confirm_password: [
+    { required: true, message: '请确认密码', trigger: 'blur' },
+    {
+      validator: (rule: any, value: string, callback: Function) => {
+        if (value !== resetPwdForm.new_password) {
+          callback(new Error('两次输入的密码不一致'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
+}
+
 async function loadList() {
   loading.value = true
   try {
     const params: any = { page: page.value, page_size: pageSize.value }
     if (search.keyword) params.keyword = search.keyword
     // 系统管理员查看所有租户用户，普通租户管理员只看当前租户用户
-    // 回收站模式只对系统管理员开放
     let res: any
     if (isRecycleBin.value) {
-      res = await getAllDeletedTenantUsers(params)
+      // 回收站模式：系统管理员看所有，普通租户管理员只看当前租户
+      res = userStore.isAdmin ? await getAllDeletedTenantUsers(params) : await getDeletedUserList(params)
     } else {
       if (search.status !== undefined && search.status !== null) params.status = search.status
       res = userStore.isAdmin ? await getAllTenantUsers(params) : await getUserList(params)
@@ -332,6 +408,7 @@ function resetSearch() {
 function openCreateDialog() {
   dialogMode.value = 'create'
   editingId.value = null
+  editingTenantId.value = null
   form.username = ''
   form.password = ''
   form.nickname = ''
@@ -343,6 +420,7 @@ function openCreateDialog() {
 function openEditDialog(row: UserItem) {
   dialogMode.value = 'edit'
   editingId.value = row.id
+  editingTenantId.value = row.tenant_id || null
   form.username = row.username
   form.password = ''
   form.nickname = row.nickname || ''
@@ -372,7 +450,12 @@ async function submitForm() {
           status: form.status
         }
         if (form.password) updateData.password = form.password
-        await updateUser(editingId.value, updateData)
+        // 系统管理员使用跨租户接口，普通租户管理员使用当前租户接口
+        if (userStore.isAdmin && editingTenantId.value) {
+          await updateTenantUser(editingTenantId.value, editingId.value, updateData)
+        } else {
+          await updateUser(editingId.value, updateData)
+        }
         ElMessage.success('更新成功')
       }
       dialogVisible.value = false
@@ -389,7 +472,12 @@ function toggleStatus(row: UserItem) {
   })
     .then(async () => {
       if (!row.id) return
-      await updateUser(row.id, { status: row.status === 1 ? 0 : 1 })
+      // 系统管理员使用跨租户接口，普通租户管理员使用当前租户接口
+      if (userStore.isAdmin && row.tenant_id) {
+        await updateTenantUser(row.tenant_id, row.id, { status: row.status === 1 ? 0 : 1 })
+      } else {
+        await updateUser(row.id, { status: row.status === 1 ? 0 : 1 })
+      }
       ElMessage.success('操作成功')
       loadList()
     })
@@ -413,12 +501,17 @@ function handleDelete(row: UserItem) {
 
 // 恢复用户
 async function handleRestore(row: UserItem) {
-  if (!row.id || !row.tenant_id) return
+  if (!row.id) return
   try {
     await ElMessageBox.confirm(`确定要恢复用户 "${row.username}" 吗？`, '提示', {
       type: 'warning'
     })
-    await restoreTenantUser(row.tenant_id, row.id)
+    // 系统管理员使用跨租户接口，普通租户管理员使用当前租户接口
+    if (userStore.isAdmin && row.tenant_id) {
+      await restoreTenantUser(row.tenant_id, row.id)
+    } else {
+      await restoreUser(row.id)
+    }
     ElMessage.success('恢复成功')
     loadList()
   } catch (e) {
@@ -428,19 +521,63 @@ async function handleRestore(row: UserItem) {
 
 // 永久删除用户
 async function handlePermanentDelete(row: UserItem) {
-  if (!row.id || !row.tenant_id) return
+  if (!row.id) return
   try {
     await ElMessageBox.confirm(`确定要永久删除用户 "${row.username}" 吗？此操作不可恢复！`, '危险操作', {
       type: 'error',
       confirmButtonText: '确定永久删除',
       cancelButtonText: '取消'
     })
-    await permanentDeleteTenantUser(row.tenant_id, row.id)
+    // 系统管理员使用跨租户接口，普通租户管理员使用当前租户接口
+    if (userStore.isAdmin && row.tenant_id) {
+      await permanentDeleteTenantUser(row.tenant_id, row.id)
+    } else {
+      await permanentDeleteUser(row.id)
+    }
     ElMessage.success('永久删除成功')
     loadList()
   } catch (e) {
     // 用户取消
   }
+}
+
+// 打开重置密码对话框
+function openResetPasswordDialog(row: UserItem) {
+  resetPwdUser.value = row
+  resetPwdForm.new_password = ''
+  resetPwdForm.confirm_password = ''
+  resetPwdDialogVisible.value = true
+}
+
+// 关闭重置密码对话框
+function closeResetPwdDialog() {
+  resetPwdDialogVisible.value = false
+  resetPwdUser.value = null
+  resetPwdForm.new_password = ''
+  resetPwdForm.confirm_password = ''
+}
+
+// 提交重置密码
+async function submitResetPassword() {
+  if (!resetPwdFormRef.value) return
+  await resetPwdFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    if (!resetPwdUser.value?.id) return
+
+    resetPwdSaving.value = true
+    try {
+      await resetUserPassword(resetPwdUser.value.id, {
+        new_password: resetPwdForm.new_password,
+        confirm_password: resetPwdForm.confirm_password
+      })
+      ElMessage.success('密码重置成功')
+      closeResetPwdDialog()
+    } catch (e) {
+      // 错误已在拦截器处理
+    } finally {
+      resetPwdSaving.value = false
+    }
+  })
 }
 
 // 查看用户权限

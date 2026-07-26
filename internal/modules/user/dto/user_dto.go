@@ -84,6 +84,12 @@ type ChangePasswordReq struct {
 	ConfirmPassword string `json:"confirm_password" validate:"required,min=6,max=32,eqfield=NewPassword"`
 }
 
+// ResetPasswordReq 管理员重置密码请求（不需要原密码）
+type ResetPasswordReq struct {
+	NewPassword     string `json:"new_password" validate:"required,min=6,max=32"`
+	ConfirmPassword string `json:"confirm_password" validate:"required,min=6,max=32,eqfield=NewPassword"`
+}
+
 // UpdateUserStatusReq 更新用户状态请求
 type UpdateUserStatusReq struct {
 	Status int `json:"status" validate:"oneof=0 1"` // 状态: 1-启用 0-禁用
