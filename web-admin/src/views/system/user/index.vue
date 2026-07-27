@@ -286,6 +286,7 @@ import {
   updateUser,
   updateTenantUser,
   resetUserPassword,
+  resetTenantUserPassword,
   deleteUser,
   restoreTenantUser,
   permanentDeleteTenantUser,
@@ -566,10 +567,18 @@ async function submitResetPassword() {
 
     resetPwdSaving.value = true
     try {
-      await resetUserPassword(resetPwdUser.value.id, {
-        new_password: resetPwdForm.new_password,
-        confirm_password: resetPwdForm.confirm_password
-      })
+      // 系统管理员且用户有租户ID时，使用管理员专用接口
+      if (userStore.isAdmin && resetPwdUser.value.tenant_id) {
+        await resetTenantUserPassword(resetPwdUser.value.tenant_id, resetPwdUser.value.id, {
+          new_password: resetPwdForm.new_password,
+          confirm_password: resetPwdForm.confirm_password
+        })
+      } else {
+        await resetUserPassword(resetPwdUser.value.id, {
+          new_password: resetPwdForm.new_password,
+          confirm_password: resetPwdForm.confirm_password
+        })
+      }
       ElMessage.success('密码重置成功')
       closeResetPwdDialog()
     } catch (e) {

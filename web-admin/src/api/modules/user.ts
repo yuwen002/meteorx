@@ -238,6 +238,11 @@ export function updateTenantUserStatus(tenantId: string, userId: string, status:
   return put(`/admin/tenant-users/${tenantId}/${userId}/status`, { status })
 }
 
+// 重置指定租户用户的密码（系统管理员使用）
+export function resetTenantUserPassword(tenantId: string, userId: string, data: { new_password: string; confirm_password: string }) {
+  return put(`/admin/tenant-users/${tenantId}/${userId}/reset-password`, data)
+}
+
 // 批量删除指定租户的用户（系统管理员使用）
 export function batchDeleteTenantUsers(tenantId: string, ids: string[]) {
   return del(`/admin/tenant-users/${tenantId}/batch/delete`, { data: { ids } })

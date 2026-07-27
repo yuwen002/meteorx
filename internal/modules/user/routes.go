@@ -63,6 +63,7 @@ func RegisterAdminRoutes(r chi.Router, h *handler.UserHandler) {
 		r.Get("/{tenantID}/deleted", h.AdminListDeletedTenantUsers)      // 回收站：获取指定租户的已删除用户列表
 		r.Put("/{tenantID}/{userID}/update", h.AdminUpdateTenantUser)    // 更新指定租户的用户
 		r.Put("/{tenantID}/{userID}/status", h.AdminUpdateTenantUserStatus) // 更新指定租户的用户状态
+		r.Put("/{tenantID}/{userID}/reset-password", h.AdminResetTenantUserPassword) // 重置指定租户用户的密码
 		r.Put("/{tenantID}/{userID}/restore", h.AdminRestoreTenantUser)  // 恢复已删除的租户用户
 		r.Delete("/{tenantID}/{userID}/delete", h.AdminDeleteTenantUser) // 删除指定租户的用户
 		r.Delete("/{tenantID}/{userID}/permanent", h.AdminPermanentDeleteTenantUser) // 永久删除租户用户

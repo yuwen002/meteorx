@@ -679,6 +679,26 @@ func (s *UserService) AdminDeleteTenantUser(ctx context.Context, tenantID, userI
 	return s.repo.Delete(ctx, userID)
 }
 
+// AdminResetTenantUserPassword 系统管理员重置指定租户用户的密码
+func (s *UserService) AdminResetTenantUserPassword(ctx context.Context, tenantID, userID, newPassword string) error {
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	if user.TenantID != tenantID {
+		return fmt.Errorf("用户不属于指定租户")
+	}
+
+	hashedPassword, err := crypto.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	user.Password = hashedPassword
+	return s.repo.Update(ctx, user)
+}
+
 func (s *UserService) AdminListDeletedTenantUsers(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error) {
 	users, total, err := s.repo.FindDeletedTenantUsers(ctx, tenantID, page, pageSize, keyword)
 	if err != nil {

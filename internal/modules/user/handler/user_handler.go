@@ -887,3 +887,35 @@ func (h *UserHandler) PermanentDeleteUser(w http.ResponseWriter, r *http.Request
 	}
 	response.Success(w, nil)
 }
+
+// AdminResetTenantUserPassword PUT /api/v1/admin/tenant-users/{tenantID}/{userID}/reset-password - 系统管理员重置指定租户用户的密码
+func (h *UserHandler) AdminResetTenantUserPassword(w http.ResponseWriter, r *http.Request) {
+	tenantID := chi.URLParam(r, "tenantID")
+	userID := chi.URLParam(r, "userID")
+	if tenantID == "" || userID == "" {
+		response.Fail(w, http.StatusBadRequest, "租户ID和用户ID不能为空")
+		return
+	}
+
+	var req dto.ResetPasswordReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	if req.NewPassword != req.ConfirmPassword {
+		response.Fail(w, http.StatusBadRequest, "新密码与确认密码不一致")
+		return
+	}
+
+	if err := h.svc.AdminResetTenantUserPassword(r.Context(), tenantID, userID, req.NewPassword); err != nil {
+		if err.Error() == "用户不属于指定租户" {
+			response.Fail(w, http.StatusBadRequest, "用户不属于指定租户")
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(w, http.StatusNotFound, "用户不存在")
+		} else {
+			response.Fail(w, http.StatusInternalServerError, "重置密码失败")
+		}
+		return
+	}
+	response.Success(w, nil)
+}
