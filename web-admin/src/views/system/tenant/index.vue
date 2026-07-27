@@ -172,6 +172,7 @@
             </template>
             <template v-else>
               <el-button link type="primary" @click="openEditUserDialog(row)">编辑</el-button>
+              <el-button link type="warning" @click="openResetPasswordDialog(row)">重置密码</el-button>
               <el-button link type="info" @click="openViewUserRoles(row)">查看角色</el-button>
               <el-button
                 link
@@ -206,6 +207,44 @@
     </el-dialog>
 
     <!-- 新增/编辑用户弹窗 -->
+    <!-- 重置密码弹窗 -->
+    <el-dialog
+      v-model="resetPwdDialogVisible"
+      title="重置密码"
+      width="400px"
+      :close-on-click-modal="false"
+      @close="closeResetPwdDialog"
+    >
+      <p style="margin-bottom: 16px;">正在为用户 <strong>{{ resetPwdUser?.username }}</strong> 重置密码</p>
+      <el-form
+        ref="resetPwdFormRef"
+        :model="resetPwdForm"
+        :rules="resetPwdRules"
+        label-width="100px"
+      >
+        <el-form-item label="新密码" prop="new_password">
+          <el-input
+            v-model="resetPwdForm.new_password"
+            type="password"
+            placeholder="请输入新密码"
+            show-password
+          />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirm_password">
+          <el-input
+            v-model="resetPwdForm.confirm_password"
+            type="password"
+            placeholder="请再次输入新密码"
+            show-password
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="closeResetPwdDialog">取消</el-button>
+        <el-button type="primary" :loading="resetPwdSaving" @click="submitResetPassword">确定</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 查看用户角色弹窗 -->
     <el-dialog
       v-model="userRolesDialogVisible"
@@ -362,6 +401,7 @@ import {
   batchUpdateTenantUserStatus,
   restoreTenantUser,
   permanentDeleteTenantUser,
+  resetTenantUserPassword,
   type UserItem,
   type UserCreateParams,
   type UserUpdateParams
@@ -428,6 +468,26 @@ const userRolesDialogVisible = ref(false)
 const currentUser = ref<UserItem | null>(null)
 const currentUserRoles = ref<RoleItem[]>([])
 const userRolesLoading = ref(false)
+
+// 重置密码相关
+const resetPwdDialogVisible = ref(false)
+const resetPwdFormRef = ref<FormInstance>()
+const resetPwdSaving = ref(false)
+const resetPwdUser = ref<UserItem | null>(null)
+const resetPwdForm = reactive({
+  new_password: '',
+  confirm_password: ''
+})
+const resetPwdRules: FormRules = {
+  new_password: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, max: 32, message: '密码长度 6-32 位', trigger: 'blur' }
+  ],
+  confirm_password: [
+    { required: true, message: '请确认密码', trigger: 'blur' },
+    { min: 6, max: 32, message: '密码长度 6-32 位', trigger: 'blur' }
+  ]
+}
 
 const form = reactive<CreateTenantParams & UpdateTenantParams>({
   name: '',
@@ -892,6 +952,45 @@ async function handleBatchDisableUsers() {
   } catch (e) {
     // 用户取消
   }
+}
+
+// 打开重置密码对话框
+function openResetPasswordDialog(row: UserItem) {
+  resetPwdUser.value = row
+  resetPwdForm.new_password = ''
+  resetPwdForm.confirm_password = ''
+  resetPwdDialogVisible.value = true
+}
+
+// 关闭重置密码对话框
+function closeResetPwdDialog() {
+  resetPwdDialogVisible.value = false
+  resetPwdUser.value = null
+  resetPwdForm.new_password = ''
+  resetPwdForm.confirm_password = ''
+}
+
+// 提交重置密码
+async function submitResetPassword() {
+  if (!resetPwdFormRef.value) return
+  await resetPwdFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    if (!resetPwdUser.value?.id || !currentTenant.value?.id) return
+
+    resetPwdSaving.value = true
+    try {
+      await resetTenantUserPassword(currentTenant.value.id, resetPwdUser.value.id, {
+        new_password: resetPwdForm.new_password,
+        confirm_password: resetPwdForm.confirm_password
+      })
+      ElMessage.success('密码重置成功')
+      closeResetPwdDialog()
+    } catch (e) {
+      // 错误已在拦截器处理
+    } finally {
+      resetPwdSaving.value = false
+    }
+  })
 }
 
 onMounted(() => {
