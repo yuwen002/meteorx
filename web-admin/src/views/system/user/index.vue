@@ -92,6 +92,11 @@
               >查看权限</el-button>
               <el-button
                 link
+                type="primary"
+                @click="openLoginLogs(row)"
+              >登录日志</el-button>
+              <el-button
+                link
                 type="success"
                 v-if="userStore.hasPermission('rbac:user_role:assign') || userStore.isAdmin"
                 @click="openAssignRoles(row)"
@@ -269,6 +274,46 @@
         <el-button type="primary" :loading="resetPwdSaving" @click="submitResetPassword">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 登录日志弹窗 -->
+    <el-dialog
+      v-model="loginLogsDialogVisible"
+      :title="`登录日志 - ${loginLogsUser?.username || ''}`"
+      width="900px"
+      :close-on-click-modal="false"
+    >
+      <el-table :data="loginLogsList" border stripe v-loading="loginLogsLoading" style="width: 100%">
+        <el-table-column type="index" label="#" width="60" :index="(i: number) => (loginLogsPage - 1) * loginLogsPageSize + i + 1" />
+        <el-table-column prop="action" label="操作" width="100">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.action === 'login' ? 'success' : 'info'">
+              {{ row.action === 'login' ? '登录' : '登出' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="result" label="结果" width="90">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.result === 'success' ? 'success' : 'danger'">
+              {{ row.result === 'success' ? '成功' : '失败' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="client_ip" label="登录IP" width="140" />
+        <el-table-column prop="user_agent" label="用户代理" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="created_at" label="时间" width="180" />
+      </el-table>
+      <div class="pagination" style="margin-top: 16px; display: flex; justify-content: flex-end;">
+        <el-pagination
+          v-model:current-page="loginLogsPage"
+          v-model:page-size="loginLogsPageSize"
+          :page-sizes="[10, 20, 50]"
+          :total="loginLogsTotal"
+          layout="total, sizes, prev, pager, next"
+          @size-change="loadLoginLogs"
+          @current-change="loadLoginLogs"
+        />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -298,6 +343,7 @@ import {
 } from '@/api/modules/user'
 import { getUserRoles, getRolePermissions, type RoleItem, getRoleListForSelect, assignUserRoles, removeAllUserRoles } from '@/api/modules/role'
 import { type PermissionItem } from '@/api/modules/permission'
+import { getAuditLogList, type AuditLogItem } from '@/api/modules/audit'
 
 const userStore = useUserStore()
 
@@ -369,6 +415,15 @@ const resetPwdRules: FormRules = {
     }
   ]
 }
+
+// 登录日志相关
+const loginLogsDialogVisible = ref(false)
+const loginLogsLoading = ref(false)
+const loginLogsUser = ref<UserItem | null>(null)
+const loginLogsList = ref<AuditLogItem[]>([])
+const loginLogsPage = ref(1)
+const loginLogsPageSize = ref(10)
+const loginLogsTotal = ref(0)
 
 async function loadList() {
   loading.value = true
@@ -679,6 +734,36 @@ async function submitAssignRoles() {
     ElMessage.error(e.message || '角色分配失败')
   } finally {
     savingRoles.value = false
+  }
+}
+
+// 打开登录日志弹窗
+function openLoginLogs(row: UserItem) {
+  loginLogsUser.value = row
+  loginLogsPage.value = 1
+  loginLogsPageSize.value = 10
+  loginLogsDialogVisible.value = true
+  loadLoginLogs()
+}
+
+// 加载登录日志
+async function loadLoginLogs() {
+  if (!loginLogsUser.value?.id) return
+  
+  loginLogsLoading.value = true
+  try {
+    const res = await getAuditLogList({
+      page: loginLogsPage.value,
+      page_size: loginLogsPageSize.value,
+      user_id: loginLogsUser.value.id,
+      action: 'login'  // 只查询登录相关的日志
+    })
+    loginLogsList.value = res.items
+    loginLogsTotal.value = res.total
+  } catch (e) {
+    ElMessage.error('加载登录日志失败')
+  } finally {
+    loginLogsLoading.value = false
   }
 }
 
