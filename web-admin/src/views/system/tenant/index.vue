@@ -60,11 +60,20 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="套餐" width="140">
+          <template #default="{ row }">
+            <el-tag v-if="row.plan_name" :type="row.plan_expired ? 'danger' : 'primary'" effect="plain" size="small">
+              {{ row.plan_name }}<template v-if="row.plan_expired">(已过期)</template>
+            </el-tag>
+            <el-tag v-else type="info" effect="plain" size="small">未开通</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180" />
-        <el-table-column label="操作" width="320" fixed="right">
+        <el-table-column label="操作" width="400" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
             <el-button link type="info" @click="openViewUsers(row)">查看用户</el-button>
+            <el-button link type="warning" @click="openPlanDialog(row)">套餐</el-button>
             <el-button
               link
               :type="row.status === 1 ? 'warning' : 'success'"
@@ -411,11 +420,73 @@
         <el-button type="primary" :loading="saving" @click="submitForm">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 套餐管理弹窗 -->
+    <el-dialog
+      v-model="planDialogVisible"
+      :title="`套餐配置 - ${currentPlanTenant?.name || ''}`"
+      width="560px"
+      :close-on-click-modal="false"
+    >
+      <template v-if="currentPlan">
+        <div class="plan-info">
+          <div class="plan-info-item">
+            <span class="label">当前套餐</span>
+            <el-tag type="primary" effect="plain">{{ currentPlan.plan_name }}</el-tag>
+            <el-tag v-if="currentPlan.status === 2" type="danger" effect="plain" style="margin-left: 6px">已过期</el-tag>
+          </div>
+          <div class="plan-info-item">
+            <span class="label">用户用量</span>
+            <el-progress :percentage="planUsagePercent" :status="planUsagePercent >= 100 ? 'exception' : undefined" style="width: 300px" />
+            <span class="usage-text">{{ currentPlan.current_users }} / {{ currentPlan.user_limit === -1 ? '不限' : currentPlan.user_limit }}</span>
+          </div>
+          <div class="plan-info-item">
+            <span class="label">生效时间</span>
+            <span>{{ currentPlan.started_at || '-' }}</span>
+          </div>
+          <div class="plan-info-item" v-if="currentPlan.expires_at">
+            <span class="label">到期时间</span>
+            <span>{{ currentPlan.expires_at }}（剩余 {{ currentPlan.effective_days ?? 0 }} 天）</span>
+          </div>
+          <div class="plan-info-item" v-else>
+            <span class="label">到期时间</span>
+            <span>长期有效</span>
+          </div>
+        </div>
+        <el-divider />
+      </template>
+      <el-alert v-else title="该租户尚未开通套餐" type="info" show-icon :closable="false" style="margin-bottom: 16px" />
+      <template v-if="planList.length > 0">
+        <div class="plan-info-item">
+          <span class="label">选择套餐</span>
+          <el-select v-model="assignForm.plan_id" placeholder="请选择套餐" style="width: 300px" :loading="planLoading">
+            <el-option v-for="p in planList" :key="p.id" :label="`${p.name}（${p.user_limit === -1 ? '不限' : p.user_limit + ' 人'}）`" :value="p.id" />
+          </el-select>
+        </div>
+        <div class="plan-info-item">
+          <span class="label">到期时间</span>
+          <el-date-picker
+            v-model="assignForm.expires_at"
+            type="datetime"
+            placeholder="不设置则长期有效"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            style="width: 300px"
+          />
+        </div>
+      </template>
+      <el-alert v-else title="暂无可用套餐，请先在套餐管理中创建" type="warning" show-icon :closable="false" />
+      <template #footer>
+        <el-button @click="planDialogVisible = false">关闭</el-button>
+        <el-button type="primary" :loading="planSaving" :disabled="!assignForm.plan_id || planList.length === 0" @click="submitPlanAssign">
+          保存套餐
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Search, Plus, Delete } from '@element-plus/icons-vue'
@@ -449,6 +520,7 @@ import {
 } from '@/api/modules/user'
 import { getAuditLogList, type AuditLogItem } from '@/api/modules/audit'
 import { getRoleList, getRolesForSelect, getUserRoles, removeUserRole, removeAllUserRoles, type RoleItem } from '@/api/modules/role'
+import { getPlanSelect, getTenantPlan, assignTenantPlan, type PlanItem, type CurrentPlan } from '@/api/modules/plan'
 
 const router = useRouter()
 
@@ -539,6 +611,64 @@ const loginLogsList = ref<AuditLogItem[]>([])
 const loginLogsPage = ref(1)
 const loginLogsPageSize = ref(10)
 const loginLogsTotal = ref(0)
+
+// 套餐管理相关
+const planDialogVisible = ref(false)
+const planLoading = ref(false)
+const planSaving = ref(false)
+const currentPlanTenant = ref<TenantItem | null>(null)
+const currentPlan = ref<CurrentPlan | null>(null)
+const planList = ref<PlanItem[]>([])
+const assignForm = reactive<{ plan_id: string; expires_at: string }>({
+  plan_id: '',
+  expires_at: ''
+})
+const planUsagePercent = computed(() => {
+  if (!currentPlan.value || currentPlan.value.user_limit === -1 || currentPlan.value.user_limit <= 0) return 0
+  return Math.min(100, Math.round((currentPlan.value.current_users / currentPlan.value.user_limit) * 100))
+})
+
+// 打开套餐配置弹窗
+async function openPlanDialog(row: TenantItem) {
+  currentPlanTenant.value = row
+  currentPlan.value = null
+  assignForm.plan_id = ''
+  assignForm.expires_at = ''
+  planDialogVisible.value = true
+  planLoading.value = true
+  try {
+    const [plans, plan] = await Promise.all([getPlanSelect(), getTenantPlan(row.id)])
+    planList.value = plans || []
+    if (plan) {
+      currentPlan.value = plan
+      assignForm.plan_id = plan.plan_id
+      if (plan.expires_at) assignForm.expires_at = plan.expires_at
+    }
+  } catch (e) {
+    planList.value = planList.value || []
+  } finally {
+    planLoading.value = false
+  }
+}
+
+// 提交套餐分配
+async function submitPlanAssign() {
+  if (!currentPlanTenant.value?.id || !assignForm.plan_id) return
+  planSaving.value = true
+  try {
+    await assignTenantPlan(currentPlanTenant.value.id, {
+      plan_id: assignForm.plan_id,
+      expires_at: assignForm.expires_at || undefined
+    })
+    ElMessage.success('套餐保存成功')
+    planDialogVisible.value = false
+    loadList()
+  } catch (e) {
+    // 错误已在拦截器处理
+  } finally {
+    planSaving.value = false
+  }
+}
 
 const form = reactive<CreateTenantParams & UpdateTenantParams>({
   name: '',

@@ -2,6 +2,7 @@ package user
 
 import (
 	"meteorx/internal/middleware"
+	plan "meteorx/internal/modules/plan"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
 	rbacSvc "meteorx/internal/modules/rbac/service"
 	"meteorx/internal/modules/tenant/repository"
@@ -29,6 +30,7 @@ func initHandler(db *gorm.DB) (*handler.UserHandler, middleware.PermissionChecke
 	roleRepo := rbacRepo.NewRoleRepository(db)
 	userRoleRepo := rbacRepo.NewUserRoleRepository(db)
 	svc := service.NewUserService(repo, tenantRepo, roleRepo, userRoleRepo)
+	svc.SetQuotaVerifier(plan.NewQuotaVerifier(db))
 	checker := newPermissionChecker(db)
 	return handler.NewUserHandler(svc), checker
 }

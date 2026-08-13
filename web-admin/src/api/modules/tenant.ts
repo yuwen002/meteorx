@@ -10,6 +10,8 @@ export interface TenantItem {
   region?: string
   logo?: string
   extra?: string
+  plan_name?: string
+  plan_expired?: boolean
   created_at?: string
   updated_at?: string
   deleted_at?: string

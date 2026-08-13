@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
+	planDto "meteorx/internal/modules/plan/dto"
 	"meteorx/internal/modules/tenant/dto"
 	tenantModel "meteorx/internal/modules/tenant/model"
 	"meteorx/internal/modules/tenant/repository"
@@ -24,11 +25,18 @@ var (
 	ErrUsernameConflict = errors.New("username already exists in tenant")
 )
 
+// TenantPlanProvider 租户套餐摘要查询接口（由 plan 模块实现，避免循环依赖）
+type TenantPlanProvider interface {
+	// GetTenantPlansBrief 批量查询多个租户的当前套餐摘要
+	GetTenantPlansBrief(ctx context.Context, tenantIDs []string) (map[string]*planDto.TenantPlanBrief, error)
+}
+
 type TenantService struct {
 	repo         repository.TenantRepository
 	userRepo     userRepo.UserRepository
 	roleRepo     rbacRepo.RoleRepository
 	userRoleRepo rbacRepo.UserRoleRepository
+	planProvider TenantPlanProvider
 }
 
 func NewTenantService(
@@ -43,6 +51,19 @@ func NewTenantService(
 		roleRepo:     roleRepo,
 		userRoleRepo: userRoleRepo,
 	}
+}
+
+// SetPlanProvider 注入套餐摘要查询器（由 bootstrap 组装，避免循环依赖）
+func (s *TenantService) SetPlanProvider(p TenantPlanProvider) {
+	s.planProvider = p
+}
+
+// GetTenantPlanBriefs 批量查询租户套餐摘要（暴露给 handler 做列表增强）
+func (s *TenantService) GetTenantPlanBriefs(ctx context.Context, tenantIDs []string) (map[string]*planDto.TenantPlanBrief, error) {
+	if s.planProvider == nil {
+		return nil, nil
+	}
+	return s.planProvider.GetTenantPlansBrief(ctx, tenantIDs)
 }
 
 // Register 注册新租户及其管理员用户

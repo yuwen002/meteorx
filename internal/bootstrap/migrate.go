@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	planrepo "meteorx/internal/modules/plan/repository"
 	rbacrepo "meteorx/internal/modules/rbac/repository"
 	tenantrepo "meteorx/internal/modules/tenant/repository"
 	authrepo "meteorx/internal/modules/user/repository"
@@ -28,6 +29,12 @@ func AutoMigrate(db *gorm.DB) error {
 	err = tenantrepo.AutoMigrate(db)
 	if err != nil {
 		log.Printf("Migration failed: %v", err)
+		return err
+	}
+
+	err = planrepo.AutoMigrate(db)
+	if err != nil {
+		log.Printf("Plan migration failed: %v", err)
 		return err
 	}
 

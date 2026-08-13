@@ -165,11 +165,18 @@ func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 批量查询套餐摘要
+	tenantIDs := make([]string, len(tenants))
+	for i, t := range tenants {
+		tenantIDs[i] = t.ID
+	}
+	planBriefs, _ := h.svc.GetTenantPlanBriefs(r.Context(), tenantIDs)
+
 	// 4. 转换为 DTO
 	// 将查询到的租户数据转换为前端需要的响应格式
 	var list []dto.AdminTenantResp
 	for _, tenant := range tenants {
-		list = append(list, dto.AdminTenantResp{
+		item := dto.AdminTenantResp{
 			ID:           tenant.ID,
 			Name:         tenant.Name,
 			Domain:       tenant.Domain,
@@ -181,7 +188,12 @@ func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 			Extra:        tenant.Extra,
 			CreatedAt:    tenant.CreatedAt,
 			UpdatedAt:    tenant.UpdatedAt,
-		})
+		}
+		if brief, ok := planBriefs[tenant.ID]; ok {
+			item.PlanName = brief.PlanName
+			item.PlanExpired = brief.Expired
+		}
+		list = append(list, item)
 	}
 
 	// 5. 使用分页包返回结果

@@ -1,8 +1,10 @@
 package bootstrap
 
 import (
+	"context"
 	"meteorx/internal/modules/audit"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"gorm.io/gorm"
@@ -14,9 +16,13 @@ import (
 	auditRepo "meteorx/internal/modules/audit/repository"
 	auditSvc "meteorx/internal/modules/audit/service"
 	"meteorx/internal/modules/auth"
+	"meteorx/internal/modules/plan"
+	planRepo "meteorx/internal/modules/plan/repository"
+	planSvc "meteorx/internal/modules/plan/service"
 	"meteorx/internal/modules/rbac"
 	"meteorx/internal/modules/tenant"
 	"meteorx/internal/modules/user"
+	userRepo "meteorx/internal/modules/user/repository"
 	"meteorx/pkg/security"
 )
 
@@ -28,6 +34,9 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 
 	// 初始化限流器
 	rateLimiter := security.NewRateLimiter(rdb, cfg.Security.RateLimit)
+
+	// 初始化默认套餐（幂等）
+	initPlans(db)
 
 	// 基础检查
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -73,6 +82,9 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 			// 4.1 当前用户个人信息接口
 			user.InitProfileModule(r, db)
 
+			// 4.2 租户侧当前套餐查询
+			plan.InitPrivateModule(r, db)
+
 			// ========================================================
 			// 🔥 新增分组三：MaaS 平台运营后台特权接口 (Platform Admin Only)
 			// ========================================================
@@ -91,9 +103,27 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 
 				// 8. 审计日志管理接口（仅后台管理员可操作）
 				audit.InitModule(r, db)
+
+				// 9. 套餐管理接口（仅平台超级管理员可操作）
+				plan.InitAdminModule(r, db)
 			})
 		})
 	})
 
 	return r
+}
+
+// initPlans 初始化默认套餐（幂等）
+func initPlans(db *gorm.DB) {
+	pRepo := planRepo.NewPlanRepository(db)
+	subRepo := planRepo.NewSubscriptionRepository(db)
+	uRepo := userRepo.NewUserRepository(db)
+	svc := planSvc.NewPlanService(pRepo, subRepo, uRepo)
+	plan.SeedPlans(context.Background(), svc)
+}
+
+// StartPlanExpiryJob 启动订阅到期自动禁用租户的定时任务
+func StartPlanExpiryJob(db *gorm.DB) {
+	job := plan.NewExpiryJob(db)
+	job.Start(context.Background(), 5*time.Minute)
 }

@@ -2,6 +2,8 @@ package tenant
 
 import (
 	"meteorx/internal/modules/tenant/handler"
+	planrepo "meteorx/internal/modules/plan/repository"
+	plansvc "meteorx/internal/modules/plan/service"
 	rbacrepo "meteorx/internal/modules/rbac/repository"
 	tenantrepo "meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/tenant/service"
@@ -18,6 +20,13 @@ func initHandler(db *gorm.DB) *handler.TenantHandler {
 	roleRepo := rbacrepo.NewRoleRepository(db)
 	userRoleRepo := rbacrepo.NewUserRoleRepository(db)
 	svc := service.NewTenantService(tenantRepo, userRepo, roleRepo, userRoleRepo)
+
+	// 注入套餐摘要查询器（PlanService 实现了 TenantPlanProvider 接口）
+	planRepo := planrepo.NewPlanRepository(db)
+	subRepo := planrepo.NewSubscriptionRepository(db)
+	planSvc := plansvc.NewPlanService(planRepo, subRepo, userRepo)
+	svc.SetPlanProvider(planSvc)
+
 	return handler.NewTenantHandler(svc)
 }
 

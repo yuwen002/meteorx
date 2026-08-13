@@ -78,6 +78,12 @@ const routes: RouteRecordRaw[] = [
         name: 'AuditLog',
         component: () => import('@/views/system/audit/index.vue'),
         meta: { title: '审计日志', icon: 'Document', permission: 'audit:log:list', requireMaster: true }
+      },
+      {
+        path: 'system/plan',
+        name: 'Plan',
+        component: () => import('@/views/system/plan/index.vue'),
+        meta: { title: '套餐管理', icon: 'Goods', permission: 'plan:list', requireMaster: true }
       }
     ]
   },

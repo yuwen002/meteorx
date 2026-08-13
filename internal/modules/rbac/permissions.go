@@ -87,6 +87,18 @@ const (
 )
 
 // ============================================================
+// 套餐管理权限码（/api/v1/admin/plans 相关）
+// ============================================================
+const (
+	PlanList   = "plan:list"   // 查询套餐列表
+	PlanCreate = "plan:create" // 创建套餐
+	PlanUpdate = "plan:update" // 编辑套餐
+	PlanDelete = "plan:delete" // 删除套餐
+	PlanAssign = "plan:assign" // 为租户分配套餐
+	PlanSelect = "plan:select" // 查询启用套餐下拉列表
+)
+
+// ============================================================
 // 审计日志权限码（/api/v1/audit 相关）
 // ============================================================
 const (
@@ -158,6 +170,14 @@ func GetPermissionDefs() []PermissionDef {
 		{Name: "创建审计日志", Code: AuditLogCreate, Description: "创建审计日志记录（内部使用）", Resource: "audit_log", Action: "create"},
 		{Name: "查询审计日志详情", Code: AuditLogRead, Description: "查看单个审计日志详情", Resource: "audit_log", Action: "read"},
 		{Name: "清理审计日志", Code: AuditLogCleanup, Description: "清理过期审计日志", Resource: "audit_log", Action: "cleanup"},
+
+		// 套餐管理
+		{Name: "查询套餐列表", Code: PlanList, Description: "查询租户套餐列表", Resource: "plan", Action: "list"},
+		{Name: "创建套餐", Code: PlanCreate, Description: "创建新套餐", Resource: "plan", Action: "create"},
+		{Name: "编辑套餐", Code: PlanUpdate, Description: "编辑套餐信息", Resource: "plan", Action: "update"},
+		{Name: "删除套餐", Code: PlanDelete, Description: "删除套餐", Resource: "plan", Action: "delete"},
+		{Name: "分配套餐", Code: PlanAssign, Description: "为租户分配/变更套餐", Resource: "plan", Action: "assign"},
+		{Name: "查询套餐下拉", Code: PlanSelect, Description: "查询启用套餐下拉列表（不分页）", Resource: "plan", Action: "select"},
 	}
 }
 

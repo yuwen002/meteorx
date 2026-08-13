@@ -36,6 +36,9 @@ func StartApp() {
 	// 这样你的路由、中间件、业务模块都能拿到这个 db 实例
 	r := InitRouter(db, cfg, rdb)
 
+	// 6.1 启动订阅到期自动禁用租户的定时任务
+	StartPlanExpiryJob(db)
+
 	// 7. 启动服务
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	log.Printf("MeteorX server started on port %d [%s mode]", cfg.Server.Port, cfg.Server.Mode)

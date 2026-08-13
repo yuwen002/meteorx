@@ -6,6 +6,8 @@ import (
 	"fmt"
 	rbacModel "meteorx/internal/modules/rbac/model"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
+	planRepo "meteorx/internal/modules/plan/repository"
+	planService "meteorx/internal/modules/plan/service"
 	tenantRepository "meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/user/dto"
 	"meteorx/internal/modules/user/model"
@@ -15,10 +17,11 @@ import (
 )
 
 type UserService struct {
-	repo         repository.UserRepository
-	tenantRepo   tenantRepository.TenantRepository
-	roleRepo     rbacRepo.RoleRepository
-	userRoleRepo rbacRepo.UserRoleRepository
+	repo          repository.UserRepository
+	tenantRepo    tenantRepository.TenantRepository
+	roleRepo      rbacRepo.RoleRepository
+	userRoleRepo  rbacRepo.UserRoleRepository
+	quotaVerifier planRepo.QuotaVerifier
 }
 
 func NewUserService(
@@ -33,6 +36,32 @@ func NewUserService(
 		roleRepo:     roleRepo,
 		userRoleRepo: userRoleRepo,
 	}
+}
+
+// SetQuotaVerifier 注入配额校验器（由 bootstrap 组装，避免循环依赖）
+func (s *UserService) SetQuotaVerifier(v planRepo.QuotaVerifier) {
+	s.quotaVerifier = v
+}
+
+// checkUserQuota 校验创建用户时是否超出套餐配额
+func (s *UserService) checkUserQuota(ctx context.Context, tenantID string) error {
+	if s.quotaVerifier == nil {
+		return nil // 未配置配额校验则跳过
+	}
+	overLimit, users, limit, err := s.quotaVerifier.CheckUserLimit(ctx, tenantID)
+	if err != nil {
+		if errors.Is(err, planService.ErrPlanExpired) {
+			return errors.New("套餐已到期，请联系平台管理员续费")
+		}
+		if errors.Is(err, planService.ErrUserLimitExceeded) {
+			return fmt.Errorf("已达到套餐用户数上限（%d/%d），请联系平台管理员升级套餐", users, limit)
+		}
+		return err
+	}
+	if overLimit {
+		return fmt.Errorf("已达到套餐用户数上限（%d/%d），请联系平台管理员升级套餐", users, limit)
+	}
+	return nil
 }
 
 // validateRoleIDs 校验角色ID列表是否存在且启用，且 scope 匹配
@@ -224,6 +253,11 @@ func (s *UserService) Create(ctx context.Context, tenantID string, req dto.Creat
 	}
 	if exists {
 		return nil, fmt.Errorf("用户名已被使用")
+	}
+
+	// 校验套餐配额
+	if err := s.checkUserQuota(ctx, tenantID); err != nil {
+		return nil, err
 	}
 
 	// 校验角色
@@ -567,6 +601,11 @@ func (s *UserService) AdminCreateTenantUser(ctx context.Context, req dto.AdminCr
 	}
 	if exists {
 		return nil, fmt.Errorf("用户名已被使用")
+	}
+
+	// 校验套餐配额
+	if err := s.checkUserQuota(ctx, req.TenantID); err != nil {
+		return nil, err
 	}
 
 	// 校验角色
