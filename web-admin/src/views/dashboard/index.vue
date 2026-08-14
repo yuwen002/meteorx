@@ -8,13 +8,13 @@
               <el-icon><User /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">用户总数</div>
+              <div class="stat-label">{{ isAdmin ? '用户总数' : '我的租户用户' }}</div>
               <div class="stat-value">{{ stats.users }}</div>
             </div>
           </div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="6" v-if="isAdmin">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
             <div class="stat-icon role-icon">
@@ -27,7 +27,7 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="6" v-if="isAdmin">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
             <div class="stat-icon perm-icon">
@@ -57,25 +57,42 @@
 
     <el-card class="welcome-card" shadow="never">
       <template #header>
-        <span><el-icon><TrendCharts /></el-icon> 系统信息</span>
+        <span><el-icon><TrendCharts /></el-icon>{{ isAdmin ? '系统信息' : '工作台' }}</span>
       </template>
       <div class="welcome">
         <h3>欢迎，{{ userStore.userInfo?.nickname || userStore.userInfo?.username || '用户' }}！</h3>
-        <p>这是一个基于 Vue 3 + Element Plus + Go 后端（Chi + GORM）的多租户 RBAC 管理系统。</p>
+        <p v-if="isAdmin">这是一个基于 Vue 3 + Element Plus + Go 后端（Chi + GORM）的多租户 RBAC 管理系统。</p>
+        <p v-else>您已登录租户管理后台，可以管理本租户下的用户和角色。</p>
         <el-divider />
         <div class="feature-list">
-          <div>✅ 用户管理：新增、编辑、删除、启用/禁用</div>
-          <div>✅ 角色管理：角色绑定权限、角色绑定用户</div>
-          <div>✅ 权限管理：基于 code 的权限码，自动注册到数据库</div>
-          <div>✅ 权限控制：路由级 + 按钮级双重控制</div>
-          <div>✅ 多租户：租户隔离 + 系统管理员（is_master）</div>
+          <template v-if="isAdmin">
+            <div>✅ 用户管理：新增、编辑、删除、启用/禁用</div>
+            <div>✅ 角色管理：角色绑定权限、角色绑定用户</div>
+            <div>✅ 权限管理：基于 code 的权限码，自动注册到数据库</div>
+            <div>✅ 权限控制：路由级 + 按钮级双重控制</div>
+            <div>✅ 多租户：租户隔离 + 系统管理员（is_master）</div>
+          </template>
+          <template v-else>
+            <div>👥 用户管理：管理本租户下的用户</div>
+            <div>🔐 角色权限：查看和分配用户角色</div>
+            <div>📊 数据隔离：仅显示本租户数据</div>
+            <div>🔑 安全登录：支持租户 ID + 账号密码登录</div>
+          </template>
         </div>
         <el-divider />
         <div class="next-steps">
           <div style="font-weight: 600; margin-bottom: 8px">接下来你可以：</div>
-          <el-tag type="info" style="margin: 4px">在"用户管理"中新增一个用户</el-tag>
-          <el-tag type="info" style="margin: 4px">在"角色管理"中创建角色并绑定权限</el-tag>
-          <el-tag type="info" style="margin: 4px">在"权限管理"中查看所有系统权限</el-tag>
+          <template v-if="isAdmin">
+            <el-tag type="info" style="margin: 4px">在"用户管理"中新增一个用户</el-tag>
+            <el-tag type="info" style="margin: 4px">在"角色管理"中创建角色并绑定权限</el-tag>
+            <el-tag type="info" style="margin: 4px">在"权限管理"中查看所有系统权限</el-tag>
+            <el-tag type="info" style="margin: 4px">在"租户管理"中创建和管理租户</el-tag>
+          </template>
+          <template v-else>
+            <el-tag type="info" style="margin: 4px">在"用户管理"中新增租户用户</el-tag>
+            <el-tag type="info" style="margin: 4px">在"角色管理"中管理租户角色</el-tag>
+            <el-tag type="info" style="margin: 4px">在"个人中心"中修改个人资料</el-tag>
+          </template>
         </div>
       </div>
     </el-card>
@@ -83,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getUserStats, getAllUserStats } from '@/api/modules/user'
@@ -92,20 +109,29 @@ import { getRBACStats } from '@/api/modules/role'
 const userStore = useUserStore()
 const stats = ref({ users: 0, roles: 0, permissions: 0, my_permission: 0 })
 
+const isAdmin = computed(() => !!userStore.userInfo?.is_master)
+
 onMounted(async () => {
   try {
-    // 获取 RBAC 统计信息
-    const rbacStats = await getRBACStats()
-    // 获取用户总数：管理员显示所有用户，普通用户显示当前租户用户
-    const userStats = userStore.userInfo?.is_master
-      ? await getAllUserStats()
-      : await getUserStats()
-
-    stats.value = {
-      users: userStats.user_count ?? 0,
-      roles: rbacStats.role_count ?? 0,
-      permissions: rbacStats.permission_count ?? 0,
-      my_permission: rbacStats.my_permission ?? 0
+    if (isAdmin.value) {
+      const [rbacStats, userStats] = await Promise.allSettled([
+        getRBACStats(),
+        getAllUserStats()
+      ])
+      if (rbacStats.status === 'fulfilled') {
+        stats.value.roles = rbacStats.value.role_count ?? 0
+        stats.value.permissions = rbacStats.value.permission_count ?? 0
+        stats.value.my_permission = rbacStats.value.my_permission ?? 0
+      }
+      if (userStats.status === 'fulfilled') {
+        stats.value.users = userStats.value.user_count ?? 0
+      }
+    } else {
+      const userStats = await getUserStats()
+      stats.value.users = userStats.user_count ?? 0
+      stats.value.roles = 0
+      stats.value.permissions = 0
+      stats.value.my_permission = userStore.permissions.length
     }
   } catch (e) {
     ElMessage.warning('部分统计数据加载失败')

@@ -45,6 +45,21 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" />
+        <el-table-column prop="id" label="租户ID" min-width="260" show-overflow-tooltip>
+          <template #default="{ row }">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-family: monospace; color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ row.id }}</span>
+              <el-button
+                link
+                type="primary"
+                size="small"
+                :icon="CopyDocument"
+                @click="copyId(row.id)"
+                title="复制"
+              />
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="name" label="租户名称" min-width="150" />
         <el-table-column prop="domain" label="域名" min-width="120">
           <template #default="{ row }">
@@ -489,7 +504,7 @@
 import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Search, Plus, Delete } from '@element-plus/icons-vue'
+import { Search, Plus, Delete, CopyDocument } from '@element-plus/icons-vue'
 import {
   getTenantList,
   createTenant,
@@ -723,6 +738,15 @@ function resetSearch() {
 
 function handleSelectionChange(selection: TenantItem[]) {
   selectedIds.value = selection.map((row) => row.id).filter(Boolean) as string[]
+}
+
+async function copyId(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('已复制到剪贴板')
+  } catch {
+    ElMessage.error('复制失败')
+  }
 }
 
 function openCreateDialog() {

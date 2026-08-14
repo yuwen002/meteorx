@@ -3,12 +3,32 @@
     <div class="login-box">
       <div class="login-title">
         <h2>MeteorX 管理后台</h2>
-        <p>欢迎登录，请使用您的账号</p>
+        <p>{{ loginMode === 'admin' ? '系统管理员登录' : '租户用户登录' }}</p>
       </div>
+
+      <div class="login-mode-switch">
+        <div
+          class="mode-tab"
+          :class="{ active: loginMode === 'admin' }"
+          @click="switchMode('admin')"
+        >
+          <el-icon><Avatar /></el-icon>
+          <span>管理员</span>
+        </div>
+        <div
+          class="mode-tab"
+          :class="{ active: loginMode === 'tenant' }"
+          @click="switchMode('tenant')"
+        >
+          <el-icon><OfficeBuilding /></el-icon>
+          <span>租户</span>
+        </div>
+      </div>
+
       <el-form
         ref="formRef"
         :model="form"
-        :rules="rules"
+        :rules="formRules"
         label-position="top"
         class="login-form"
         @keyup.enter="handleLogin"
@@ -26,16 +46,21 @@
             size="large"
           />
         </el-form-item>
-        <el-form-item label="租户 ID（可选）" v-if="false">
-          <el-input v-model="form.tenant_id" placeholder="多租户场景下使用" size="large" />
+        <el-form-item v-if="loginMode === 'tenant'" label="租户 ID" prop="tenant_id">
+          <el-input
+            v-model="form.tenant_id"
+            placeholder="请输入您的租户 ID"
+            prefix-icon="OfficeBuilding"
+            clearable
+            size="large"
+          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="loading" @click="handleLogin" size="large" style="width: 100%">
             登 录
           </el-button>
         </el-form-item>
-        <!-- 登录错误提示 -->
-        <div v-if="loginError.show" class="login-error" :class="{ 'locked': loginError.locked }">
+        <div v-if="loginError.show" class="login-error" :class="{ locked: loginError.locked }">
           <el-icon><Warning /></el-icon>
           <span>{{ loginError.message }}</span>
           <div v-if="!loginError.locked && loginError.remainingAttempts > 0" class="attempts-warning">
@@ -47,7 +72,7 @@
         </div>
         <div class="tips">
           <el-icon><InfoFilled /></el-icon>
-          默认管理员账号：admin / 123456
+          {{ loginMode === 'admin' ? '默认管理员账号：admin / 123456' : '请输入租户 ID 和租户账号' }}
         </div>
       </el-form>
     </div>
@@ -55,20 +80,23 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import { InfoFilled, Warning } from '@element-plus/icons-vue'
+import { InfoFilled, Warning, Avatar, OfficeBuilding } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import type { LoginParams, LoginErrorData } from '@/api/auth'
-import axios from 'axios'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
+
+type LoginMode = 'admin' | 'tenant'
+const loginMode = ref<LoginMode>('admin')
+
 const loginError = reactive<{
   show: boolean
   message: string
@@ -89,9 +117,20 @@ const form = reactive<LoginParams>({
   tenant_id: ''
 })
 
-const rules: FormRules = {
+const formRules = computed<FormRules>(() => ({
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  tenant_id: loginMode.value === 'tenant'
+    ? [{ required: true, message: '请输入租户 ID', trigger: 'blur' }]
+    : []
+}))
+
+function switchMode(mode: LoginMode) {
+  loginMode.value = mode
+  loginError.show = false
+  if (mode === 'admin') {
+    form.tenant_id = ''
+  }
 }
 
 async function handleLogin() {
@@ -101,16 +140,18 @@ async function handleLogin() {
     loading.value = true
     loginError.show = false
     try {
-      await userStore.doLogin({
+      const params: LoginParams = {
         username: form.username.trim(),
-        password: form.password,
-        tenant_id: form.tenant_id || undefined
-      })
+        password: form.password
+      }
+      if (loginMode.value === 'tenant' && form.tenant_id) {
+        params.tenant_id = form.tenant_id.trim()
+      }
+      await userStore.doLogin(params)
       ElMessage.success('登录成功')
       const redirect = (route.query.redirect as string) || '/'
       router.push(redirect)
     } catch (e: any) {
-      // 处理登录错误，显示剩余尝试次数
       if (e.response?.status === 401 && e.response?.data?.data) {
         const errorData: LoginErrorData = e.response.data.data
         loginError.show = true
@@ -144,7 +185,7 @@ async function handleLogin() {
 }
 .login-title {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 24px;
 }
 .login-title h2 {
   margin: 0 0 8px;
@@ -156,8 +197,41 @@ async function handleLogin() {
   color: #6b7280;
   font-size: 14px;
 }
+
+.login-mode-switch {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  background: #f3f4f6;
+  padding: 4px;
+  border-radius: 8px;
+}
+.mode-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #6b7280;
+  transition: all 0.2s;
+  user-select: none;
+}
+.mode-tab:hover {
+  color: #374151;
+}
+.mode-tab.active {
+  background: #fff;
+  color: #667eea;
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
 .login-form {
-  margin-top: 20px;
+  margin-top: 0;
 }
 .tips {
   display: flex;

@@ -51,6 +51,21 @@
         row-key="id"
       >
         <el-table-column type="selection" width="55" />
+        <el-table-column prop="id" label="租户ID" min-width="260" show-overflow-tooltip>
+          <template #default="{ row }">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-family: monospace; color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ row.id }}</span>
+              <el-button
+                link
+                type="primary"
+                size="small"
+                :icon="CopyDocument"
+                @click="copyId(row.id)"
+                title="复制"
+              />
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column label="租户名称" prop="name" min-width="150" />
         <el-table-column label="域名" prop="domain" min-width="120">
           <template #default="{ row }">
@@ -91,7 +106,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Search, RefreshLeft } from '@element-plus/icons-vue'
+import { ArrowLeft, Search, RefreshLeft, CopyDocument } from '@element-plus/icons-vue'
 import {
   getDeletedTenantList,
   restoreTenant,
@@ -112,6 +127,15 @@ const search = reactive({ name: '' })
 
 function goBack() {
   router.push('/system/tenant')
+}
+
+async function copyId(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('已复制到剪贴板')
+  } catch {
+    ElMessage.error('复制失败')
+  }
 }
 
 function formatDate(dateStr?: string) {
