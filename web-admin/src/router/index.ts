@@ -83,7 +83,7 @@ const routes: RouteRecordRaw[] = [
         path: 'system/plan',
         name: 'Plan',
         component: () => import('@/views/system/plan/index.vue'),
-        meta: { title: '套餐管理', icon: 'Goods', permission: 'plan:list', requireMaster: true }
+        meta: { title: '套餐管理', icon: 'Goods', permission: 'admin:plan:list', requireMaster: true }
       }
     ]
   },

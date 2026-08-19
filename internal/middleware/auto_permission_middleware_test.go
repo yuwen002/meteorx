@@ -30,22 +30,55 @@ func buildTestRouter() *chi.Mux {
 
 		// RBAC 路由
 		r.Route("/rbac", func(r chi.Router) {
+			// 角色管理
 			r.Route("/roles", func(r chi.Router) {
 				r.Get("/", noop)
 				r.Post("/", noop)
+				r.Get("/select", noop)
+				r.Get("/system-admin", noop)
+				r.Get("/deleted", noop)
+				r.Put("/batch/status", noop)
+				r.Delete("/batch/delete", noop)
+				r.Put("/batch/permissions", noop)
+				r.Delete("/batch/permissions", noop)
+				r.Put("/{id}/restore", noop)
 				r.Get("/{id}/detail", noop)
 				r.Put("/{id}/update", noop)
+				r.Put("/{id}/status", noop)
 				r.Delete("/{id}/delete", noop)
 				r.Put("/{id}/permissions", noop)
+				r.Get("/{id}/permissions", noop)
 				r.Delete("/{id}/permissions", noop)
-				r.Delete("/{id}/permissions/{perm_id}", noop)
+				r.Delete("/{id}/permissions/batch", noop)
 			})
+			// 权限管理
+			r.Route("/permissions", func(r chi.Router) {
+				r.Get("/", noop)
+				r.Post("/", noop)
+				r.Put("/batch/status", noop)
+				r.Delete("/batch/delete", noop)
+				r.Get("/{id}/detail", noop)
+				r.Put("/{id}/update", noop)
+				r.Put("/{id}/status", noop)
+				r.Delete("/{id}/delete", noop)
+			})
+			// 角色权限关系
+			r.Route("/role-permissions", func(r chi.Router) {
+				r.Get("/", noop)
+			})
+			// 用户角色管理
 			r.Route("/user-roles", func(r chi.Router) {
 				r.Get("/", noop)
-				r.Post("/{user_id}/roles", noop)
-				r.Get("/{user_id}/roles", noop)
-				r.Delete("/{user_id}/roles", noop)
-				r.Delete("/{user_id}/roles/{role_id}", noop)
+				r.Post("/batch/assign", noop)
+				r.Route("/{user_id}/roles", func(r chi.Router) {
+					r.Post("/", noop)
+					r.Get("/", noop)
+					r.Delete("/", noop)
+					r.Delete("/{role_id}", noop)
+				})
+				r.Route("/roles/{role_id}/users", func(r chi.Router) {
+					r.Get("/", noop)
+				})
 			})
 		})
 
@@ -200,18 +233,47 @@ func TestDerivePermissionCode_RBAC(t *testing.T) {
 	r := buildTestRouter()
 
 	cases := []testCase{
+		// 角色管理
 		{"role list", http.MethodGet, "/api/v1/rbac/roles", "rbac:role:list"},
 		{"role create", http.MethodPost, "/api/v1/rbac/roles", "rbac:role:create"},
+		{"role list_select", http.MethodGet, "/api/v1/rbac/roles/select", "rbac:role:list_select"},
+		{"role list_system_admin", http.MethodGet, "/api/v1/rbac/roles/system-admin", "rbac:role:list_system_admin"},
+		{"role list_deleted", http.MethodGet, "/api/v1/rbac/roles/deleted", "rbac:role:list_deleted"},
+		{"role batch_status", http.MethodPut, "/api/v1/rbac/roles/batch/status", "rbac:role:batch_status"},
+		{"role batch_delete", http.MethodDelete, "/api/v1/rbac/roles/batch/delete", "rbac:role:batch_delete"},
+		{"role batch_bind", http.MethodPut, "/api/v1/rbac/roles/batch/permissions", "rbac:role:batch_bind"},
+		{"role batch_unbind", http.MethodDelete, "/api/v1/rbac/roles/batch/permissions", "rbac:role:batch_unbind"},
+		{"role restore", http.MethodPut, "/api/v1/rbac/roles/{id}/restore", "rbac:role:restore"},
 		{"role read", http.MethodGet, "/api/v1/rbac/roles/{id}/detail", "rbac:role:read"},
 		{"role update", http.MethodPut, "/api/v1/rbac/roles/{id}/update", "rbac:role:update"},
+		{"role status", http.MethodPut, "/api/v1/rbac/roles/{id}/status", "rbac:role:status"},
 		{"role delete", http.MethodDelete, "/api/v1/rbac/roles/{id}/delete", "rbac:role:delete"},
 		{"role bind_perm", http.MethodPut, "/api/v1/rbac/roles/{id}/permissions", "rbac:role:bind_perm"},
+		{"role get_perms", http.MethodGet, "/api/v1/rbac/roles/{id}/permissions", "rbac:role:get_perms"},
 		{"role unbind_perm", http.MethodDelete, "/api/v1/rbac/roles/{id}/permissions", "rbac:role:unbind_perm"},
+		{"role batch_unbind_perm", http.MethodDelete, "/api/v1/rbac/roles/{id}/permissions/batch", "rbac:role:batch_unbind_perm"},
+
+		// 权限管理
+		{"perm list", http.MethodGet, "/api/v1/rbac/permissions", "rbac:perm:list"},
+		{"perm create", http.MethodPost, "/api/v1/rbac/permissions", "rbac:perm:create"},
+		{"perm batch_status", http.MethodPut, "/api/v1/rbac/permissions/batch/status", "rbac:perm:batch_status"},
+		{"perm batch_delete", http.MethodDelete, "/api/v1/rbac/permissions/batch/delete", "rbac:perm:batch_delete"},
+		{"perm read", http.MethodGet, "/api/v1/rbac/permissions/{id}/detail", "rbac:perm:read"},
+		{"perm update", http.MethodPut, "/api/v1/rbac/permissions/{id}/update", "rbac:perm:update"},
+		{"perm status", http.MethodPut, "/api/v1/rbac/permissions/{id}/status", "rbac:perm:status"},
+		{"perm delete", http.MethodDelete, "/api/v1/rbac/permissions/{id}/delete", "rbac:perm:delete"},
+
+		// 角色权限关系
+		{"role_perm list", http.MethodGet, "/api/v1/rbac/role-permissions", "rbac:role_perm:list"},
+
+		// 用户角色管理
 		{"user_role list", http.MethodGet, "/api/v1/rbac/user-roles", "rbac:user_role:list"},
+		{"user_role batch_assign", http.MethodPost, "/api/v1/rbac/user-roles/batch/assign", "rbac:user_role:batch_assign"},
 		{"user_role assign", http.MethodPost, "/api/v1/rbac/user-roles/{user_id}/roles", "rbac:user_role:assign"},
 		{"user_role get_roles", http.MethodGet, "/api/v1/rbac/user-roles/{user_id}/roles", "rbac:user_role:get_roles"},
 		{"user_role remove_all", http.MethodDelete, "/api/v1/rbac/user-roles/{user_id}/roles", "rbac:user_role:remove_all"},
 		{"user_role remove_one", http.MethodDelete, "/api/v1/rbac/user-roles/{user_id}/roles/{role_id}", "rbac:user_role:remove_one"},
+		{"user_role get_users", http.MethodGet, "/api/v1/rbac/user-roles/roles/{role_id}/users", "rbac:user_role:get_users"},
 	}
 
 	for _, c := range cases {

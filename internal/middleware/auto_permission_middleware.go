@@ -209,6 +209,11 @@ func derivePermissionCode(r *http.Request) string {
 		action = "assign"
 	}
 
+	// 特殊覆盖：plan/select → select（套餐下拉列表，不用 list_select）
+	if resource == "plan" && action == "list_select" {
+		action = "select"
+	}
+
 	// ====== Step 4: 组合权限码 ======
 	switch {
 	case hasRBACPrefix:
@@ -289,10 +294,17 @@ func deriveAction(method, remaining string) string {
 		}
 	}
 
-	// 下拉选择：select（如套餐下拉列表）
+	// 下拉选择：select → list_select（角色/套餐等下拉列表）
 	if strings.Contains(remaining, "select") {
 		if method == "GET" {
-			return "select"
+			return "list_select"
+		}
+	}
+
+	// 系统管理员角色列表：system-admin → list_system_admin
+	if strings.Contains(remaining, "system-admin") || strings.Contains(remaining, "system_admin") {
+		if method == "GET" {
+			return "list_system_admin"
 		}
 	}
 
@@ -312,11 +324,26 @@ func deriveAction(method, remaining string) string {
 		case strings.Contains(remaining, "delete"):
 			return "batch_delete"
 		case strings.Contains(remaining, "permissions"):
-			if method == "PUT" {
-				return "batch_bind"
-			}
-			if method == "DELETE" {
-				return "batch_unbind"
+			// batch 在前 → batch_bind/batch_unbind（批量绑定/解绑权限到角色）
+			// permissions 在前 → batch_bind_perm/batch_unbind_perm（批量解绑角色的权限）
+			batchIdx := strings.Index(remaining, "batch")
+			permIdx := strings.Index(remaining, "permissions")
+			if batchIdx < permIdx {
+				// batch/permissions → 批量绑定/解绑
+				if method == "PUT" {
+					return "batch_bind"
+				}
+				if method == "DELETE" {
+					return "batch_unbind"
+				}
+			} else {
+				// {param}/permissions/batch → 批量解绑权限
+				if method == "PUT" {
+					return "batch_bind_perm"
+				}
+				if method == "DELETE" {
+					return "batch_unbind_perm"
+				}
 			}
 		case strings.Contains(remaining, "assign"):
 			return "batch_assign"
