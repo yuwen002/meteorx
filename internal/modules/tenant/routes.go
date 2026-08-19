@@ -1,6 +1,7 @@
 package tenant
 
 import (
+	"meteorx/internal/middleware"
 	"meteorx/internal/modules/tenant/handler"
 
 	"github.com/go-chi/chi/v5"
@@ -24,17 +25,19 @@ func RegisterPrivateRoutes(r chi.Router, h *handler.TenantHandler) {
 }
 
 // RegisterAdminRoutes 编排 MaaS 平台超级管理员的控制台接口
-func RegisterAdminRoutes(r chi.Router, h *handler.TenantHandler) {
+// 挂载 AutoRequirePermission 中间件做细粒度权限校验
+func RegisterAdminRoutes(r chi.Router, h *handler.TenantHandler, checker middleware.PermissionChecker) {
 	r.Route("/admin/tenants", func(r chi.Router) {
-		r.Post("/", h.AdminCreate)                       // 后台手动新建租户
-		r.Get("/", h.List)                               // 后台分页查全盘租户
-		r.Get("/deleted", h.AdminDeletedList)            // 回收站：查询已软删除的租户列表
-		r.Put("/batch/status", h.AdminBatchUpdateStatus) // 批量启用/禁用租户
-		r.Delete("/batch", h.AdminBatchDelete)           // 批量软删除租户
-		r.Put("/{id}/status", h.AdminUpdateStatus)       // 后台禁用/启用租户
-		r.Get("/{id}/detail", h.AdminDetail)             // 后台查询租户详情
-		r.Put("/{id}/update", h.AdminUpdate)             // 后台编辑租户信息
-		r.Delete("/{id}/delete", h.AdminDelete)          // 后台软删除租户
-		r.Put("/{id}/restore", h.AdminRestore)           // 回收站：恢复已软删除的租户
+		r.Use(middleware.AutoRequirePermission(checker))
+		r.Post("/", h.AdminCreate)                       // → admin:tenant:create
+		r.Get("/", h.List)                               // → admin:tenant:list
+		r.Get("/deleted", h.AdminDeletedList)            // → admin:tenant:list_deleted
+		r.Put("/batch/status", h.AdminBatchUpdateStatus) // → admin:tenant:batch_status
+		r.Delete("/batch", h.AdminBatchDelete)           // → admin:tenant:batch_delete
+		r.Put("/{id}/status", h.AdminUpdateStatus)       // → admin:tenant:status
+		r.Get("/{id}/detail", h.AdminDetail)             // → admin:tenant:read
+		r.Put("/{id}/update", h.AdminUpdate)             // → admin:tenant:update
+		r.Delete("/{id}/delete", h.AdminDelete)          // → admin:tenant:delete
+		r.Put("/{id}/restore", h.AdminRestore)           // → admin:tenant:restore
 	})
 }

@@ -1,10 +1,12 @@
 package tenant
 
 import (
-	"meteorx/internal/modules/tenant/handler"
+	"meteorx/internal/middleware"
 	planrepo "meteorx/internal/modules/plan/repository"
 	plansvc "meteorx/internal/modules/plan/service"
 	rbacrepo "meteorx/internal/modules/rbac/repository"
+	rbacsvc "meteorx/internal/modules/rbac/service"
+	"meteorx/internal/modules/tenant/handler"
 	tenantrepo "meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/tenant/service"
 	userrepository "meteorx/internal/modules/user/repository"
@@ -30,20 +32,30 @@ func initHandler(db *gorm.DB) *handler.TenantHandler {
 	return handler.NewTenantHandler(svc)
 }
 
+// initPermissionChecker 创建权限检查器（复用 RBACService）
+func initPermissionChecker(db *gorm.DB) middleware.PermissionChecker {
+	roleRepo := rbacrepo.NewRoleRepository(db)
+	permRepo := rbacrepo.NewPermissionRepository(db)
+	rolePermRepo := rbacrepo.NewRolePermissionRepository(db)
+	userRoleRepo := rbacrepo.NewUserRoleRepository(db)
+	return rbacsvc.NewRBACService(roleRepo, permRepo, rolePermRepo, userRoleRepo)
+}
+
 // InitPublicModule 1. 完全公开的租户接口入口
 func InitPublicModule(r chi.Router, db *gorm.DB) {
 	h := initHandler(db)
-	RegisterPublicRoutes(r, h) // 👈 扔给 routes.go 去编排路径
+	RegisterPublicRoutes(r, h)
 }
 
 // InitPrivateModule 2. 租户内部的管理私有接口入口
 func InitPrivateModule(r chi.Router, db *gorm.DB) {
 	h := initHandler(db)
-	RegisterPrivateRoutes(r, h) // 👈 扔给 routes.go 去编排路径
+	RegisterPrivateRoutes(r, h)
 }
 
 // InitAdminModule 3. MaaS 平台超级管理员的控制台接口入口
 func InitAdminModule(r chi.Router, db *gorm.DB) {
 	h := initHandler(db)
-	RegisterAdminRoutes(r, h) // 👈 扔给 routes.go 去编排路径
+	checker := initPermissionChecker(db)
+	RegisterAdminRoutes(r, h, checker)
 }

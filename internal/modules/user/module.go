@@ -49,6 +49,6 @@ func InitProfileModule(r chi.Router, db *gorm.DB) {
 
 // InitAdminModule 用户模块的系统管理员接口初始化
 func InitAdminModule(r chi.Router, db *gorm.DB) {
-	h, _ := initHandler(db)
-	RegisterAdminRoutes(r, h)
+	h, checker := initHandler(db)
+	RegisterAdminRoutes(r, h, checker)
 }

@@ -36,38 +36,41 @@ func RegisterRoutes(r chi.Router, h *handler.UserHandler, checker middleware.Per
 }
 
 // RegisterAdminRoutes 编排系统管理员管理接口（仅限平台超级管理员）
-// 超级管理员已通过外层 RequiresMasterAdmin 中间件放行，这里不再重复配置权限校验
-func RegisterAdminRoutes(r chi.Router, h *handler.UserHandler) {
+// 超级管理员已通过外层 RequiresMasterAdmin 中间件放行，
+// 其他管理员通过 AutoRequirePermission 中间件做细粒度权限校验
+func RegisterAdminRoutes(r chi.Router, h *handler.UserHandler, checker middleware.PermissionChecker) {
 	r.Get("/admin/stats", h.GetAllStats) // Dashboard: 所有用户总数
 
 	r.Route("/admin/users", func(r chi.Router) {
-		r.Get("/", h.ListMasterAdmins)                               // 获取系统管理员列表
-		r.Post("/", h.CreateMasterAdmin)                             // 创建系统管理员
-		r.Get("/deleted", h.ListDeletedMasterAdmins)                 // 回收站：获取已删除的系统管理员列表
-		r.Put("/{id}/restore", h.RestoreMasterAdmin)                 // 回收站：恢复已删除的系统管理员
-		r.Delete("/{id}/permanent", h.PermanentDeleteMasterAdmin)    // 回收站：永久删除系统管理员
-		r.Put("/batch/status", h.BatchUpdateMasterAdminStatus)       // 批量更新系统管理员状态
-		r.Delete("/batch/delete", h.BatchDeleteMasterAdmins)         // 批量删除系统管理员
-		r.Get("/{id}/detail", h.GetMasterAdmin)                      // 获取系统管理员详情
-		r.Put("/{id}/update", h.UpdateMasterAdmin)                   // 更新系统管理员
-		r.Put("/{id}/status", h.UpdateMasterAdminStatus)             // 更新系统管理员状态
-		r.Delete("/{id}/delete", h.DeleteMasterAdmin)                // 删除系统管理员
+		r.Use(middleware.AutoRequirePermission(checker))
+		r.Get("/", h.ListMasterAdmins)                               // → admin:master:list
+		r.Post("/", h.CreateMasterAdmin)                             // → admin:master:create
+		r.Get("/deleted", h.ListDeletedMasterAdmins)                 // → admin:master:list_deleted
+		r.Put("/{id}/restore", h.RestoreMasterAdmin)                 // → admin:master:restore
+		r.Delete("/{id}/permanent", h.PermanentDeleteMasterAdmin)    // → admin:master:permanent_delete
+		r.Put("/batch/status", h.BatchUpdateMasterAdminStatus)       // → admin:master:batch_status
+		r.Delete("/batch/delete", h.BatchDeleteMasterAdmins)         // → admin:master:batch_delete
+		r.Get("/{id}/detail", h.GetMasterAdmin)                      // → admin:master:read
+		r.Put("/{id}/update", h.UpdateMasterAdmin)                   // → admin:master:update
+		r.Put("/{id}/status", h.UpdateMasterAdminStatus)             // → admin:master:status
+		r.Delete("/{id}/delete", h.DeleteMasterAdmin)                // → admin:master:delete
 	})
 
 	// 系统管理员跨租户用户管理
 	r.Route("/admin/tenant-users", func(r chi.Router) {
-		r.Post("/", h.AdminCreateTenantUser)                             // 为指定租户创建用户
-		r.Get("/all", h.AdminListAllTenantUsers)                         // 获取所有租户用户列表（不包括系统管理员）
-		r.Get("/deleted/all", h.AdminListAllDeletedTenantUsers)          // 回收站：获取所有租户的已删除用户列表
-		r.Get("/{tenantID}/list", h.AdminListTenantUsers)                // 获取指定租户的用户列表
-		r.Get("/{tenantID}/deleted", h.AdminListDeletedTenantUsers)      // 回收站：获取指定租户的已删除用户列表
-		r.Put("/{tenantID}/{userID}/update", h.AdminUpdateTenantUser)    // 更新指定租户的用户
-		r.Put("/{tenantID}/{userID}/status", h.AdminUpdateTenantUserStatus) // 更新指定租户的用户状态
-		r.Put("/{tenantID}/{userID}/reset-password", h.AdminResetTenantUserPassword) // 重置指定租户用户的密码
-		r.Put("/{tenantID}/{userID}/restore", h.AdminRestoreTenantUser)  // 恢复已删除的租户用户
-		r.Delete("/{tenantID}/{userID}/delete", h.AdminDeleteTenantUser) // 删除指定租户的用户
-		r.Delete("/{tenantID}/{userID}/permanent", h.AdminPermanentDeleteTenantUser) // 永久删除租户用户
-		r.Put("/{tenantID}/batch/status", h.AdminBatchUpdateTenantUserStatus) // 批量更新指定租户的用户状态
-		r.Delete("/{tenantID}/batch/delete", h.AdminBatchDeleteTenantUsers)  // 批量删除指定租户的用户
+		r.Use(middleware.AutoRequirePermission(checker))
+		r.Post("/", h.AdminCreateTenantUser)                             // → admin:tenant_user:create
+		r.Get("/all", h.AdminListAllTenantUsers)                         // → admin:tenant_user:list
+		r.Get("/deleted/all", h.AdminListAllDeletedTenantUsers)          // → admin:tenant_user:list_deleted
+		r.Get("/{tenantID}/list", h.AdminListTenantUsers)                // → admin:tenant_user:list
+		r.Get("/{tenantID}/deleted", h.AdminListDeletedTenantUsers)      // → admin:tenant_user:list_deleted
+		r.Put("/{tenantID}/{userID}/update", h.AdminUpdateTenantUser)    // → admin:tenant_user:update
+		r.Put("/{tenantID}/{userID}/status", h.AdminUpdateTenantUserStatus) // → admin:tenant_user:status
+		r.Put("/{tenantID}/{userID}/reset-password", h.AdminResetTenantUserPassword) // → admin:tenant_user:reset_password
+		r.Put("/{tenantID}/{userID}/restore", h.AdminRestoreTenantUser)  // → admin:tenant_user:restore
+		r.Delete("/{tenantID}/{userID}/delete", h.AdminDeleteTenantUser) // → admin:tenant_user:delete
+		r.Delete("/{tenantID}/{userID}/permanent", h.AdminPermanentDeleteTenantUser) // → admin:tenant_user:permanent_delete
+		r.Put("/{tenantID}/batch/status", h.AdminBatchUpdateTenantUserStatus) // → admin:tenant_user:batch_status
+		r.Delete("/{tenantID}/batch/delete", h.AdminBatchDeleteTenantUsers)  // → admin:tenant_user:batch_delete
 	})
 }
