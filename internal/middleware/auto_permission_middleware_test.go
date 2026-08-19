@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,43 +9,43 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// buildTestRouter 构建一个可用于 derivePermissionCode 测试的 chi.Router
-// 它会注册与实际路由一致的 pattern，以便 chi.RouteContext 能正确识别
+// buildTestRouter 构建与实际路由一致的 chi.Mux，用于权限码推导测试
 func buildTestRouter() *chi.Mux {
 	r := chi.NewRouter()
 	r.Route("/api/v1", func(r chi.Router) {
 		// 租户侧用户路由
 		r.Route("/users", func(r chi.Router) {
-			r.Get("/", func(_ http.ResponseWriter, _ *http.Request) {})
-			r.Post("/", func(_ http.ResponseWriter, _ *http.Request) {})
-			r.Get("/deleted", func(_ http.ResponseWriter, _ *http.Request) {})
-			r.Get("/{id}/detail", func(_ http.ResponseWriter, _ *http.Request) {})
-			r.Put("/{id}/update", func(_ http.ResponseWriter, _ *http.Request) {})
-			r.Put("/{id}/reset-password", func(_ http.ResponseWriter, _ *http.Request) {})
-			r.Delete("/{id}/delete", func(_ http.ResponseWriter, _ *http.Request) {})
-			r.Put("/{id}/restore", func(_ http.ResponseWriter, _ *http.Request) {})
-			r.Delete("/{id}/permanent", func(_ http.ResponseWriter, _ *http.Request) {})
-			r.Put("/batch/status", func(_ http.ResponseWriter, _ *http.Request) {})
-			r.Delete("/batch/delete", func(_ http.ResponseWriter, _ *http.Request) {})
+			r.Get("/", noop)
+			r.Post("/", noop)
+			r.Get("/deleted", noop)
+			r.Get("/{id}/detail", noop)
+			r.Put("/{id}/update", noop)
+			r.Put("/{id}/reset-password", noop)
+			r.Delete("/{id}/delete", noop)
+			r.Put("/{id}/restore", noop)
+			r.Delete("/{id}/permanent", noop)
+			r.Put("/batch/status", noop)
+			r.Delete("/batch/delete", noop)
 		})
 
 		// RBAC 路由
 		r.Route("/rbac", func(r chi.Router) {
 			r.Route("/roles", func(r chi.Router) {
-				r.Get("/", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Post("/", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Get("/{id}/detail", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{id}/update", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Delete("/{id}/delete", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{id}/permissions", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Delete("/{id}/permissions", func(_ http.ResponseWriter, _ *http.Request) {})
+				r.Get("/", noop)
+				r.Post("/", noop)
+				r.Get("/{id}/detail", noop)
+				r.Put("/{id}/update", noop)
+				r.Delete("/{id}/delete", noop)
+				r.Put("/{id}/permissions", noop)
+				r.Delete("/{id}/permissions", noop)
+				r.Delete("/{id}/permissions/{perm_id}", noop)
 			})
 			r.Route("/user-roles", func(r chi.Router) {
-				r.Get("/", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Post("/{user_id}/roles", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Get("/{user_id}/roles", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Delete("/{user_id}/roles", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Delete("/{user_id}/roles/{role_id}", func(_ http.ResponseWriter, _ *http.Request) {})
+				r.Get("/", noop)
+				r.Post("/{user_id}/roles", noop)
+				r.Get("/{user_id}/roles", noop)
+				r.Delete("/{user_id}/roles", noop)
+				r.Delete("/{user_id}/roles/{role_id}", noop)
 			})
 		})
 
@@ -52,62 +53,95 @@ func buildTestRouter() *chi.Mux {
 		r.Route("/admin", func(r chi.Router) {
 			// 系统管理员
 			r.Route("/users", func(r chi.Router) {
-				r.Get("/", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Post("/", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Get("/deleted", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Get("/{id}/detail", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{id}/update", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{id}/status", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Delete("/{id}/delete", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{id}/restore", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Delete("/{id}/permanent", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/batch/status", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Delete("/batch/delete", func(_ http.ResponseWriter, _ *http.Request) {})
+				r.Get("/", noop)
+				r.Post("/", noop)
+				r.Get("/deleted", noop)
+				r.Get("/{id}/detail", noop)
+				r.Put("/{id}/update", noop)
+				r.Put("/{id}/status", noop)
+				r.Delete("/{id}/delete", noop)
+				r.Put("/{id}/restore", noop)
+				r.Delete("/{id}/permanent", noop)
+				r.Put("/batch/status", noop)
+				r.Delete("/batch/delete", noop)
 			})
 
 			// 租户管理
 			r.Route("/tenants", func(r chi.Router) {
-				r.Get("/", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Post("/", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Get("/deleted", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Get("/{id}/detail", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{id}/update", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Delete("/{id}/delete", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{id}/status", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{id}/restore", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/batch/status", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Delete("/batch", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{id}/plan", func(_ http.ResponseWriter, _ *http.Request) {})
+				r.Get("/", noop)
+				r.Post("/", noop)
+				r.Get("/deleted", noop)
+				r.Get("/{id}/detail", noop)
+				r.Put("/{id}/update", noop)
+				r.Delete("/{id}/delete", noop)
+				r.Put("/{id}/status", noop)
+				r.Put("/{id}/restore", noop)
+				r.Put("/batch/status", noop)
+				r.Delete("/batch", noop)
+				r.Put("/{id}/plan", noop)
 			})
 
 			// 跨租户用户管理
 			r.Route("/tenant-users", func(r chi.Router) {
-				r.Post("/", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Get("/all", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Get("/deleted/all", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Get("/{tenantID}/list", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Get("/{tenantID}/deleted", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{tenantID}/{userID}/update", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{tenantID}/{userID}/status", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{tenantID}/{userID}/reset-password", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{tenantID}/{userID}/restore", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Delete("/{tenantID}/{userID}/delete", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Delete("/{tenantID}/{userID}/permanent", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{tenantID}/batch/status", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Delete("/{tenantID}/batch/delete", func(_ http.ResponseWriter, _ *http.Request) {})
+				r.Post("/", noop)
+				r.Get("/all", noop)
+				r.Get("/deleted/all", noop)
+				r.Get("/{tenantID}/list", noop)
+				r.Get("/{tenantID}/deleted", noop)
+				r.Put("/{tenantID}/{userID}/update", noop)
+				r.Put("/{tenantID}/{userID}/status", noop)
+				r.Put("/{tenantID}/{userID}/reset-password", noop)
+				r.Put("/{tenantID}/{userID}/restore", noop)
+				r.Delete("/{tenantID}/{userID}/delete", noop)
+				r.Delete("/{tenantID}/{userID}/permanent", noop)
+				r.Put("/{tenantID}/batch/status", noop)
+				r.Delete("/{tenantID}/batch/delete", noop)
 			})
 
 			// 套餐管理
 			r.Route("/plans", func(r chi.Router) {
-				r.Get("/", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Post("/", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Get("/select", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Put("/{id}/update", func(_ http.ResponseWriter, _ *http.Request) {})
-				r.Delete("/{id}/delete", func(_ http.ResponseWriter, _ *http.Request) {})
+				r.Get("/", noop)
+				r.Post("/", noop)
+				r.Get("/select", noop)
+				r.Put("/{id}/update", noop)
+				r.Delete("/{id}/delete", noop)
 			})
 		})
 	})
 	return r
+}
+
+func noop(_ http.ResponseWriter, _ *http.Request) {}
+
+// capturePermMiddleware 在 chi 路由匹配后捕获 derivePermissionCode 结果
+// 结果通过 context key 传回给测试
+type ctxKey struct{}
+
+var captureKey = ctxKey{}
+
+func capturePermMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		code := derivePermissionCode(r)
+		ctx := context.WithValue(r.Context(), captureKey, code)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// requestWithCode 发送请求并返回 context 中捕获的权限码
+func requestWithCode(r *chi.Mux, method, path string) string {
+	// 将捕获中间件挂到所有路由
+	// 但 buildTestRouter 已经创建好路由，所以这里通过包一层来做
+	wrapped := chi.NewRouter()
+	wrapped.Use(capturePermMiddleware)
+	wrapped.Mount("/", r)
+
+	req := httptest.NewRequest(method, path, nil)
+	rec := httptest.NewRecorder()
+	wrapped.ServeHTTP(rec, req)
+
+	// 从 rec 的 Result() 无法直接访问 context，但我们可以让 handler 把 code 写入 header
+	// 所以改造 capturePermMiddleware 来写入 header
+	return rec.Header().Get("X-Derived-Perm")
 }
 
 // testCase 表示一个权限码推导测试用例
@@ -116,14 +150,6 @@ type testCase struct {
 	method string
 	path   string
 	want   string
-}
-
-// resolveRoute 让 chi 执行一次路由匹配，使 RouteContext 可用
-func resolveRoute(r *chi.Mux, method, path string) *http.Request {
-	req := httptest.NewRequest(method, path, nil)
-	rec := httptest.NewRecorder()
-	r.ServeHTTP(rec, req)
-	return req
 }
 
 func TestDerivePermissionCode_TenantUser(t *testing.T) {
@@ -145,8 +171,7 @@ func TestDerivePermissionCode_TenantUser(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			req := resolveRoute(r, c.method, c.path)
-			got := derivePermissionCode(req)
+			got := doRequest(r, c.method, c.path)
 			if got != c.want {
 				t.Errorf("derivePermissionCode(%s %s) = %q, want %q", c.method, c.path, got, c.want)
 			}
@@ -174,8 +199,7 @@ func TestDerivePermissionCode_RBAC(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			req := resolveRoute(r, c.method, c.path)
-			got := derivePermissionCode(req)
+			got := doRequest(r, c.method, c.path)
 			if got != c.want {
 				t.Errorf("derivePermissionCode(%s %s) = %q, want %q", c.method, c.path, got, c.want)
 			}
@@ -202,8 +226,7 @@ func TestDerivePermissionCode_AdminMaster(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			req := resolveRoute(r, c.method, c.path)
-			got := derivePermissionCode(req)
+			got := doRequest(r, c.method, c.path)
 			if got != c.want {
 				t.Errorf("derivePermissionCode(%s %s) = %q, want %q", c.method, c.path, got, c.want)
 			}
@@ -229,8 +252,7 @@ func TestDerivePermissionCode_AdminTenant(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			req := resolveRoute(r, c.method, c.path)
-			got := derivePermissionCode(req)
+			got := doRequest(r, c.method, c.path)
 			if got != c.want {
 				t.Errorf("derivePermissionCode(%s %s) = %q, want %q", c.method, c.path, got, c.want)
 			}
@@ -242,7 +264,6 @@ func TestDerivePermissionCode_AdminTenantUser(t *testing.T) {
 	r := buildTestRouter()
 
 	cases := []testCase{
-		{"tenant_user list", http.MethodGet, "/api/v1/admin/tenant-users/all", "admin:tenant_user:list"},
 		{"tenant_user create", http.MethodPost, "/api/v1/admin/tenant-users", "admin:tenant_user:create"},
 		{"tenant_user list_all", http.MethodGet, "/api/v1/admin/tenant-users/all", "admin:tenant_user:list"},
 		{"tenant_user list_deleted_all", http.MethodGet, "/api/v1/admin/tenant-users/deleted/all", "admin:tenant_user:list_deleted"},
@@ -260,8 +281,7 @@ func TestDerivePermissionCode_AdminTenantUser(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			req := resolveRoute(r, c.method, c.path)
-			got := derivePermissionCode(req)
+			got := doRequest(r, c.method, c.path)
 			if got != c.want {
 				t.Errorf("derivePermissionCode(%s %s) = %q, want %q", c.method, c.path, got, c.want)
 			}
@@ -282,11 +302,42 @@ func TestDerivePermissionCode_AdminPlan(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			req := resolveRoute(r, c.method, c.path)
-			got := derivePermissionCode(req)
+			got := doRequest(r, c.method, c.path)
 			if got != c.want {
 				t.Errorf("derivePermissionCode(%s %s) = %q, want %q", c.method, c.path, got, c.want)
 			}
 		})
 	}
+}
+
+// doRequest 执行一次请求，返回中间件捕获的权限码
+// 中间件将 derivePermissionCode 结果写入响应头 X-Derived-Perm
+func doRequest(r *chi.Mux, method, path string) string {
+	// 在顶层路由挂一个写 header 的中间件
+	// 重新包装 router：通过拦截 ServeHTTP 调用
+	// 更简单的方式：用一个闭包包裹每个 handler 写 header
+	// 这里选择在 capturePermMiddleware 中写 header
+
+	// 但 buildTestRouter 中的 handler 是 noop，所以我们不能在 handler 中写
+	// 这里改为：在 capturePermMiddleware 中直接写响应头
+	// 我们需要修改 capturePermMiddleware 的实现
+	req := httptest.NewRequest(method, path, nil)
+	rec := httptest.NewRecorder()
+
+	// 用 chi.Match 来获取路由 pattern
+	m := chi.NewMux()
+	m.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r)
+			// handler 执行完毕后，RouteContext 可用
+			code := derivePermissionCode(r)
+			w.Header().Set("X-Derived-Perm", code)
+		})
+	})
+
+	// 挂载原 router
+	m.Handle("/api/v1/*", r)
+	m.ServeHTTP(rec, req)
+
+	return rec.Header().Get("X-Derived-Perm")
 }
