@@ -95,13 +95,13 @@ const (
 // 套餐管理权限码（/api/v1/admin/plans 相关）
 // ============================================================
 const (
-	PlanList   = "plan:list"   // 查询套餐列表
-	PlanCreate = "plan:create" // 创建套餐
-	PlanRead   = "plan:read"   // 查询套餐详情
-	PlanUpdate = "plan:update" // 编辑套餐
-	PlanDelete = "plan:delete" // 删除套餐
-	PlanAssign = "plan:assign" // 为租户分配套餐
-	PlanSelect = "plan:select" // 查询启用套餐下拉列表
+	PlanList   = "admin:plan:list"   // 查询套餐列表
+	PlanCreate = "admin:plan:create" // 创建套餐
+	PlanRead   = "admin:plan:read"   // 查询套餐详情
+	PlanUpdate = "admin:plan:update" // 编辑套餐
+	PlanDelete = "admin:plan:delete" // 删除套餐
+	PlanAssign = "admin:plan:assign" // 为租户分配套餐
+	PlanSelect = "admin:plan:select" // 查询启用套餐下拉列表
 )
 
 // ============================================================

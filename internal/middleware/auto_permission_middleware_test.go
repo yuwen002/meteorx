@@ -106,6 +106,23 @@ func buildTestRouter() *chi.Mux {
 				r.Put("/{id}/update", noop)
 				r.Delete("/{id}/delete", noop)
 			})
+
+			// 套餐分配（为租户分配套餐）
+			r.Route("/tenants-plan", func(r chi.Router) {
+				r.Get("/{id}", noop)
+				r.Put("/{id}", noop)
+			})
+		})
+
+		// 审计日志路由
+		r.Route("/audit", func(r chi.Router) {
+			r.Route("/logs", func(r chi.Router) {
+				r.Get("/", noop)
+				r.Get("/export", noop)
+				r.Post("/", noop)
+				r.Get("/{id}", noop)
+				r.Delete("/cleanup", noop)
+			})
 		})
 	})
 	return r
@@ -248,6 +265,7 @@ func TestDerivePermissionCode_AdminTenant(t *testing.T) {
 		{"tenant restore", http.MethodPut, "/api/v1/admin/tenants/{id}/restore", "admin:tenant:restore"},
 		{"tenant batch_status", http.MethodPut, "/api/v1/admin/tenants/batch/status", "admin:tenant:batch_status"},
 		{"tenant batch_delete", http.MethodDelete, "/api/v1/admin/tenants/batch", "admin:tenant:batch_delete"},
+		{"tenant plan assign", http.MethodPut, "/api/v1/admin/tenants/{id}/plan", "admin:plan:assign"},
 	}
 
 	for _, c := range cases {
@@ -295,9 +313,48 @@ func TestDerivePermissionCode_AdminPlan(t *testing.T) {
 	cases := []testCase{
 		{"plan list", http.MethodGet, "/api/v1/admin/plans", "admin:plan:list"},
 		{"plan create", http.MethodPost, "/api/v1/admin/plans", "admin:plan:create"},
-		{"plan select", http.MethodGet, "/api/v1/admin/plans/select", "admin:plan:list"},
+		{"plan select", http.MethodGet, "/api/v1/admin/plans/select", "admin:plan:select"},
 		{"plan update", http.MethodPut, "/api/v1/admin/plans/{id}/update", "admin:plan:update"},
 		{"plan delete", http.MethodDelete, "/api/v1/admin/plans/{id}/delete", "admin:plan:delete"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := doRequest(r, c.method, c.path)
+			if got != c.want {
+				t.Errorf("derivePermissionCode(%s %s) = %q, want %q", c.method, c.path, got, c.want)
+			}
+		})
+	}
+}
+
+func TestDerivePermissionCode_AdminTenantPlan(t *testing.T) {
+	r := buildTestRouter()
+
+	cases := []testCase{
+		{"tenant plan read", http.MethodGet, "/api/v1/admin/tenants-plan/{id}", "admin:plan:read"},
+		{"tenant plan assign", http.MethodPut, "/api/v1/admin/tenants-plan/{id}", "admin:plan:assign"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := doRequest(r, c.method, c.path)
+			if got != c.want {
+				t.Errorf("derivePermissionCode(%s %s) = %q, want %q", c.method, c.path, got, c.want)
+			}
+		})
+	}
+}
+
+func TestDerivePermissionCode_AuditLog(t *testing.T) {
+	r := buildTestRouter()
+
+	cases := []testCase{
+		{"log list", http.MethodGet, "/api/v1/audit/logs", "audit:log:list"},
+		{"log export", http.MethodGet, "/api/v1/audit/logs/export", "audit:log:export"},
+		{"log create", http.MethodPost, "/api/v1/audit/logs", "audit:log:create"},
+		{"log read", http.MethodGet, "/api/v1/audit/logs/{id}", "audit:log:read"},
+		{"log cleanup", http.MethodDelete, "/api/v1/audit/logs/cleanup", "audit:log:cleanup"},
 	}
 
 	for _, c := range cases {

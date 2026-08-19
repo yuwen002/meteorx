@@ -119,23 +119,31 @@ func derivePermissionCode(r *http.Request) string {
 	// ====== Step 1: 判断命名空间前缀 ======
 	// rbac 前缀 → 生成 rbac:{resource}:{action}
 	// admin 前缀 → 生成 admin:{resource}:{action}（平台后台管理接口）
+	// audit 前缀 → 生成 audit:{resource}:{action}（审计日志接口）
 	// 其他 → 生成 {resource}:{action}
 	hasRBACPrefix := parts[0] == "rbac"
 	hasAdminPrefix := parts[0] == "admin"
+	hasAuditPrefix := parts[0] == "audit"
 
 	// 核心路径段（去掉命名空间前缀后剩余）
 	coreParts := parts
-	if hasRBACPrefix || hasAdminPrefix {
+	if hasRBACPrefix || hasAdminPrefix || hasAuditPrefix {
 		coreParts = parts[1:]
 	}
 	if len(coreParts) == 0 {
 		return ""
 	}
 
+	// 保存原始首段（用于后续特殊路由判断，如 tenants-plan）
+	originalFirstSeg := coreParts[0]
+
 	// ====== Step 2: 从核心路径中提取资源名 ======
 	// admin 前缀下的资源需要特殊映射，使其与后端权限码常量保持一致
+	// audit 前缀下的 logs → 资源名为 "log"
 	var resource string
-	if hasAdminPrefix {
+	if hasAuditPrefix && coreParts[0] == "logs" {
+		resource = singularize(coreParts[0]) // "log"
+	} else if hasAdminPrefix {
 		resource = adminResourceName(coreParts[0])
 	} else {
 		resource = singularize(coreParts[0])
@@ -190,12 +198,25 @@ func derivePermissionCode(r *http.Request) string {
 		return ""
 	}
 
+	// 特殊覆盖：admin/tenants-plan/{id} PUT → plan:assign（为租户分配套餐）
+	if originalFirstSeg == "tenants-plan" && resource == "plan" && method == "PUT" {
+		action = "assign"
+	}
+
+	// 特殊覆盖：admin/tenants/{id}/plan PUT → plan:assign（从租户管理页面分配套餐）
+	if hasAdminPrefix && resource == "tenant" && strings.Contains(remaining, "plan") && method == "PUT" {
+		resource = "plan"
+		action = "assign"
+	}
+
 	// ====== Step 4: 组合权限码 ======
 	switch {
 	case hasRBACPrefix:
 		return "rbac:" + resource + ":" + action
 	case hasAdminPrefix:
 		return "admin:" + resource + ":" + action
+	case hasAuditPrefix:
+		return "audit:" + resource + ":" + action
 	default:
 		return resource + ":" + action
 	}
@@ -216,6 +237,8 @@ func singularize(part string) string {
 		return "user_role"
 	case "tenant-users", "tenant_users":
 		return "user"
+	case "logs":
+		return "log"
 	default:
 		return part
 	}
@@ -232,6 +255,8 @@ func adminResourceName(part string) string {
 	case "tenant-users", "tenant_users":
 		return "tenant_user"
 	case "plans":
+		return "plan"
+	case "tenants-plan", "tenants_plan":
 		return "plan"
 	default:
 		return singularize(part)
@@ -254,6 +279,27 @@ func deriveAction(method, remaining string) string {
 	if strings.Contains(remaining, "reset-password") || strings.Contains(remaining, "reset_password") {
 		if method == "PUT" || method == "POST" {
 			return "reset_password"
+		}
+	}
+
+	// 导出：export
+	if strings.Contains(remaining, "export") {
+		if method == "GET" {
+			return "export"
+		}
+	}
+
+	// 下拉选择：select（如套餐下拉列表）
+	if strings.Contains(remaining, "select") {
+		if method == "GET" {
+			return "select"
+		}
+	}
+
+	// 清理：cleanup
+	if strings.Contains(remaining, "cleanup") {
+		if method == "DELETE" {
+			return "cleanup"
 		}
 	}
 
@@ -376,6 +422,15 @@ func deriveAction(method, remaining string) string {
 		case strings.Contains(remaining, "permanent"):
 			if method == "DELETE" {
 				return "permanent_delete"
+			}
+		case strings.Contains(remaining, "list"):
+			if method == "GET" {
+				return "list"
+			}
+		default:
+			// 仅含 {param} 的路径（如 /{id}）：GET → read
+			if method == "GET" && (remaining == "{param}" || remaining == "{param}/") {
+				return "read"
 			}
 		}
 	}
