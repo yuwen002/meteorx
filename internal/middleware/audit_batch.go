@@ -11,14 +11,15 @@ import (
 
 // AuditBatchProcessor 批量审计日志处理器
 type AuditBatchProcessor struct {
-	svc        *service.AuditService
-	buffer     []*dto.CreateAuditLogReq
-	bufferSize int
+	svc           *service.AuditService
+	buffer        []*dto.CreateAuditLogReq
+	bufferSize    int
 	flushInterval time.Duration
-	mutex      sync.Mutex
-	ticker     *time.Ticker
-	stopCh     chan struct{}
-	wg         sync.WaitGroup
+	mutex         sync.Mutex
+	flushing      bool
+	ticker        *time.Ticker
+	stopCh        chan struct{}
+	wg            sync.WaitGroup
 }
 
 // NewAuditBatchProcessor 创建批量处理器
@@ -47,14 +48,18 @@ func NewAuditBatchProcessor(svc *service.AuditService, bufferSize int, flushInte
 }
 
 // Add 添加日志到缓冲区
+// 当累积到 bufferSize 时触发异步 flush。
+// 为避免多个 goroutine 并发 flush，加 flushing 标记做协调。
 func (p *AuditBatchProcessor) Add(req *dto.CreateAuditLogReq) {
 	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
 	p.buffer = append(p.buffer, req)
+	shouldFlush := len(p.buffer) >= p.bufferSize && !p.flushing
+	if shouldFlush {
+		p.flushing = true
+	}
+	p.mutex.Unlock()
 
-	// 达到缓冲区大小，立即刷新
-	if len(p.buffer) >= p.bufferSize {
+	if shouldFlush {
 		go p.flush()
 	}
 }
@@ -86,6 +91,7 @@ func (p *AuditBatchProcessor) flush() {
 	logs := make([]*dto.CreateAuditLogReq, len(p.buffer))
 	copy(logs, p.buffer)
 	p.buffer = p.buffer[:0]
+	p.flushing = false
 	p.mutex.Unlock()
 
 	// 批量写入（这里简化处理，逐个写入）

@@ -53,6 +53,10 @@
             <el-icon><Goods /></el-icon>
             <template #title>套餐管理</template>
           </el-menu-item>
+          <el-menu-item index="/system/file" v-if="userStore.hasPermission('file:list') || userStore.isAdmin">
+            <el-icon><Folder /></el-icon>
+            <template #title>文件管理</template>
+          </el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>
@@ -109,7 +113,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Document, Goods } from '@element-plus/icons-vue'
+import { Document, Folder, Goods } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'

@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -162,37 +161,6 @@ func buildTestRouter() *chi.Mux {
 }
 
 func noop(_ http.ResponseWriter, _ *http.Request) {}
-
-// capturePermMiddleware 在 chi 路由匹配后捕获 derivePermissionCode 结果
-// 结果通过 context key 传回给测试
-type ctxKey struct{}
-
-var captureKey = ctxKey{}
-
-func capturePermMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		code := derivePermissionCode(r)
-		ctx := context.WithValue(r.Context(), captureKey, code)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-// requestWithCode 发送请求并返回 context 中捕获的权限码
-func requestWithCode(r *chi.Mux, method, path string) string {
-	// 将捕获中间件挂到所有路由
-	// 但 buildTestRouter 已经创建好路由，所以这里通过包一层来做
-	wrapped := chi.NewRouter()
-	wrapped.Use(capturePermMiddleware)
-	wrapped.Mount("/", r)
-
-	req := httptest.NewRequest(method, path, nil)
-	rec := httptest.NewRecorder()
-	wrapped.ServeHTTP(rec, req)
-
-	// 从 rec 的 Result() 无法直接访问 context，但我们可以让 handler 把 code 写入 header
-	// 所以改造 capturePermMiddleware 来写入 header
-	return rec.Header().Get("X-Derived-Perm")
-}
 
 // testCase 表示一个权限码推导测试用例
 type testCase struct {

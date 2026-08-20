@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"meteorx/internal/modules/audit/repository"
+	"meteorx/internal/modules/file"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,6 +48,12 @@ func AutoMigrate(db *gorm.DB) error {
 	err = repository.AutoMigrate(db)
 	if err != nil {
 		log.Printf("Audit migration failed: %v", err)
+		return err
+	}
+
+	err = file.AutoMigrate(db)
+	if err != nil {
+		log.Printf("File migration failed: %v", err)
 		return err
 	}
 

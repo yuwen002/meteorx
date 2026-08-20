@@ -47,7 +47,7 @@ func (j *ExpiryJob) Start(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if err := j.runOnce(context.Background()); err != nil {
+				if err := j.runOnce(ctx); err != nil {
 					j.logger.Printf("[ExpiryJob] 扫描失败: %v", err)
 				}
 			}

@@ -169,6 +169,22 @@ const (
 )
 
 // ============================================================
+// 文件管理权限码（/api/v1/files 相关）
+// ============================================================
+const (
+	FileList         = "file:list"         // 查询文件列表
+	FileUpload       = "file:upload"       // 上传文件
+	FileRead         = "file:read"         // 查看文件详情
+	FileDownload     = "file:download"     // 下载文件
+	FileUpdate       = "file:update"       // 更新文件信息
+	FileDelete       = "file:delete"       // 删除文件
+	FileListDeleted  = "file:list_deleted" // 查询已删除文件
+	FileRestore      = "file:restore"       // 恢复已删除文件
+	FilePermanentDelete = "file:permanent_delete" // 永久删除文件
+	FileBatchDelete  = "file:batch_delete" // 批量删除文件
+)
+
+// ============================================================
 // 租户侧套餐权限码（/api/v1/tenant/current/plan 相关，租户私有）
 // ============================================================
 const (
@@ -250,6 +266,18 @@ func GetPermissionDefs() []PermissionDef {
 		{Name: "删除套餐", Code: PlanDelete, Description: "删除套餐", Resource: "plan", Action: "delete"},
 		{Name: "分配套餐", Code: PlanAssign, Description: "为租户分配/变更套餐", Resource: "plan", Action: "assign"},
 		{Name: "查询套餐下拉", Code: PlanSelect, Description: "查询启用套餐下拉列表（不分页）", Resource: "plan", Action: "select"},
+
+		// 文件管理
+		{Name: "查询文件列表", Code: FileList, Description: "查询租户文件列表", Resource: "file", Action: "list"},
+		{Name: "上传文件", Code: FileUpload, Description: "上传文件到租户空间", Resource: "file", Action: "upload"},
+		{Name: "查看文件详情", Code: FileRead, Description: "查看文件详细信息", Resource: "file", Action: "read"},
+		{Name: "下载文件", Code: FileDownload, Description: "下载文件", Resource: "file", Action: "download"},
+		{Name: "更新文件信息", Code: FileUpdate, Description: "修改文件名称等信息", Resource: "file", Action: "update"},
+		{Name: "删除文件", Code: FileDelete, Description: "删除文件（软删除）", Resource: "file", Action: "delete"},
+		{Name: "查询已删除文件", Code: FileListDeleted, Description: "查询已删除文件列表", Resource: "file", Action: "list_deleted"},
+		{Name: "恢复已删除文件", Code: FileRestore, Description: "从回收站恢复文件", Resource: "file", Action: "restore"},
+		{Name: "永久删除文件", Code: FilePermanentDelete, Description: "从回收站永久删除文件（物理删除，不可恢复）", Resource: "file", Action: "permanent_delete"},
+		{Name: "批量删除文件", Code: FileBatchDelete, Description: "批量删除文件", Resource: "file", Action: "batch_delete"},
 
 		// 租户侧套餐
 		{Name: "查询当前租户套餐", Code: TenantPlanCurrent, Description: "查询当前租户套餐与用量", Resource: "plan", Action: "current"},

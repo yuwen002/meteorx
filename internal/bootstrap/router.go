@@ -16,6 +16,7 @@ import (
 	auditRepo "meteorx/internal/modules/audit/repository"
 	auditSvc "meteorx/internal/modules/audit/service"
 	"meteorx/internal/modules/auth"
+	"meteorx/internal/modules/file"
 	"meteorx/internal/modules/plan"
 	planRepo "meteorx/internal/modules/plan/repository"
 	planSvc "meteorx/internal/modules/plan/service"
@@ -42,6 +43,10 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})
+
+	// 静态文件服务 - 提供上传文件的访问
+	fileServer := http.FileServer(http.Dir(cfg.File.UploadPath))
+	r.Handle("/uploads/*", http.StripPrefix("/uploads", fileServer))
 
 	r.Route("/api/v1", func(r chi.Router) {
 
@@ -85,6 +90,9 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 			// 4.2 租户侧当前套餐查询
 			plan.InitPrivateModule(r, db)
 
+			// 4.3 文件管理接口
+			file.RegisterRoutes(r, db, cfg)
+
 			// ========================================================
 			// 🔥 新增分组三：MaaS 平台运营后台特权接口 (Platform Admin Only)
 			// ========================================================
@@ -123,7 +131,8 @@ func initPlans(db *gorm.DB) {
 }
 
 // StartPlanExpiryJob 启动订阅到期自动禁用租户的定时任务
-func StartPlanExpiryJob(db *gorm.DB) {
+// 传入的 ctx 用于在应用关闭时取消后台 goroutine
+func StartPlanExpiryJob(ctx context.Context, db *gorm.DB) {
 	job := plan.NewExpiryJob(db)
-	job.Start(context.Background(), 5*time.Minute)
+	job.Start(ctx, 5*time.Minute)
 }

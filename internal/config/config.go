@@ -9,6 +9,7 @@ type Config struct {
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	Log      LogConfig      `mapstructure:"log"`
 	Security SecurityConfig `mapstructure:"security"`
+	File     FileConfig     `mapstructure:"file"`
 }
 
 type ServerConfig struct {
@@ -82,4 +83,20 @@ type RateLimitConfig struct {
 	Requests   int           `mapstructure:"requests"`
 	Window     time.Duration `mapstructure:"window"`
 	BurstSize  int           `mapstructure:"burst_size"`
+}
+// FileConfig 文件上传配置
+type FileConfig struct {
+	UploadPath   string   `mapstructure:"upload_path"`   // 文件上传存储路径
+	UploadURL    string   `mapstructure:"upload_url"`    // 文件访问URL前缀
+	MaxFileSize  int64    `mapstructure:"max_file_size"` // 最大文件大小（字节）
+	AllowedTypes []string `mapstructure:"allowed_types"` // 允许的文件MIME类型
+	StorageType  string   `mapstructure:"storage_type"`  // 存储类型: local / oss / s3（预留）
+	// 云存储配置（预留，未启用时为空即可）
+	Cloud struct {
+		Endpoint  string `mapstructure:"endpoint"`   // OSS/S3 endpoint
+		AccessKey string `mapstructure:"access_key"` // AccessKey
+		SecretKey string `mapstructure:"secret_key"` // SecretKey
+		Bucket    string `mapstructure:"bucket"`     // Bucket 名称
+		Region    string `mapstructure:"region"`     // Region
+	} `mapstructure:"cloud"`
 }

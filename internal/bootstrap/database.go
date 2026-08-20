@@ -38,11 +38,12 @@ func InitDB(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	}
 
 	sqlDB, err := db.DB()
-	if err == nil {
-		sqlDB.SetMaxIdleConns(10)
-		sqlDB.SetMaxOpenConns(100)
-		sqlDB.SetConnMaxLifetime(time.Hour)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
 	}
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	fmt.Printf("Database [%s] connected successfully\n", cfg.Name)
 	return db, nil
