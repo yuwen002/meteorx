@@ -15,7 +15,10 @@
     { "name": "RBAC", "description": "角色/权限/用户角色管理" },
     { "name": "File", "description": "文件管理" },
     { "name": "Plan", "description": "套餐管理" },
-    { "name": "Audit", "description": "审计日志" }
+    { "name": "Audit", "description": "审计日志" },
+    { "name": "Dashboard", "description": "运营看板" },
+    { "name": "Notification", "description": "通知公告" },
+    { "name": "Tenant-Cancel", "description": "租户注销审批" }
   ],
   "security": [{ "bearer": [] }],
   "servers": [
@@ -1732,6 +1735,139 @@
           "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
         }
       }
+    },
+    "/api/v1/admin/cancel-requests": {
+      "get": {
+        "summary": "租户注销申请列表",
+        "tags": ["Tenant-Cancel"],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "status", "in": "query", "schema": { "type": "integer", "description": "1待审批 2已通过 3已驳回 4已完成" } },
+          { "name": "tenant_id", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiCancelRequestListResp" } } } }
+        }
+      }
+    },
+    "/api/v1/admin/cancel-requests/{id}/approve": {
+      "put": {
+        "summary": "审批通过租户注销申请",
+        "tags": ["Tenant-Cancel"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/AdminApproveCancelReq" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/admin/cancel-requests/{id}/reject": {
+      "put": {
+        "summary": "驳回租户注销申请",
+        "tags": ["Tenant-Cancel"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/AdminRejectCancelReq" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/admin/dashboard/overview": {
+      "get": {
+        "summary": "平台运营数据总览",
+        "tags": ["Dashboard"],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiDashboardOverviewResp" } } } }
+        }
+      }
+    },
+    "/api/v1/admin/announcements": {
+      "get": {
+        "summary": "公告列表",
+        "tags": ["Notification"],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "schema": { "type": "integer", "description": "0草稿 1已发布 2已下架" } },
+          { "name": "scope", "in": "query", "schema": { "type": "string", "description": "all / tenant" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiAnnouncementListResp" } } } }
+        }
+      },
+      "post": {
+        "summary": "创建公告",
+        "tags": ["Notification"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateAnnouncementReq" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/admin/announcements/{id}": {
+      "get": {
+        "summary": "公告详情",
+        "tags": ["Notification"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiAnnouncementResp" } } } }
+        }
+      },
+      "put": {
+        "summary": "更新公告",
+        "tags": ["Notification"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/UpdateAnnouncementReq" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      },
+      "delete": {
+        "summary": "删除公告",
+        "tags": ["Notification"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/admin/announcements/{id}/status": {
+      "put": {
+        "summary": "发布/下架公告",
+        "tags": ["Notification"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/UpdateAnnouncementStatusReq" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
     }
   },
   "components": {
@@ -2539,6 +2675,182 @@
           "user_agent": { "type": "string" },
           "duration": { "type": "integer" },
           "created_at": { "type": "string" }
+        }
+      },
+      "ApiCancelRequestListResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/CancelRequestResp" } },
+              "total": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "CancelRequestResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "tenant_name": { "type": "string" },
+          "reason": { "type": "string" },
+          "status": { "type": "integer", "description": "1待审批 2已通过 3已驳回 4已完成" },
+          "status_text": { "type": "string" },
+          "approver_id": { "type": "string" },
+          "review_remark": { "type": "string" },
+          "effective_at": { "type": "string" },
+          "applied_at": { "type": "string" },
+          "approved_at": { "type": "string" },
+          "completed_at": { "type": "string" },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" }
+        }
+      },
+      "AdminApproveCancelReq": {
+        "type": "object",
+        "properties": {
+          "review_remark": { "type": "string", "description": "审批备注" },
+          "effective_days": { "type": "integer", "description": "生效天数，0表示立即执行" }
+        }
+      },
+      "AdminRejectCancelReq": {
+        "type": "object",
+        "properties": {
+          "review_remark": { "type": "string", "description": "审批备注" }
+        }
+      },
+      "ApiDashboardOverviewResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/DashboardOverviewResp" }
+        }
+      },
+      "DashboardOverviewResp": {
+        "type": "object",
+        "properties": {
+          "tenant_stats": { "$ref": "#/components/schemas/TenantStatsResp" },
+          "user_stats": { "$ref": "#/components/schemas/UserStatsResp" },
+          "subscription_stats": { "$ref": "#/components/schemas/SubscriptionStatsResp" },
+          "audit_stats": { "$ref": "#/components/schemas/AuditStatsResp" }
+        }
+      },
+      "TenantStatsResp": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer" },
+          "enabled": { "type": "integer" },
+          "disabled": { "type": "integer" },
+          "today_new": { "type": "integer" },
+          "week_new": { "type": "integer" },
+          "month_new": { "type": "integer" }
+        }
+      },
+      "UserStatsResp": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer" },
+          "today_new": { "type": "integer" },
+          "week_new": { "type": "integer" },
+          "month_new": { "type": "integer" }
+        }
+      },
+      "SubscriptionStatsResp": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer" },
+          "active": { "type": "integer" },
+          "expired": { "type": "integer" },
+          "cancelled": { "type": "integer" },
+          "active_tenant": { "type": "integer" }
+        }
+      },
+      "AuditStatsResp": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer" },
+          "today": { "type": "integer" },
+          "success": { "type": "integer" },
+          "failure": { "type": "integer" },
+          "action_stats": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "module_stats": { "type": "object", "additionalProperties": { "type": "integer" } }
+        }
+      },
+      "ApiAnnouncementListResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/AnnouncementResp" } },
+              "total": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "ApiAnnouncementResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/AnnouncementResp" }
+        }
+      },
+      "CreateAnnouncementReq": {
+        "type": "object",
+        "required": ["title", "content", "scope"],
+        "properties": {
+          "title": { "type": "string" },
+          "content": { "type": "string" },
+          "scope": { "type": "string", "enum": ["all", "tenant"] },
+          "target_tenant_id": { "type": "string" },
+          "status": { "type": "integer", "description": "0草稿 1已发布 2已下架" },
+          "publish_at": { "type": "string" },
+          "expire_at": { "type": "string" }
+        }
+      },
+      "UpdateAnnouncementReq": {
+        "type": "object",
+        "required": ["title", "content", "scope"],
+        "properties": {
+          "title": { "type": "string" },
+          "content": { "type": "string" },
+          "scope": { "type": "string", "enum": ["all", "tenant"] },
+          "target_tenant_id": { "type": "string" },
+          "status": { "type": "integer", "description": "0草稿 1已发布 2已下架" },
+          "publish_at": { "type": "string" },
+          "expire_at": { "type": "string" }
+        }
+      },
+      "UpdateAnnouncementStatusReq": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "integer", "description": "1发布 2下架" }
+        }
+      },
+      "AnnouncementResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "content": { "type": "string" },
+          "scope": { "type": "string" },
+          "target_tenant_id": { "type": "string" },
+          "status": { "type": "integer" },
+          "status_text": { "type": "string" },
+          "publisher_id": { "type": "string" },
+          "publish_at": { "type": "string" },
+          "expire_at": { "type": "string" },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" }
         }
       }
     }

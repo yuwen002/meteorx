@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	rbacRepo "meteorx/internal/modules/rbac/repository"
 	planDto "meteorx/internal/modules/plan/dto"
+	planModel "meteorx/internal/modules/plan/model"
+	planRepo "meteorx/internal/modules/plan/repository"
+	rbacRepo "meteorx/internal/modules/rbac/repository"
 	"meteorx/internal/modules/tenant/dto"
 	tenantModel "meteorx/internal/modules/tenant/model"
 	"meteorx/internal/modules/tenant/repository"
@@ -37,6 +39,7 @@ type TenantService struct {
 	roleRepo     rbacRepo.RoleRepository
 	userRoleRepo rbacRepo.UserRoleRepository
 	planProvider TenantPlanProvider
+	subRepo      planRepo.SubscriptionRepository
 }
 
 func NewTenantService(
@@ -56,6 +59,11 @@ func NewTenantService(
 // SetPlanProvider 注入套餐摘要查询器（由 bootstrap 组装，避免循环依赖）
 func (s *TenantService) SetPlanProvider(p TenantPlanProvider) {
 	s.planProvider = p
+}
+
+// SetSubscriptionRepository 注入订阅仓库（用于注销时取消生效订阅）
+func (s *TenantService) SetSubscriptionRepository(sub planRepo.SubscriptionRepository) {
+	s.subRepo = sub
 }
 
 // GetTenantPlanBriefs 批量查询租户套餐摘要（暴露给 handler 做列表增强）
@@ -395,22 +403,211 @@ func (s *TenantService) GetInitStatus(ctx context.Context, tenantID string) (*dt
 }
 
 // ApplyCancellation 申请注销租户
+// 创建一条待审批的注销申请记录，等待平台管理员审批
 func (s *TenantService) ApplyCancellation(ctx context.Context, tenantID string, req dto.ApplyCancellationReq) (*dto.ApplyCancellationResp, error) {
 	// 1. 先查询租户是否存在
-	_, err := s.repo.GetByID(ctx, tenantID)
+	tenant, err := s.repo.GetByID(ctx, tenantID)
 	if err != nil {
 		return nil, ErrTenantNotFound
 	}
 
-	// 2. 这里可以记录注销申请原因到数据库或发送通知
-	// 目前简化处理，直接返回申请成功响应
-	// 实际业务中可能需要创建注销申请记录，等待管理员审批
+	// 2. 检查是否已有未处理的注销申请（待审批或已通过）
+	existing, err := s.repo.GetPendingCancelRequestByTenant(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return nil, errors.New("tenant already has a pending cancellation request")
+	}
+
+	// 3. 创建注销申请记录
+	now := time.Now()
+	cancelReq := &tenantModel.CancelRequest{
+		ID:         ulid.Generate(),
+		TenantID:   tenant.ID,
+		TenantName: tenant.Name,
+		Reason:     req.Reason,
+		Status:     tenantModel.CancelRequestStatusPending,
+		AppliedAt:  now,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	if err := s.repo.CreateCancelRequest(ctx, cancelReq); err != nil {
+		return nil, err
+	}
 
 	resp := &dto.ApplyCancellationResp{
-		AppliedAt:    time.Now().Format("2006-01-02 15:04:05"),
+		AppliedAt:    now.Format("2006-01-02 15:04:05"),
 		Status:       "pending",
 		EstimatedDay: 7, // 默认7天后注销
 	}
 
 	return resp, nil
+}
+
+// ListCancelRequests 分页查询注销申请（平台管理员）
+func (s *TenantService) ListCancelRequests(ctx context.Context, page, pageSize int, status int, keyword string) (*dto.CancelRequestListResp, error) {
+	items, total, err := s.repo.FindCancelRequests(ctx, page, pageSize, status, keyword)
+	if err != nil {
+		return nil, err
+	}
+
+	respItems := make([]*dto.CancelRequestResp, len(items))
+	for i, c := range items {
+		respItems[i] = toCancelRequestResp(c)
+	}
+	return &dto.CancelRequestListResp{Items: respItems, Total: total}, nil
+}
+
+// ApproveCancellation 审批通过注销申请（平台管理员）
+// effectiveDays 为生效天数：0 表示立即执行，>0 表示 N 天后执行
+func (s *TenantService) ApproveCancellation(ctx context.Context, requestID, approverID string, req dto.AdminApproveCancelReq) (*dto.CancelRequestResp, error) {
+	// 1. 查询申请
+	cancelReq, err := s.repo.GetCancelRequestByID(ctx, requestID)
+	if err != nil {
+		return nil, ErrTenantNotFound
+	}
+	if cancelReq.Status != tenantModel.CancelRequestStatusPending {
+		return nil, errors.New("cancellation request is not pending")
+	}
+
+	// 2. 更新申请状态
+	now := time.Now()
+	cancelReq.Status = tenantModel.CancelRequestStatusApproved
+	cancelReq.ApproverID = approverID
+	cancelReq.ReviewRemark = req.ReviewRemark
+	cancelReq.ApprovedAt = &now
+	cancelReq.UpdatedAt = now
+
+	// 3. 计算生效时间
+	if req.EffectiveDays > 0 {
+		effectiveAt := now.AddDate(0, 0, req.EffectiveDays)
+		cancelReq.EffectiveAt = &effectiveAt
+	} else {
+		cancelReq.EffectiveAt = &now
+	}
+
+	if err := s.repo.UpdateCancelRequest(ctx, cancelReq); err != nil {
+		return nil, err
+	}
+
+	// 4. 若立即生效，直接执行注销
+	if req.EffectiveDays == 0 {
+		if err := s.ExecuteCancellation(ctx, cancelReq); err != nil {
+			return nil, err
+		}
+	}
+
+	return toCancelRequestResp(cancelReq), nil
+}
+
+// RejectCancellation 驳回注销申请（平台管理员）
+func (s *TenantService) RejectCancellation(ctx context.Context, requestID, approverID string, req dto.AdminRejectCancelReq) (*dto.CancelRequestResp, error) {
+	// 1. 查询申请
+	cancelReq, err := s.repo.GetCancelRequestByID(ctx, requestID)
+	if err != nil {
+		return nil, ErrTenantNotFound
+	}
+	if cancelReq.Status != tenantModel.CancelRequestStatusPending {
+		return nil, errors.New("cancellation request is not pending")
+	}
+
+	// 2. 更新申请状态为已驳回
+	now := time.Now()
+	cancelReq.Status = tenantModel.CancelRequestStatusRejected
+	cancelReq.ApproverID = approverID
+	cancelReq.ReviewRemark = req.ReviewRemark
+	cancelReq.ApprovedAt = &now
+	cancelReq.UpdatedAt = now
+
+	if err := s.repo.UpdateCancelRequest(ctx, cancelReq); err != nil {
+		return nil, err
+	}
+
+	return toCancelRequestResp(cancelReq), nil
+}
+
+// ExecuteCancellation 执行租户注销
+// 1) 软删除租户 2) 取消其生效订阅 3) 标记申请完成
+func (s *TenantService) ExecuteCancellation(ctx context.Context, cancelReq *tenantModel.CancelRequest) error {
+	// 1. 软删除租户
+	if err := s.repo.Delete(ctx, cancelReq.TenantID); err != nil {
+		return err
+	}
+
+	// 2. 取消生效订阅（若存在）
+	if s.subRepo != nil {
+		activeSub, err := s.subRepo.GetActiveByTenant(ctx, cancelReq.TenantID)
+		if err == nil && activeSub != nil {
+			_ = s.subRepo.UpdateStatus(ctx, activeSub.ID, planModel.SubscriptionCancelled)
+		}
+	}
+
+	// 3. 标记申请完成
+	now := time.Now()
+	cancelReq.Status = tenantModel.CancelRequestStatusCompleted
+	cancelReq.CompletedAt = &now
+	cancelReq.UpdatedAt = now
+	return s.repo.UpdateCancelRequest(ctx, cancelReq)
+}
+
+// ExecuteDueCancellations 执行所有已到期的注销申请（定时任务调用）
+func (s *TenantService) ExecuteDueCancellations(ctx context.Context) (int, error) {
+	now := time.Now()
+	dueRequests, err := s.repo.FindApprovedDueCancelRequests(ctx, now)
+	if err != nil {
+		return 0, err
+	}
+
+	executed := 0
+	for _, r := range dueRequests {
+		if err := s.ExecuteCancellation(ctx, r); err != nil {
+			// 单个失败不阻断后续
+			continue
+		}
+		executed++
+	}
+	return executed, nil
+}
+
+// toCancelRequestResp 转换为响应 DTO
+func toCancelRequestResp(c *tenantModel.CancelRequest) *dto.CancelRequestResp {
+	resp := &dto.CancelRequestResp{
+		ID:           c.ID,
+		TenantID:     c.TenantID,
+		TenantName:   c.TenantName,
+		Reason:       c.Reason,
+		Status:       c.Status,
+		StatusText:   cancelRequestStatusText(c.Status),
+		ApproverID:   c.ApproverID,
+		ReviewRemark: c.ReviewRemark,
+		AppliedAt:    c.AppliedAt.Format("2006-01-02 15:04:05"),
+		CreatedAt:    c.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:    c.UpdatedAt.Format("2006-01-02 15:04:05"),
+	}
+	if c.EffectiveAt != nil {
+		resp.EffectiveAt = c.EffectiveAt.Format("2006-01-02 15:04:05")
+	}
+	if c.ApprovedAt != nil {
+		resp.ApprovedAt = c.ApprovedAt.Format("2006-01-02 15:04:05")
+	}
+	if c.CompletedAt != nil {
+		resp.CompletedAt = c.CompletedAt.Format("2006-01-02 15:04:05")
+	}
+	return resp
+}
+
+func cancelRequestStatusText(status int) string {
+	switch status {
+	case tenantModel.CancelRequestStatusPending:
+		return "待审批"
+	case tenantModel.CancelRequestStatusApproved:
+		return "已通过"
+	case tenantModel.CancelRequestStatusRejected:
+		return "已驳回"
+	case tenantModel.CancelRequestStatusCompleted:
+		return "已完成"
+	default:
+		return "未知"
+	}
 }

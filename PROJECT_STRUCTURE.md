@@ -91,18 +91,21 @@ meteorx/
 │       │   ├── dto/
 │       │   │   ├── admin_tenant_dto.go  # 管理员 DTO
 │       │   │   ├── tenant_converter.go  # Model ↔ DTO 转换
-│       │   │   └── tenant_dto.go # RegisterTenantReq/TenantResp 等
+│       │   │   └── tenant_dto.go # RegisterTenantReq/TenantResp/注销审批 DTO 等
 │       │   ├── handler/
 │       │   │   └── tenant_handler.go
 │       │   ├── model/
-│       │   │   └── tenant.go     # Tenant 模型
+│       │   │   ├── tenant.go     # Tenant 模型
+│       │   │   └── cancel_request.go # CancelRequest（租户注销申请）模型
 │       │   ├── repository/
 │       │   │   ├── interface.go
-│       │   │   └── tenant_repository.go
+│       │   │   ├── tenant_repository.go
+│       │   │   └── cancel_request_repository.go # 注销申请仓储
 │       │   ├── service/
-│       │   │   └── tenant_service.go
+│       │   │   └── tenant_service.go # 业务逻辑 + 注销申请/审批/执行
+│       │   ├── cancel_cleanup_job.go # 到期注销后台任务
 │       │   ├── module.go
-│       │   └── routes.go         # 路由注册：/tenants/*, /admin/tenants/*
+│       │   └── routes.go         # 路由注册：/tenants/*, /admin/tenants/*, /admin/cancel-requests/*
 │       │
 │       ├── rbac/                  # RBAC 权限模块
 │       │   ├── dto/
@@ -187,6 +190,34 @@ meteorx/
 │           ├── module.go
 │           └── routes.go        # 路由注册：/audit/*
 │
+│       ├── dashboard/            # 运营看板模块
+│       │   ├── dto/
+│       │   │   └── dashboard_dto.go # OverviewResp（运营数据总览）
+│       │   ├── handler/
+│       │   │   └── dashboard_handler.go
+│       │   ├── repository/
+│       │   │   ├── interface.go
+│       │   │   └── dashboard_repository.go # 聚合统计查询
+│       │   ├── service/
+│       │   │   └── dashboard_service.go
+│       │   ├── module.go
+│       │   └── routes.go        # 路由注册：/admin/dashboard/*（仅平台管理员）
+│       │
+│       └── notification/          # 通知公告模块
+│           ├── dto/
+│           │   └── announcement_dto.go # CreateAnnouncementReq/AnnouncementResp 等
+│           ├── handler/
+│           │   └── announcement_handler.go
+│           ├── model/
+│           │   └── announcement.go # Announcement（公告）模型
+│           ├── repository/
+│           │   ├── interface.go
+│           │   └── announcement_repository.go
+│           ├── service/
+│           │   └── announcement_service.go
+│           ├── module.go
+│           └── routes.go        # 路由注册：/admin/announcements/*（仅平台管理员）
+│
 ├── pkg/                           # 可复用基础库（可对外暴露）
 │   ├── crypto/
 │   │   └── crypto.go             # bcrypt 密码哈希
@@ -221,7 +252,10 @@ meteorx/
 │   ├── rbac-api.md
 │   ├── file-module-api.md
 │   ├── plan-api.md
-│   └── audit-api.md
+│   ├── audit-api.md
+│   ├── dashboard-api.md
+│   ├── announcement-api.md
+│   └── FEATURE_UPGRADE.md
 │
 └── web-admin/                    # ⭐ 前端管理后台（Vue 3 + TypeScript）
     ├── Dockerfile
@@ -242,6 +276,9 @@ meteorx/
         │       ├── audit.ts
         │       ├── file.ts
         │       ├── permission.ts
+        │       ├── announcement.ts
+        │       ├── cancel-request.ts
+        │       ├── dashboard.ts
         │       ├── plan.ts
         │       ├── role.ts
         │       ├── tenant.ts
@@ -273,7 +310,9 @@ meteorx/
         │       ├── permission/index.vue
         │       ├── file/index.vue
         │       ├── plan/index.vue
-        │       └── audit/index.vue
+        │       ├── audit/index.vue
+        │       ├── announcement/index.vue
+        │       └── cancel-request/index.vue
         ├── App.vue
         ├── env.d.ts
         └── main.ts
@@ -346,11 +385,13 @@ meteorx/
 |------|------|------|
 | **auth** | 注册、登录、登出、Token 管理 | ✅ 已实现 |
 | **user** | 个人中心、租户用户 CRUD、系统管理员 CRUD、跨租户用户管理、回收站、批量操作 | ✅ 已实现 |
-| **tenant** | 自助开户、租户信息管理、后台租户 CRUD、注销申请 | ✅ 已实现 |
+| **tenant** | 自助开户、租户信息管理、后台租户 CRUD、注销申请→审批→执行闭环 | ✅ 已实现 |
 | **rbac** | 角色 CRUD、权限 CRUD、角色权限绑定、用户角色分配、自动权限推导 | ✅ 已实现 |
 | **file** | 文件上传/下载/重命名、MD5 去重、回收站、永久删除、存储抽象 | ✅ 已实现 |
 | **plan** | 套餐 CRUD、租户套餐分配、用量限制、到期检查 | ✅ 已实现 |
 | **audit** | 自动记录审计日志、多维度筛选、CSV 导出、过期清理 | ✅ 已实现 |
+| **dashboard** | 平台运营数据总览：租户/用户/订阅/审计多维统计 | ✅ 已实现 |
+| **notification** | 公告 CRUD、发布/下架、全平台或指定租户定向推送 | ✅ 已实现 |
 
 ### 公共包说明
 
@@ -419,9 +460,12 @@ Storage Interface (storage/storage.go)
 | 租户（公开） | `/api/v1/tenants` | register |
 | 租户（租户侧） | `/api/v1/tenants/current` | GET/PUT, status, cancel |
 | 租户（管理员） | `/api/v1/admin/tenants` | CRUD, batch, recycle |
+| 注销审批 | `/api/v1/admin/cancel-requests` | list, approve, reject |
 | RBAC | `/api/v1/rbac` | roles, permissions, user-roles |
 | 文件 | `/api/v1/files` | upload, CRUD, batch, recycle |
 | 套餐（管理员） | `/api/v1/admin/plans` | CRUD |
 | 套餐（租户） | `/api/v1/tenant/current/plan` | GET |
 | 审计 | `/api/v1/audit` | stats, logs, export, cleanup |
+| 运营看板 | `/api/v1/admin/dashboard` | overview |
+| 通知公告 | `/api/v1/admin/announcements` | CRUD, status |
 | 健康检查 | `/health` | GET |

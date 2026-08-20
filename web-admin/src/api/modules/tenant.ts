@@ -113,6 +113,47 @@ export function restoreTenant(id: string) {
   return put(`/admin/tenants/${id}/restore`)
 }
 
+// ==================== 注销申请审批接口（平台管理员）====================
+
+export interface CancelRequestItem {
+  id: string
+  tenant_id: string
+  tenant_name: string
+  reason: string
+  status: number
+  status_text: string
+  approver_id: string
+  review_remark: string
+  effective_at: string
+  applied_at: string
+  approved_at: string
+  completed_at: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CancelRequestListParams {
+  page?: number
+  page_size?: number
+  status?: number
+  keyword?: string
+}
+
+// 获取注销申请列表
+export function getCancelRequestList(params: CancelRequestListParams) {
+  return get<PageResult<CancelRequestItem>>('/admin/cancel-requests', params)
+}
+
+// 通过注销申请（effective_days 为生效天数，0 表示立即执行）
+export function approveCancelRequest(id: string, data: { review_remark?: string; effective_days: number }) {
+  return put<CancelRequestItem>(`/admin/cancel-requests/${id}/approve`, data)
+}
+
+// 驳回注销申请
+export function rejectCancelRequest(id: string, data: { review_remark?: string }) {
+  return put<CancelRequestItem>(`/admin/cancel-requests/${id}/reject`, data)
+}
+
 // ==================== 当前租户接口（普通用户）====================
 
 // 获取当前租户详情

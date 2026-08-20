@@ -20,17 +20,17 @@ type PermissionDef struct {
 // 用户模块权限码（/api/v1/users 相关，租户内用户管理）
 // ============================================================
 const (
-	UserList             = "user:list"              // 查询租户用户列表
-	UserCreate           = "user:create"            // 创建租户用户
-	UserRead             = "user:read"              // 查询租户用户详情
-	UserUpdate           = "user:update"            // 更新租户用户
-	UserDelete           = "user:delete"            // 删除租户用户（软删除）
-	UserResetPassword    = "user:reset_password"    // 重置租户用户密码
-	UserListDeleted      = "user:list_deleted"      // 查询已删除租户用户（回收站）
-	UserRestore          = "user:restore"           // 恢复已删除租户用户
-	UserPermanentDelete  = "user:permanent_delete"  // 永久删除租户用户（回收站）
-	UserBatchStatus      = "user:batch_status"      // 批量启用/禁用租户用户
-	UserBatchDelete      = "user:batch_delete"      // 批量删除租户用户
+	UserList            = "user:list"             // 查询租户用户列表
+	UserCreate          = "user:create"           // 创建租户用户
+	UserRead            = "user:read"             // 查询租户用户详情
+	UserUpdate          = "user:update"           // 更新租户用户
+	UserDelete          = "user:delete"           // 删除租户用户（软删除）
+	UserResetPassword   = "user:reset_password"   // 重置租户用户密码
+	UserListDeleted     = "user:list_deleted"     // 查询已删除租户用户（回收站）
+	UserRestore         = "user:restore"          // 恢复已删除租户用户
+	UserPermanentDelete = "user:permanent_delete" // 永久删除租户用户（回收站）
+	UserBatchStatus     = "user:batch_status"     // 批量启用/禁用租户用户
+	UserBatchDelete     = "user:batch_delete"     // 批量删除租户用户
 )
 
 // ============================================================
@@ -61,14 +61,14 @@ const (
 // 权限管理权限码（/api/v1/rbac/permissions 相关）
 // ============================================================
 const (
-	PermissionList        = "rbac:perm:list"             // 查询权限列表
-	PermissionCreate      = "rbac:perm:create"           // 创建权限
-	PermissionRead        = "rbac:perm:read"             // 查询权限详情
-	PermissionUpdate      = "rbac:perm:update"           // 更新权限
-	PermissionDelete      = "rbac:perm:delete"           // 删除权限
-	PermissionStatus      = "rbac:perm:status"           // 切换权限状态
-	PermissionBatchStatus = "rbac:perm:batch_status"     // 批量切换权限状态
-	PermissionBatchDelete = "rbac:perm:batch_delete"     // 批量删除权限
+	PermissionList        = "rbac:perm:list"         // 查询权限列表
+	PermissionCreate      = "rbac:perm:create"       // 创建权限
+	PermissionRead        = "rbac:perm:read"         // 查询权限详情
+	PermissionUpdate      = "rbac:perm:update"       // 更新权限
+	PermissionDelete      = "rbac:perm:delete"       // 删除权限
+	PermissionStatus      = "rbac:perm:status"       // 切换权限状态
+	PermissionBatchStatus = "rbac:perm:batch_status" // 批量切换权限状态
+	PermissionBatchDelete = "rbac:perm:batch_delete" // 批量删除权限
 )
 
 // ============================================================
@@ -82,13 +82,13 @@ const (
 // 用户-角色分配权限码
 // ============================================================
 const (
-	UserRoleList        = "rbac:user_role:list"          // 查询用户角色关系列表
-	UserRoleBatchAssign = "rbac:user_role:batch_assign"  // 批量为多个用户分配角色
-	UserRoleAssign      = "rbac:user_role:assign"        // 为用户分配角色
-	UserRoleGetRoles    = "rbac:user_role:get_roles"     // 查询用户拥有的角色
-	UserRoleRemoveOne   = "rbac:user_role:remove_one"    // 删除用户的单个角色
-	UserRoleRemoveAll   = "rbac:user_role:remove_all"    // 删除用户的所有角色
-	UserRoleGetUsers    = "rbac:user_role:get_users"     // 查询拥有某角色的用户ID列表
+	UserRoleList        = "rbac:user_role:list"         // 查询用户角色关系列表
+	UserRoleBatchAssign = "rbac:user_role:batch_assign" // 批量为多个用户分配角色
+	UserRoleAssign      = "rbac:user_role:assign"       // 为用户分配角色
+	UserRoleGetRoles    = "rbac:user_role:get_roles"    // 查询用户拥有的角色
+	UserRoleRemoveOne   = "rbac:user_role:remove_one"   // 删除用户的单个角色
+	UserRoleRemoveAll   = "rbac:user_role:remove_all"   // 删除用户的所有角色
+	UserRoleGetUsers    = "rbac:user_role:get_users"    // 查询拥有某角色的用户ID列表
 )
 
 // ============================================================
@@ -108,80 +108,80 @@ const (
 // 审计日志权限码（/api/v1/audit 相关）
 // ============================================================
 const (
-	AuditLogList     = "audit:log:list"     // 查询审计日志列表
-	AuditLogExport   = "audit:log:export"   // 导出审计日志
-	AuditLogCreate   = "audit:log:create"   // 创建审计日志（内部使用）
-	AuditLogRead     = "audit:log:read"     // 查询审计日志详情
-	AuditLogCleanup  = "audit:log:cleanup"  // 清理审计日志
+	AuditLogList    = "audit:log:list"    // 查询审计日志列表
+	AuditLogExport  = "audit:log:export"  // 导出审计日志
+	AuditLogCreate  = "audit:log:create"  // 创建审计日志（内部使用）
+	AuditLogRead    = "audit:log:read"    // 查询审计日志详情
+	AuditLogCleanup = "audit:log:cleanup" // 清理审计日志
 )
 
 // ============================================================
 // 租户管理权限码（/api/v1/admin/tenants 相关，平台后台）
 // ============================================================
 const (
-	AdminTenantList            = "admin:tenant:list"              // 查询租户列表
-	AdminTenantCreate          = "admin:tenant:create"            // 后台新建租户
-	AdminTenantRead            = "admin:tenant:read"              // 查询租户详情
-	AdminTenantUpdate          = "admin:tenant:update"            // 更新租户
-	AdminTenantDelete          = "admin:tenant:delete"            // 删除租户（软删除）
-	AdminTenantStatus          = "admin:tenant:status"           // 启用/禁用租户
-	AdminTenantListDeleted     = "admin:tenant:list_deleted"      // 查询已删除租户（回收站）
-	AdminTenantRestore         = "admin:tenant:restore"          // 恢复已删除租户
-	AdminTenantBatchStatus     = "admin:tenant:batch_status"    // 批量启用/禁用租户
-	AdminTenantBatchDelete     = "admin:tenant:batch_delete"    // 批量删除租户
+	AdminTenantList        = "admin:tenant:list"         // 查询租户列表
+	AdminTenantCreate      = "admin:tenant:create"       // 后台新建租户
+	AdminTenantRead        = "admin:tenant:read"         // 查询租户详情
+	AdminTenantUpdate      = "admin:tenant:update"       // 更新租户
+	AdminTenantDelete      = "admin:tenant:delete"       // 删除租户（软删除）
+	AdminTenantStatus      = "admin:tenant:status"       // 启用/禁用租户
+	AdminTenantListDeleted = "admin:tenant:list_deleted" // 查询已删除租户（回收站）
+	AdminTenantRestore     = "admin:tenant:restore"      // 恢复已删除租户
+	AdminTenantBatchStatus = "admin:tenant:batch_status" // 批量启用/禁用租户
+	AdminTenantBatchDelete = "admin:tenant:batch_delete" // 批量删除租户
 )
 
 // ============================================================
 // 系统管理员权限码（/api/v1/admin/users 相关，平台后台）
 // ============================================================
 const (
-	AdminMasterList             = "admin:master:list"             // 查询系统管理员列表
-	AdminMasterCreate           = "admin:master:create"           // 创建系统管理员
-	AdminMasterRead             = "admin:master:read"            // 查询系统管理员详情
-	AdminMasterUpdate           = "admin:master:update"          // 更新系统管理员
-	AdminMasterStatus           = "admin:master:status"          // 启用/禁用系统管理员
-	AdminMasterDelete           = "admin:master:delete"          // 删除系统管理员（软删除）
-	AdminMasterListDeleted      = "admin:master:list_deleted"    // 查询已删除系统管理员（回收站）
-	AdminMasterRestore          = "admin:master:restore"        // 恢复已删除系统管理员
+	AdminMasterList            = "admin:master:list"             // 查询系统管理员列表
+	AdminMasterCreate          = "admin:master:create"           // 创建系统管理员
+	AdminMasterRead            = "admin:master:read"             // 查询系统管理员详情
+	AdminMasterUpdate          = "admin:master:update"           // 更新系统管理员
+	AdminMasterStatus          = "admin:master:status"           // 启用/禁用系统管理员
+	AdminMasterDelete          = "admin:master:delete"           // 删除系统管理员（软删除）
+	AdminMasterListDeleted     = "admin:master:list_deleted"     // 查询已删除系统管理员（回收站）
+	AdminMasterRestore         = "admin:master:restore"          // 恢复已删除系统管理员
 	AdminMasterPermanentDelete = "admin:master:permanent_delete" // 永久删除系统管理员
-	AdminMasterBatchStatus      = "admin:master:batch_status"   // 批量启用/禁用系统管理员
-	AdminMasterBatchDelete      = "admin:master:batch_delete"   // 批量删除系统管理员
+	AdminMasterBatchStatus     = "admin:master:batch_status"     // 批量启用/禁用系统管理员
+	AdminMasterBatchDelete     = "admin:master:batch_delete"     // 批量删除系统管理员
 )
 
 // ============================================================
 // 跨租户用户管理权限码（/api/v1/admin/tenant-users 相关，平台后台）
 // ============================================================
 const (
-	AdminTenantUserList             = "admin:tenant_user:list"              // 查询全量租户用户列表
-	AdminTenantUserListAll          = "admin:tenant_user:list_all"         // 查询全量租户用户（排除系统管理员）
-	AdminTenantUserCreate           = "admin:tenant_user:create"           // 为指定租户创建用户
-	AdminTenantUserRead             = "admin:tenant_user:read"            // 查询租户用户详情
-	AdminTenantUserUpdate           = "admin:tenant_user:update"          // 更新租户用户
-	AdminTenantUserStatus           = "admin:tenant_user:status"          // 启用/禁用租户用户
-	AdminTenantUserResetPassword    = "admin:tenant_user:reset_password"  // 重置租户用户密码
-	AdminTenantUserDelete           = "admin:tenant_user:delete"          // 删除租户用户（软删除）
-	AdminTenantUserListDeletedAll   = "admin:tenant_user:list_deleted_all" // 查询全量已删除租户用户
-	AdminTenantUserListDeleted      = "admin:tenant_user:list_deleted"    // 查询指定租户已删除用户
-	AdminTenantUserRestore          = "admin:tenant_user:restore"         // 恢复已删除租户用户
-	AdminTenantUserPermanentDelete  = "admin:tenant_user:permanent_delete" // 永久删除租户用户
-	AdminTenantUserBatchStatus      = "admin:tenant_user:batch_status"    // 批量启用/禁用租户用户
-	AdminTenantUserBatchDelete      = "admin:tenant_user:batch_delete"    // 批量删除租户用户
+	AdminTenantUserList            = "admin:tenant_user:list"             // 查询全量租户用户列表
+	AdminTenantUserListAll         = "admin:tenant_user:list_all"         // 查询全量租户用户（排除系统管理员）
+	AdminTenantUserCreate          = "admin:tenant_user:create"           // 为指定租户创建用户
+	AdminTenantUserRead            = "admin:tenant_user:read"             // 查询租户用户详情
+	AdminTenantUserUpdate          = "admin:tenant_user:update"           // 更新租户用户
+	AdminTenantUserStatus          = "admin:tenant_user:status"           // 启用/禁用租户用户
+	AdminTenantUserResetPassword   = "admin:tenant_user:reset_password"   // 重置租户用户密码
+	AdminTenantUserDelete          = "admin:tenant_user:delete"           // 删除租户用户（软删除）
+	AdminTenantUserListDeletedAll  = "admin:tenant_user:list_deleted_all" // 查询全量已删除租户用户
+	AdminTenantUserListDeleted     = "admin:tenant_user:list_deleted"     // 查询指定租户已删除用户
+	AdminTenantUserRestore         = "admin:tenant_user:restore"          // 恢复已删除租户用户
+	AdminTenantUserPermanentDelete = "admin:tenant_user:permanent_delete" // 永久删除租户用户
+	AdminTenantUserBatchStatus     = "admin:tenant_user:batch_status"     // 批量启用/禁用租户用户
+	AdminTenantUserBatchDelete     = "admin:tenant_user:batch_delete"     // 批量删除租户用户
 )
 
 // ============================================================
 // 文件管理权限码（/api/v1/files 相关）
 // ============================================================
 const (
-	FileList         = "file:list"         // 查询文件列表
-	FileUpload       = "file:upload"       // 上传文件
-	FileRead         = "file:read"         // 查看文件详情
-	FileDownload     = "file:download"     // 下载文件
-	FileUpdate       = "file:update"       // 更新文件信息
-	FileDelete       = "file:delete"       // 删除文件
-	FileListDeleted  = "file:list_deleted" // 查询已删除文件
-	FileRestore      = "file:restore"       // 恢复已删除文件
+	FileList            = "file:list"             // 查询文件列表
+	FileUpload          = "file:upload"           // 上传文件
+	FileRead            = "file:read"             // 查看文件详情
+	FileDownload        = "file:download"         // 下载文件
+	FileUpdate          = "file:update"           // 更新文件信息
+	FileDelete          = "file:delete"           // 删除文件
+	FileListDeleted     = "file:list_deleted"     // 查询已删除文件
+	FileRestore         = "file:restore"          // 恢复已删除文件
 	FilePermanentDelete = "file:permanent_delete" // 永久删除文件
-	FileBatchDelete  = "file:batch_delete" // 批量删除文件
+	FileBatchDelete     = "file:batch_delete"     // 批量删除文件
 )
 
 // ============================================================
@@ -189,6 +189,34 @@ const (
 // ============================================================
 const (
 	TenantPlanCurrent = "tenant:plan:current" // 查询当前租户套餐与用量
+)
+
+// ============================================================
+// 数据看板权限码（/api/v1/admin/dashboard 相关，平台后台）
+// ============================================================
+const (
+	DashboardOverview = "admin:dashboard:list" // 查看平台运营数据看板
+)
+
+// ============================================================
+// 租户注销审批权限码（/api/v1/admin/cancel-requests 相关，平台后台）
+// ============================================================
+const (
+	CancelRequestList    = "admin:cancel_request:list"    // 查看注销申请列表
+	CancelRequestApprove = "admin:cancel_request:approve" // 通过注销申请
+	CancelRequestReject  = "admin:cancel_request:reject"  // 驳回注销申请
+)
+
+// ============================================================
+// 通知公告权限码（/api/v1/admin/announcements 相关，平台后台）
+// ============================================================
+const (
+	AnnouncementList   = "admin:announcement:list"   // 查看公告列表
+	AnnouncementRead   = "admin:announcement:read"   // 查看公告详情
+	AnnouncementCreate = "admin:announcement:create" // 创建公告
+	AnnouncementUpdate = "admin:announcement:update" // 更新公告
+	AnnouncementStatus = "admin:announcement:status" // 发布/下架公告
+	AnnouncementDelete = "admin:announcement:delete" // 删除公告
 )
 
 // ============================================================
@@ -281,6 +309,22 @@ func GetPermissionDefs() []PermissionDef {
 
 		// 租户侧套餐
 		{Name: "查询当前租户套餐", Code: TenantPlanCurrent, Description: "查询当前租户套餐与用量", Resource: "plan", Action: "current"},
+
+		// 数据看板（平台后台）
+		{Name: "查看平台运营数据看板", Code: DashboardOverview, Description: "查看平台运营数据总览看板", Resource: "dashboard", Action: "list"},
+
+		// 通知公告（平台后台）
+		{Name: "查看公告列表", Code: AnnouncementList, Description: "查看平台公告列表", Resource: "announcement", Action: "list"},
+		{Name: "查看公告详情", Code: AnnouncementRead, Description: "查看平台公告详情", Resource: "announcement", Action: "read"},
+		{Name: "创建公告", Code: AnnouncementCreate, Description: "创建平台公告", Resource: "announcement", Action: "create"},
+		{Name: "更新公告", Code: AnnouncementUpdate, Description: "更新平台公告", Resource: "announcement", Action: "update"},
+		{Name: "发布/下架公告", Code: AnnouncementStatus, Description: "发布或下架平台公告", Resource: "announcement", Action: "status"},
+		{Name: "删除公告", Code: AnnouncementDelete, Description: "删除平台公告", Resource: "announcement", Action: "delete"},
+
+		// 租户注销审批（平台后台）
+		{Name: "查看注销申请列表", Code: CancelRequestList, Description: "查看租户注销申请列表", Resource: "cancel_request", Action: "list"},
+		{Name: "通过注销申请", Code: CancelRequestApprove, Description: "审批通过租户注销申请", Resource: "cancel_request", Action: "approve"},
+		{Name: "驳回注销申请", Code: CancelRequestReject, Description: "驳回租户注销申请", Resource: "cancel_request", Action: "reject"},
 
 		// 租户管理（平台后台）
 		{Name: "查询租户列表", Code: AdminTenantList, Description: "平台后台查询全量租户列表", Resource: "tenant", Action: "list"},

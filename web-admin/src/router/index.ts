@@ -80,6 +80,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '审计日志', icon: 'Document', permission: 'audit:log:list', requireMaster: true }
       },
       {
+        path: 'system/cancel-request',
+        name: 'CancelRequest',
+        component: () => import('@/views/system/cancel-request/index.vue'),
+        meta: { title: '注销审批', icon: 'CloseBold', permission: 'admin:cancel_request:list', requireMaster: true }
+      },
+      {
         path: 'system/plan',
         name: 'Plan',
         component: () => import('@/views/system/plan/index.vue'),
@@ -90,6 +96,12 @@ const routes: RouteRecordRaw[] = [
         name: 'File',
         component: () => import('@/views/system/file/index.vue'),
         meta: { title: '文件管理', icon: 'Folder', permission: 'file:list' }
+      },
+      {
+        path: 'system/announcement',
+        name: 'Announcement',
+        component: () => import('@/views/system/announcement/index.vue'),
+        meta: { title: '公告管理', icon: 'Bell', permission: 'admin:announcement:list', requireMaster: true }
       }
     ]
   },

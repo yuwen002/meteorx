@@ -170,20 +170,16 @@ func (h *FileHandler) ListByUser(w http.ResponseWriter, r *http.Request) {
 
 // parseListReq 解析分页与过滤参数
 func (h *FileHandler) parseListReq(r *http.Request) *dto.FileListReq {
-	req := &dto.FileListReq{Page: 1, PageSize: 10}
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if page, err := strconv.Atoi(pageStr); err == nil && page > 0 {
-			req.Page = page
-		}
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+	pg := pagination.NewPagination(page, pageSize)
+
+	return &dto.FileListReq{
+		Page:     pg.Page,
+		PageSize: pg.PageSize,
+		FileType: r.URL.Query().Get("file_type"),
+		Keyword:  r.URL.Query().Get("keyword"),
 	}
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if pageSize, err := strconv.Atoi(pageSizeStr); err == nil && pageSize > 0 && pageSize <= 100 {
-			req.PageSize = pageSize
-		}
-	}
-	req.FileType = r.URL.Query().Get("file_type")
-	req.Keyword = r.URL.Query().Get("keyword")
-	return req
 }
 
 // Update 更新文件信息

@@ -40,4 +40,12 @@ func RegisterAdminRoutes(r chi.Router, h *handler.TenantHandler, checker middlew
 		r.Delete("/{id}/delete", h.AdminDelete)          // → admin:tenant:delete
 		r.Put("/{id}/restore", h.AdminRestore)           // → admin:tenant:restore
 	})
+
+	// 注销申请审批
+	r.Route("/admin/cancel-requests", func(r chi.Router) {
+		r.Use(middleware.AutoRequirePermission(checker))
+		r.Get("/", h.AdminListCancelRequests)        // → admin:cancel_request:list
+		r.Put("/{id}/approve", h.AdminApproveCancel) // → admin:cancel_request:approve
+		r.Put("/{id}/reject", h.AdminRejectCancel)   // → admin:cancel_request:reject
+	})
 }

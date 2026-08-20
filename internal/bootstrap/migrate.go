@@ -5,6 +5,7 @@ import (
 	"log"
 	"meteorx/internal/modules/audit/repository"
 	"meteorx/internal/modules/file"
+	notificationrepo "meteorx/internal/modules/notification/repository"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,6 +34,12 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 
+	err = tenantrepo.CancelRequestsAutoMigrate(db)
+	if err != nil {
+		log.Printf("Cancel request migration failed: %v", err)
+		return err
+	}
+
 	err = planrepo.AutoMigrate(db)
 	if err != nil {
 		log.Printf("Plan migration failed: %v", err)
@@ -54,6 +61,12 @@ func AutoMigrate(db *gorm.DB) error {
 	err = file.AutoMigrate(db)
 	if err != nil {
 		log.Printf("File migration failed: %v", err)
+		return err
+	}
+
+	err = notificationrepo.AutoMigrate(db)
+	if err != nil {
+		log.Printf("Notification migration failed: %v", err)
 		return err
 	}
 

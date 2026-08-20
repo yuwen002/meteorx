@@ -71,3 +71,43 @@ type ApplyCancellationResp struct {
 	Status       string `json:"status"`        // pending, approved, rejected
 	EstimatedDay int    `json:"estimated_day"` // 预计注销天数
 }
+
+// AdminReviewCancelReq 平台审批注销申请请求
+type AdminReviewCancelReq struct {
+	ReviewRemark string `json:"review_remark" validate:"max=500" label:"审批备注"`
+}
+
+// AdminApproveCancelReq 平台通过注销申请请求
+type AdminApproveCancelReq struct {
+	AdminReviewCancelReq
+	EffectiveDays int `json:"effective_days" validate:"min=0,max=30" label:"生效天数"` // 通过后多少天执行注销，0 表示立即执行
+}
+
+// AdminRejectCancelReq 平台驳回注销申请请求
+type AdminRejectCancelReq struct {
+	AdminReviewCancelReq
+}
+
+// CancelRequestResp 注销申请响应
+type CancelRequestResp struct {
+	ID           string `json:"id"`
+	TenantID     string `json:"tenant_id"`
+	TenantName   string `json:"tenant_name"`
+	Reason       string `json:"reason"`
+	Status       int    `json:"status"`
+	StatusText   string `json:"status_text"`
+	ApproverID   string `json:"approver_id"`
+	ReviewRemark string `json:"review_remark"`
+	EffectiveAt  string `json:"effective_at"`
+	AppliedAt    string `json:"applied_at"`
+	ApprovedAt   string `json:"approved_at"`
+	CompletedAt  string `json:"completed_at"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
+}
+
+// CancelRequestListResp 注销申请列表响应
+type CancelRequestListResp struct {
+	Items []*CancelRequestResp `json:"items"`
+	Total int64                `json:"total"`
+}

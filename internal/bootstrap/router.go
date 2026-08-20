@@ -3,6 +3,8 @@ package bootstrap
 import (
 	"context"
 	"meteorx/internal/modules/audit"
+	"meteorx/internal/modules/dashboard"
+	"meteorx/internal/modules/notification"
 	"net/http"
 	"time"
 
@@ -114,6 +116,12 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 
 				// 9. 套餐管理接口（仅平台超级管理员可操作）
 				plan.InitAdminModule(r, db)
+
+				// 10. 数据看板接口（仅平台超级管理员可操作）
+				dashboard.InitModule(r, db)
+
+				// 11. 通知公告接口（仅平台超级管理员可操作）
+				notification.InitModule(r, db)
 			})
 		})
 	})
@@ -134,5 +142,12 @@ func initPlans(db *gorm.DB) {
 // 传入的 ctx 用于在应用关闭时取消后台 goroutine
 func StartPlanExpiryJob(ctx context.Context, db *gorm.DB) {
 	job := plan.NewExpiryJob(db)
+	job.Start(ctx, 5*time.Minute)
+}
+
+// StartCancelCleanupJob 启动租户注销定时执行任务
+// 将已通过审批且到期的注销申请真正执行（软删除租户、取消订阅）
+func StartCancelCleanupJob(ctx context.Context, db *gorm.DB) {
+	job := tenant.NewCancelCleanupJob(db)
 	job.Start(ctx, 5*time.Minute)
 }

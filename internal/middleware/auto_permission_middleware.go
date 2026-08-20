@@ -14,48 +14,50 @@ import (
 // 然后调用 PermissionChecker 校验用户是否拥有该权限。
 //
 // 推导规则（约定）：
-//   URL:     /api/v1/users/{id}/detail
-//   Method:  GET
-//   步骤:   1) 去掉前缀 "/api/v1/"，得到 "users/{id}/detail"
-//           2) 识别命名空间前缀：rbac / admin / 其他
-//           3) 提取第一个段作为"模块/资源"，根据命名空间映射得到资源名
-//           4) 分析 Method + 剩余路径，推导动作
-//           5) 组合为: "rbac:{资源}:{动作}" / "admin:{资源}:{动作}" / "{资源}:{动作}"
+//
+//	URL:     /api/v1/users/{id}/detail
+//	Method:  GET
+//	步骤:   1) 去掉前缀 "/api/v1/"，得到 "users/{id}/detail"
+//	        2) 识别命名空间前缀：rbac / admin / 其他
+//	        3) 提取第一个段作为"模块/资源"，根据命名空间映射得到资源名
+//	        4) 分析 Method + 剩余路径，推导动作
+//	        5) 组合为: "rbac:{资源}:{动作}" / "admin:{资源}:{动作}" / "{资源}:{动作}"
 //
 // 推导示例：
-//   GET    /api/v1/users                   → user:list
-//   POST   /api/v1/users                   → user:create
-//   GET    /api/v1/users/{id}/detail       → user:read
-//   PUT    /api/v1/users/{id}/update       → user:update
-//   DELETE /api/v1/users/{id}/delete       → user:delete
-//   GET    /api/v1/rbac/roles              → rbac:role:list
-//   POST   /api/v1/rbac/roles              → rbac:role:create
-//   PUT    /api/v1/rbac/roles/{id}/permissions → rbac:role:bind_perm
-//   GET    /api/v1/rbac/role-permissions   → rbac:role_perm:list
-//   GET    /api/v1/rbac/user-roles         → rbac:user_role:list
-//   POST   /api/v1/rbac/user-roles/{user_id}/roles → rbac:user_role:assign
-//   GET    /api/v1/rbac/user-roles/{user_id}/roles → rbac:user_role:get_roles
-//   DELETE /api/v1/rbac/user-roles/{user_id}/roles/{role_id} → rbac:user_role:remove_one
-//   DELETE /api/v1/rbac/user-roles/{user_id}/roles → rbac:user_role:remove_all
-//   GET    /api/v1/admin/users             → admin:master:list
-//   POST   /api/v1/admin/users             → admin:master:create
-//   GET    /api/v1/admin/tenants           → admin:tenant:list
-//   POST   /api/v1/admin/tenants           → admin:tenant:create
-//   GET    /api/v1/admin/tenant-users      → admin:tenant_user:list
-//   POST   /api/v1/admin/tenant-users      → admin:tenant_user:create
-//   GET    /api/v1/admin/plans             → admin:plan:list
-//   PUT    /api/v1/admin/tenants/{id}/plan → admin:plan:assign
+//
+//	GET    /api/v1/users                   → user:list
+//	POST   /api/v1/users                   → user:create
+//	GET    /api/v1/users/{id}/detail       → user:read
+//	PUT    /api/v1/users/{id}/update       → user:update
+//	DELETE /api/v1/users/{id}/delete       → user:delete
+//	GET    /api/v1/rbac/roles              → rbac:role:list
+//	POST   /api/v1/rbac/roles              → rbac:role:create
+//	PUT    /api/v1/rbac/roles/{id}/permissions → rbac:role:bind_perm
+//	GET    /api/v1/rbac/role-permissions   → rbac:role_perm:list
+//	GET    /api/v1/rbac/user-roles         → rbac:user_role:list
+//	POST   /api/v1/rbac/user-roles/{user_id}/roles → rbac:user_role:assign
+//	GET    /api/v1/rbac/user-roles/{user_id}/roles → rbac:user_role:get_roles
+//	DELETE /api/v1/rbac/user-roles/{user_id}/roles/{role_id} → rbac:user_role:remove_one
+//	DELETE /api/v1/rbac/user-roles/{user_id}/roles → rbac:user_role:remove_all
+//	GET    /api/v1/admin/users             → admin:master:list
+//	POST   /api/v1/admin/users             → admin:master:create
+//	GET    /api/v1/admin/tenants           → admin:tenant:list
+//	POST   /api/v1/admin/tenants           → admin:tenant:create
+//	GET    /api/v1/admin/tenant-users      → admin:tenant_user:list
+//	POST   /api/v1/admin/tenant-users      → admin:tenant_user:create
+//	GET    /api/v1/admin/plans             → admin:plan:list
+//	PUT    /api/v1/admin/tenants/{id}/plan → admin:plan:assign
 //
 // 用法示例：
 //
-//   r.Route("/users", func(r chi.Router) {
-//       r.Use(middleware.AutoRequirePermission(checker))
-//       r.Get("/", h.ListUsers)              // → 自动需要 user:list
-//       r.Post("/", h.CreateUser)            // → 自动需要 user:create
-//       r.Get("/{id}/detail", h.GetUser)     // → 自动需要 user:read
-//       r.Put("/{id}/update", h.UpdateUser)  // → 自动需要 user:update
-//       r.Delete("/{id}/delete", h.DeleteUser)// → 自动需要 user:delete
-//   })
+//	r.Route("/users", func(r chi.Router) {
+//	    r.Use(middleware.AutoRequirePermission(checker))
+//	    r.Get("/", h.ListUsers)              // → 自动需要 user:list
+//	    r.Post("/", h.CreateUser)            // → 自动需要 user:create
+//	    r.Get("/{id}/detail", h.GetUser)     // → 自动需要 user:read
+//	    r.Put("/{id}/update", h.UpdateUser)  // → 自动需要 user:update
+//	    r.Delete("/{id}/delete", h.DeleteUser)// → 自动需要 user:delete
+//	})
 //
 // 超级管理员（contextx.HasRole(ctx, "superadmin")）直接放行。
 func AutoRequirePermission(checker PermissionChecker) func(http.Handler) http.Handler {
@@ -244,6 +246,10 @@ func singularize(part string) string {
 		return "user"
 	case "logs":
 		return "log"
+	case "announcements":
+		return "announcement"
+	case "cancel-requests", "cancel_requests":
+		return "cancel_request"
 	default:
 		return part
 	}

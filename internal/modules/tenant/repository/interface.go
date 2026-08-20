@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	userModel "meteorx/internal/modules/user/model"
+	"time"
 
 	"meteorx/internal/modules/tenant/model"
 )
@@ -36,4 +37,17 @@ type TenantRepository interface {
 	FindDeleted(ctx context.Context, page, pageSize int, name string) ([]*model.Tenant, int64, error)
 	// Restore 恢复已软删除的租户
 	Restore(ctx context.Context, id string) error
+
+	// CreateCancelRequest 创建注销申请
+	CreateCancelRequest(ctx context.Context, req *model.CancelRequest) error
+	// GetCancelRequestByID 根据ID查询注销申请
+	GetCancelRequestByID(ctx context.Context, id string) (*model.CancelRequest, error)
+	// GetPendingCancelRequestByTenant 查询租户未处理的注销申请
+	GetPendingCancelRequestByTenant(ctx context.Context, tenantID string) (*model.CancelRequest, error)
+	// UpdateCancelRequest 更新注销申请
+	UpdateCancelRequest(ctx context.Context, req *model.CancelRequest) error
+	// FindCancelRequests 分页查询注销申请
+	FindCancelRequests(ctx context.Context, page, pageSize int, status int, keyword string) ([]*model.CancelRequest, int64, error)
+	// FindApprovedDueCancelRequests 查询所有已到期可执行的注销申请
+	FindApprovedDueCancelRequests(ctx context.Context, now time.Time) ([]*model.CancelRequest, error)
 }

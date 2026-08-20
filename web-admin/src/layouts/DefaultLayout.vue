@@ -49,6 +49,10 @@
             <el-icon><Document /></el-icon>
             <template #title>审计日志</template>
           </el-menu-item>
+          <el-menu-item index="/system/cancel-request" v-if="userStore.isAdmin">
+            <el-icon><CloseBold /></el-icon>
+            <template #title>注销审批</template>
+          </el-menu-item>
           <el-menu-item index="/system/plan" v-if="userStore.isAdmin">
             <el-icon><Goods /></el-icon>
             <template #title>套餐管理</template>
@@ -56,6 +60,10 @@
           <el-menu-item index="/system/file" v-if="userStore.hasPermission('file:list') || userStore.isAdmin">
             <el-icon><Folder /></el-icon>
             <template #title>文件管理</template>
+          </el-menu-item>
+          <el-menu-item index="/system/announcement" v-if="userStore.isAdmin">
+            <el-icon><Bell /></el-icon>
+            <template #title>公告管理</template>
           </el-menu-item>
         </el-sub-menu>
       </el-menu>

@@ -52,6 +52,9 @@ func StartApp() {
 	defer cancel()
 	StartPlanExpiryJob(ctx, db)
 
+	// 6.2 启动租户注销定时执行任务（执行已到期的注销申请）
+	StartCancelCleanupJob(ctx, db)
+
 	// 7. 构造 http.Server 以支持优雅关闭
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	srv := &http.Server{

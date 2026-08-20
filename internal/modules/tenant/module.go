@@ -29,6 +29,9 @@ func initHandler(db *gorm.DB) *handler.TenantHandler {
 	planSvc := plansvc.NewPlanService(planRepo, subRepo, userRepo)
 	svc.SetPlanProvider(planSvc)
 
+	// 注入订阅仓库（注销时取消生效订阅）
+	svc.SetSubscriptionRepository(subRepo)
+
 	return handler.NewTenantHandler(svc)
 }
 

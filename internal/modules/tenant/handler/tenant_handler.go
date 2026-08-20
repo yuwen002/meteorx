@@ -146,7 +146,7 @@ func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(pageStr)
 	pageSize, _ := strconv.Atoi(pageSizeStr)
 	pg := pagination.NewPagination(page, pageSize)
-	
+
 	// 解析状态参数（如果有）
 	var status *int
 	if statusStr != "" {
@@ -547,4 +547,81 @@ func (h *TenantHandler) ApplyCancellation(w http.ResponseWriter, r *http.Request
 
 	// 4. 返回成功响应
 	response.Success(w, result)
+}
+
+// AdminListCancelRequests GET /api/v1/admin/cancel-requests
+// 平台管理员分页查询注销申请列表
+func (h *TenantHandler) AdminListCancelRequests(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+	pg := pagination.NewPagination(page, pageSize)
+
+	status, _ := strconv.Atoi(r.URL.Query().Get("status"))
+	keyword := r.URL.Query().Get("keyword")
+
+	result, err := h.svc.ListCancelRequests(r.Context(), pg.Page, pg.PageSize, status, keyword)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "查询注销申请列表失败")
+		return
+	}
+
+	response.Success(w, pagination.NewPaginatedResult(result.Items, pg.Page, pg.PageSize, int(result.Total)))
+}
+
+// AdminApproveCancel PUT /api/v1/admin/cancel-requests/{id}/approve
+// 平台管理员审批通过注销申请
+func (h *TenantHandler) AdminApproveCancel(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		response.BadRequest(w, "申请ID不能为空")
+		return
+	}
+
+	var req dto.AdminApproveCancelReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	approverID := contextx.GetUserID(r.Context())
+	resp, err := h.svc.ApproveCancellation(r.Context(), id, approverID, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrTenantNotFound):
+			response.Fail(w, http.StatusNotFound, "注销申请不存在")
+		default:
+			response.Fail(w, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+
+	response.Success(w, resp)
+}
+
+// AdminRejectCancel PUT /api/v1/admin/cancel-requests/{id}/reject
+// 平台管理员驳回注销申请
+func (h *TenantHandler) AdminRejectCancel(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		response.BadRequest(w, "申请ID不能为空")
+		return
+	}
+
+	var req dto.AdminRejectCancelReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	approverID := contextx.GetUserID(r.Context())
+	resp, err := h.svc.RejectCancellation(r.Context(), id, approverID, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrTenantNotFound):
+			response.Fail(w, http.StatusNotFound, "注销申请不存在")
+		default:
+			response.Fail(w, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+
+	response.Success(w, resp)
 }

@@ -40,6 +40,14 @@
 | PUT | `/admin/tenants/batch/status` | 批量更新租户状态 | `admin:tenant:batch_status` |
 | DELETE | `/admin/tenants/batch` | 批量删除租户 | `admin:tenant:batch_delete` |
 
+**注销审批接口**
+
+| 方法 | 路径 | 功能 | 权限码 |
+|------|------|------|--------|
+| GET | `/admin/cancel-requests` | 注销申请列表（分页） | `admin:cancel_request:list` |
+| PUT | `/admin/cancel-requests/{id}/approve` | 审批通过（可指定生效时间） | `admin:cancel_request:approve` |
+| PUT | `/admin/cancel-requests/{id}/reject` | 审批驳回 | `admin:cancel_request:reject` |
+
 ---
 
 ## 2. 数据结构
@@ -119,6 +127,45 @@
 | status | string | pending/approved/rejected |
 | estimated_day | int | 预计注销天数 |
 
+### 2.8 AdminApproveCancelReq（审批通过请求）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| review_remark | string | 否 | 审批备注（max=500） |
+| effective_days | int | 否 | 通过后多少天执行注销（0=立即，max=30） |
+
+### 2.9 AdminRejectCancelReq（审批驳回请求）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| review_remark | string | 否 | 审批备注（max=500） |
+
+### 2.10 CancelRequestResp（注销申请响应）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | string | 申请 ID |
+| tenant_id | string | 租户 ID |
+| tenant_name | string | 租户名称 |
+| reason | string | 注销原因 |
+| status | int | 状态码：1=pending 2=approved 3=rejected 4=completed |
+| status_text | string | 状态文案 |
+| approver_id | string | 审批人 ID |
+| review_remark | string | 审批备注 |
+| effective_at | string | 计划生效时间 |
+| applied_at | string | 申请时间 |
+| approved_at | string | 审批通过时间 |
+| completed_at | string | 注销完成时间 |
+| created_at | string | 创建时间 |
+| updated_at | string | 更新时间 |
+
+### 2.11 CancelRequestListResp（注销申请列表响应）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| items | array\<CancelRequestResp\> | 申请列表 |
+| total | int64 | 总数 |
+
 ---
 
 ## 3. 接口详细说明
@@ -168,7 +215,7 @@
 
 **请求体：** ApplyCancellationReq
 
-**说明：** 需填写注销原因；宽限期结束后数据物理删除
+**说明：** 需填写注销原因；提交后进入"待审批"状态，由平台超级管理员在 `/admin/cancel-requests` 审批（通过/驳回）。审批通过后进入宽限期，到点自动执行注销（软删除租户、取消订阅）。
 
 ### 3.6 管理员创建租户
 
@@ -205,6 +252,75 @@
 - `PUT /api/v1/admin/tenants/batch/status`
 - `DELETE /api/v1/admin/tenants/batch`
 
+### 3.13 注销申请列表
+
+`GET /api/v1/admin/cancel-requests`
+
+**Query 参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| page | int | 否 | 页码，默认 1 |
+| page_size | int | 否 | 每页数量，默认 20 |
+| status | int | 否 | 按状态筛选：1=pending 2=approved 3=rejected 4=completed |
+| tenant_id | string | 否 | 按租户筛选 |
+
+**成功响应（200）：** CancelRequestListResp
+```json
+{
+  "code": 200,
+  "message": "ok",
+  "data": {
+    "items": [
+      {
+        "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "tenant_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "tenant_name": "示例租户",
+        "reason": "业务调整，不再使用",
+        "status": 1,
+        "status_text": "待审批",
+        "approver_id": "",
+        "review_remark": "",
+        "effective_at": "",
+        "applied_at": "2026-08-20T10:00:00Z",
+        "approved_at": "",
+        "completed_at": "",
+        "created_at": "2026-08-20T10:00:00Z",
+        "updated_at": "2026-08-20T10:00:00Z"
+      }
+    ],
+    "total": 1
+  }
+}
+```
+
+### 3.14 审批通过注销申请
+
+`PUT /api/v1/admin/cancel-requests/{id}/approve`
+
+**请求体：** AdminApproveCancelReq
+```json
+{
+  "review_remark": "同意注销",
+  "effective_days": 7
+}
+```
+
+**业务规则：** `effective_days` 表示通过后多少天执行注销（0=立即执行）。通过后进入宽限期，后台定时任务到点自动软删除租户并取消订阅、标记为完成。
+
+### 3.15 驳回注销申请
+
+`PUT /api/v1/admin/cancel-requests/{id}/reject`
+
+**请求体：** AdminRejectCancelReq
+```json
+{
+  "review_remark": "存在未结清账单，驳回"
+}
+```
+
+**业务规则：** 驳回后申请关闭，租户保持正常可用状态。
+
 ---
 
 ## 4. 权限码列表
@@ -220,3 +336,6 @@
 | `admin:tenant:restore` | 恢复已删除租户 |
 | `admin:tenant:batch_status` | 批量更新状态 |
 | `admin:tenant:batch_delete` | 批量删除租户 |
+| `admin:cancel_request:list` | 查看注销申请列表 |
+| `admin:cancel_request:approve` | 审批通过注销申请 |
+| `admin:cancel_request:reject` | 审批驳回注销申请 |

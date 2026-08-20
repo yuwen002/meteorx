@@ -16,6 +16,9 @@
 | **文件管理** | 上传/下载/重命名/删除；回收站恢复+永久删除；MD5 去重；租户隔离；本地/云存储可扩展 |
 | **套餐管理** | 套餐 CRUD；租户套餐分配；用量限制（用户数上限）；到期提醒 |
 | **审计日志** | 自动记录所有请求；支持多维度筛选查询；敏感信息脱敏；定时清理；CSV 导出 |
+| **运营看板** | 平台运营数据总览：租户/用户/订阅/审计多维统计，实时掌握平台健康状况 |
+| **通知公告** | 平台公告 CRUD + 发布/下架；支持全平台或指定租户范围定向推送 |
+| **注销审批** | 租户注销申请 → 平台审批（通过/驳回）→ 到期自动执行注销的完整闭环 |
 | **安全增强** | 登录失败锁定（显示剩余次数）；密码复杂度策略；接口限流（基于 Redis） |
 | **回收站** | 用户 / 租户 / 角色 / 文件 均支持软删除 → 回收站查询 → 恢复 → 永久删除的完整闭环 |
 | **批量操作** | 批量删除 / 批量更新状态；幂等返回影响行数 |
@@ -80,7 +83,10 @@ meteorx/
 │   │   ├── rbac/                # 角色权限：角色、权限、绑定
 │   │   ├── file/                # 文件：上传、下载、回收站、存储抽象
 │   │   ├── plan/                # 套餐：CRUD + 租户分配 + 用量检查
-│   │   └── audit/               # 审计日志：自动记录 + 统计 + 导出
+│   │   ├── audit/               # 审计日志：自动记录 + 统计 + 导出
+│   │   ├── dashboard/           # 运营看板：平台数据总览统计
+│   │   ├── notification/        # 通知公告：公告 CRUD + 发布/下架 + 定向推送
+│   │   └── tenant/              # 租户：自助开户 + 后台管理 + 注销审批闭环
 │   │
 │   ├── middleware/              # HTTP 中间件
 │   │   ├── auth.go              # JWT 认证
@@ -129,7 +135,10 @@ meteorx/
 │   ├── rbac-api.md              # RBAC 权限接口
 │   ├── file-module-api.md       # 文件管理接口
 │   ├── plan-api.md              # 套餐管理接口
-│   └── audit-api.md             # 审计日志接口
+│   ├── audit-api.md             # 审计日志接口
+│   ├── dashboard-api.md         # 运营看板接口
+│   ├── announcement-api.md      # 通知公告接口
+│   └── FEATURE_UPGRADE.md       # 功能升级说明
 │
 ├── web-admin/                   # ⭐ 前端管理后台（Vue 3）
 │   ├── src/
@@ -256,6 +265,14 @@ meteorx/
 | `PUT` | `/admin/tenants/batch/status` | 批量更新状态 |
 | `DELETE` | `/admin/tenants/batch` | 批量删除 |
 
+**注销审批接口（需超级管理员）**
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/admin/cancel-requests` | 注销申请列表（分页） |
+| `PUT` | `/admin/cancel-requests/{id}/approve` | 审批通过（可指定生效时间） |
+| `PUT` | `/admin/cancel-requests/{id}/reject` | 审批驳回 |
+
 ### 7. RBAC 角色与权限
 
 **角色管理**
@@ -345,6 +362,23 @@ meteorx/
 | `POST` | `/audit/logs` | 创建日志（内部） |
 | `GET` | `/audit/logs/{id}` | 日志详情 |
 | `DELETE` | `/audit/logs/cleanup` | 清理过期日志 |
+
+### 11. 运营看板（管理员）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/admin/dashboard/overview` | 平台运营数据总览（租户/用户/订阅/审计） |
+
+### 12. 通知公告（管理员）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/admin/announcements` | 公告列表（分页） |
+| `POST` | `/admin/announcements` | 创建公告 |
+| `GET` | `/admin/announcements/{id}` | 公告详情 |
+| `PUT` | `/admin/announcements/{id}` | 更新公告 |
+| `PUT` | `/admin/announcements/{id}/status` | 发布 / 下架公告 |
+| `DELETE` | `/admin/announcements/{id}` | 删除公告 |
 
 ---
 
@@ -525,6 +559,9 @@ go test -bench=. ./pkg/security/...
 | [file-module-api.md](docs/file-module-api.md) | 文件管理接口（上传/下载/回收站） |
 | [plan-api.md](docs/plan-api.md) | 套餐管理接口（CRUD/分配/用量） |
 | [audit-api.md](docs/audit-api.md) | 审计日志接口（查询/导出/清理） |
+| [dashboard-api.md](docs/dashboard-api.md) | 运营看板接口（平台数据总览） |
+| [announcement-api.md](docs/announcement-api.md) | 通知公告接口（CRUD/发布/定向推送） |
+| [FEATURE_UPGRADE.md](docs/FEATURE_UPGRADE.md) | 功能升级说明（看板/公告/注销审批） |
 
 OpenAPI 规范文件位于 `docs/apifox/`：
 - `MeteorX-backend.openapi.json` — 可导入 Swagger / Postman / Apifox
@@ -554,6 +591,8 @@ OpenAPI 规范文件位于 `docs/apifox/`：
 | 文件管理 | `/system/file` | 上传/下载/重命名/回收站/永久删除 |
 | 套餐管理 | `/system/plan` | 套餐 CRUD |
 | 审计日志 | `/system/audit` | 日志查询/导出 |
+| 通知公告 | `/system/announcement` | 公告 CRUD / 发布 / 下架 |
+| 注销审批 | `/system/cancel-request` | 租户注销申请审批（通过/驳回） |
 
 ### 权限控制
 
