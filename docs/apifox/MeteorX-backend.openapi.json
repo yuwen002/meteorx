@@ -2,4370 +2,2545 @@
   "openapi": "3.0.1",
   "info": {
     "title": "MeteorX-backend",
-    "description": "",
+    "description": "MeteorX 多租户 SaaS 管理系统后端 API 文档",
     "version": "1.0.0"
   },
-  "tags": [],
+  "tags": [
+    { "name": "Auth", "description": "认证登录/注册/登出" },
+    { "name": "Profile", "description": "当前用户个人信息" },
+    { "name": "Tenant", "description": "租户管理" },
+    { "name": "User", "description": "租户用户管理" },
+    { "name": "Admin-User", "description": "系统管理员管理" },
+    { "name": "Admin-TenantUser", "description": "系统管理员跨租户用户管理" },
+    { "name": "RBAC", "description": "角色/权限/用户角色管理" },
+    { "name": "File", "description": "文件管理" },
+    { "name": "Plan", "description": "套餐管理" },
+    { "name": "Audit", "description": "审计日志" }
+  ],
+  "security": [{ "bearer": [] }],
+  "servers": [
+    { "url": "http://localhost:8080", "description": "本地开发服务器" }
+  ],
   "paths": {
-    "/api/v1/users": {
-      "get": {
-        "summary": "用户列表",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "example": 1,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "example": 10,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "keyword",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      },
+    "/api/v1/auth/register": {
       "post": {
-        "summary": "创建用户",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
+        "summary": "用户注册",
+        "tags": ["Auth"],
         "requestBody": {
+          "required": true,
           "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "username": {
-                    "type": "string"
-                  },
-                  "password": {
-                    "type": "string"
-                  },
-                  "nickname": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  },
-                  "role": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "username",
-                  "password",
-                  "nickname",
-                  "email",
-                  "role"
-                ]
-              },
-              "example": {
-                "username": "alex2026",
-                "password": "StrongPassword99",
-                "nickname": "代码敲得飞快",
-                "email": "alex@example.com",
-                "role": "admin"
-              }
-            }
-          },
-          "required": true
+            "application/json": { "schema": { "$ref": "#/components/schemas/RegisterUserReq" } }
+          }
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
+            "description": "注册成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
           }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/users/{id}/detail": {
-      "get": {
-        "summary": "用户详情",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/users/{id}/update": {
-      "put": {
-        "summary": "编辑用户",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "nickname": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  },
-                  "role": {
-                    "type": "string"
-                  },
-                  "status": {
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "nickname",
-                  "email",
-                  "role",
-                  "status"
-                ]
-              },
-              "example": {
-                "nickname": "代码敲得飞快2",
-                "email": "update_user@example.com",
-                "role": "admin",
-                "status": 1
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/users/{id}/delete": {
-      "get": {
-        "summary": "删除用户",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/tenants/register": {
-      "post": {
-        "summary": "租户注册",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "title": "租户名称"
-                  },
-                  "domain": {
-                    "type": "string",
-                    "title": "租户域名"
-                  },
-                  "description": {
-                    "type": "string",
-                    "title": "租户描述"
-                  },
-                  "contact_email": {
-                    "type": "string",
-                    "title": "联系邮箱"
-                  },
-                  "region": {
-                    "type": "string",
-                    "title": "地区"
-                  },
-                  "logo": {
-                    "type": "string",
-                    "title": "Logo地址"
-                  },
-                  "extra": {
-                    "type": "string",
-                    "title": "扩展字段"
-                  },
-                  "admin_user": {
-                    "type": "object",
-                    "properties": {
-                      "username": {
-                        "type": "string",
-                        "title": "管理员用户名"
-                      },
-                      "password": {
-                        "type": "string",
-                        "title": "管理员密码"
-                      },
-                      "nickname": {
-                        "type": "string",
-                        "title": "管理员昵称"
-                      },
-                      "email": {
-                        "type": "string",
-                        "title": "管理员邮箱"
-                      }
-                    },
-                    "required": [
-                      "username",
-                      "password",
-                      "nickname",
-                      "email"
-                    ]
-                  }
-                },
-                "required": [
-                  "name",
-                  "domain",
-                  "description",
-                  "contact_email",
-                  "region",
-                  "logo",
-                  "extra",
-                  "admin_user"
-                ]
-              },
-              "example": {
-                "name": "极客科技",
-                "domain": "geektech",
-                "description": "这是一家专注于 AI 研发的公司",
-                "contact_email": "contact@geektech.com",
-                "region": "华东地区",
-                "logo": "https://cdn.geektech.com/logo.png",
-                "extra": "{}",
-                "admin_user": {
-                  "username": "admin2026",
-                  "password": "SecretPassword123",
-                  "nickname": "超级管理员",
-                  "email": "admin@geektech.com"
-                }
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": []
-      }
-    },
-    "/api/v1/tenants/current": {
-      "get": {
-        "summary": "当前租户详情",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      },
-      "put": {
-        "summary": "当前编辑租户",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "logo": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "contact_email": {
-                    "type": "string"
-                  },
-                  "region": {
-                    "type": "string"
-                  },
-                  "extra": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "name",
-                  "logo",
-                  "description",
-                  "contact_email",
-                  "region",
-                  "extra"
-                ]
-              },
-              "example": {
-                "name": "编辑新租户名称",
-                "logo": "https://example.com/logo.png",
-                "description": "租户描述信息",
-                "contact_email": "contact@example.com",
-                "region": "华东",
-                "extra": "{\"key\": \"value\"}"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/tenants/current/status": {
-      "get": {
-        "summary": "当前租户开通状态",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/tenants/current/cancel": {
-      "post": {
-        "summary": "当前租户申请注销",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "reason": {
-                    "type": "string",
-                    "title": "注销原因"
-                  }
-                },
-                "required": [
-                  "reason"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/profile": {
-      "get": {
-        "summary": "当前用户信息",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      },
-      "put": {
-        "summary": "编辑当前用户",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "nickname": {
-                    "type": "string",
-                    "title": "昵称"
-                  },
-                  "email": {
-                    "type": "string",
-                    "title": "邮箱"
-                  }
-                },
-                "required": [
-                  "nickname",
-                  "email"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/profile/password": {
-      "put": {
-        "summary": "修改当前用户密码",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "old_password": {
-                    "type": "string"
-                  },
-                  "new_password": {
-                    "type": "string"
-                  },
-                  "confirm_password": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "old_password",
-                  "new_password",
-                  "confirm_password"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/auth/login": {
       "post": {
         "summary": "用户登录",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
+        "tags": ["Auth"],
+        "security": [],
         "requestBody": {
+          "required": true,
           "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "tenant_id": {
-                    "type": "string",
-                    "title": "租户ID"
-                  },
-                  "username": {
-                    "type": "string",
-                    "title": "用户名"
-                  },
-                  "password": {
-                    "type": "string",
-                    "title": "密码"
-                  }
-                },
-                "required": [
-                  "tenant_id",
-                  "username",
-                  "password"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
+            "application/json": { "schema": { "$ref": "#/components/schemas/LoginReq" } }
+          }
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
+            "description": "登录成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiLoginResp" } } }
           }
-        },
-        "security": []
-      }
-    },
-    "/api/v1/auth/register": {
-      "post": {
-        "summary": "用户注册",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "tenant_id": {
-                    "type": "string",
-                    "title": "租户ID"
-                  },
-                  "username": {
-                    "type": "string",
-                    "title": "用户名"
-                  },
-                  "password": {
-                    "type": "string",
-                    "title": "密码"
-                  },
-                  "nickname": {
-                    "type": "string",
-                    "title": "昵称"
-                  },
-                  "email": {
-                    "type": "string",
-                    "title": "邮箱"
-                  }
-                },
-                "required": [
-                  "tenant_id",
-                  "username",
-                  "password",
-                  "nickname",
-                  "email"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": []
+        }
       }
     },
     "/api/v1/auth/logout": {
       "post": {
         "summary": "用户登出",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
+        "tags": ["Auth"],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
+            "description": "登出成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/profile/stats": {
+      "get": {
+        "summary": "当前用户统计（Dashboard）",
+        "tags": ["Profile"],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/profile": {
+      "get": {
+        "summary": "获取当前用户信息",
+        "tags": ["Profile"],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiUserResp" } } }
+          }
+        }
+      },
+      "put": {
+        "summary": "更新当前用户信息",
+        "tags": ["Profile"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nickname": { "type": "string" },
+                  "email": { "type": "string", "format": "email" }
                 }
               }
-            },
-            "headers": {}
+            }
           }
         },
-        "security": [
-          {
-            "bearer": []
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
           }
-        ]
+        }
+      }
+    },
+    "/api/v1/profile/password": {
+      "put": {
+        "summary": "修改当前用户密码",
+        "tags": ["Profile"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChangePasswordReq" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/register": {
+      "post": {
+        "summary": "租户注册",
+        "tags": ["Tenant"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RegisterTenantReq" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "注册成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/current": {
+      "get": {
+        "summary": "当前租户详情",
+        "tags": ["Tenant"],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiTenantResp" } } }
+          }
+        }
+      },
+      "put": {
+        "summary": "编辑当前租户信息",
+        "tags": ["Tenant"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateCurrentTenantReq" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/current/status": {
+      "get": {
+        "summary": "当前租户开通状态",
+        "tags": ["Tenant"],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiGetInitStatusResp" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/current/cancel": {
+      "post": {
+        "summary": "当前租户申请注销",
+        "tags": ["Tenant"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["reason"],
+                "properties": { "reason": { "type": "string", "description": "注销原因" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiApplyCancellationResp" } } }
+          }
+        }
       }
     },
     "/api/v1/admin/tenants": {
       "post": {
         "summary": "创建租户",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
+        "tags": ["Tenant"],
         "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "title": "租户名称"
-                  },
-                  "domain": {
-                    "type": "string",
-                    "title": "租户域名"
-                  },
-                  "description": {
-                    "type": "string",
-                    "title": "租户描述"
-                  },
-                  "contact_email": {
-                    "type": "string",
-                    "title": "联系邮箱"
-                  },
-                  "region": {
-                    "type": "string",
-                    "title": "地区"
-                  },
-                  "logo": {
-                    "type": "string",
-                    "title": "Logo地址"
-                  },
-                  "status": {
-                    "type": "integer",
-                    "title": "租户状态"
-                  },
-                  "extra": {
-                    "type": "string",
-                    "title": "扩展字段"
-                  },
-                  "admin_user": {
-                    "type": "object",
-                    "properties": {
-                      "username": {
-                        "type": "string",
-                        "title": "管理员用户名"
-                      },
-                      "password": {
-                        "type": "string",
-                        "title": "管理员密码"
-                      },
-                      "nickname": {
-                        "type": "string",
-                        "title": "管理员昵称"
-                      },
-                      "email": {
-                        "type": "string",
-                        "title": "管理员邮箱"
-                      }
-                    },
-                    "required": [
-                      "username",
-                      "password",
-                      "nickname",
-                      "email"
-                    ]
-                  }
-                },
-                "required": [
-                  "name",
-                  "domain",
-                  "description",
-                  "contact_email",
-                  "region",
-                  "logo",
-                  "status",
-                  "extra",
-                  "admin_user"
-                ]
-              },
-              "example": {
-                "name": "巨浪企业管理有限公司",
-                "domain": "julang2026",
-                "description": "通过运营后台手动创建的VIP大客户租户",
-                "contact_email": "vip_service@julang.com",
-                "region": "华南地区",
-                "logo": "https://img.julang.com/logo_avatar.png",
-                "status": 1,
-                "extra": "{\"contract_id\": \"CTR_2026_0091\"}",
-                "admin_user": {
-                  "username": "julangadmin",
-                  "password": "VipPassword888",
-                  "nickname": "租户企业代表",
-                  "email": "owner@julang.com"
-                }
-              }
-            }
-          },
-          "required": true
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdminCreateTenantReq" } } }
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
           }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       },
       "get": {
         "summary": "租户列表",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "tags": ["Tenant"],
         "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "name",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "page", "in": "query", "schema": { "type": "integer" }, "example": 1 },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" }, "example": 10 },
+          { "name": "name", "in": "query", "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListTenant" } } }
           }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/admin/tenants/{id}/status": {
-      "put": {
-        "summary": "启用/禁用租户",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "status": {
-                    "type": "integer",
-                    "title": "用户状态",
-                    "description": " 0:禁用 1:启用"
-                  }
-                },
-                "required": [
-                  "status"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/admin/tenants/batch/status": {
-      "put": {
-        "summary": "启用/禁用租户（批量）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "status": {
-                    "type": "integer",
-                    "title": "用户状态",
-                    "description": " 0:禁用 1:启用"
-                  },
-                  "ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "ids",
-                    "description": "最多支持100条"
-                  }
-                },
-                "required": [
-                  "status",
-                  "ids"
-                ]
-              },
-              "example": {
-                "status": 0,
-                "ids": [
-                  61,
-                  45,
-                  52
-                ]
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/admin/tenants/deleted": {
       "get": {
         "summary": "租户列表（回收站）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "tags": ["Tenant"],
         "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "name",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "page", "in": "query", "schema": { "type": "integer" }, "example": 1 },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" }, "example": 10 },
+          { "name": "name", "in": "query", "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListTenant" } } }
           }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/admin/tenants/{id}/detail": {
       "get": {
         "summary": "租户详情",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/xml": {
-              "schema": {
-                "type": "object",
-                "properties": {}
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
+        "tags": ["Tenant"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiAdminTenantResp" } } }
           }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/admin/tenants/{id}/update": {
       "put": {
         "summary": "编辑租户",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "tags": ["Tenant"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdminUpdateTenantReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/admin/tenants/{id}/status": {
+      "put": {
+        "summary": "启用/禁用租户",
+        "tags": ["Tenant"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "domain": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "contact_email": {
-                    "type": "string"
-                  },
-                  "region": {
-                    "type": "string"
-                  },
-                  "logo": {
-                    "type": "string"
-                  },
-                  "extra": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "name",
-                  "domain",
-                  "description",
-                  "contact_email",
-                  "region",
-                  "logo",
-                  "extra"
-                ]
-              },
-              "example": {
-                "name": "巨浪企业管理有限公司-更新",
-                "domain": "julang2026_new",
-                "description": "更新了租户的描述信息",
-                "contact_email": "new_service@julang.com",
-                "region": "华东",
-                "logo": "https://example.com/new_logo.png",
-                "extra": "{\"tax_id\": \"91110000MA01XXXXXX\"}"
+                "required": ["status"],
+                "properties": { "status": { "type": "integer", "description": "0:禁用 1:启用" } }
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/admin/tenants/batch/status": {
+      "put": {
+        "summary": "启用/禁用租户（批量）",
+        "tags": ["Tenant"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["status", "ids"],
+                "properties": {
+                  "status": { "type": "integer" },
+                  "ids": { "type": "array", "items": { "type": "string" } }
                 }
               }
-            },
-            "headers": {}
+            }
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/admin/tenants/{id}/delete": {
       "delete": {
         "summary": "删除租户",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "tags": ["Tenant"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/admin/tenants/batch": {
       "delete": {
         "summary": "删除租户（批量）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
+        "tags": ["Tenant"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {
-                  "ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "required": [
-                  "ids"
-                ]
-              },
-              "example": {
-                "ids": [
-                  "61",
-                  "4",
-                  "52"
-                ]
+                "required": ["ids"],
+                "properties": { "ids": { "type": "array", "items": { "type": "string" } } }
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/admin/tenants/{id}/restore": {
       "put": {
         "summary": "恢复租户（已软删除）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "tags": ["Tenant"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "summary": "用户列表",
+        "tags": ["User"],
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "page", "in": "query", "schema": { "type": "integer" }, "example": 1 },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" }, "example": 10 },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListUser" } } }
           }
+        }
+      },
+      "post": {
+        "summary": "创建用户",
+        "tags": ["User"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateUserReq" } } }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/users/deleted": {
+      "get": {
+        "summary": "用户列表（回收站）",
+        "tags": ["User"],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListUser" } } }
+        } }
+      }
+    },
+    "/api/v1/users/{id}/detail": {
+      "get": {
+        "summary": "用户详情",
+        "tags": ["User"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiUserResp" } } }
+        } }
+      }
+    },
+    "/api/v1/users/{id}/update": {
+      "put": {
+        "summary": "编辑用户",
+        "tags": ["User"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateUserReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/users/{id}/reset-password": {
+      "put": {
+        "summary": "重置用户密码",
+        "tags": ["User"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResetPasswordReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/users/{id}/delete": {
+      "delete": {
+        "summary": "删除用户",
+        "tags": ["User"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/users/{id}/restore": {
+      "put": {
+        "summary": "恢复用户（已软删除）",
+        "tags": ["User"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/users/{id}/permanent": {
+      "delete": {
+        "summary": "永久删除用户",
+        "tags": ["User"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/admin/users": {
       "post": {
         "summary": "创建系统管理员",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
+        "tags": ["Admin-User"],
         "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "username": {
-                    "type": "string",
-                    "title": "用户名"
-                  },
-                  "password": {
-                    "type": "string",
-                    "title": "密码"
-                  },
-                  "nickname": {
-                    "type": "string",
-                    "title": "昵称"
-                  },
-                  "email": {
-                    "type": "string",
-                    "title": "电子邮件"
-                  },
-                  "role_id": {
-                    "type": "string",
-                    "title": "角色ID"
-                  }
-                },
-                "required": [
-                  "username",
-                  "password",
-                  "nickname",
-                  "email",
-                  "role_id"
-                ]
-              },
-              "example": {
-                "username": "admin2",
-                "password": "Admin@123456",
-                "nickname": "系统管理员2",
-                "email": "admin2@example.com"
-              }
-            }
-          },
-          "required": true
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateMasterAdminReq" } } }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       },
       "get": {
         "summary": "系统管理员列表",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "tags": ["Admin-User"],
         "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "keyword",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "page", "in": "query", "schema": { "type": "integer" }, "example": 1 },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" }, "example": 10 },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListUser" } } }
+        } }
       }
     },
     "/api/v1/admin/users/deleted": {
       "get": {
         "summary": "系统管理员列表（回收站）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "tags": ["Admin-User"],
         "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "keyword",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListUser" } } }
+        } }
       }
     },
     "/api/v1/admin/users/{id}/detail": {
       "get": {
         "summary": "系统管理员详情",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "tags": ["Admin-User"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiUserResp" } } }
+        } }
       }
     },
     "/api/v1/admin/users/{id}/update": {
       "put": {
         "summary": "编辑系统管理员",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "tags": ["Admin-User"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "nickname": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  },
-                  "role": {
-                    "type": "string"
-                  },
-                  "status": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "nickname",
-                  "email",
-                  "role",
-                  "status"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateMasterAdminReq" } } }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/admin/users/{id}/delete": {
-      "delete": {
-        "summary": "永久删除系统管理员",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/admin/users/batch/delete": {
-      "delete": {
-        "summary": "删除系统管理员（批量）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "required": [
-                  "ids"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/admin/users/{id}/restore": {
-      "put": {
-        "summary": "恢复系统管理员（已软删除）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/admin/users/{id}/status": {
       "put": {
         "summary": "启用/禁用系统管理员",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "tags": ["Admin-User"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {
-                  "status": {
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "status"
-                ]
-              },
-              "examples": {}
+                "required": ["status"],
+                "properties": { "status": { "type": "integer", "description": "0:禁用 1:启用" } }
+              }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/admin/users/{id}/delete": {
+      "delete": {
+        "summary": "删除系统管理员",
+        "tags": ["Admin-User"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/admin/users/{id}/restore": {
+      "put": {
+        "summary": "恢复系统管理员",
+        "tags": ["Admin-User"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/admin/users/{id}/permanent": {
+      "delete": {
+        "summary": "永久删除系统管理员",
+        "tags": ["Admin-User"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/admin/users/batch/status": {
       "put": {
         "summary": "启用/禁用系统管理员（批量）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
+        "tags": ["Admin-User"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": ["status", "ids"],
                 "properties": {
-                  "status": {
-                    "type": "string"
-                  },
-                  "ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "required": [
-                  "ids",
-                  "status"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
+                  "status": { "type": "integer" },
+                  "ids": { "type": "array", "items": { "type": "string" } }
                 }
               }
-            },
-            "headers": {}
+            }
           }
         },
-        "security": [
-          {
-            "bearer": []
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/admin/users/batch/delete": {
+      "delete": {
+        "summary": "删除系统管理员（批量）",
+        "tags": ["Admin-User"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["ids"],
+                "properties": { "ids": { "type": "array", "items": { "type": "string" } } }
+              }
+            }
           }
-        ]
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/admin/stats": {
+      "get": {
+        "summary": "所有用户统计（Dashboard）",
+        "tags": ["Admin-User"],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/admin/tenant-users": {
       "post": {
-        "summary": "租户创建用户",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
+        "summary": "为租户创建用户",
+        "tags": ["Admin-TenantUser"],
         "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "tenant_id": {
-                    "type": "string",
-                    "title": "租户ID"
-                  },
-                  "username": {
-                    "type": "string",
-                    "title": "用户名"
-                  },
-                  "password": {
-                    "type": "string",
-                    "title": "密码"
-                  },
-                  "nickname": {
-                    "type": "string",
-                    "title": "昵称"
-                  },
-                  "email": {
-                    "type": "string",
-                    "title": "电子邮箱"
-                  },
-                  "role": {
-                    "type": "string",
-                    "title": "角色"
-                  }
-                },
-                "required": [
-                  "tenant_id",
-                  "username",
-                  "password",
-                  "nickname",
-                  "email",
-                  "role"
-                ]
-              },
-              "example": {
-                "tenant_id": "01KTBJSBE05TY2P9C7EJ6NKRJB",
-                "username": "johndoe123",
-                "password": "123456",
-                "nickname": "John Doe",
-                "email": "john.doe@example.com",
-                "role": "user"
-              }
-            }
-          },
-          "required": true
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdminCreateTenantUserReq" } } }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/admin/tenant-users/all": {
       "get": {
-        "summary": "租户用户列表（全用户）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "summary": "所有租户用户列表",
+        "tags": ["Admin-TenantUser"],
         "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "keyword",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                },
-                "example": "未授权，请先登录\n"
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/admin/tenant-users/{tenantID}/list": {
-      "get": {
-        "summary": "租户用户列表（指定租户）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "tenantID",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "keyword",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                },
-                "example": "未授权，请先登录\n"
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListUser" } } }
+        } }
       }
     },
     "/api/v1/admin/tenant-users/deleted/all": {
       "get": {
-        "summary": "租户用户列表（回收站）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "summary": "所有租户用户列表（回收站）",
+        "tags": ["Admin-TenantUser"],
         "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "keyword",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListUser" } } }
+        } }
+      }
+    },
+    "/api/v1/admin/tenant-users/{tenantID}/list": {
+      "get": {
+        "summary": "指定租户用户列表",
+        "tags": ["Admin-TenantUser"],
+        "parameters": [
+          { "name": "tenantID", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListUser" } } }
+        } }
       }
     },
     "/api/v1/admin/tenant-users/{tenantID}/deleted": {
       "get": {
         "summary": "指定租户用户列表（回收站）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "tenantID",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "tags": ["Admin-TenantUser"],
+        "parameters": [{ "name": "tenantID", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListUser" } } }
+        } }
       }
     },
     "/api/v1/admin/tenant-users/{tenantID}/{userID}/update": {
       "put": {
-        "summary": "编辑租户的用户",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "summary": "编辑租户用户",
+        "tags": ["Admin-TenantUser"],
         "parameters": [
-          {
-            "name": "tenantID",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "userID",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "tenantID", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "userID", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "nickname": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  },
-                  "role": {
-                    "type": "string"
-                  },
-                  "status": {
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "nickname",
-                  "email",
-                  "role",
-                  "status"
-                ]
-              },
-              "example": {
-                "nickname": "张三",
-                "email": "zhangsan@example.com",
-                "role": "admin",
-                "status": 1
-              }
-            }
-          },
-          "required": true
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateUserReq" } } }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/admin/tenant-users/{tenantID}/{userID}/delete": {
-      "delete": {
-        "summary": "删除租户的用户",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "tenantID",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "userID",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/admin/tenant-users/{tenantID}/batch/delete": {
-      "delete": {
-        "summary": "删除租户用户（批量）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "tenantID",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "required": [
-                  "ids"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/admin/tenant-users/{tenantID}/{userID}/status": {
       "put": {
-        "summary": "启用/禁用租户的用户",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "summary": "启用/禁用租户用户",
+        "tags": ["Admin-TenantUser"],
         "parameters": [
-          {
-            "name": "tenantID",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "userID",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "tenantID", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "userID", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {
-                  "status": {
-                    "type": "integer",
-                    "description": "状态"
-                  }
-                },
-                "required": [
-                  "status"
-                ]
-              },
-              "examples": {}
+                "required": ["status"],
+                "properties": { "status": { "type": "integer" } }
+              }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/admin/tenant-users/{tenantID}/{userID}/reset-password": {
+      "put": {
+        "summary": "重置租户用户密码",
+        "tags": ["Admin-TenantUser"],
+        "parameters": [
+          { "name": "tenantID", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "userID", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResetPasswordReq" } } }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/admin/tenant-users/{tenantID}/{userID}/restore": {
       "put": {
-        "summary": "恢复租户用户（已软删除）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "summary": "恢复租户用户",
+        "tags": ["Admin-TenantUser"],
         "parameters": [
-          {
-            "name": "tenantID",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "userID",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "tenantID", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "userID", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/admin/tenant-users/{tenantID}/{userID}/delete": {
+      "delete": {
+        "summary": "删除租户用户",
+        "tags": ["Admin-TenantUser"],
+        "parameters": [
+          { "name": "tenantID", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "userID", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/admin/tenant-users/{tenantID}/{userID}/permanent": {
       "delete": {
         "summary": "永久删除租户用户",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "tags": ["Admin-TenantUser"],
         "parameters": [
-          {
-            "name": "tenantID",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "userID",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "tenantID", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "userID", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
-    "/api/v1/admin/stats": {
-      "get": {
-        "summary": "所有用户统计",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/rbac/roles": {
-      "post": {
-        "summary": "创建角色",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
+    "/api/v1/admin/tenant-users/{tenantID}/batch/status": {
+      "put": {
+        "summary": "启用/禁用租户用户（批量）",
+        "tags": ["Admin-TenantUser"],
+        "parameters": [{ "name": "tenantID", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": ["ids", "status"],
                 "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "code": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "tenant_id": {
-                    "type": "string"
-                  },
-                  "scope": {
-                    "type": "string"
-                  },
-                  "status": {
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "name",
-                  "code",
-                  "description",
-                  "tenant_id",
-                  "scope",
-                  "status"
-                ]
-              },
-              "example": {
-                "name": "高级运营主管",
-                "code": "op_senior_manager",
-                "description": "负责租户内所有运营模块的配置与数据审批更新",
-                "tenant_id": "01H7XBYZ6MXMP6ED7A9J6ABCDE",
-                "scope": "tenant",
-                "status": 1
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
+                  "ids": { "type": "array", "items": { "type": "string" } },
+                  "status": { "type": "integer" }
                 }
               }
-            },
-            "headers": {}
+            }
           }
         },
-        "security": [
-          {
-            "bearer": []
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/admin/tenant-users/{tenantID}/batch/delete": {
+      "delete": {
+        "summary": "删除租户用户（批量）",
+        "tags": ["Admin-TenantUser"],
+        "parameters": [{ "name": "tenantID", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["ids"],
+                "properties": { "ids": { "type": "array", "items": { "type": "string" } } }
+              }
+            }
           }
-        ]
-      },
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/rbac/stats": {
+      "get": {
+        "summary": "RBAC 统计（Dashboard）",
+        "tags": ["RBAC"],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/rbac/roles": {
       "get": {
         "summary": "角色列表",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "tags": ["RBAC"],
         "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "keyword",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "tenant_id",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListRole" } } }
+        } }
+      },
+      "post": {
+        "summary": "创建角色",
+        "tags": ["RBAC"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateRoleReq" } } }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/rbac/roles/select": {
+      "get": {
+        "summary": "角色下拉列表（不分页）",
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "scope", "in": "query", "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListRole" } } }
+        } }
+      }
+    },
+    "/api/v1/rbac/roles/system-admin": {
+      "get": {
+        "summary": "系统管理员角色列表",
+        "tags": ["RBAC"],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListRole" } } }
+        } }
       }
     },
     "/api/v1/rbac/roles/deleted": {
       "get": {
         "summary": "角色列表（回收站）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "tags": ["RBAC"],
         "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "keyword",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListRole" } } }
+        } }
       }
     },
     "/api/v1/rbac/roles/{id}/detail": {
       "get": {
         "summary": "角色详情",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiDataRole" } } }
+        } }
       }
     },
     "/api/v1/rbac/roles/{id}/update": {
       "put": {
         "summary": "编辑角色",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "code": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "tenant_id": {
-                    "type": "string"
-                  },
-                  "scope": {
-                    "type": "string"
-                  },
-                  "status": {
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "name",
-                  "code",
-                  "description",
-                  "tenant_id",
-                  "scope",
-                  "status"
-                ]
-              },
-              "example": {
-                "name": "高级运营主管-编辑",
-                "code": "op_senior_manager",
-                "description": "负责租户内所有运营模块的配置与数据审批更新",
-                "tenant_id": "01H7XBYZ6MXMP6ED7A9J6ABCDE",
-                "scope": "tenant",
-                "status": 1
-              }
-            }
-          },
-          "required": true
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateRoleReq" } } }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/rbac/roles/{id}/delete": {
-      "delete": {
-        "summary": "删除角色",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/rbac/roles/batch/delete": {
-      "delete": {
-        "summary": "删除角色（批量）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "required": [
-                  "ids"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/rbac/roles/{id}/restore": {
-      "put": {
-        "summary": "恢复角色（已软删除）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/rbac/roles/{id}/status": {
       "put": {
         "summary": "启用/禁用角色",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {
-                  "status": {
-                    "type": "integer",
-                    "description": "状态"
-                  }
-                },
-                "required": [
-                  "status"
-                ]
-              },
-              "examples": {}
+                "required": ["status"],
+                "properties": { "status": { "type": "integer", "description": "0:禁用 1:启用" } }
+              }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
-    "/api/v1/rbac/roles/batch/status": {
+    "/api/v1/rbac/roles/{id}/delete": {
+      "delete": {
+        "summary": "删除角色",
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/rbac/roles/{id}/restore": {
       "put": {
-        "summary": "启用/禁用角色（批量）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "status": {
-                    "type": "integer",
-                    "description": "状态"
-                  },
-                  "ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "required": [
-                  "status",
-                  "ids"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
+        "summary": "恢复角色",
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/rbac/roles/select": {
-      "get": {
-        "summary": "角色下拉列表",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "scope",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/rbac/roles/{id}/permissions": {
       "get": {
         "summary": "获取角色权限",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "tags": ["RBAC"],
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "resource",
-            "in": "query",
-            "description": "资源类型",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "resource", "in": "query", "schema": { "type": "string", "description": "资源类型筛选" } }
         ],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListPermission" } } }
+        } }
       },
       "put": {
         "summary": "绑定角色权限",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {
-                  "permission_ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "required": [
-                  "permission_ids"
-                ]
-              },
-              "examples": {}
+                "required": ["permission_ids"],
+                "properties": { "permission_ids": { "type": "array", "items": { "type": "string" } } }
+              }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       },
       "delete": {
-        "summary": "解绑角色权限",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "summary": "解绑角色单个权限",
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {
-                  "permission_id": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "permission_id"
-                ]
-              },
-              "examples": {}
+                "required": ["permission_id"],
+                "properties": { "permission_id": { "type": "string" } }
+              }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/rbac/roles/{id}/permissions/batch": {
       "delete": {
-        "summary": "解绑角色权限（批量）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "example": "",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "summary": "批量解绑角色权限",
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {
-                  "permission_ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "required": [
-                  "permission_ids"
-                ]
-              },
-              "examples": {}
+                "required": ["permission_ids"],
+                "properties": { "permission_ids": { "type": "array", "items": { "type": "string" } } }
+              }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/rbac/roles/batch/status": {
+      "put": {
+        "summary": "启用/禁用角色（批量）",
+        "tags": ["RBAC"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["ids", "status"],
+                "properties": {
+                  "ids": { "type": "array", "items": { "type": "string" } },
+                  "status": { "type": "integer" }
                 }
               }
-            },
-            "headers": {}
+            }
           }
         },
-        "security": [
-          {
-            "bearer": []
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/rbac/roles/batch/delete": {
+      "delete": {
+        "summary": "删除角色（批量）",
+        "tags": ["RBAC"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["ids"],
+                "properties": { "ids": { "type": "array", "items": { "type": "string" } } }
+              }
+            }
           }
-        ]
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/rbac/roles/batch/permissions": {
       "put": {
-        "summary": "多角色绑定权限",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
+        "summary": "批量为多个角色绑定权限",
+        "tags": ["RBAC"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": ["role_ids", "permission_ids"],
                 "properties": {
-                  "role_ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "permission_ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "required": [
-                  "role_ids",
-                  "permission_ids"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
+                  "role_ids": { "type": "array", "items": { "type": "string" } },
+                  "permission_ids": { "type": "array", "items": { "type": "string" } }
                 }
               }
-            },
-            "headers": {}
+            }
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       },
       "delete": {
-        "summary": "多角色解绑权限",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
+        "summary": "批量为多个角色解绑权限",
+        "tags": ["RBAC"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": ["role_ids", "permission_ids"],
                 "properties": {
-                  "role_ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "permission_ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "required": [
-                  "role_ids",
-                  "permission_ids"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/rbac/role-permissions": {
-      "get": {
-        "summary": "角色权限关系列表",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "role_id",
-            "in": "query",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "permission_id",
-            "in": "query",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
+                  "role_ids": { "type": "array", "items": { "type": "string" } },
+                  "permission_ids": { "type": "array", "items": { "type": "string" } }
                 }
               }
             }
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/rbac/permissions": {
       "get": {
         "summary": "权限列表",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
+        "tags": ["RBAC"],
         "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "resource",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "keyword",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "resource", "in": "query", "schema": { "type": "string" } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListPermission" } } }
+        } }
       },
       "post": {
         "summary": "创建权限",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
+        "tags": ["RBAC"],
         "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "code": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "resource": {
-                    "type": "string"
-                  },
-                  "action": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "name",
-                  "code",
-                  "description",
-                  "resource",
-                  "action"
-                ]
-              },
-              "example": {
-                "name": "用户删除权限",
-                "code": "user:delete",
-                "description": "允许管理员或特定角色删除系统中的用户账号",
-                "resource": "user",
-                "action": "delete"
-              }
-            }
-          },
-          "required": true
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreatePermissionReq" } } }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/rbac/permissions/{id}/detail": {
       "get": {
         "summary": "权限详情",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiDataPermission" } } }
+        } }
       }
     },
     "/api/v1/rbac/permissions/{id}/update": {
       "put": {
         "summary": "编辑权限",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "code": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "resource": {
-                    "type": "string"
-                  },
-                  "action": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "name",
-                  "code",
-                  "description",
-                  "resource",
-                  "action"
-                ]
-              },
-              "example": {
-                "name": "用户删除权限-更新",
-                "code": "user:delete",
-                "description": "允许管理员或特定角色删除系统中的用户账号",
-                "resource": "user",
-                "action": "delete"
-              }
-            }
-          },
-          "required": true
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePermissionReq" } } }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/rbac/permissions/{id}/delete": {
-      "delete": {
-        "summary": "删除权限",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/rbac/permissions/{id}/status": {
       "put": {
         "summary": "启用/禁用权限",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {
-                  "status": {
-                    "type": "string",
-                    "description": "状态"
-                  }
-                },
-                "required": [
-                  "status"
-                ]
-              },
-              "examples": {}
+                "required": ["status"],
+                "properties": { "status": { "type": "integer", "description": "0:禁用 1:启用" } }
+              }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/rbac/permissions/{id}/delete": {
+      "delete": {
+        "summary": "删除权限",
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/rbac/permissions/batch/status": {
       "put": {
         "summary": "启用/禁用权限（批量）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
+        "tags": ["RBAC"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": ["ids", "status"],
                 "properties": {
-                  "status": {
-                    "type": "integer",
-                    "description": "状态"
-                  },
-                  "ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "required": [
-                  "status",
-                  "ids"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
+                  "ids": { "type": "array", "items": { "type": "string" } },
+                  "status": { "type": "integer" }
                 }
               }
-            },
-            "headers": {}
+            }
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
       }
     },
     "/api/v1/rbac/permissions/batch/delete": {
       "delete": {
         "summary": "删除权限（批量）",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
+        "tags": ["RBAC"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["ids"],
+                "properties": { "ids": { "type": "array", "items": { "type": "string" } } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/rbac/role-permissions": {
+      "get": {
+        "summary": "角色权限关系列表",
+        "tags": ["RBAC"],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "role_id", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListRolePermission" } } }
+        } }
+      }
+    },
+    "/api/v1/rbac/user-roles": {
+      "get": {
+        "summary": "用户角色关系列表",
+        "tags": ["RBAC"],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "user_id", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListUserRole" } } }
+        } }
+      },
+      "post": {
+        "summary": "批量分配用户角色",
+        "tags": ["RBAC"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BatchAssignUserRolesReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/rbac/user-roles/{user_id}/roles": {
+      "get": {
+        "summary": "获取用户角色",
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "user_id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListRole" } } }
+        } }
+      },
+      "post": {
+        "summary": "分配用户角色",
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "user_id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AssignUserRolesReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      },
+      "delete": {
+        "summary": "移除用户所有角色",
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "user_id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/rbac/user-roles/{user_id}/roles/{role_id}": {
+      "delete": {
+        "summary": "移除用户单个角色",
+        "tags": ["RBAC"],
+        "parameters": [
+          { "name": "user_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "role_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+        } }
+      }
+    },
+    "/api/v1/rbac/user-roles/roles/{role_id}/users": {
+      "get": {
+        "summary": "获取角色下的用户",
+        "tags": ["RBAC"],
+        "parameters": [{ "name": "role_id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListUserRole" } } }
+        } }
+      }
+    },
+    "/api/v1/files/upload": {
+      "post": {
+        "summary": "文件上传",
+        "tags": ["File"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary", "description": "文件内容" },
+                  "folder": { "type": "string", "description": "文件夹" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "上传成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiUploadFileResp" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/files": {
+      "get": {
+        "summary": "文件列表",
+        "tags": ["File"],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } },
+          { "name": "file_type", "in": "query", "schema": { "type": "string", "description": "文件类型：image/document/video/audio/other" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListFile" } } } }
+        }
+      }
+    },
+    "/api/v1/files/deleted": {
+      "get": {
+        "summary": "已删除文件列表（回收站）",
+        "tags": ["File"],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListFile" } } } }
+        }
+      }
+    },
+    "/api/v1/files/{id}": {
+      "get": {
+        "summary": "文件详情",
+        "tags": ["File"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiFileResp" } } } }
+        }
+      },
+      "put": {
+        "summary": "更新文件信息（重命名）",
+        "tags": ["File"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file_name": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      },
+      "delete": {
+        "summary": "删除文件（软删除）",
+        "tags": ["File"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/files/{id}/download": {
+      "get": {
+        "summary": "下载文件",
+        "tags": ["File"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "文件流",
+            "content": {
+              "application/octet-stream": { "schema": { "type": "string", "format": "binary" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/files/{id}/restore": {
+      "put": {
+        "summary": "恢复已删除文件",
+        "tags": ["File"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/files/{id}/permanent": {
+      "delete": {
+        "summary": "永久删除文件",
+        "tags": ["File"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/files/batch/delete": {
+      "post": {
+        "summary": "批量删除文件",
+        "tags": ["File"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["ids"],
+                "properties": { "ids": { "type": "array", "items": { "type": "string" } } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/files/batch/permanent": {
+      "post": {
+        "summary": "批量永久删除文件",
+        "tags": ["File"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["ids"],
+                "properties": { "ids": { "type": "array", "items": { "type": "string" } } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/admin/plans": {
+      "get": {
+        "summary": "套餐列表",
+        "tags": ["Plan"],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListPlan" } } } }
+        }
+      },
+      "post": {
+        "summary": "创建套餐",
+        "tags": ["Plan"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreatePlanReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/admin/plans/select": {
+      "get": {
+        "summary": "启用套餐下拉列表",
+        "tags": ["Plan"],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListPlan" } } } }
+        }
+      }
+    },
+    "/api/v1/admin/plans/{id}": {
+      "get": {
+        "summary": "套餐详情",
+        "tags": ["Plan"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiPlanResp" } } } }
+        }
+      }
+    },
+    "/api/v1/admin/plans/{id}/update": {
+      "put": {
+        "summary": "更新套餐",
+        "tags": ["Plan"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePlanReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/admin/plans/{id}/delete": {
+      "delete": {
+        "summary": "删除套餐",
+        "tags": ["Plan"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/admin/tenants-plan/{id}": {
+      "post": {
+        "summary": "为租户分配套餐",
+        "tags": ["Plan"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "租户ID" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AssignPlanReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/plan/current": {
+      "get": {
+        "summary": "获取当前租户套餐信息",
+        "tags": ["Plan"],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiCurrentPlanResp" } } } }
+        }
+      }
+    },
+    "/api/v1/audit/stats": {
+      "get": {
+        "summary": "审计日志统计",
+        "tags": ["Audit"],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiAuditStatsResp" } } } }
+        }
+      }
+    },
+    "/api/v1/audit/logs": {
+      "get": {
+        "summary": "审计日志列表",
+        "tags": ["Audit"],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "module", "in": "query", "schema": { "type": "string" } },
+          { "name": "action", "in": "query", "schema": { "type": "string" } },
+          { "name": "user_id", "in": "query", "schema": { "type": "string" } },
+          { "name": "status_code", "in": "query", "schema": { "type": "integer" } },
+          { "name": "start_date", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "end_date", "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListAuditLog" } } } }
+        }
+      },
+      "post": {
+        "summary": "手动创建审计日志",
+        "tags": ["Audit"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateAuditLogReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/audit/logs/export": {
+      "get": {
+        "summary": "导出审计日志（CSV）",
+        "tags": ["Audit"],
+        "parameters": [
+          { "name": "module", "in": "query", "schema": { "type": "string" } },
+          { "name": "action", "in": "query", "schema": { "type": "string" } },
+          { "name": "user_id", "in": "query", "schema": { "type": "string" } },
+          { "name": "start_date", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "end_date", "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV文件流",
+            "content": { "text/csv": { "schema": { "type": "string", "format": "binary" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/logs/{id}": {
+      "get": {
+        "summary": "审计日志详情",
+        "tags": ["Audit"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiAuditLogResp" } } } }
+        }
+      }
+    },
+    "/api/v1/audit/logs/cleanup": {
+      "delete": {
+        "summary": "清理过期审计日志",
+        "tags": ["Audit"],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "ids": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "required": [
-                  "ids"
-                ]
-              },
-              "examples": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/audit/stats": {
-      "get": {
-        "summary": "审计日志统计",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
+                  "days": { "type": "integer", "description": "保留天数，删除此天数之前的日志" }
                 }
               }
             }
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/audit/logs": {
-      "get": {
-        "summary": "审计日志列表",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "example": "1",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "example": "10",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "user_id",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "example": "",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "username",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "example": "",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "module",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "example": "",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "action",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "example": "",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "result",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "example": "",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "start_time",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "example": "",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "end_time",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "example": "",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "keyword",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "example": "",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/audit/logs/{id}": {
-      "get": {
-        "summary": "审计日志详情",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/audit/logs/cleanup": {
-      "delete": {
-        "summary": "清理审计日志",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "days",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "example": "30",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
       }
     }
   },
   "components": {
-    "schemas": {},
-    "responses": {},
     "securitySchemes": {
       "bearer": {
         "type": "http",
-        "scheme": "bearer"
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "ApiSuccess": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 0 },
+          "message": { "type": "string", "example": "success" },
+          "data": { "nullable": true }
+        }
+      },
+      "ApiLoginResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 0 },
+          "message": { "type": "string", "example": "success" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "token": { "type": "string", "description": "JWT令牌" },
+              "user": { "$ref": "#/components/schemas/UserResp" },
+              "permissions": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      },
+      "ApiUserResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 0 },
+          "message": { "type": "string", "example": "success" },
+          "data": { "$ref": "#/components/schemas/UserResp" }
+        }
+      },
+      "ApiListUser": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/UserResp" } },
+              "total": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "ApiDataRole": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/RoleResp" }
+        }
+      },
+      "ApiListRole": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/RoleResp" } },
+              "total": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "ApiListPermission": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/PermissionResp" } },
+              "total": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "ApiDataPermission": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/PermissionResp" }
+        }
+      },
+      "ApiListRolePermission": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/RolePermissionResp" } },
+              "total": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "ApiListUserRole": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/UserRoleResp" } },
+              "total": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "ApiTenantResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/TenantResp" }
+        }
+      },
+      "ApiListTenant": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/AdminTenantResp" } },
+              "total": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "ApiAdminTenantResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/AdminTenantResp" }
+        }
+      },
+      "ApiGetInitStatusResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/GetInitStatusResp" }
+        }
+      },
+      "ApiApplyCancellationResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/ApplyCancellationResp" }
+        }
+      },
+      "ApiUploadFileResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/UploadFileResp" }
+        }
+      },
+      "ApiFileResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/FileResp" }
+        }
+      },
+      "ApiListFile": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/FileResp" } },
+              "total": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "ApiListPlan": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/PlanResp" } },
+              "total": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "ApiPlanResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/PlanResp" }
+        }
+      },
+      "ApiCurrentPlanResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/CurrentPlanResp" }
+        }
+      },
+      "ApiListAuditLog": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/AuditLogResp" } },
+              "total": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "ApiAuditLogResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/AuditLogResp" }
+        }
+      },
+      "ApiAuditStatsResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "integer" },
+              "today": { "type": "integer" },
+              "success_count": { "type": "integer" },
+              "failure_count": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "LoginReq": {
+        "type": "object",
+        "required": ["username", "password"],
+        "properties": {
+          "tenant_id": { "type": "string", "description": "租户ID（超级管理员可不填）" },
+          "username": { "type": "string" },
+          "password": { "type": "string" }
+        }
+      },
+      "RegisterUserReq": {
+        "type": "object",
+        "required": ["tenant_id", "username", "password", "nickname", "email"],
+        "properties": {
+          "tenant_id": { "type": "string" },
+          "username": { "type": "string" },
+          "password": { "type": "string" },
+          "nickname": { "type": "string" },
+          "email": { "type": "string", "format": "email" }
+        }
+      },
+      "ChangePasswordReq": {
+        "type": "object",
+        "required": ["old_password", "new_password", "confirm_password"],
+        "properties": {
+          "old_password": { "type": "string" },
+          "new_password": { "type": "string" },
+          "confirm_password": { "type": "string" }
+        }
+      },
+      "ResetPasswordReq": {
+        "type": "object",
+        "required": ["new_password", "confirm_password"],
+        "properties": {
+          "new_password": { "type": "string" },
+          "confirm_password": { "type": "string" }
+        }
+      },
+      "UserResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "tenant_name": { "type": "string" },
+          "username": { "type": "string" },
+          "nickname": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "roles": { "type": "array", "items": { "type": "string" } },
+          "role_ids": { "type": "array", "items": { "type": "string" } },
+          "role_list": { "type": "array", "items": { "$ref": "#/components/schemas/UserRoleInfo" } },
+          "status": { "type": "integer" },
+          "is_master": { "type": "boolean" },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" },
+          "deleted_at": { "type": "string", "nullable": true }
+        }
+      },
+      "UserRoleInfo": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "code": { "type": "string" }
+        }
+      },
+      "CreateUserReq": {
+        "type": "object",
+        "required": ["username", "password", "nickname", "role_ids"],
+        "properties": {
+          "username": { "type": "string" },
+          "password": { "type": "string" },
+          "nickname": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "role_ids": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "UpdateUserReq": {
+        "type": "object",
+        "properties": {
+          "nickname": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "role_ids": { "type": "array", "items": { "type": "string" } },
+          "status": { "type": "integer", "nullable": true }
+        }
+      },
+      "CreateMasterAdminReq": {
+        "type": "object",
+        "required": ["username", "password", "nickname"],
+        "properties": {
+          "username": { "type": "string" },
+          "password": { "type": "string" },
+          "nickname": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "role_id": { "type": "string" }
+        }
+      },
+      "UpdateMasterAdminReq": {
+        "type": "object",
+        "properties": {
+          "nickname": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "role_id": { "type": "string" },
+          "status": { "type": "integer", "nullable": true }
+        }
+      },
+      "AdminCreateTenantUserReq": {
+        "type": "object",
+        "required": ["tenant_id", "username", "password", "nickname", "role_ids"],
+        "properties": {
+          "tenant_id": { "type": "string" },
+          "username": { "type": "string" },
+          "password": { "type": "string" },
+          "nickname": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "role_ids": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "RegisterTenantReq": {
+        "type": "object",
+        "required": ["name", "domain", "admin_user"],
+        "properties": {
+          "name": { "type": "string" },
+          "domain": { "type": "string" },
+          "description": { "type": "string" },
+          "contact_email": { "type": "string", "format": "email" },
+          "region": { "type": "string" },
+          "logo": { "type": "string" },
+          "extra": { "type": "string" },
+          "admin_user": {
+            "type": "object",
+            "required": ["username", "password", "nickname"],
+            "properties": {
+              "username": { "type": "string" },
+              "password": { "type": "string" },
+              "nickname": { "type": "string" },
+              "email": { "type": "string", "format": "email" }
+            }
+          }
+        }
+      },
+      "TenantResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "domain": { "type": "string" },
+          "status": { "type": "integer" },
+          "description": { "type": "string" },
+          "contact_email": { "type": "string" },
+          "region": { "type": "string" },
+          "logo": { "type": "string" },
+          "extra": { "type": "string" },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" }
+        }
+      },
+      "AdminTenantResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "domain": { "type": "string" },
+          "status": { "type": "integer" },
+          "description": { "type": "string" },
+          "contact_email": { "type": "string" },
+          "region": { "type": "string" },
+          "logo": { "type": "string" },
+          "extra": { "type": "string" },
+          "plan_name": { "type": "string" },
+          "plan_expired": { "type": "boolean" },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" }
+        }
+      },
+      "UpdateTenantReq": {
+        "type": "object",
+        "required": ["name", "status"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "type": "integer" },
+          "description": { "type": "string" }
+        }
+      },
+      "UpdateCurrentTenantReq": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "logo": { "type": "string" },
+          "description": { "type": "string" },
+          "contact_email": { "type": "string" },
+          "region": { "type": "string" },
+          "extra": { "type": "string" }
+        }
+      },
+      "AdminCreateTenantReq": {
+        "type": "object",
+        "required": ["name", "domain", "admin_user"],
+        "properties": {
+          "name": { "type": "string" },
+          "domain": { "type": "string" },
+          "description": { "type": "string" },
+          "contact_email": { "type": "string" },
+          "region": { "type": "string" },
+          "logo": { "type": "string" },
+          "status": { "type": "integer" },
+          "extra": { "type": "string" },
+          "admin_user": {
+            "type": "object",
+            "properties": {
+              "username": { "type": "string" },
+              "password": { "type": "string" },
+              "nickname": { "type": "string" },
+              "email": { "type": "string" }
+            }
+          }
+        }
+      },
+      "AdminUpdateTenantReq": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "domain": { "type": "string" },
+          "description": { "type": "string" },
+          "contact_email": { "type": "string" },
+          "region": { "type": "string" },
+          "logo": { "type": "string" },
+          "extra": { "type": "string" }
+        }
+      },
+      "GetInitStatusResp": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "description": "pending/initializing/completed/failed" },
+          "message": { "type": "string" },
+          "progress": { "type": "integer" },
+          "initialized": { "type": "boolean" }
+        }
+      },
+      "ApplyCancellationResp": {
+        "type": "object",
+        "properties": {
+          "applied_at": { "type": "string" },
+          "status": { "type": "string" },
+          "estimated_day": { "type": "integer" }
+        }
+      },
+      "CreateRoleReq": {
+        "type": "object",
+        "required": ["name", "code"],
+        "properties": {
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "description": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "is_system": { "type": "boolean" },
+          "scope": { "type": "string", "enum": ["system", "tenant", "all"] },
+          "status": { "type": "integer" }
+        }
+      },
+      "UpdateRoleReq": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "description": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "scope": { "type": "string" },
+          "status": { "type": "integer" }
+        }
+      },
+      "RoleResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "description": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "is_system": { "type": "boolean" },
+          "scope": { "type": "string" },
+          "status": { "type": "integer" },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" }
+        }
+      },
+      "CreatePermissionReq": {
+        "type": "object",
+        "required": ["name", "code", "resource", "action"],
+        "properties": {
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "description": { "type": "string" },
+          "resource": { "type": "string" },
+          "action": { "type": "string" },
+          "status": { "type": "integer" }
+        }
+      },
+      "UpdatePermissionReq": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "description": { "type": "string" },
+          "resource": { "type": "string" },
+          "action": { "type": "string" },
+          "status": { "type": "integer" }
+        }
+      },
+      "PermissionResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "description": { "type": "string" },
+          "resource": { "type": "string" },
+          "action": { "type": "string" },
+          "status": { "type": "integer" },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" }
+        }
+      },
+      "RolePermissionResp": {
+        "type": "object",
+        "properties": {
+          "role_id": { "type": "string" },
+          "permission_id": { "type": "string" },
+          "created_at": { "type": "string" },
+          "role": { "$ref": "#/components/schemas/SimpleRoleResp" },
+          "permission": { "$ref": "#/components/schemas/SimplePermissionResp" }
+        }
+      },
+      "SimpleRoleResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "scope": { "type": "string" }
+        }
+      },
+      "SimplePermissionResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "resource": { "type": "string" },
+          "action": { "type": "string" }
+        }
+      },
+      "UserRoleResp": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string" },
+          "role_id": { "type": "string" },
+          "created_at": { "type": "string" },
+          "user": { "$ref": "#/components/schemas/SimpleUserInfoResp" },
+          "role": { "$ref": "#/components/schemas/SimpleRoleResp" }
+        }
+      },
+      "SimpleUserInfoResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "username": { "type": "string" },
+          "nickname": { "type": "string" },
+          "email": { "type": "string" },
+          "status": { "type": "integer" },
+          "is_master": { "type": "boolean" }
+        }
+      },
+      "AssignUserRolesReq": {
+        "type": "object",
+        "required": ["role_ids"],
+        "properties": {
+          "role_ids": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "BatchAssignUserRolesReq": {
+        "type": "object",
+        "required": ["assignments"],
+        "properties": {
+          "assignments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["user_id", "role_ids"],
+              "properties": {
+                "user_id": { "type": "string" },
+                "role_ids": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      },
+      "UploadFileResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "file_name": { "type": "string" },
+          "original_name": { "type": "string" },
+          "file_size": { "type": "integer" },
+          "mime_type": { "type": "string" },
+          "file_type": { "type": "string" },
+          "url": { "type": "string" }
+        }
+      },
+      "FileResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "uploader_id": { "type": "string" },
+          "file_name": { "type": "string" },
+          "original_name": { "type": "string" },
+          "file_size": { "type": "integer" },
+          "mime_type": { "type": "string" },
+          "file_type": { "type": "string" },
+          "storage_path": { "type": "string" },
+          "url": { "type": "string" },
+          "folder": { "type": "string" },
+          "status": { "type": "integer" },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" },
+          "deleted_at": { "type": "string", "nullable": true }
+        }
+      },
+      "CreatePlanReq": {
+        "type": "object",
+        "required": ["name", "code", "user_limit"],
+        "properties": {
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "description": { "type": "string" },
+          "user_limit": { "type": "integer" },
+          "price": { "type": "number" },
+          "duration_days": { "type": "integer" },
+          "features": { "type": "object" },
+          "status": { "type": "integer" }
+        }
+      },
+      "UpdatePlanReq": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "user_limit": { "type": "integer" },
+          "price": { "type": "number" },
+          "duration_days": { "type": "integer" },
+          "features": { "type": "object" },
+          "status": { "type": "integer" }
+        }
+      },
+      "PlanResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "description": { "type": "string" },
+          "user_limit": { "type": "integer" },
+          "price": { "type": "number" },
+          "duration_days": { "type": "integer" },
+          "features": { "type": "object" },
+          "status": { "type": "integer" },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" }
+        }
+      },
+      "AssignPlanReq": {
+        "type": "object",
+        "required": ["plan_id"],
+        "properties": {
+          "plan_id": { "type": "string" },
+          "duration_days": { "type": "integer" }
+        }
+      },
+      "CurrentPlanResp": {
+        "type": "object",
+        "properties": {
+          "tenant_id": { "type": "string" },
+          "plan_id": { "type": "string" },
+          "plan_name": { "type": "string" },
+          "plan_code": { "type": "string" },
+          "user_limit": { "type": "integer" },
+          "current_users": { "type": "integer" },
+          "started_at": { "type": "string" },
+          "expires_at": { "type": "string", "nullable": true },
+          "status": { "type": "integer" },
+          "effective_days": { "type": "integer" }
+        }
+      },
+      "CreateAuditLogReq": {
+        "type": "object",
+        "required": ["module", "action", "resource", "result"],
+        "properties": {
+          "module": { "type": "string" },
+          "action": { "type": "string" },
+          "resource": { "type": "string" },
+          "resource_id": { "type": "string" },
+          "method": { "type": "string" },
+          "path": { "type": "string" },
+          "request_body": { "type": "string" },
+          "response_body": { "type": "string" },
+          "status_code": { "type": "integer" },
+          "result": { "type": "string" },
+          "error_message": { "type": "string" },
+          "client_ip": { "type": "string" },
+          "user_agent": { "type": "string" },
+          "duration": { "type": "integer" }
+        }
+      },
+      "AuditLogResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "user_id": { "type": "string" },
+          "username": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "module": { "type": "string" },
+          "action": { "type": "string" },
+          "resource": { "type": "string" },
+          "resource_id": { "type": "string" },
+          "method": { "type": "string" },
+          "path": { "type": "string" },
+          "request_body": { "type": "string" },
+          "response_body": { "type": "string" },
+          "status_code": { "type": "integer" },
+          "result": { "type": "string" },
+          "error_message": { "type": "string" },
+          "client_ip": { "type": "string" },
+          "user_agent": { "type": "string" },
+          "duration": { "type": "integer" },
+          "created_at": { "type": "string" }
+        }
       }
     }
-  },
-  "servers": [],
-  "security": []
+  }
 }

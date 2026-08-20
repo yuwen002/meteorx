@@ -8044,6 +8044,915 @@
               ]
             },
             {
+              "name": "文件管理",
+              "id": 90347450,
+              "auth": {},
+              "securityScheme": {},
+              "parentId": 85929832,
+              "serverId": "",
+              "description": "",
+              "identityPattern": {
+                "httpApi": {
+                  "type": "inherit",
+                  "bodyType": "",
+                  "fields": []
+                }
+              },
+              "shareSettings": {},
+              "visibility": "INHERITED",
+              "moduleId": 7675120,
+              "preProcessors": [
+                {
+                  "id": "inheritProcessors",
+                  "type": "inheritProcessors",
+                  "data": {}
+                }
+              ],
+              "postProcessors": [
+                {
+                  "id": "inheritProcessors",
+                  "type": "inheritProcessors",
+                  "data": {}
+                }
+              ],
+              "inheritPostProcessors": {},
+              "inheritPreProcessors": {},
+              "items": [
+                {
+                  "name": "文件上传",
+                  "api": {
+                    "id": "485000001",
+                    "method": "post",
+                    "path": "/api/v1/files/upload",
+                    "parameters": {},
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": { "token": "123456789" }
+                    },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      {
+                        "id": "485000101",
+                        "code": 200,
+                        "name": "成功",
+                        "jsonSchema": { "type": "object", "properties": {} },
+                        "itemSchema": {},
+                        "contentType": "json"
+                      }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": {
+                      "type": "form-data",
+                      "parameters": [
+                        { "id": "fileField", "name": "file", "required": true, "description": "文件内容", "enable": true, "type": "file" },
+                        { "id": "folderField", "name": "folder", "required": false, "description": "文件夹", "enable": true, "type": "string" }
+                      ],
+                      "required": true,
+                      "mediaType": "multipart/form-data",
+                      "examples": [],
+                      "oasExtensions": ""
+                    },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 10,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "maintainer": "yuwen002",
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "文件列表",
+                  "api": {
+                    "id": "485000002",
+                    "method": "get",
+                    "path": "/api/v1/files",
+                    "parameters": {
+                      "query": [
+                        { "id": "fpPage", "name": "page", "example": "1", "required": false, "description": "", "enable": true, "type": "string" },
+                        { "id": "fpSize", "name": "page_size", "example": "10", "required": false, "description": "", "enable": true, "type": "string" },
+                        { "id": "fpFolder", "name": "folder", "example": "", "required": false, "description": "", "enable": true, "type": "string" },
+                        { "id": "fpStatus", "name": "status", "example": "1", "required": false, "description": "", "enable": true, "type": "string" }
+                      ]
+                    },
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "485000102", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 20,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "已删除文件列表",
+                  "api": {
+                    "id": "485000003",
+                    "method": "get",
+                    "path": "/api/v1/files/deleted",
+                    "parameters": {
+                      "query": [
+                        { "id": "fdPage", "name": "page", "example": "1", "required": false, "description": "", "enable": true, "type": "string" },
+                        { "id": "fdSize", "name": "page_size", "example": "10", "required": false, "description": "", "enable": true, "type": "string" }
+                      ]
+                    },
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "485000103", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 22,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "文件详情",
+                  "api": {
+                    "id": "485000004",
+                    "method": "get",
+                    "path": "/api/v1/files/{id}",
+                    "parameters": {
+                      "path": [
+                        { "id": "fId", "name": "id", "required": true, "description": "", "type": "string", "enable": true }
+                      ]
+                    },
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "485000104", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 24,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "文件下载",
+                  "api": {
+                    "id": "485000005",
+                    "method": "get",
+                    "path": "/api/v1/files/{id}/download",
+                    "parameters": {
+                      "path": [
+                        { "id": "dId", "name": "id", "required": true, "description": "", "type": "string", "enable": true }
+                      ]
+                    },
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "485000105", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "octet-stream" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 26,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "软删除文件",
+                  "api": {
+                    "id": "485000006",
+                    "method": "delete",
+                    "path": "/api/v1/files/{id}",
+                    "parameters": {
+                      "path": [
+                        { "id": "delId", "name": "id", "required": true, "description": "", "type": "string", "enable": true }
+                      ]
+                    },
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "485000106", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 28,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "恢复文件",
+                  "api": {
+                    "id": "485000007",
+                    "method": "post",
+                    "path": "/api/v1/files/{id}/restore",
+                    "parameters": {
+                      "path": [
+                        { "id": "rId", "name": "id", "required": true, "description": "", "type": "string", "enable": true }
+                      ]
+                    },
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "485000107", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 30,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "永久删除文件",
+                  "api": {
+                    "id": "485000008",
+                    "method": "delete",
+                    "path": "/api/v1/files/{id}/permanent",
+                    "parameters": {
+                      "path": [
+                        { "id": "pId", "name": "id", "required": true, "description": "", "type": "string", "enable": true }
+                      ]
+                    },
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "485000108", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 32,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "批量软删除文件",
+                  "api": {
+                    "id": "485000009",
+                    "method": "post",
+                    "path": "/api/v1/files/batch/delete",
+                    "parameters": {},
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "485000109", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": {
+                      "type": "json",
+                      "parameters": [
+                        { "id": "bdIds", "name": "ids", "required": true, "description": "文件ID数组", "enable": true, "type": "array" }
+                      ],
+                      "required": true,
+                      "mediaType": "application/json",
+                      "examples": [],
+                      "oasExtensions": ""
+                    },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 34,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "批量永久删除文件",
+                  "api": {
+                    "id": "485000010",
+                    "method": "post",
+                    "path": "/api/v1/files/batch/permanent",
+                    "parameters": {},
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "485000110", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": {
+                      "type": "json",
+                      "parameters": [
+                        { "id": "bpIds", "name": "ids", "required": true, "description": "文件ID数组", "enable": true, "type": "array" }
+                      ],
+                      "required": true,
+                      "mediaType": "application/json",
+                      "examples": [],
+                      "oasExtensions": ""
+                    },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 36,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                }
+              ]
+            },
+            {
+              "name": "套餐管理",
+              "id": 90347460,
+              "auth": {},
+              "securityScheme": {},
+              "parentId": 85929832,
+              "serverId": "",
+              "description": "",
+              "identityPattern": {
+                "httpApi": {
+                  "type": "inherit",
+                  "bodyType": "",
+                  "fields": []
+                }
+              },
+              "shareSettings": {},
+              "visibility": "INHERITED",
+              "moduleId": 7675120,
+              "preProcessors": [
+                { "id": "inheritProcessors", "type": "inheritProcessors", "data": {} }
+              ],
+              "postProcessors": [
+                { "id": "inheritProcessors", "type": "inheritProcessors", "data": {} }
+              ],
+              "inheritPostProcessors": {},
+              "inheritPreProcessors": {},
+              "items": [
+                {
+                  "name": "套餐列表",
+                  "api": {
+                    "id": "486000001",
+                    "method": "get",
+                    "path": "/api/v1/admin/plans",
+                    "parameters": {
+                      "query": [
+                        { "id": "plPage", "name": "page", "example": "1", "required": false, "description": "", "enable": true, "type": "string" },
+                        { "id": "plSize", "name": "page_size", "example": "10", "required": false, "description": "", "enable": true, "type": "string" }
+                      ]
+                    },
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "486000101", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 10,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "获取所有启用套餐",
+                  "api": {
+                    "id": "486000002",
+                    "method": "get",
+                    "path": "/api/v1/admin/plans/select",
+                    "parameters": {},
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "486000102", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 12,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "套餐详情",
+                  "api": {
+                    "id": "486000003",
+                    "method": "get",
+                    "path": "/api/v1/admin/plans/{id}",
+                    "parameters": {
+                      "path": [
+                        { "id": "plId", "name": "id", "required": true, "description": "", "type": "string", "enable": true }
+                      ]
+                    },
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "486000103", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 14,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "创建套餐",
+                  "api": {
+                    "id": "486000004",
+                    "method": "post",
+                    "path": "/api/v1/admin/plans",
+                    "parameters": {},
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "486000104", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": {
+                      "type": "json",
+                      "parameters": [
+                        { "id": "plName", "name": "name", "required": true, "description": "套餐名", "enable": true, "type": "string" },
+                        { "id": "plCode", "name": "code", "required": true, "description": "套餐编码", "enable": true, "type": "string" },
+                        { "id": "plUsers", "name": "user_limit", "required": true, "description": "用户数限制", "enable": true, "type": "integer" },
+                        { "id": "plDesc", "name": "description", "required": false, "description": "", "enable": true, "type": "string" }
+                      ],
+                      "required": true,
+                      "mediaType": "application/json",
+                      "examples": [],
+                      "oasExtensions": ""
+                    },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 16,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "更新套餐",
+                  "api": {
+                    "id": "486000005",
+                    "method": "put",
+                    "path": "/api/v1/admin/plans/{id}/update",
+                    "parameters": {
+                      "path": [
+                        { "id": "puId", "name": "id", "required": true, "description": "", "type": "string", "enable": true }
+                      ]
+                    },
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "486000105", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": { "type": "json", "parameters": [
+                      { "id": "puName", "name": "name", "required": false, "description": "", "enable": true, "type": "string" },
+                      { "id": "puDesc", "name": "description", "required": false, "description": "", "enable": true, "type": "string" },
+                      { "id": "puUsers", "name": "user_limit", "required": false, "description": "", "enable": true, "type": "integer" }
+                    ],
+                    "required": true,
+                    "mediaType": "application/json",
+                    "examples": [],
+                    "oasExtensions": ""
+                    },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 18,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "删除套餐",
+                  "api": {
+                    "id": "486000006",
+                    "method": "delete",
+                    "path": "/api/v1/admin/plans/{id}/delete",
+                    "parameters": {
+                      "path": [
+                        { "id": "pdId", "name": "id", "required": true, "description": "", "type": "string", "enable": true }
+                      ]
+                    },
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "486000106", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 20,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "为租户分配套餐",
+                  "api": {
+                    "id": "486000007",
+                    "method": "put",
+                    "path": "/api/v1/admin/tenants-plan/{id}",
+                    "parameters": {
+                      "path": [
+                        { "id": "tpId", "name": "id", "required": true, "description": "租户ID", "type": "string", "enable": true }
+                      ]
+                    },
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "486000107", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": {
+                      "type": "json",
+                      "parameters": [
+                        { "id": "tpPlan", "name": "plan_id", "required": true, "description": "套餐ID", "enable": true, "type": "string" },
+                        { "id": "tpDays", "name": "duration_days", "required": false, "description": "有效天数", "enable": true, "type": "integer" }
+                      ],
+                      "required": true,
+                      "mediaType": "application/json",
+                      "examples": [],
+                      "oasExtensions": ""
+                    },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 22,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "当前租户套餐",
+                  "api": {
+                    "id": "486000008",
+                    "method": "get",
+                    "path": "/api/v1/plan/current",
+                    "parameters": {},
+                    "auth": { "type": "bearer", "bearer": { "token": "123456789" } },
+                    "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [
+                      { "id": "486000108", "code": 200, "name": "成功", "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "contentType": "json" }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 24,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                }
+              ]
+            },
+            {
               "name": "审计日志",
               "id": 90347441,
               "auth": {},
@@ -8384,6 +9293,197 @@
                     "codeSamples": [],
                     "commonResponseStatus": {},
                     "responseChildren": [],
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "导出审计日志",
+                  "api": {
+                    "id": "483965001",
+                    "method": "get",
+                    "path": "/api/v1/audit/logs/export",
+                    "parameters": {
+                      "query": [
+                        {
+                          "id": "expDays",
+                          "name": "days",
+                          "example": "30",
+                          "required": false,
+                          "description": "导出最近N天的日志",
+                          "enable": true,
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": {
+                        "token": "123456789"
+                      }
+                    },
+                    "securityScheme": {},
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "responses": [
+                      {
+                        "id": "161122300",
+                        "code": 200,
+                        "name": "成功",
+                        "headers": [],
+                        "jsonSchema": {
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "itemSchema": {},
+                        "description": "",
+                        "contentType": "octet-stream",
+                        "mediaType": ""
+                      }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": {
+                      "type": "none",
+                      "parameters": [],
+                      "required": true,
+                      "mediaType": "",
+                      "examples": [],
+                      "oasExtensions": ""
+                    },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 25,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "maintainer": "yuwen002",
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "oasExtensions": "",
+                    "type": "http",
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "创建审计日志",
+                  "api": {
+                    "id": "483965002",
+                    "method": "post",
+                    "path": "/api/v1/audit/logs",
+                    "parameters": {},
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": {
+                        "token": "123456789"
+                      }
+                    },
+                    "securityScheme": {},
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "responses": [
+                      {
+                        "id": "161122301",
+                        "code": 200,
+                        "name": "成功",
+                        "headers": [],
+                        "jsonSchema": {
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "itemSchema": {},
+                        "description": "",
+                        "contentType": "json",
+                        "mediaType": ""
+                      }
+                    ],
+                    "responseExamples": [],
+                    "requestBody": {
+                      "type": "json",
+                      "parameters": [
+                        {
+                          "id": "rbModule",
+                          "name": "module",
+                          "required": true,
+                          "description": "模块名",
+                          "enable": true,
+                          "type": "string"
+                        },
+                        {
+                          "id": "rbAction",
+                          "name": "action",
+                          "required": true,
+                          "description": "操作",
+                          "enable": true,
+                          "type": "string"
+                        },
+                        {
+                          "id": "rbResource",
+                          "name": "resource",
+                          "required": true,
+                          "description": "资源",
+                          "enable": true,
+                          "type": "string"
+                        },
+                        {
+                          "id": "rbResult",
+                          "name": "result",
+                          "required": true,
+                          "description": "结果",
+                          "enable": true,
+                          "type": "string"
+                        }
+                      ],
+                      "required": true,
+                      "mediaType": "application/json",
+                      "examples": [],
+                      "oasExtensions": ""
+                    },
+                    "description": "",
+                    "tags": [],
+                    "status": "developing",
+                    "serverId": "",
+                    "operationId": "",
+                    "sourceUrl": "",
+                    "ordering": 15,
+                    "cases": [],
+                    "mocks": [],
+                    "customApiFields": "{}",
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "mockScript": {},
+                    "codeSamples": [],
+                    "commonResponseStatus": {},
+                    "responseChildren": [],
+                    "maintainer": "yuwen002",
                     "visibility": "INHERITED",
                     "moduleId": 7675120,
                     "oasExtensions": "",
