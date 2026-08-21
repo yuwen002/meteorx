@@ -5,19 +5,19 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
+
+	"meteorx/internal/middleware"
 )
 
 // SetupMiddleware 集中配置全局中间件
 func SetupMiddleware(r *chi.Mux) {
-	// 1. 标准中间件
-	r.Use(middleware.RequestID)                 // 为每个请求分配 ID
-	r.Use(middleware.RealIP)                    // 获取真实 IP
-	r.Use(middleware.Logger)                    // 打印日志
-	r.Use(middleware.Recoverer)                 // 宕机恢复
-	r.Use(middleware.Timeout(60 * time.Second)) // 设置超时
+	r.Use(middleware.RequestIDMiddleware)
+	r.Use(middleware.GlobalErrorHandler)
+	r.Use(chimiddleware.RealIP)
+	r.Use(chimiddleware.Logger)
+	r.Use(chimiddleware.Timeout(60 * time.Second))
 
-	// 2. 自定义中间件（比如 CORS）
 	r.Use(CorsMiddleware)
 }
 

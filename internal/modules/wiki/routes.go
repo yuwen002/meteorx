@@ -1,13 +1,19 @@
 package wiki
 
 import (
-	"meteorx/internal/middleware"
 	"meteorx/internal/modules/wiki/handler"
+	"meteorx/internal/modules/wiki/repository"
+	"meteorx/internal/modules/wiki/service"
 
 	"github.com/go-chi/chi/v5"
+	"gorm.io/gorm"
 )
 
-func RegisterRoutes(r chi.Router, h *handler.WikiHandler, checker middleware.PermissionChecker) {
+func InitModule(r chi.Router, db *gorm.DB) {
+	repo := repository.NewWikiRepository(db)
+	svc := service.NewWikiService(repo)
+	h := handler.NewWikiHandler(svc)
+
 	r.Route("/wiki", func(r chi.Router) {
 		r.Get("/stats", h.GetStats)
 

@@ -18,7 +18,8 @@
     { "name": "Audit", "description": "审计日志" },
     { "name": "Dashboard", "description": "运营看板" },
     { "name": "Notification", "description": "通知公告" },
-    { "name": "Tenant-Cancel", "description": "租户注销审批" }
+    { "name": "Tenant-Cancel", "description": "租户注销审批" },
+    { "name": "Tenant-Settings", "description": "租户独立配置" }
   ],
   "security": [{ "bearer": [] }],
   "servers": [
@@ -70,6 +71,64 @@
           "200": {
             "description": "登出成功",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/forgot-password": {
+      "post": {
+        "summary": "忘记密码（发送重置邮件）",
+        "tags": ["Auth"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "description": "用户邮箱" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/reset-password": {
+      "post": {
+        "summary": "重置密码（通过邮件令牌）",
+        "tags": ["Auth"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["token", "new_password"],
+                "properties": {
+                  "token": { "type": "string", "description": "邮件中的重置令牌" },
+                  "new_password": { "type": "string", "minLength": 8, "maxLength": 32, "description": "新密码" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "重置成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } }
+          },
+          "404": {
+            "description": "令牌无效或已过期"
           }
         }
       }
@@ -213,6 +272,34 @@
           "200": {
             "description": "成功",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiApplyCancellationResp" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/tenant-settings": {
+      "get": {
+        "summary": "获取当前租户独立配置",
+        "tags": ["Tenant-Settings"],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TenantSettingsResp" } } }
+          }
+        }
+      },
+      "put": {
+        "summary": "更新当前租户独立配置",
+        "tags": ["Tenant-Settings"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/UpdateTenantSettingsReq" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TenantSettingsResp" } } }
           }
         }
       }
@@ -1656,6 +1743,18 @@
         }
       }
     },
+    "/api/v1/audit/dashboard": {
+      "get": {
+        "summary": "审计可视化仪表盘（趋势/模块分布/操作统计）",
+        "tags": ["Audit"],
+        "parameters": [
+          { "name": "days", "in": "query", "description": "趋势数据天数，默认7，最大30", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuditDashboardData" } } } }
+        }
+      }
+    },
     "/api/v1/audit/logs": {
       "get": {
         "summary": "审计日志列表",
@@ -1861,11 +1960,253 @@
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": { "schema": { "$ref": "#/components/schemas/UpdateAnnouncementStatusReq" } }
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateAnnouncementStatusReq" } }
           }
         },
         "responses": {
           "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/stats": {
+      "get": {
+        "summary": "Wiki统计数据",
+        "tags": ["Wiki"],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiStatsResp" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/spaces": {
+      "get": {
+        "summary": "空间列表",
+        "tags": ["Wiki"],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListWikiSpace" } } } }
+        }
+      },
+      "post": {
+        "summary": "创建空间",
+        "tags": ["Wiki"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateWikiSpaceReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiSpaceResp" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/spaces/{id}": {
+      "get": {
+        "summary": "空间详情",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiSpaceResp" } } } }
+        }
+      },
+      "put": {
+        "summary": "更新空间",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateWikiSpaceReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiSpaceResp" } } } }
+        }
+      },
+      "delete": {
+        "summary": "删除空间",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/spaces/{spaceId}/nodes/tree": {
+      "get": {
+        "summary": "获取节点树",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "code": { "type": "integer" }, "message": { "type": "string" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/WikiNodeTreeResp" } } } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/spaces/{spaceId}/nodes": {
+      "post": {
+        "summary": "创建节点",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateWikiNodeReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiNodeResp" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/spaces/{spaceId}/nodes/{id}": {
+      "get": {
+        "summary": "节点详情",
+        "tags": ["Wiki"],
+        "parameters": [
+          { "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiNodeResp" } } } }
+        }
+      },
+      "put": {
+        "summary": "更新节点",
+        "tags": ["Wiki"],
+        "parameters": [
+          { "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateWikiNodeReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiNodeResp" } } } }
+        }
+      },
+      "delete": {
+        "summary": "删除节点",
+        "tags": ["Wiki"],
+        "parameters": [
+          { "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/spaces/{spaceId}/members": {
+      "get": {
+        "summary": "空间成员列表",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "code": { "type": "integer" }, "message": { "type": "string" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/WikiSpaceMemberResp" } } } } } }
+        }
+      },
+      "post": {
+        "summary": "添加空间成员",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiSpaceMemberReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiSpaceMemberResp" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/spaces/{spaceId}/members/{userId}": {
+      "delete": {
+        "summary": "移除空间成员",
+        "tags": ["Wiki"],
+        "parameters": [
+          { "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/documents/nodes/{nodeId}": {
+      "post": {
+        "summary": "创建文档",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "nodeId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateDocumentReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentResp" } } } }
+        }
+      },
+      "get": {
+        "summary": "通过节点获取文档",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "nodeId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentResp" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/documents/{id}": {
+      "put": {
+        "summary": "更新文档",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateDocumentReq" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentResp" } } } }
+        }
+      },
+      "delete": {
+        "summary": "删除文档",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/documents/{documentId}/revisions": {
+      "get": {
+        "summary": "文档版本列表",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "documentId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "code": { "type": "integer" }, "message": { "type": "string" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/DocumentRevisionResp" } } } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/documents/{documentId}/revisions/{version}": {
+      "get": {
+        "summary": "获取指定版本",
+        "tags": ["Wiki"],
+        "parameters": [
+          { "name": "documentId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "version", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentRevisionResp" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/documents/{documentId}/revisions/{version}/restore": {
+      "post": {
+        "summary": "恢复到指定版本",
+        "tags": ["Wiki"],
+        "parameters": [
+          { "name": "documentId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "version", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentResp" } } } }
         }
       }
     }
@@ -2781,6 +3122,75 @@
           "module_stats": { "type": "object", "additionalProperties": { "type": "integer" } }
         }
       },
+      "AuditDashboardData": {
+        "type": "object",
+        "properties": {
+          "total_count": { "type": "integer" },
+          "today_count": { "type": "integer" },
+          "action_stats": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "module_stats": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "result_stats": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "trend": { "type": "array", "items": { "$ref": "#/components/schemas/AuditTrendPoint" } },
+          "top_modules": { "type": "array", "items": { "$ref": "#/components/schemas/ModuleCount" } }
+        }
+      },
+      "AuditTrendPoint": {
+        "type": "object",
+        "properties": {
+          "date": { "type": "string", "description": "日期 YYYY-MM-DD" },
+          "count": { "type": "integer" },
+          "success": { "type": "integer" },
+          "failure": { "type": "integer" }
+        }
+      },
+      "ModuleCount": {
+        "type": "object",
+        "properties": {
+          "module": { "type": "string" },
+          "count": { "type": "integer" },
+          "percentage": { "type": "number", "format": "float" }
+        }
+      },
+      "TenantSettingsResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "logo": { "type": "string" },
+          "favicon": { "type": "string" },
+          "primary_color": { "type": "string" },
+          "theme": { "type": "string" },
+          "language": { "type": "string" },
+          "timezone": { "type": "string" },
+          "description": { "type": "string" },
+          "welcome_text": { "type": "string" },
+          "contact_name": { "type": "string" },
+          "contact_email": { "type": "string", "format": "email" },
+          "contact_phone": { "type": "string" },
+          "address": { "type": "string" },
+          "extra": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "UpdateTenantSettingsReq": {
+        "type": "object",
+        "properties": {
+          "logo": { "type": "string" },
+          "favicon": { "type": "string" },
+          "primary_color": { "type": "string" },
+          "theme": { "type": "string" },
+          "language": { "type": "string" },
+          "timezone": { "type": "string" },
+          "description": { "type": "string" },
+          "welcome_text": { "type": "string" },
+          "contact_name": { "type": "string" },
+          "contact_email": { "type": "string", "format": "email" },
+          "contact_phone": { "type": "string" },
+          "address": { "type": "string" },
+          "extra": { "type": "string" }
+        }
+      },
       "ApiAnnouncementListResp": {
         "type": "object",
         "properties": {
@@ -2851,6 +3261,185 @@
           "expire_at": { "type": "string" },
           "created_at": { "type": "string" },
           "updated_at": { "type": "string" }
+        }
+      },
+      "CreateWikiSpaceReq": {
+        "type": "object",
+        "required": ["name", "visibility"],
+        "properties": {
+          "name": { "type": "string", "minLength": 2, "maxLength": 200 },
+          "description": { "type": "string", "maxLength": 500 },
+          "icon": { "type": "string" },
+          "visibility": { "type": "integer", "enum": [1, 2, 3], "description": "1私有 2租户内可见 3公开" }
+        }
+      },
+      "UpdateWikiSpaceReq": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 2, "maxLength": 200 },
+          "description": { "type": "string", "maxLength": 500 },
+          "icon": { "type": "string" },
+          "visibility": { "type": "integer", "enum": [1, 2, 3] }
+        }
+      },
+      "WikiSpaceResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "icon": { "type": "string" },
+          "visibility": { "type": "integer" },
+          "member_count": { "type": "integer" },
+          "node_count": { "type": "integer" },
+          "created_by": { "type": "string" },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" },
+          "my_role": { "type": "string" }
+        }
+      },
+      "ApiListWikiSpace": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/WikiSpaceResp" } },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "page": { "type": "integer" },
+              "page_size": { "type": "integer" },
+              "total": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "CreateWikiNodeReq": {
+        "type": "object",
+        "required": ["space_id", "type", "title"],
+        "properties": {
+          "space_id": { "type": "string" },
+          "parent_id": { "type": "string" },
+          "type": { "type": "string", "enum": ["folder", "document"] },
+          "title": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "icon": { "type": "string" },
+          "sort": { "type": "integer" },
+          "content": { "type": "string" }
+        }
+      },
+      "UpdateWikiNodeReq": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "icon": { "type": "string" },
+          "parent_id": { "type": "string" },
+          "sort": { "type": "integer" },
+          "status": { "type": "integer", "enum": [1, 2] }
+        }
+      },
+      "WikiNodeResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "space_id": { "type": "string" },
+          "parent_id": { "type": "string" },
+          "type": { "type": "string" },
+          "title": { "type": "string" },
+          "icon": { "type": "string" },
+          "sort": { "type": "integer" },
+          "status": { "type": "integer" },
+          "owner_id": { "type": "string" },
+          "child_count": { "type": "integer" },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" }
+        }
+      },
+      "WikiNodeTreeResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/WikiNodeResp" },
+          {
+            "type": "object",
+            "properties": {
+              "children": { "type": "array", "items": { "$ref": "#/components/schemas/WikiNodeTreeResp" } }
+            }
+          }
+        ]
+      },
+      "CreateDocumentReq": {
+        "type": "object",
+        "properties": {
+          "node_id": { "type": "string" },
+          "content": { "type": "string" },
+          "format": { "type": "string" },
+          "summary": { "type": "string" }
+        }
+      },
+      "UpdateDocumentReq": {
+        "type": "object",
+        "properties": {
+          "content": { "type": "string" },
+          "format": { "type": "string" },
+          "summary": { "type": "string" }
+        }
+      },
+      "DocumentResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "node_id": { "type": "string" },
+          "title": { "type": "string" },
+          "content": { "type": "string" },
+          "content_html": { "type": "string" },
+          "format": { "type": "string" },
+          "current_ver": { "type": "integer" },
+          "view_count": { "type": "integer" },
+          "last_edited_by": { "type": "string" },
+          "last_edited_at": { "type": "string" },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" }
+        }
+      },
+      "DocumentRevisionResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "document_id": { "type": "string" },
+          "version": { "type": "integer" },
+          "content": { "type": "string" },
+          "content_html": { "type": "string" },
+          "summary": { "type": "string" },
+          "edited_by": { "type": "string" },
+          "created_at": { "type": "string" }
+        }
+      },
+      "WikiSpaceMemberReq": {
+        "type": "object",
+        "required": ["user_id", "role"],
+        "properties": {
+          "user_id": { "type": "string" },
+          "role": { "type": "string", "enum": ["owner", "admin", "editor", "viewer"] }
+        }
+      },
+      "WikiSpaceMemberResp": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "space_id": { "type": "string" },
+          "user_id": { "type": "string" },
+          "user_name": { "type": "string" },
+          "user_email": { "type": "string" },
+          "role": { "type": "string" },
+          "created_at": { "type": "string" }
+        }
+      },
+      "WikiStatsResp": {
+        "type": "object",
+        "properties": {
+          "total_spaces": { "type": "integer" },
+          "total_nodes": { "type": "integer" },
+          "total_documents": { "type": "integer" },
+          "total_views": { "type": "integer" }
         }
       }
     }

@@ -8,24 +8,30 @@
 
 | 模块 | 特性 |
 | --- | --- |
-| **多租户架构** | 基于 `tenant_id` 行级隔离；支持域名自动识别租户；独立管理员体系 |
-| **认证鉴权** | JWT（HS256）双 Token；注册 / 登录 / 登出；Token 自动注入用户上下文；登出黑名单 |
-| **RBAC 权限** | 角色 + 权限 + 角色-权限绑定 + 用户角色分配；支持作用域（`system` / `tenant` / `all`）；自动权限推导中间件 |
+| **多租户架构** | 基于 `tenant_id` 行级隔离；支持域名自动识别租户；独立管理员体系；统一 `tenantctx` 上下文管理 |
+| **认证鉴权** | JWT（HS256）双 Token；注册 / 登录 / 登出 / 忘记密码 / 重置密码；Token 自动注入用户上下文；登出黑名单；邮件找回密码 |
+| **RBAC 权限** | 角色 + 权限 + 角色-权限绑定 + 用户角色分配；支持作用域（`system` / `tenant` / `all`）；自动权限推导中间件 + 显式权限覆盖 |
+| **统一错误/响应** | 集中式错误码 (`apperrors`)；`AppError` 结构体；统一成功/分页/错误响应信封；全局异常恢复 |
+| **统一分页/排序** | 泛型 `PageRequest` / `PageResult[T]`；Sort 字段白名单防 SQL 注入；关键字多字段搜索 |
+| **事务管理** | `TxManager` 统一事务入口；Service 层事务边界；Repository 透明 tx 感知 |
+| **统一 ID 生成** | `pkg/idgen` 单一入口；ULID 时间有序；替代分散的 `ulid` / `uuid` 调用 |
 | **用户管理** | 个人中心 / 租户内用户 / 跨租户用户三类独立 API；密码加密（bcrypt） |
 | **租户管理** | 自主注册开户；后台手动建租户；启用/禁用；软删除/恢复；批量操作 |
+| **租户独立配置** | 租户独立 Logo / 主题色 / 语言 / 时区 / 联系方式等设置，实时生效 |
 | **文件管理** | 上传/下载/重命名/删除；回收站恢复+永久删除；MD5 去重；租户隔离；本地/云存储可扩展 |
 | **套餐管理** | 套餐 CRUD；租户套餐分配；用量限制（用户数上限）；到期提醒 |
-| **审计日志** | 自动记录所有请求；支持多维度筛选查询；敏感信息脱敏；定时清理；CSV 导出 |
+| **审计日志** | 自动记录所有请求；`auditctx` Service 层丰富（before/after）；批量异步写入；多维度筛选查询；可视化仪表盘 |
+| **Wiki 知识库** | 空间/节点/文档/版本/成员 五层模型；Markdown 编辑；版本历史与回滚；完整租户隔离 |
 | **运营看板** | 平台运营数据总览：租户/用户/订阅/审计多维统计，实时掌握平台健康状况 |
 | **通知公告** | 平台公告 CRUD + 发布/下架；支持全平台或指定租户范围定向推送 |
 | **注销审批** | 租户注销申请 → 平台审批（通过/驳回）→ 到期自动执行注销的完整闭环 |
-| **安全增强** | 登录失败锁定（显示剩余次数）；密码复杂度策略；接口限流（基于 Redis） |
+| **安全增强** | 登录失败锁定（显示剩余次数）；密码复杂度策略；接口限流（基于 Redis）；邮件找回密码 |
 | **回收站** | 用户 / 租户 / 角色 / 文件 均支持软删除 → 回收站查询 → 恢复 → 永久删除的完整闭环 |
 | **批量操作** | 批量删除 / 批量更新状态；幂等返回影响行数 |
-| **优雅关闭** | HTTP Server 信号处理；Redis/DB/后台任务资源清理 |
-| **工程化** | Viper 配置 + `.env` 覆盖；Chi 路由；GORM 自动迁移；ULID 主键 |
+| **优雅关闭** | HTTP Server 信号处理；Redis/DB/后台任务资源清理；30s 超时优雅关闭 |
+| **工程化** | Viper 配置 + `.env` 覆盖；Chi 路由；GORM 自动迁移；ULID 主键；配置启动校验 |
 | **前端管理后台** | Vue 3 + TypeScript + Element Plus；RBAC 动态菜单/按钮权限 |
-| **测试覆盖** | 审计模块、安全模块单元测试；Mock 仓库实现 |
+| **测试覆盖** | 审计模块、安全模块单元测试；Mock 仓库实现；`tenantctx` 隔离测试 |
 
 ---
 
@@ -77,16 +83,16 @@ meteorx/
 │   │   └── middleware.go        # 中间件装配
 │   │
 │   ├── modules/                 # ⭐ 业务模块（核心代码）
-│   │   ├── auth/                # 认证：注册、登录、JWT
+│   │   ├── auth/                # 认证：注册、登录、JWT、忘记密码/重置密码
 │   │   ├── user/                # 用户：3 层接口 + 回收站 + 批量
-│   │   ├── tenant/              # 租户：自助开户 + 后台管理
-│   │   ├── rbac/                # 角色权限：角色、权限、绑定
+│   │   ├── tenant/              # 租户：自助开户 + 后台管理 + 注销审批 + 独立配置
+│   │   ├── rbac/                # 角色权限：角色、权限、绑定、自动权限推导
 │   │   ├── file/                # 文件：上传、下载、回收站、存储抽象
 │   │   ├── plan/                # 套餐：CRUD + 租户分配 + 用量检查
-│   │   ├── audit/               # 审计日志：自动记录 + 统计 + 导出
+│   │   ├── audit/               # 审计日志：自动记录 + 统计 + 导出 + 可视化仪表盘
+│   │   ├── wiki/                # ⭐ Wiki 知识库：空间/节点/文档/版本/成员
 │   │   ├── dashboard/           # 运营看板：平台数据总览统计
-│   │   ├── notification/        # 通知公告：公告 CRUD + 发布/下架 + 定向推送
-│   │   └── tenant/              # 租户：自助开户 + 后台管理 + 注销审批闭环
+│   │   └── notification/        # 通知公告：公告 CRUD + 发布/下架 + 定向推送
 │   │
 │   ├── middleware/              # HTTP 中间件
 │   │   ├── auth.go              # JWT 认证
@@ -102,17 +108,45 @@ meteorx/
 │   │
 │   ├── common/                  # 通用组件
 │   │   ├── contextx/            # 上下文扩展（TenantID/UserID 注入）
+│   │   ├── tenantctx/           # ⭐ 租户上下文（From/FilterQuery/CanAccessTenant）
+│   │   ├── auditctx/            # ⭐ 审计上下文（NewAction/WithBefore/WithAfter）
 │   │   ├── jwt/                 # JWT 工具
-│   │   ├── response/            # 统一响应封装
+│   │   ├── response/            # ⭐ 统一响应封装（Success/FailError/FailWithPagination）
 │   │   └── validator/           # 参数校验
 │   │
-│   ├── config/                  # 配置结构体 + YAML
+│   ├── config/                  # 配置结构体 + YAML + 启动校验
+│   │   ├── config.go
+│   │   ├── config.yaml
+│   │   └── validator.go         # ⭐ 配置验证器（启动时校验必填项）
+│   │
+│   ├── middleware/              # HTTP 中间件
+│   │   ├── request_id.go        # ⭐ 请求 ID + 全局异常恢复
+│   │   ├── auth.go              # JWT 认证
+│   │   ├── admin_middleware.go  # 超级管理员校验
+│   │   ├── auto_permission_middleware.go  # 自动权限推导
+│   │   ├── explicit_permission.go # ⭐ 显式权限覆盖
+│   │   ├── permission_middleware.go       # 细粒度权限校验
+│   │   ├── role_middleware.go   # 角色校验
+│   │   ├── audit_middleware.go  # 审计日志记录
+│   │   ├── audit_batch.go       # 审计日志批量写入
+│   │   ├── rate_limit_middleware.go       # 接口限流
+│   │   └── logger.go            # 请求日志
+│   │
+│   ├── pkg/                     # ⭐ 内部基础设施包（Framework Hardening）
+│   │   ├── apperrors/           # ⭐ 集中式错误码 + AppError 结构体
+│   │   │   ├── codes.go         # 错误码常量 + HTTP 状态映射
+│   │   │   └── app_error.go     # AppError{Code,Message,StatusCode,RequestID,Details}
+│   │   └── db/
+│   │       └── transaction.go   # ⭐ TxManager 事务管理器（WithTx/GetTx/GetDB）
+│   │
 │   └── cache/                   # Redis 客户端封装
 │
 ├── pkg/                         # 可复用基础库
+│   ├── idgen/                   # ⭐ 统一 ID 生成（ULID，替代分散的 ulid/uuid）
+│   │   └── idgen.go             # New/NewUUID/MustParse/Parse
 │   ├── crypto/                  # bcrypt 密码加密
 │   ├── logger/                  # 日志封装
-│   ├── pagination/              # 统一分页请求/响应
+│   ├── pagination/              # ⭐ 统一分页/排序/搜索（含 Sort Whitelist 防注入）
 │   ├── security/               # 安全工具（锁定、密码策略、限流）
 │   │   ├── login_lockout.go
 │   │   ├── login_lockout_test.go
@@ -120,15 +154,26 @@ meteorx/
 │   │   ├── password_policy_test.go
 │   │   ├── rate_limiter.go
 │   │   └── rate_limiter_test.go
-│   ├── ulid/                    # ULID 生成
-│   └── uuid/                    # UUID 工具
+│   ├── ulid/                    # （向后兼容）使用 pkg/idgen 替代
+│   │   └── ulid.go
+│   └── uuid/                    # （向后兼容）使用 pkg/idgen 替代
+│       └── uuid.go
 │
 ├── scripts/sql/
 │   ├── init.sql                 # 建表脚本
 │   └── seed.sql                 # 种子数据（默认管理员等）
 │
-├── docs/                        # 接口文档
+├── docs/                        # 接口文档 + 架构文档
 │   ├── apifox/                  # Apifox / OpenAPI
+│   ├── architecture/            # ⭐ 架构设计文档
+│   │   ├── tenant.md            # 多租户隔离架构
+│   │   ├── permission.md        # RBAC 权限架构
+│   │   ├── error.md             # 错误/响应规范
+│   │   ├── database.md          # 数据库/事务架构
+│   │   ├── audit.md             # 审计架构
+│   │   ├── pagination.md        # 分页/排序/过滤架构
+│   │   ├── config.md            # 配置/启动架构
+│   │   └── idgen.md             # ID/ULID 统一架构
 │   ├── auth-api.md              # 认证接口
 │   ├── user-api.md              # 用户管理接口
 │   ├── tenant-api.md            # 租户管理接口
@@ -136,6 +181,7 @@ meteorx/
 │   ├── file-module-api.md       # 文件管理接口
 │   ├── plan-api.md              # 套餐管理接口
 │   ├── audit-api.md             # 审计日志接口
+│   ├── wiki-api.md              # ⭐ Wiki 知识库接口
 │   ├── dashboard-api.md         # 运营看板接口
 │   ├── announcement-api.md      # 通知公告接口
 │   └── FEATURE_UPGRADE.md       # 功能升级说明
@@ -176,6 +222,8 @@ meteorx/
 | `POST` | `/auth/register` | 用户自主注册 |
 | `POST` | `/auth/login` | 登录，返回 JWT + 用户信息 + 权限码列表 |
 | `POST` | `/auth/logout` | 登出（Token 加入黑名单） |
+| `POST` | `/auth/forgot-password` | 忘记密码（发送重置邮件） |
+| `POST` | `/auth/reset-password` | 重置密码（通过邮件令牌） |
 
 ### 2. 用户个人中心（需登录）
 
@@ -249,6 +297,8 @@ meteorx/
 | `PUT` | `/tenants/current` | 修改当前租户信息 |
 | `GET` | `/tenants/current/status` | 查询初始化状态 |
 | `POST` | `/tenants/current/cancel` | 申请自主注销 |
+| `GET` | `/tenant-settings` | 获取当前租户独立配置 |
+| `PUT` | `/tenant-settings` | 更新当前租户独立配置 |
 
 **管理员接口**
 
@@ -357,19 +407,46 @@ meteorx/
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/audit/stats` | Dashboard 统计 |
+| `GET` | `/audit/dashboard` | 可视化仪表盘数据（趋势/模块分布/操作统计） |
 | `GET` | `/audit/logs` | 日志列表（多维度筛选） |
 | `GET` | `/audit/logs/export` | 导出为 CSV |
 | `POST` | `/audit/logs` | 创建日志（内部） |
 | `GET` | `/audit/logs/{id}` | 日志详情 |
 | `DELETE` | `/audit/logs/cleanup` | 清理过期日志 |
 
-### 11. 运营看板（管理员）
+### 11. Wiki 知识库
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/wiki/stats` | Wiki 统计（空间数/文档数/节点数） |
+| `GET` | `/wiki/spaces` | 空间列表（分页） |
+| `POST` | `/wiki/spaces` | 创建空间 |
+| `GET` | `/wiki/spaces/{id}` | 空间详情 |
+| `PUT` | `/wiki/spaces/{id}` | 更新空间 |
+| `DELETE` | `/wiki/spaces/{id}` | 删除空间 |
+| `GET` | `/wiki/spaces/{spaceId}/nodes/tree` | 节点树（完整层级） |
+| `POST` | `/wiki/spaces/{spaceId}/nodes` | 创建节点（文件夹/文档节点） |
+| `GET` | `/wiki/spaces/{spaceId}/nodes/{id}` | 节点详情 |
+| `PUT` | `/wiki/spaces/{spaceId}/nodes/{id}` | 更新节点 |
+| `DELETE` | `/wiki/spaces/{spaceId}/nodes/{id}` | 删除节点 |
+| `POST` | `/wiki/documents/nodes/{nodeId}` | 创建文档（Markdown） |
+| `GET` | `/wiki/documents/nodes/{nodeId}` | 获取文档内容 |
+| `PUT` | `/wiki/documents/{id}` | 更新文档（自动创建新版本） |
+| `DELETE` | `/wiki/documents/{id}` | 删除文档 |
+| `GET` | `/wiki/documents/{documentId}/revisions` | 版本历史列表 |
+| `GET` | `/wiki/documents/{documentId}/revisions/{version}` | 指定版本详情 |
+| `POST` | `/wiki/documents/{documentId}/revisions/{version}/restore` | 恢复到指定版本 |
+| `GET` | `/wiki/spaces/{spaceId}/members` | 空间成员列表 |
+| `POST` | `/wiki/spaces/{spaceId}/members` | 添加成员 |
+| `DELETE` | `/wiki/spaces/{spaceId}/members/{userId}` | 移除成员 |
+
+### 12. 运营看板（管理员）
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/admin/dashboard/overview` | 平台运营数据总览（租户/用户/订阅/审计） |
 
-### 12. 通知公告（管理员）
+### 13. 通知公告（管理员）
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -443,40 +520,66 @@ docker-compose logs -f api
 
 ## 📝 统一响应格式
 
-**成功响应**
+所有 API 响应均包含 `request_id` 用于请求追踪。错误响应使用结构化错误码而非 HTTP 状态码。
+
+**成功响应（单对象）**
 ```json
 {
-  "code": 200,
-  "message": "success",
-  "data": { ... }
+  "data": { ... },
+  "request_id": "req_01H7K3N5P8..."
 }
 ```
 
-**分页响应**
+**成功响应（分页列表）**
 ```json
 {
-  "code": 200,
-  "message": "success",
-  "data": {
-    "items": [...],
-    "pagination": { "page": 1, "page_size": 10, "total": 128 }
-  }
+  "data": [ ... ],
+  "pagination": {
+    "page": 1,
+    "page_size": 20,
+    "total": 150
+  },
+  "request_id": "req_01H7K3N5P8..."
 }
+```
+
+**成功响应（无内容）**
+```
+HTTP 204 No Content
 ```
 
 **错误响应**
 ```json
 {
-  "code": 400,
-  "message": "参数校验失败",
-  "errors": { "username": "用户名不能为空" }
+  "code": "WIKI_DOCUMENT_NOT_FOUND",
+  "message": "Document not found",
+  "request_id": "req_01H7K3N5P8...",
+  "details": null
 }
 ```
 
 **请求参数**
 
-- 查询列表：`?page=1&page_size=10&keyword=xxx`
+- 查询列表：`?page=1&page_size=20&keyword=xxx&sort_by=created_at&sort_order=DESC`
 - 批量操作 body：`{"ids": ["xxx"], "status": 0}`
+
+**错误码分类**
+
+| 分类 | 错误码 | HTTP 状态 |
+|------|--------|-----------|
+| 通用 | `INVALID_PARAM` | 400 |
+| 通用 | `RESOURCE_NOT_FOUND` | 404 |
+| 通用 | `PERMISSION_DENIED` | 403 |
+| 通用 | `CONFLICT` | 409 |
+| 通用 | `RATE_LIMITED` | 429 |
+| 通用 | `INTERNAL_ERROR` | 500 |
+| 认证 | `SESSION_EXPIRED` | 401 |
+| 认证 | `AUTH_LOCKED` | 423 |
+| 租户 | `TENANT_NOT_FOUND` | 404 |
+| 租户 | `CROSS_TENANT_ACCESS_DENIED` | 403 |
+| Wiki | `WIKI_SPACE_NOT_FOUND` | 404 |
+| Wiki | `WIKI_DOCUMENT_NOT_FOUND` | 404 |
+| Wiki | `WIKI_REVISION_NOT_FOUND` | 404 |
 
 ---
 
@@ -510,6 +613,14 @@ docker-compose logs -f api
 | `security.login_lockout.enabled` | — | `true` | 启用登录锁定 |
 | `security.login_lockout.max_attempts` | — | `5` | 最大失败次数 |
 | `security.login_lockout.lockout_duration` | — | `30m` | 锁定持续时间 |
+| `email.enabled` | — | `false` | 是否启用邮件服务 |
+| `email.host` | — | `smtp.example.com` | SMTP 服务器地址 |
+| `email.port` | — | `587` | SMTP 端口 |
+| `email.username` | — | `noreply@example.com` | SMTP 用户名 |
+| `email.password` | — | `your-email-password` | SMTP 密码 |
+| `email.from` | — | `noreply@example.com` | 发件人邮箱 |
+| `email.from_name` | — | `MeteorX 平台` | 发件人名称 |
+| `client.base_url` | — | `http://localhost:5173` | 前端 Base URL（用于密码重置链接） |
 
 ---
 
@@ -552,16 +663,30 @@ go test -bench=. ./pkg/security/...
 
 | 文档 | 说明 |
 |------|------|
-| [auth-api.md](docs/auth-api.md) | 认证模块接口（注册/登录/登出） |
+| [auth-api.md](docs/auth-api.md) | 认证模块接口（注册/登录/登出/忘记密码/重置密码） |
 | [user-api.md](docs/user-api.md) | 用户管理接口（个人中心/租户用户/管理员） |
-| [tenant-api.md](docs/tenant-api.md) | 租户管理接口（注册/后台管理） |
+| [tenant-api.md](docs/tenant-api.md) | 租户管理接口（注册/后台管理/注销审批） |
 | [rbac-api.md](docs/rbac-api.md) | RBAC 权限接口（角色/权限/绑定） |
 | [file-module-api.md](docs/file-module-api.md) | 文件管理接口（上传/下载/回收站） |
 | [plan-api.md](docs/plan-api.md) | 套餐管理接口（CRUD/分配/用量） |
-| [audit-api.md](docs/audit-api.md) | 审计日志接口（查询/导出/清理） |
+| [audit-api.md](docs/audit-api.md) | 审计日志接口（查询/导出/清理/仪表盘） |
+| [wiki-api.md](docs/wiki-api.md) | ⭐ Wiki 知识库接口（空间/节点/文档/版本/成员） |
 | [dashboard-api.md](docs/dashboard-api.md) | 运营看板接口（平台数据总览） |
 | [announcement-api.md](docs/announcement-api.md) | 通知公告接口（CRUD/发布/定向推送） |
 | [FEATURE_UPGRADE.md](docs/FEATURE_UPGRADE.md) | 功能升级说明（看板/公告/注销审批） |
+
+**架构设计文档**（`docs/architecture/`）：
+
+| 文档 | 说明 |
+|------|------|
+| [tenant.md](docs/architecture/tenant.md) | 多租户隔离架构（tenantctx/FilterQuery） |
+| [permission.md](docs/architecture/permission.md) | RBAC 权限架构（自动推导 + 显式覆盖） |
+| [error.md](docs/architecture/error.md) | 错误/响应规范（AppError/统一响应信封） |
+| [database.md](docs/architecture/database.md) | 数据库/事务架构（TxManager/ULID） |
+| [audit.md](docs/architecture/audit.md) | 审计架构（自动/手动/批量异步） |
+| [pagination.md](docs/architecture/pagination.md) | 分页/排序/过滤架构（Sort Whitelist 防注入） |
+| [config.md](docs/architecture/config.md) | 配置/启动架构（Viper/优雅关闭） |
+| [idgen.md](docs/architecture/idgen.md) | ID/ULID 统一架构（pkg/idgen） |
 
 OpenAPI 规范文件位于 `docs/apifox/`：
 - `MeteorX-backend.openapi.json` — 可导入 Swagger / Postman / Apifox
@@ -578,6 +703,8 @@ OpenAPI 规范文件位于 `docs/apifox/`：
 | 页面 | 路由 | 功能 |
 |------|------|------|
 | 登录 | `/login` | 用户名密码登录 |
+| 忘记密码 | `/forgot-password` | 邮箱找回密码 |
+| 重置密码 | `/reset-password` | 通过邮件令牌设置新密码 |
 | Dashboard | `/dashboard` | 数据统计总览 |
 | 个人中心 | `/profile` | 修改个人信息/密码 |
 | 用户管理 | `/system/user` | 租户用户 CRUD |
@@ -590,7 +717,12 @@ OpenAPI 规范文件位于 `docs/apifox/`：
 | 权限管理 | `/system/permission` | 权限 CRUD |
 | 文件管理 | `/system/file` | 上传/下载/重命名/回收站/永久删除 |
 | 套餐管理 | `/system/plan` | 套餐 CRUD |
-| 审计日志 | `/system/audit` | 日志查询/导出 |
+| 审计日志 | `/system/audit` | 日志查询/导出/可视化仪表盘 |
+| Wiki 空间 | `/wiki/spaces` | Wiki 空间列表/创建/管理 |
+| Wiki 节点树 | `/wiki/spaces/:id/tree` | 节点树浏览/创建文件夹/创建文档 |
+| Wiki 文档编辑 | `/wiki/documents/:id` | Markdown 文档编辑/版本历史/版本恢复 |
+| Wiki 成员 | `/wiki/spaces/:id/members` | 空间成员管理 |
+| 租户设置 | `/tenant-settings` | 租户独立配置（Logo/主题色/语言等） |
 | 通知公告 | `/system/announcement` | 公告 CRUD / 发布 / 下架 |
 | 注销审批 | `/system/cancel-request` | 租户注销申请审批（通过/驳回） |
 

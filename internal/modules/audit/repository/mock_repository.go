@@ -95,3 +95,23 @@ func (m *MockAuditLogRepository) Cleanup(ctx context.Context, days int) (int64, 
 	m.stats.ResultStats = make(map[string]int64)
 	return deleted, nil
 }
+
+func (m *MockAuditLogRepository) GetTrendStats(ctx context.Context, tenantID string, days int) ([]model.AuditTrendPoint, error) {
+	return []model.AuditTrendPoint{}, nil
+}
+
+func (m *MockAuditLogRepository) GetTopModules(ctx context.Context, tenantID string, limit int) ([]model.ModuleCount, error) {
+	return []model.ModuleCount{}, nil
+}
+
+func (m *MockAuditLogRepository) GetDashboardData(ctx context.Context, tenantID string, days int) (*model.AuditDashboardData, error) {
+	return &model.AuditDashboardData{
+		TotalCount:  m.stats.TotalCount,
+		TodayCount:  m.stats.TodayCount,
+		ActionStats: m.stats.ActionStats,
+		ModuleStats: m.stats.ModuleStats,
+		ResultStats: m.stats.ResultStats,
+		Trend:       []model.AuditTrendPoint{},
+		TopModules:  []model.ModuleCount{},
+	}, nil
+}

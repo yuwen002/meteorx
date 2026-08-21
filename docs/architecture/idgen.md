@@ -1,112 +1,112 @@
-# ID Generation Architecture
+# ID 生成架构
 
-## Overview
+## 概述
 
-Unified ID generation using ULID (Universally Unique Lexicographically Sortable Identifier) for all business entities. The `pkg/idgen` package provides a single entry point for ID generation, replacing scattered `ulid` and `uuid` usage.
+使用 ULID（通用唯一词典有序标识符）为所有业务实体提供统一的 ID 生成。`pkg/idgen` 包提供单一入口点，替代分散的 `ulid` 和 `uuid` 调用。
 
-## Package: `pkg/idgen`
+## 包路径：`pkg/idgen`
 
 ### API
 
 ```go
-// Generate new ULID (26 characters, time-ordered)
+// 生成新的 ULID（26 个字符，按时间有序）
 id := idgen.New()
-// Example: 01H7K3N5P8R2S4T6V8W0X2Y4Z6
+// 示例：01H7K3N5P8R2S4T6V8W0X2Y4Z6
 
-// Generate UUID (same as New(), alias for semantic clarity)
+// 生成 UUID（与 New() 相同，为语义清晰的别名）
 id := idgen.NewUUID()
 
-// Parse existing ULID string
+// 解析已有的 ULID 字符串
 ulid, err := idgen.Parse("01H7K3N5P8R2S4T6V8W0X2Y4Z6")
 
-// MustParse (panics on invalid input, for known-good strings)
+// MustParse（对无效输入 panic，用于已知有效的字符串）
 ulid := idgen.MustParse("01H7K3N5P8R2S4T6V8W0X2Y4Z6")
 ```
 
-### ULID Format
+### ULID 格式
 
 ```
-26 characters, Crockford Base32 encoding:
+26 个字符，Crockford Base32 编码：
 
  01H7K3N5P8R2S4T6V8W0X2Y4Z6
  |--------|------------------|
-  Timestamp      Randomness
-  (10 chars)     (16 chars)
-  (48 bits)      (80 bits)
+  时间戳         随机数
+  (10 字符)     (16 字符)
+  (48 bit)      (80 bit)
 
-Time-ordered: IDs from earlier timestamps sort before later ones
+按时间有序：较早时间戳的 ID 排在较晚的之前
 ```
 
-### Why ULID Over UUID?
+### 为什么选择 ULID 而不是 UUID？
 
-| Feature | ULID | UUID v4 | UUID v7 |
-|---------|------|---------|---------|
-| Length | 26 chars | 36 chars (with hyphens) | 36 chars |
-| Time-ordered | Yes (prefix) | No | Yes (prefix) |
-| DB Index Efficiency | High (B+Tree locality) | Low | Medium |
-| Encoding | Crockford Base32 | Hex + hyphens | Hex + hyphens |
-| Collision Probability | Extremely low | Extremely low | Extremely low |
-| Readability | Better (no hyphens) | Poor | Poor |
+| 特性 | ULID | UUID v4 | UUID v7 |
+|------|------|---------|---------|
+| 长度 | 26 字符 | 36 字符（含连字符） | 36 字符 |
+| 按时间有序 | 是（前缀） | 否 | 是（前缀） |
+| 数据库索引效率 | 高（B+Tree 局部性） | 低 | 中 |
+| 编码方式 | Crockford Base32 | 十六进制 + 连字符 | 十六进制 + 连字符 |
+| 碰撞概率 | 极低 | 极低 | 极低 |
+| 可读性 | 较好（无连字符） | 较差 | 较差 |
 
-### Core Rules
+### 核心规则
 
 ```
-1. ALL business entities MUST use idgen.New() for ID generation
-2. NEVER use ulid.Generate(), ulid.Make(), uuid.New() directly
-3. The pkg/ulid and pkg/uuid packages are DEPRECATED (backward-compat only)
-4. Database primary keys use VARCHAR(26) for ULID storage
-5. API DTOs use string type for IDs (not ULID type)
+1. 所有业务实体必须使用 idgen.New() 生成 ID
+2. 禁止直接使用 ulid.Generate()、ulid.Make()、uuid.New()
+3. pkg/ulid 和 pkg/uuid 包已废弃（仅向后兼容）
+4. 数据库主键使用 VARCHAR(26) 存储 ULID
+5. API DTO 使用 string 类型传递 ID（不是 ULID 类型）
 ```
 
-### Migration Guide
+### 迁移指南
 
-#### Old Code (Deprecated)
+#### 旧代码（已废弃）
 
 ```go
-// scattered imports
+// 分散的导入
 import "meteorx/pkg/ulid"
 id := ulid.Generate()
 
-// or
+// 或者
 import "meteorx/pkg/uuid"
 id := uuid.New()
 ```
 
-#### New Code (Required)
+#### 新代码（必须使用）
 
 ```go
 import "meteorx/pkg/idgen"
 id := idgen.New()
 ```
 
-### Entities Using ULID
+### 使用 ULID 的实体
 
-| Module | Entity | ID Field | Notes |
-|--------|--------|----------|-------|
-| auth | User | id | Primary key |
-| auth | RefreshToken | id | Primary key |
-| rbac | Role | id | Primary key |
-| rbac | Permission | id | Primary key |
-| rbac | RolePermission | id | Primary key |
-| rbac | UserRole | id | Primary key |
-| tenant | Tenant | id | Primary key |
-| tenant | TenantSettings | id | Primary key |
-| tenant | CancelRequest | id | Primary key |
-| plan | Plan | id | Primary key |
-| plan | Subscription | id | Primary key |
-| audit | AuditLog | id | Primary key |
-| file | File | id | Primary key |
-| wiki | WikiSpace | id | Primary key |
-| wiki | WikiNode | id | Primary key |
-| wiki | Document | id | Primary key |
-| wiki | DocumentRevision | id | Primary key |
-| wiki | WikiSpaceMember | id | Primary key |
-| notification | Announcement | id | Primary key |
+| 模块 | 实体 | ID 字段 | 备注 |
+|------|------|----------|------|
+| auth | User | id | 主键 |
+| auth | RefreshToken | id | 主键 |
+| rbac | Role | id | 主键 |
+| rbac | Permission | id | 主键 |
+| rbac | RolePermission | id | 主键 |
+| rbac | UserRole | id | 主键 |
+| tenant | Tenant | id | 主键 |
+| tenant | TenantSettings | id | 主键 |
+| tenant | CancelRequest | id | 主键 |
+| plan | Plan | id | 主键 |
+| plan | Subscription | id | 主键 |
+| audit | AuditLog | id | 主键 |
+| file | File | id | 主键 |
+| wiki | WikiSpace | id | 主键 |
+| wiki | WikiNode | id | 主键 |
+| wiki | Document | id | 主键 |
+| wiki | DocumentRevision | id | 主键 |
+| wiki | WikiSpaceMember | id | 主键 |
+| notification | Announcement | id | 主键 |
 
-### GORM Model Integration
+### GORM 模型集成
 
 ```go
-// Base model with ULID primary key
+// 带 ULID 主键的基础模型
 type BaseModel struct {
     ID        string         `gorm:"primaryKey;type:varchar(26)" json:"id"`
     CreatedAt time.Time      `json:"created_at"`
@@ -114,7 +114,7 @@ type BaseModel struct {
     DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 }
 
-// Auto-generate ID on create via BeforeCreate hook
+// 通过 BeforeCreate 钩子在创建时自动生成 ID
 func (base *BaseModel) BeforeCreate(tx *gorm.DB) error {
     if base.ID == "" {
         base.ID = idgen.New()
@@ -123,12 +123,12 @@ func (base *BaseModel) BeforeCreate(tx *gorm.DB) error {
 }
 ```
 
-### Query Safety
+### 查询安全
 
 ```go
-// Always validate ID format before database lookup
+// 在数据库查找前始终校验 ID 格式
 func (r *repository) GetByID(ctx context.Context, id string) (*model.Entity, error) {
-    // Validate ULID format
+    // 校验 ULID 格式
     if _, err := idgen.Parse(id); err != nil {
         return nil, apperrors.ErrBadRequest("invalid id format")
     }
@@ -136,33 +136,33 @@ func (r *repository) GetByID(ctx context.Context, id string) (*model.Entity, err
 }
 ```
 
-### Testing
+### 测试
 
 ```go
 func TestIDGeneration(t *testing.T) {
     id1 := idgen.New()
     id2 := idgen.New()
 
-    // Both are valid ULIDs
+    // 两者都是有效的 ULID
     _, err := idgen.Parse(id1)
     assert.NoError(t, err)
 
-    // Unique
+    // 唯一性
     assert.NotEqual(t, id1, id2)
 
-    // Sortable (id1 should be <= id2 when generated in sequence)
+    // 可排序性（按顺序生成时 id1 应 <= id2）
     assert.LessOrEqual(t, id1, id2)
 
-    // Length
+    // 长度
     assert.Equal(t, 26, len(id1))
 }
 ```
 
-### Best Practices
+### 最佳实践
 
-1. **Always** use `idgen.New()` — never scattered ID generation
-2. **Validate** ID format with `idgen.Parse()` before DB queries
-3. **Use** `idgen.MustParse()` only for trusted, pre-validated IDs
-4. **Store** IDs as `VARCHAR(26)` in MySQL for optimal indexing
-5. **Include** `idgen` import in all new entity files
-6. **Replace** old `ulid.` and `uuid.` calls during refactoring
+1. **始终**使用 `idgen.New()` — 绝不要分散地生成 ID
+2. **使用** `idgen.Parse()` 在查询数据库之前校验 ID 格式
+3. **仅** 对可信的、预校验的 ID 使用 `idgen.MustParse()`
+4. **在** MySQL 中将 ID 存储为 `VARCHAR(26)` 以优化索引
+5. **在**所有新实体文件中引入 `idgen` 包
+6. **在**重构时替换旧的 `ulid.` 和 `uuid.` 调用

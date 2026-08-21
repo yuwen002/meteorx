@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"meteorx/internal/common/tenantctx"
 	"meteorx/internal/modules/wiki/model"
 	"meteorx/pkg/ulid"
 
@@ -39,6 +40,7 @@ type WikiRepository interface {
 	GetDocumentByNodeID(ctx context.Context, nodeID string) (*model.Document, error)
 	GetDocumentByID(ctx context.Context, id string) (*model.Document, error)
 	UpdateDocument(ctx context.Context, doc *model.Document) error
+	DeleteDocument(ctx context.Context, id string) error
 	IncrementViewCount(ctx context.Context, id string) error
 
 	CreateRevision(ctx context.Context, revision *model.DocumentRevision) error
@@ -74,7 +76,7 @@ func AutoMigrate(db *gorm.DB) error {
 
 func (r *wikiRepository) CreateSpace(ctx context.Context, space *model.WikiSpace) error {
 	if space.ID == "" {
-		space.ID = ulid.NewULID()
+		space.ID = ulid.Generate()
 	}
 	space.CreatedAt = time.Now()
 	space.UpdatedAt = time.Now()
@@ -83,7 +85,8 @@ func (r *wikiRepository) CreateSpace(ctx context.Context, space *model.WikiSpace
 
 func (r *wikiRepository) GetSpaceByID(ctx context.Context, id string) (*model.WikiSpace, error) {
 	var space model.WikiSpace
-	err := r.db.WithContext(ctx).Where("id = ?", id).First(&space).Error
+	query := tenantctx.FilterQuery(ctx, r.db.WithContext(ctx), "tenant_id")
+	err := query.Where("id = ?", id).First(&space).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrWikiSpaceNotFound
 	}
@@ -138,7 +141,7 @@ func (r *wikiRepository) DeleteSpace(ctx context.Context, id string) error {
 
 func (r *wikiRepository) CreateNode(ctx context.Context, node *model.WikiNode) error {
 	if node.ID == "" {
-		node.ID = ulid.NewULID()
+		node.ID = ulid.Generate()
 	}
 	node.CreatedAt = time.Now()
 	node.UpdatedAt = time.Now()
@@ -147,7 +150,11 @@ func (r *wikiRepository) CreateNode(ctx context.Context, node *model.WikiNode) e
 
 func (r *wikiRepository) GetNodeByID(ctx context.Context, id string) (*model.WikiNode, error) {
 	var node model.WikiNode
-	err := r.db.WithContext(ctx).Where("id = ?", id).First(&node).Error
+	query := r.db.WithContext(ctx).Model(&model.WikiNode{}).
+		Joins("JOIN wiki_spaces ws ON ws.id = wiki_nodes.space_id").
+		Where("wiki_nodes.id = ?", id)
+	query = tenantctx.FilterQuery(ctx, query, "ws.tenant_id")
+	err := query.First(&node).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrWikiNodeNotFound
 	}
@@ -198,7 +205,7 @@ func (r *wikiRepository) CountChildNodes(ctx context.Context, parentID string) (
 
 func (r *wikiRepository) CreateDocument(ctx context.Context, doc *model.Document) error {
 	if doc.ID == "" {
-		doc.ID = ulid.NewULID()
+		doc.ID = ulid.Generate()
 	}
 	doc.CreatedAt = time.Now()
 	doc.UpdatedAt = time.Now()
@@ -207,7 +214,12 @@ func (r *wikiRepository) CreateDocument(ctx context.Context, doc *model.Document
 
 func (r *wikiRepository) GetDocumentByNodeID(ctx context.Context, nodeID string) (*model.Document, error) {
 	var doc model.Document
-	err := r.db.WithContext(ctx).Where("node_id = ?", nodeID).First(&doc).Error
+	query := r.db.WithContext(ctx).Model(&model.Document{}).
+		Joins("JOIN wiki_nodes wn ON wn.id = wiki_documents.node_id").
+		Joins("JOIN wiki_spaces ws ON ws.id = wn.space_id").
+		Where("wiki_documents.node_id = ?", nodeID)
+	query = tenantctx.FilterQuery(ctx, query, "ws.tenant_id")
+	err := query.First(&doc).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrDocumentNotFound
 	}
@@ -216,7 +228,12 @@ func (r *wikiRepository) GetDocumentByNodeID(ctx context.Context, nodeID string)
 
 func (r *wikiRepository) GetDocumentByID(ctx context.Context, id string) (*model.Document, error) {
 	var doc model.Document
-	err := r.db.WithContext(ctx).Where("id = ?", id).First(&doc).Error
+	query := r.db.WithContext(ctx).Model(&model.Document{}).
+		Joins("JOIN wiki_nodes wn ON wn.id = wiki_documents.node_id").
+		Joins("JOIN wiki_spaces ws ON ws.id = wn.space_id").
+		Where("wiki_documents.id = ?", id)
+	query = tenantctx.FilterQuery(ctx, query, "ws.tenant_id")
+	err := query.First(&doc).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrDocumentNotFound
 	}
@@ -241,6 +258,14 @@ func (r *wikiRepository) UpdateDocument(ctx context.Context, doc *model.Document
 	return result.Error
 }
 
+func (r *wikiRepository) DeleteDocument(ctx context.Context, id string) error {
+	result := r.db.WithContext(ctx).Delete(&model.Document{}, "id = ?", id)
+	if result.RowsAffected == 0 {
+		return ErrDocumentNotFound
+	}
+	return result.Error
+}
+
 func (r *wikiRepository) IncrementViewCount(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Model(&model.Document{}).Where("id = ?", id).
 		UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
@@ -248,7 +273,7 @@ func (r *wikiRepository) IncrementViewCount(ctx context.Context, id string) erro
 
 func (r *wikiRepository) CreateRevision(ctx context.Context, revision *model.DocumentRevision) error {
 	if revision.ID == "" {
-		revision.ID = ulid.NewULID()
+		revision.ID = ulid.Generate()
 	}
 	revision.CreatedAt = time.Now()
 	return r.db.WithContext(ctx).Create(revision).Error
@@ -271,7 +296,7 @@ func (r *wikiRepository) GetRevisionByVersion(ctx context.Context, documentID st
 
 func (r *wikiRepository) AddMember(ctx context.Context, member *model.WikiSpaceMember) error {
 	if member.ID == "" {
-		member.ID = ulid.NewULID()
+		member.ID = ulid.Generate()
 	}
 	member.CreatedAt = time.Now()
 	member.UpdatedAt = time.Now()
@@ -318,7 +343,7 @@ func (r *wikiRepository) GetWikiStats(ctx context.Context, tenantID string) (*mo
 	stats.TotalDocuments = docCount
 
 	var viewCount int64
-	r.db.WithContext(ctx).Model(&model.Document{}).
+	_ = r.db.WithContext(ctx).Model(&model.Document{}).
 		Joins("JOIN wiki_nodes wn ON wn.id = wiki_documents.node_id").
 		Joins("JOIN wiki_spaces ws ON ws.id = wn.space_id").
 		Where("ws.tenant_id = ?", tenantID).

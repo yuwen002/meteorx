@@ -6,6 +6,7 @@ import (
 	"meteorx/internal/modules/audit/repository"
 	"meteorx/internal/modules/file"
 	notificationrepo "meteorx/internal/modules/notification/repository"
+	wikirepo "meteorx/internal/modules/wiki/repository"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,6 +74,12 @@ func AutoMigrate(db *gorm.DB) error {
 	err = notificationrepo.AutoMigrate(db)
 	if err != nil {
 		log.Printf("Notification migration failed: %v", err)
+		return err
+	}
+
+	err = wikirepo.AutoMigrate(db)
+	if err != nil {
+		log.Printf("Wiki migration failed: %v", err)
 		return err
 	}
 

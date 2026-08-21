@@ -11590,6 +11590,394 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Wiki知识库",
+      "id": 99000001,
+      "auth": {},
+      "securityScheme": {},
+      "parentId": 0,
+      "serverId": "",
+      "description": "企业知识库Wiki管理",
+      "identityPattern": {
+        "httpApi": {
+          "type": "inherit",
+          "bodyType": "",
+          "fields": []
+        }
+      },
+      "shareSettings": {},
+      "visibility": "INHERITED",
+      "moduleId": 7675120,
+      "preProcessors": [
+        { "id": "inheritProcessors", "type": "inheritProcessors", "data": {} }
+      ],
+      "postProcessors": [
+        { "id": "inheritProcessors", "type": "inheritProcessors", "data": {} }
+      ],
+      "inheritPostProcessors": {},
+      "inheritPreProcessors": {},
+      "items": [
+        {
+          "name": "Wiki统计数据",
+          "api": {
+            "id": "wiki-stats",
+            "method": "get",
+            "path": "/api/v1/wiki/stats",
+            "parameters": {},
+            "auth": { "type": "bearer", "bearer": {} },
+            "securityScheme": {},
+            "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+            "responses": [{ "id": "wiki-stats-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+            "responseExamples": [],
+            "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+            "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 10, "cases": [], "mocks": [], "customApiFields": "{}",
+            "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+          }
+        },
+        {
+          "name": "空间管理",
+          "id": 99000002,
+          "auth": {},
+          "securityScheme": {},
+          "parentId": 0,
+          "serverId": "",
+          "description": "Wiki空间CRUD操作",
+          "identityPattern": { "httpApi": { "type": "inherit", "bodyType": "", "fields": [] } },
+          "shareSettings": {}, "visibility": "INHERITED", "moduleId": 7675120,
+          "preProcessors": [{ "id": "inheritProcessors", "type": "inheritProcessors", "data": {} }],
+          "postProcessors": [{ "id": "inheritProcessors", "type": "inheritProcessors", "data": {} }],
+          "inheritPostProcessors": {}, "inheritPreProcessors": {},
+          "items": [
+            {
+              "name": "空间列表",
+              "api": { "id": "wiki-space-list", "method": "get", "path": "/api/v1/wiki/spaces",
+                "parameters": { "query": [{ "name": "page", "type": "integer", "description": "页码", "required": false, "enable": true }, { "name": "page_size", "type": "integer", "description": "每页数量", "required": false, "enable": true }] },
+                "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                "responses": [{ "id": "wiki-space-list-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                "responseExamples": [],
+                "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 10, "cases": [], "mocks": [], "customApiFields": "{}",
+                "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "创建空间",
+              "api": { "id": "wiki-space-create", "method": "post", "path": "/api/v1/wiki/spaces",
+                "parameters": {},
+                "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                "responses": [{ "id": "wiki-space-create-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                "responseExamples": [],
+                "requestBody": { "type": "application/json", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "",
+                  "jsonSchema": { "type": "object", "properties": { "name": { "type": "string" }, "description": { "type": "string" }, "icon": { "type": "string" }, "visibility": { "type": "integer" } }, "required": ["name", "visibility"] }
+                },
+                "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 20, "cases": [], "mocks": [], "customApiFields": "{}",
+                "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "空间详情",
+              "api": { "id": "wiki-space-get", "method": "get", "path": "/api/v1/wiki/spaces/{id}",
+                "parameters": { "path": [{ "name": "id", "type": "string", "description": "空间ID", "required": true, "enable": true }] },
+                "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                "responses": [{ "id": "wiki-space-get-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                "responseExamples": [],
+                "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 30, "cases": [], "mocks": [], "customApiFields": "{}",
+                "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "更新空间",
+              "api": { "id": "wiki-space-update", "method": "put", "path": "/api/v1/wiki/spaces/{id}",
+                "parameters": { "path": [{ "name": "id", "type": "string", "description": "空间ID", "required": true, "enable": true }] },
+                "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                "responses": [{ "id": "wiki-space-update-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                "responseExamples": [],
+                "requestBody": { "type": "application/json", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "",
+                  "jsonSchema": { "type": "object", "properties": { "name": { "type": "string" }, "description": { "type": "string" }, "icon": { "type": "string" }, "visibility": { "type": "integer" } } }
+                },
+                "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 40, "cases": [], "mocks": [], "customApiFields": "{}",
+                "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "删除空间",
+              "api": { "id": "wiki-space-delete", "method": "delete", "path": "/api/v1/wiki/spaces/{id}",
+                "parameters": { "path": [{ "name": "id", "type": "string", "description": "空间ID", "required": true, "enable": true }] },
+                "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                "responses": [{ "id": "wiki-space-delete-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                "responseExamples": [],
+                "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 50, "cases": [], "mocks": [], "customApiFields": "{}",
+                "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "节点管理",
+              "id": 99000003,
+              "auth": {}, "securityScheme": {}, "parentId": 0, "serverId": "",
+              "description": "Wiki节点（目录/文档）管理",
+              "identityPattern": { "httpApi": { "type": "inherit", "bodyType": "", "fields": [] } },
+              "shareSettings": {}, "visibility": "INHERITED", "moduleId": 7675120,
+              "preProcessors": [{ "id": "inheritProcessors", "type": "inheritProcessors", "data": {} }],
+              "postProcessors": [{ "id": "inheritProcessors", "type": "inheritProcessors", "data": {} }],
+              "inheritPostProcessors": {}, "inheritPreProcessors": {},
+              "items": [
+                {
+                  "name": "获取节点树",
+                  "api": { "id": "wiki-node-tree", "method": "get", "path": "/api/v1/wiki/spaces/{spaceId}/nodes/tree",
+                    "parameters": { "path": [{ "name": "spaceId", "type": "string", "description": "空间ID", "required": true, "enable": true }] },
+                    "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [{ "id": "wiki-node-tree-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 10, "cases": [], "mocks": [], "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "创建节点",
+                  "api": { "id": "wiki-node-create", "method": "post", "path": "/api/v1/wiki/spaces/{spaceId}/nodes",
+                    "parameters": { "path": [{ "name": "spaceId", "type": "string", "description": "空间ID", "required": true, "enable": true }] },
+                    "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [{ "id": "wiki-node-create-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                    "responseExamples": [],
+                    "requestBody": { "type": "application/json", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "",
+                      "jsonSchema": { "type": "object", "properties": { "space_id": { "type": "string" }, "parent_id": { "type": "string" }, "type": { "type": "string" }, "title": { "type": "string" }, "icon": { "type": "string" }, "sort": { "type": "integer" }, "content": { "type": "string" } }, "required": ["space_id", "type", "title"] }
+                    },
+                    "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 20, "cases": [], "mocks": [], "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "节点详情",
+                  "api": { "id": "wiki-node-get", "method": "get", "path": "/api/v1/wiki/spaces/{spaceId}/nodes/{id}",
+                    "parameters": { "path": [{ "name": "spaceId", "type": "string", "description": "空间ID", "required": true, "enable": true }, { "name": "id", "type": "string", "description": "节点ID", "required": true, "enable": true }] },
+                    "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [{ "id": "wiki-node-get-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 30, "cases": [], "mocks": [], "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "更新节点",
+                  "api": { "id": "wiki-node-update", "method": "put", "path": "/api/v1/wiki/spaces/{spaceId}/nodes/{id}",
+                    "parameters": { "path": [{ "name": "spaceId", "type": "string", "description": "空间ID", "required": true, "enable": true }, { "name": "id", "type": "string", "description": "节点ID", "required": true, "enable": true }] },
+                    "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [{ "id": "wiki-node-update-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                    "responseExamples": [],
+                    "requestBody": { "type": "application/json", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "",
+                      "jsonSchema": { "type": "object", "properties": { "title": { "type": "string" }, "icon": { "type": "string" }, "parent_id": { "type": "string" }, "sort": { "type": "integer" }, "status": { "type": "integer" } } }
+                    },
+                    "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 40, "cases": [], "mocks": [], "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "删除节点",
+                  "api": { "id": "wiki-node-delete", "method": "delete", "path": "/api/v1/wiki/spaces/{spaceId}/nodes/{id}",
+                    "parameters": { "path": [{ "name": "spaceId", "type": "string", "description": "空间ID", "required": true, "enable": true }, { "name": "id", "type": "string", "description": "节点ID", "required": true, "enable": true }] },
+                    "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [{ "id": "wiki-node-delete-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 50, "cases": [], "mocks": [], "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+                  }
+                }
+              ]
+            },
+            {
+              "name": "成员管理",
+              "id": 99000004,
+              "auth": {}, "securityScheme": {}, "parentId": 0, "serverId": "",
+              "description": "Wiki空间成员管理",
+              "identityPattern": { "httpApi": { "type": "inherit", "bodyType": "", "fields": [] } },
+              "shareSettings": {}, "visibility": "INHERITED", "moduleId": 7675120,
+              "preProcessors": [{ "id": "inheritProcessors", "type": "inheritProcessors", "data": {} }],
+              "postProcessors": [{ "id": "inheritProcessors", "type": "inheritProcessors", "data": {} }],
+              "inheritPostProcessors": {}, "inheritPreProcessors": {},
+              "items": [
+                {
+                  "name": "成员列表",
+                  "api": { "id": "wiki-member-list", "method": "get", "path": "/api/v1/wiki/spaces/{spaceId}/members",
+                    "parameters": { "path": [{ "name": "spaceId", "type": "string", "description": "空间ID", "required": true, "enable": true }] },
+                    "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [{ "id": "wiki-member-list-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 10, "cases": [], "mocks": [], "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "添加成员",
+                  "api": { "id": "wiki-member-add", "method": "post", "path": "/api/v1/wiki/spaces/{spaceId}/members",
+                    "parameters": { "path": [{ "name": "spaceId", "type": "string", "description": "空间ID", "required": true, "enable": true }] },
+                    "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [{ "id": "wiki-member-add-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                    "responseExamples": [],
+                    "requestBody": { "type": "application/json", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "",
+                      "jsonSchema": { "type": "object", "properties": { "user_id": { "type": "string" }, "role": { "type": "string" } }, "required": ["user_id", "role"] }
+                    },
+                    "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 20, "cases": [], "mocks": [], "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "移除成员",
+                  "api": { "id": "wiki-member-remove", "method": "delete", "path": "/api/v1/wiki/spaces/{spaceId}/members/{userId}",
+                    "parameters": { "path": [{ "name": "spaceId", "type": "string", "description": "空间ID", "required": true, "enable": true }, { "name": "userId", "type": "string", "description": "用户ID", "required": true, "enable": true }] },
+                    "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [{ "id": "wiki-member-remove-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 30, "cases": [], "mocks": [], "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "文档管理",
+          "id": 99000005,
+          "auth": {}, "securityScheme": {}, "parentId": 0, "serverId": "",
+          "description": "Wiki文档CRUD及版本管理",
+          "identityPattern": { "httpApi": { "type": "inherit", "bodyType": "", "fields": [] } },
+          "shareSettings": {}, "visibility": "INHERITED", "moduleId": 7675120,
+          "preProcessors": [{ "id": "inheritProcessors", "type": "inheritProcessors", "data": {} }],
+          "postProcessors": [{ "id": "inheritProcessors", "type": "inheritProcessors", "data": {} }],
+          "inheritPostProcessors": {}, "inheritPreProcessors": {},
+          "items": [
+            {
+              "name": "创建文档",
+              "api": { "id": "wiki-doc-create", "method": "post", "path": "/api/v1/wiki/documents/nodes/{nodeId}",
+                "parameters": { "path": [{ "name": "nodeId", "type": "string", "description": "节点ID", "required": true, "enable": true }] },
+                "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                "responses": [{ "id": "wiki-doc-create-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                "responseExamples": [],
+                "requestBody": { "type": "application/json", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "",
+                  "jsonSchema": { "type": "object", "properties": { "node_id": { "type": "string" }, "content": { "type": "string" }, "format": { "type": "string" }, "summary": { "type": "string" } } }
+                },
+                "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 10, "cases": [], "mocks": [], "customApiFields": "{}",
+                "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "通过节点获取文档",
+              "api": { "id": "wiki-doc-get-by-node", "method": "get", "path": "/api/v1/wiki/documents/nodes/{nodeId}",
+                "parameters": { "path": [{ "name": "nodeId", "type": "string", "description": "节点ID", "required": true, "enable": true }] },
+                "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                "responses": [{ "id": "wiki-doc-get-by-node-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                "responseExamples": [],
+                "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 20, "cases": [], "mocks": [], "customApiFields": "{}",
+                "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "更新文档",
+              "api": { "id": "wiki-doc-update", "method": "put", "path": "/api/v1/wiki/documents/{id}",
+                "parameters": { "path": [{ "name": "id", "type": "string", "description": "文档ID", "required": true, "enable": true }] },
+                "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                "responses": [{ "id": "wiki-doc-update-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                "responseExamples": [],
+                "requestBody": { "type": "application/json", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "",
+                  "jsonSchema": { "type": "object", "properties": { "content": { "type": "string" }, "format": { "type": "string" }, "summary": { "type": "string" } } }
+                },
+                "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 30, "cases": [], "mocks": [], "customApiFields": "{}",
+                "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "删除文档",
+              "api": { "id": "wiki-doc-delete", "method": "delete", "path": "/api/v1/wiki/documents/{id}",
+                "parameters": { "path": [{ "name": "id", "type": "string", "description": "文档ID", "required": true, "enable": true }] },
+                "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                "responses": [{ "id": "wiki-doc-delete-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                "responseExamples": [],
+                "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 40, "cases": [], "mocks": [], "customApiFields": "{}",
+                "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "版本管理",
+              "id": 99000006,
+              "auth": {}, "securityScheme": {}, "parentId": 0, "serverId": "",
+              "description": "Wiki文档版本历史",
+              "identityPattern": { "httpApi": { "type": "inherit", "bodyType": "", "fields": [] } },
+              "shareSettings": {}, "visibility": "INHERITED", "moduleId": 7675120,
+              "preProcessors": [{ "id": "inheritProcessors", "type": "inheritProcessors", "data": {} }],
+              "postProcessors": [{ "id": "inheritProcessors", "type": "inheritProcessors", "data": {} }],
+              "inheritPostProcessors": {}, "inheritPreProcessors": {},
+              "items": [
+                {
+                  "name": "版本列表",
+                  "api": { "id": "wiki-rev-list", "method": "get", "path": "/api/v1/wiki/documents/{documentId}/revisions",
+                    "parameters": { "path": [{ "name": "documentId", "type": "string", "description": "文档ID", "required": true, "enable": true }] },
+                    "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [{ "id": "wiki-rev-list-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 10, "cases": [], "mocks": [], "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "获取指定版本",
+                  "api": { "id": "wiki-rev-get", "method": "get", "path": "/api/v1/wiki/documents/{documentId}/revisions/{version}",
+                    "parameters": { "path": [{ "name": "documentId", "type": "string", "description": "文档ID", "required": true, "enable": true }, { "name": "version", "type": "integer", "description": "版本号", "required": true, "enable": true }] },
+                    "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [{ "id": "wiki-rev-get-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 20, "cases": [], "mocks": [], "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+                  }
+                },
+                {
+                  "name": "恢复到指定版本",
+                  "api": { "id": "wiki-rev-restore", "method": "post", "path": "/api/v1/wiki/documents/{documentId}/revisions/{version}/restore",
+                    "parameters": { "path": [{ "name": "documentId", "type": "string", "description": "文档ID", "required": true, "enable": true }, { "name": "version", "type": "integer", "description": "版本号", "required": true, "enable": true }] },
+                    "auth": { "type": "bearer", "bearer": {} }, "securityScheme": {},
+                    "commonParameters": { "query": [], "body": [], "cookie": [], "header": [] },
+                    "responses": [{ "id": "wiki-rev-restore-200", "code": 200, "name": "成功", "headers": [], "jsonSchema": { "type": "object", "properties": {} }, "itemSchema": {}, "description": "", "contentType": "json", "mediaType": "" }],
+                    "responseExamples": [],
+                    "requestBody": { "type": "none", "parameters": [], "required": true, "mediaType": "", "examples": [], "oasExtensions": "" },
+                    "description": "", "tags": [], "status": "developing", "serverId": "", "operationId": "", "sourceUrl": "", "ordering": 30, "cases": [], "mocks": [], "customApiFields": "{}",
+                    "advancedSettings": { "disabledSystemHeaders": {} }, "mockScript": {}, "codeSamples": [], "commonResponseStatus": {}, "responseChildren": [], "visibility": "INHERITED", "moduleId": 7675120, "oasExtensions": "", "type": "http", "preProcessors": [], "postProcessors": [], "inheritPostProcessors": {}, "inheritPreProcessors": {}
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
   "socketCollection": [],

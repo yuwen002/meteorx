@@ -13,6 +13,7 @@
 | 方法 | 路径 | 功能 | 权限码 |
 |------|------|------|--------|
 | GET | `/audit/stats` | 审计日志统计（Dashboard） | 需登录 |
+| GET | `/audit/dashboard` | 可视化仪表盘（趋势/模块分布/操作统计） | 需登录 |
 | GET | `/audit/logs` | 审计日志列表（分页+多条件筛选） | `audit:log:list` |
 | GET | `/audit/logs/export` | 导出审计日志 | `audit:log:export` |
 | POST | `/audit/logs` | 创建审计日志（通常内部使用） | `audit:log:create` |
@@ -57,7 +58,36 @@
 | module_stats | map[string]int64 | 按模块统计（key=module, value=count） |
 | result_stats | map[string]int64 | 按结果统计（key=result, value=count） |
 
-### 2.3 ListAuditLogsQuery（查询参数）
+### 2.3 AuditDashboardData（可视化仪表盘响应）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| total_count | int64 | 总日志数 |
+| today_count | int64 | 今日日志数 |
+| action_stats | map[string]int64 | 按操作类型统计 |
+| module_stats | map[string]int64 | 按模块统计 |
+| result_stats | map[string]int64 | 按结果统计 |
+| trend | array\<AuditTrendPoint\> | 最近 N 天的趋势数据 |
+| top_modules | array\<ModuleCount\> | 操作量 Top 模块列表 |
+
+### 2.4 AuditTrendPoint（趋势数据点）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| date | string | 日期（YYYY-MM-DD） |
+| count | int64 | 当天总操作数 |
+| success | int64 | 当天成功操作数 |
+| failure | int64 | 当天失败操作数 |
+
+### 2.5 ModuleCount（模块统计）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| module | string | 模块名称 |
+| count | int64 | 操作次数 |
+| percentage | float64 | 占比百分比 |
+
+### 2.6 ListAuditLogsQuery（查询参数）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -111,7 +141,56 @@
 }
 ```
 
-### 3.2 审计日志列表
+### 3.2 可视化仪表盘（趋势/模块分布/操作统计）
+
+`GET /api/v1/audit/dashboard`
+
+**Query 参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| days | int | 趋势数据的天数范围，默认 7，最大 30 |
+
+**说明：** 返回可视化仪表盘所需的全部聚合数据，包括操作趋势、模块分布 Top、操作类型统计、结果分布等。适用于前端渲染图表。
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "data": {
+    "total_count": 12580,
+    "today_count": 320,
+    "action_stats": {
+      "login": 450,
+      "create": 120,
+      "update": 340,
+      "delete": 80
+    },
+    "module_stats": {
+      "auth": 450,
+      "user": 680,
+      "rbac": 320,
+      "file": 200
+    },
+    "result_stats": {
+      "success": 12000,
+      "failed": 580
+    },
+    "trend": [
+      { "date": "2026-08-15", "count": 180, "success": 175, "failure": 5 },
+      { "date": "2026-08-16", "count": 220, "success": 210, "failure": 10 },
+      { "date": "2026-08-17", "count": 195, "success": 190, "failure": 5 }
+    ],
+    "top_modules": [
+      { "module": "user", "count": 680, "percentage": 26.8 },
+      { "module": "auth", "count": 450, "percentage": 17.8 },
+      { "module": "rbac", "count": 320, "percentage": 12.6 }
+    ]
+  }
+}
+```
+
+### 3.3 审计日志列表
 
 `GET /api/v1/audit/logs`
 

@@ -38,6 +38,7 @@ type CreateWikiNodeReq struct {
 	Title    string `json:"title" validate:"required,min=1,max=500"`
 	Icon     string `json:"icon,omitempty"`
 	Sort     int    `json:"sort,omitempty"`
+	Content  string `json:"content,omitempty"`
 }
 
 type UpdateWikiNodeReq struct {

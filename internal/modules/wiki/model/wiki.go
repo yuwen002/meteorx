@@ -124,3 +124,10 @@ const (
 func (WikiNodePermission) TableName() string {
 	return "wiki_node_permissions"
 }
+
+type WikiStats struct {
+	TotalSpaces    int64 `gorm:"-"`
+	TotalNodes     int64 `gorm:"-"`
+	TotalDocuments int64 `gorm:"-"`
+	TotalViews     int64 `gorm:"-"`
+}

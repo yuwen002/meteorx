@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"net/http"
 
-	"meteorx/internal/pkg/response"
+	"meteorx/internal/common/response"
 )
 
 type requestIDKey struct{}

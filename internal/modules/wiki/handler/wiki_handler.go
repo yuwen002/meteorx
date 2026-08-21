@@ -32,7 +32,7 @@ func (h *WikiHandler) CreateSpace(w http.ResponseWriter, r *http.Request) {
 
 	space, err := h.svc.CreateSpace(r.Context(), tenantID, userID, &req)
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, space)
@@ -41,14 +41,14 @@ func (h *WikiHandler) CreateSpace(w http.ResponseWriter, r *http.Request) {
 func (h *WikiHandler) GetSpace(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		response.Fail(w, http.StatusBadRequest, "space ID is required")
+		response.BadRequest(w, "space ID is required")
 		return
 	}
 
 	userID := contextx.GetUserID(r.Context())
 	space, err := h.svc.GetSpace(r.Context(), id, userID)
 	if err != nil {
-		response.Fail(w, http.StatusNotFound, "space not found")
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, space)
@@ -64,22 +64,17 @@ func (h *WikiHandler) ListSpaces(w http.ResponseWriter, r *http.Request) {
 
 	spaces, total, err := h.svc.ListSpaces(r.Context(), tenantID, userID, pg.Page, pg.PageSize)
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 
-	response.Success(w, map[string]interface{}{
-		"items":     spaces,
-		"total":     total,
-		"page":      pg.Page,
-		"page_size": pg.PageSize,
-	})
+	response.SuccessWithPagination(w, spaces, pg.Page, pg.PageSize, total)
 }
 
 func (h *WikiHandler) UpdateSpace(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		response.Fail(w, http.StatusBadRequest, "space ID is required")
+		response.BadRequest(w, "space ID is required")
 		return
 	}
 
@@ -91,7 +86,7 @@ func (h *WikiHandler) UpdateSpace(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	space, err := h.svc.UpdateSpace(r.Context(), id, tenantID, &req)
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, space)
@@ -100,13 +95,13 @@ func (h *WikiHandler) UpdateSpace(w http.ResponseWriter, r *http.Request) {
 func (h *WikiHandler) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		response.Fail(w, http.StatusBadRequest, "space ID is required")
+		response.BadRequest(w, "space ID is required")
 		return
 	}
 
 	tenantID := contextx.GetTenantID(r.Context())
 	if err := h.svc.DeleteSpace(r.Context(), id, tenantID); err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, nil)
@@ -123,7 +118,7 @@ func (h *WikiHandler) CreateNode(w http.ResponseWriter, r *http.Request) {
 
 	node, err := h.svc.CreateNode(r.Context(), spaceID, userID, &req)
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, node)
@@ -132,13 +127,13 @@ func (h *WikiHandler) CreateNode(w http.ResponseWriter, r *http.Request) {
 func (h *WikiHandler) GetNode(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		response.Fail(w, http.StatusBadRequest, "node ID is required")
+		response.BadRequest(w, "node ID is required")
 		return
 	}
 
 	node, err := h.svc.GetNode(r.Context(), id)
 	if err != nil {
-		response.Fail(w, http.StatusNotFound, "node not found")
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, node)
@@ -147,13 +142,13 @@ func (h *WikiHandler) GetNode(w http.ResponseWriter, r *http.Request) {
 func (h *WikiHandler) GetNodeTree(w http.ResponseWriter, r *http.Request) {
 	spaceID := chi.URLParam(r, "spaceId")
 	if spaceID == "" {
-		response.Fail(w, http.StatusBadRequest, "space ID is required")
+		response.BadRequest(w, "space ID is required")
 		return
 	}
 
 	tree, err := h.svc.GetNodeTree(r.Context(), spaceID)
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, tree)
@@ -162,7 +157,7 @@ func (h *WikiHandler) GetNodeTree(w http.ResponseWriter, r *http.Request) {
 func (h *WikiHandler) UpdateNode(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		response.Fail(w, http.StatusBadRequest, "node ID is required")
+		response.BadRequest(w, "node ID is required")
 		return
 	}
 
@@ -173,7 +168,7 @@ func (h *WikiHandler) UpdateNode(w http.ResponseWriter, r *http.Request) {
 
 	node, err := h.svc.UpdateNode(r.Context(), id, &req)
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, node)
@@ -182,12 +177,12 @@ func (h *WikiHandler) UpdateNode(w http.ResponseWriter, r *http.Request) {
 func (h *WikiHandler) DeleteNode(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		response.Fail(w, http.StatusBadRequest, "node ID is required")
+		response.BadRequest(w, "node ID is required")
 		return
 	}
 
 	if err := h.svc.DeleteNode(r.Context(), id); err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, nil)
@@ -205,7 +200,7 @@ func (h *WikiHandler) CreateDocument(w http.ResponseWriter, r *http.Request) {
 
 	doc, err := h.svc.CreateDocument(r.Context(), nodeID, userID, &req)
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, doc)
@@ -217,7 +212,7 @@ func (h *WikiHandler) GetDocument(w http.ResponseWriter, r *http.Request) {
 
 	doc, err := h.svc.GetDocument(r.Context(), nodeID, userID)
 	if err != nil {
-		response.Fail(w, http.StatusNotFound, "document not found")
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, doc)
@@ -234,7 +229,7 @@ func (h *WikiHandler) UpdateDocument(w http.ResponseWriter, r *http.Request) {
 
 	doc, err := h.svc.UpdateDocument(r.Context(), id, userID, &req)
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, doc)
@@ -243,7 +238,7 @@ func (h *WikiHandler) UpdateDocument(w http.ResponseWriter, r *http.Request) {
 func (h *WikiHandler) DeleteDocument(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.svc.DeleteDocument(r.Context(), id); err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, nil)
@@ -254,7 +249,7 @@ func (h *WikiHandler) ListRevisions(w http.ResponseWriter, r *http.Request) {
 
 	revisions, err := h.svc.ListRevisions(r.Context(), documentID)
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, revisions)
@@ -267,7 +262,7 @@ func (h *WikiHandler) GetRevision(w http.ResponseWriter, r *http.Request) {
 
 	revision, err := h.svc.GetRevision(r.Context(), documentID, version)
 	if err != nil {
-		response.Fail(w, http.StatusNotFound, "revision not found")
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, revision)
@@ -281,7 +276,7 @@ func (h *WikiHandler) RestoreRevision(w http.ResponseWriter, r *http.Request) {
 
 	doc, err := h.svc.RestoreRevision(r.Context(), documentID, version, userID)
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, doc)
@@ -297,7 +292,7 @@ func (h *WikiHandler) AddMember(w http.ResponseWriter, r *http.Request) {
 
 	member, err := h.svc.AddMember(r.Context(), spaceID, &req)
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, member)
@@ -308,7 +303,7 @@ func (h *WikiHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "userId")
 
 	if err := h.svc.RemoveMember(r.Context(), spaceID, userID); err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, nil)
@@ -319,7 +314,7 @@ func (h *WikiHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 
 	members, err := h.svc.ListMembers(r.Context(), spaceID)
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, members)
@@ -330,7 +325,7 @@ func (h *WikiHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 
 	stats, err := h.svc.GetStats(r.Context(), tenantID)
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, err.Error())
+		response.FailError(w, err)
 		return
 	}
 	response.Success(w, stats)

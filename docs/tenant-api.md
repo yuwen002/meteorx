@@ -24,6 +24,8 @@
 | PUT | `/tenants/current` | 更新当前租户信息 |
 | GET | `/tenants/current/status` | 查询租户初始化/开通状态 |
 | POST | `/tenants/current/cancel` | 申请租户注销 |
+| GET | `/tenant-settings` | 获取当前租户独立配置 |
+| PUT | `/tenant-settings` | 更新当前租户独立配置 |
 
 ### 1.3 平台管理员接口（需超级管理员）
 
@@ -165,6 +167,46 @@
 |------|------|------|
 | items | array\<CancelRequestResp\> | 申请列表 |
 | total | int64 | 总数 |
+
+### 2.12 TenantSettingsResp（租户独立配置响应）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | string | 配置 ID |
+| tenant_id | string | 租户 ID |
+| logo | string | Logo 图片地址 |
+| favicon | string | Favicon 图标地址 |
+| primary_color | string | 主题色（十六进制，如 #409EFF） |
+| theme | string | 主题风格（light/dark） |
+| language | string | 默认语言 |
+| timezone | string | 时区 |
+| description | string | 租户描述 |
+| welcome_text | string | 欢迎语 |
+| contact_name | string | 联系人姓名 |
+| contact_email | string | 联系人邮箱 |
+| contact_phone | string | 联系人电话 |
+| address | string | 地址 |
+| extra | string | 扩展配置（JSON 字符串） |
+| created_at | string | 创建时间 |
+| updated_at | string | 更新时间 |
+
+### 2.13 UpdateTenantSettingsReq（更新租户配置请求）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| logo | string | 否 | Logo 图片地址 |
+| favicon | string | 否 | Favicon 图标地址 |
+| primary_color | string | 否 | 主题色 |
+| theme | string | 否 | 主题风格 |
+| language | string | 否 | 默认语言 |
+| timezone | string | 否 | 时区 |
+| description | string | 否 | 描述 |
+| welcome_text | string | 否 | 欢迎语 |
+| contact_name | string | 否 | 联系人姓名 |
+| contact_email | string | 否 | 联系人邮箱 |
+| contact_phone | string | 否 | 联系人电话 |
+| address | string | 否 | 地址 |
+| extra | string | 否 | 扩展配置（JSON） |
 
 ---
 
@@ -323,6 +365,44 @@
 
 ---
 
+### 3.16 获取当前租户独立配置
+
+`GET /api/v1/tenant-settings`
+
+**说明：** 返回当前租户的独立配置信息。如果租户尚未配置过，返回默认值结构。
+
+**成功响应（200）：** TenantSettingsResp
+
+### 3.17 更新当前租户独立配置
+
+`PUT /api/v1/tenant-settings`
+
+**请求体：** UpdateTenantSettingsReq
+
+```json
+{
+  "logo": "https://example.com/logo.png",
+  "primary_color": "#409EFF",
+  "theme": "light",
+  "language": "zh-CN",
+  "timezone": "Asia/Shanghai",
+  "welcome_text": "欢迎使用 MeteorX",
+  "contact_name": "张三",
+  "contact_email": "admin@example.com",
+  "extra": "{\"custom_field\": \"value\"}"
+}
+```
+
+**业务规则：**
+- 仅需传入要修改的字段，未传的字段保持不变
+- `primary_color` 应为十六进制颜色码
+- `extra` 字段需为合法 JSON 字符串
+- 配置保存后立即生效
+
+**成功响应（200）：** TenantSettingsResp（更新后的完整配置）
+
+---
+
 ## 4. 权限码列表
 
 | 权限码 | 说明 |
@@ -339,3 +419,4 @@
 | `admin:cancel_request:list` | 查看注销申请列表 |
 | `admin:cancel_request:approve` | 审批通过注销申请 |
 | `admin:cancel_request:reject` | 审批驳回注销申请 |
+| `tenant:settings` | 租户独立配置管理 |

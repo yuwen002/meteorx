@@ -1,4 +1,4 @@
-package errors
+package apperrors
 
 import (
 	"fmt"
@@ -76,11 +76,11 @@ func ErrUnauthorized(msg string) *AppError {
 	return NewWithStatus(ErrSessionExpired, msg, http.StatusUnauthorized)
 }
 
-func ErrConflict(msg string) *AppError {
+func NewConflict(msg string) *AppError {
 	return New(ErrConflict, msg)
 }
 
-func ErrInternal(msg string) *AppError {
+func NewInternal(msg string) *AppError {
 	return New(ErrInternal, msg)
 }
 

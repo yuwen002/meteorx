@@ -5,6 +5,8 @@ import (
 	"errors"
 
 	"meteorx/internal/common/contextx"
+
+	"gorm.io/gorm"
 )
 
 var (

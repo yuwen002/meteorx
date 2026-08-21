@@ -21,6 +21,7 @@ type Action struct {
 	StatusCode int
 	ErrorMsg   string
 	Duration   int64
+	CreatedAt  time.Time
 }
 
 type contextKey string

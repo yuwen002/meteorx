@@ -26,6 +26,7 @@ import (
 	"meteorx/internal/modules/tenant"
 	"meteorx/internal/modules/user"
 	userRepo "meteorx/internal/modules/user/repository"
+	"meteorx/internal/modules/wiki"
 	"meteorx/pkg/security"
 )
 
@@ -98,6 +99,9 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 
 			// 4.3 文件管理接口
 			file.RegisterRoutes(r, db, cfg)
+
+			// 4.4 Wiki 知识库接口
+			wiki.InitModule(r, db)
 
 			// ========================================================
 			// 🔥 新增分组三：MaaS 平台运营后台特权接口 (Platform Admin Only)

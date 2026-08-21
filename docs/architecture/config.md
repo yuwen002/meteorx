@@ -1,14 +1,14 @@
-# Configuration & Bootstrap Architecture
+# 配置与启动架构
 
-## Overview
+## 概述
 
-Configuration management via YAML with environment variable overrides. Bootstrap handles application lifecycle: initialization, startup, and graceful shutdown.
+通过 YAML 配合环境变量覆盖进行配置管理。Bootstrap 负责应用生命周期：初始化、启动和优雅关闭。
 
-## Configuration
+## 配置管理
 
-### Package: `internal/config`
+### 包路径：`internal/config`
 
-### config.yaml Structure
+### config.yaml 结构
 
 ```yaml
 server:
@@ -83,10 +83,10 @@ client:
   base_url: http://localhost:8080
 ```
 
-### Environment Variable Overrides
+### 环境变量覆盖
 
 ```
-# Override any config value with METEORX_ prefix
+# 使用 METEORX_ 前缀覆盖任意配置值
 METEORX_SERVER_PORT=9090
 METEORX_DATABASE_PASSWORD=prod_secret
 METEORX_REDIS_PASSWORD=redis_secret
@@ -94,18 +94,18 @@ METEORX_JWT_SECRET=production_jwt_secret
 METEORX_EMAIL_ENABLED=true
 ```
 
-### Loading Priority
+### 加载优先级
 
 ```
-1. Defaults (in code)
-2. config.yaml values
-3. Environment variables (highest priority)
+1. 默认值（代码中）
+2. config.yaml 中的值
+3. 环境变量（最高优先级）
 ```
 
-### Validation
+### 配置校验
 
 ```go
-// Validate configuration on startup
+// 启动时校验配置
 func (c *Config) Validate() error {
     v := NewValidator()
     v.Require("server.port", fmt.Sprint(c.Server.Port), "server port is required")
@@ -118,73 +118,73 @@ func (c *Config) Validate() error {
 }
 ```
 
-### Validator Helpers
+### Validator 辅助方法
 
 ```go
-// Package: internal/config
+// 包路径：internal/config
 v := config.NewValidator()
 v.Require("field", value, "error message")
 v.RequireEnv("field", "ENV_VAR", "error message")
 err := v.MustValid()
 ```
 
-### Security Concerns
+### 安全注意事项
 
 ```
-NEVER commit config.yaml with production secrets
-Use environment variables for sensitive values
-Add config.yaml to .gitignore (use config.example.yaml instead)
+禁止将包含生产环境密钥的 config.yaml 提交到版本库
+使用环境变量存储敏感值
+将 config.yaml 加入 .gitignore（改用 config.example.yaml）
 ```
 
-## Bootstrap
+## Bootstrap 启动引导
 
-### Package: `internal/bootstrap`
+### 包路径：`internal/bootstrap`
 
-### Lifecycle
+### 生命周期
 
 ```
 main.go
     ↓
-1. Load Configuration
+1. 加载配置
     ↓
-2. Validate Configuration
+2. 校验配置
     ↓
-3. Initialize Database (connect, migrate)
+3. 初始化数据库（连接、迁移）
     ↓
-4. Initialize Redis (optional)
+4. 初始化 Redis（可选）
     ↓
-5. Initialize JWT / Auth
+5. 初始化 JWT / 认证
     ↓
-6. Register Middleware
+6. 注册中间件
     ↓
-7. Register Routes
+7. 注册路由
     ↓
-8. Start HTTP Server
+8. 启动 HTTP Server
     ↓
-9. Wait for Shutdown Signal
+9. 等待关闭信号
     ↓
-10. Graceful Shutdown
+10. 优雅关闭
 ```
 
-### Bootstrap Files
+### Bootstrap 文件职责
 
-| File | Responsibility |
-|------|---------------|
-| `app.go` | Main bootstrap entry point |
-| `config.go` | Configuration loading |
-| `database.go` | DB connection, migration |
-| `middleware.go` | Middleware registration |
-| `router.go` | Route registration |
-| `migrate.go` | Auto-migration |
+| 文件 | 职责 |
+|------|------|
+| `app.go` | 主启动入口 |
+| `config.go` | 配置加载 |
+| `database.go` | 数据库连接、迁移 |
+| `middleware.go` | 中间件注册 |
+| `router.go` | 路由注册 |
+| `migrate.go` | 自动迁移 |
 
 ### AppContext
 
 ```go
-// Centralized application context
+// 集中式应用上下文
 type AppContext struct {
     Config    *config.Config
     DB        *gorm.DB
-    Redis     *redis.Client  // nil if disabled
+    Redis     *redis.Client  // 如果禁用则为 nil
     JWTManager *jwt.Manager
     Router    chi.Router
     Server    *http.Server
@@ -192,19 +192,19 @@ type AppContext struct {
 }
 ```
 
-### HTTP Server Lifecycle
+### HTTP Server 生命周期
 
 ```go
-// In bootstrap/app.go
+// 在 bootstrap/app.go 中
 func StartServer(ctx *AppContext) error {
-    // Configure server
+    // 配置服务器
     server := &http.Server{
         Addr:    fmt.Sprintf(":%d", ctx.Config.Server.Port),
         Handler: ctx.Router,
     }
     ctx.Server = server
 
-    // Start in goroutine
+    // 在协程中启动
     go func() {
         if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
             log.Fatal(err)
@@ -215,31 +215,31 @@ func StartServer(ctx *AppContext) error {
 }
 ```
 
-### Graceful Shutdown
+### 优雅关闭
 
 ```go
 func Shutdown(ctx *AppContext) error {
-    // 1. Stop accepting new requests
+    // 1. 停止接受新请求
     shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
     defer cancel()
 
-    // 2. Shutdown HTTP server (wait for in-flight requests)
+    // 2. 关闭 HTTP 服务器（等待进行中的请求完成）
     if err := ctx.Server.Shutdown(shutdownCtx); err != nil {
         log.Printf("HTTP server shutdown error: %v", err)
     }
 
-    // 3. Stop background workers
+    // 3. 停止后台工作进程
     for _, w := range ctx.Workers {
         w.Stop()
     }
 
-    // 4. Close DB connection
+    // 4. 关闭数据库连接
     if ctx.DB != nil {
         sqlDB, _ := ctx.DB.DB()
         sqlDB.Close()
     }
 
-    // 5. Close Redis connection
+    // 5. 关闭 Redis 连接
     if ctx.Redis != nil {
         ctx.Redis.Close()
     }
@@ -249,10 +249,10 @@ func Shutdown(ctx *AppContext) error {
 }
 ```
 
-### Signal Handling
+### 信号处理
 
 ```go
-// In main.go
+// 在 main.go 中
 sigChan := make(chan os.Signal, 1)
 signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
@@ -262,55 +262,55 @@ go func() {
     }
 }()
 
-<-sigChan  // Wait for interrupt
+<-sigChan  // 等待中断信号
 
-// Trigger graceful shutdown
+// 触发优雅关闭
 bootstrap.Shutdown(appCtx)
 ```
 
-### Redis Availability
+### Redis 可用性
 
-Redis is optional — the application works without it:
+Redis 是可选的 — 没有 Redis 应用也能正常工作：
 
 ```go
 func InitRedis(cfg *config.Config) (*redis.Client, error) {
     if cfg.Redis.Host == "" {
         log.Println("Redis not configured, skipping")
-        return nil, nil  // Return nil, not error
+        return nil, nil  // 返回 nil，不是错误
     }
-    // ... connect to Redis
+    // ... 连接 Redis
 }
 ```
 
-| Component | Without Redis | With Redis |
-|-----------|--------------|------------|
-| Rate limiting | In-memory (single-node only) | Distributed (multi-node) |
-| Permission cache | DB query per request | Redis cache with TTL |
-| Session store | JWT-only | JWT + Redis blacklist |
-| Lockout tracking | In-memory | Redis-based (shared) |
+| 组件 | 无 Redis | 有 Redis |
+|------|----------|----------|
+| 接口限流 | 内存（仅单节点） | 分布式（多节点） |
+| 权限缓存 | 每次请求查数据库 | Redis 缓存 + TTL |
+| 会话存储 | 仅 JWT | JWT + Redis 黑名单 |
+| 登录锁定追踪 | 内存 | Redis 共享 |
 
-### DB Startup Failure Strategy
+### 数据库启动失败策略
 
 ```go
-// Database is REQUIRED — application cannot start without it
+// 数据库是必需的 — 没有数据库应用无法启动
 func InitDatabase(cfg *config.Config) (*gorm.DB, error) {
     db, err := connectDB(cfg)
     if err != nil {
         return nil, fmt.Errorf("database connection failed: %w", err)
     }
 
-    // Run migrations
+    // 运行迁移
     if err := migrate(db); err != nil {
         return nil, fmt.Errorf("migration failed: %w", err)
     }
 
-    return db, nil  // Success
+    return db, nil  // 成功
 }
 ```
 
-### Worker Lifecycle
+### 工作进程生命周期
 
-Background workers (cron jobs, batch processors):
+后台工作进程（定时任务、批量处理器）：
 
 ```go
 type Worker interface {
@@ -319,7 +319,7 @@ type Worker interface {
     Stop()
 }
 
-// Worker registration
+// 工作进程注册
 func RegisterWorkers(ctx *AppContext) {
     ctx.Workers = append(ctx.Workers,
         audit.NewBatchProcessor(ctx.DB),
@@ -336,10 +336,10 @@ func RegisterWorkers(ctx *AppContext) {
 }
 ```
 
-### Middleware Chain
+### 中间件链
 
 ```go
-// In bootstrap/middleware.go
+// 在 bootstrap/middleware.go 中
 func RegisterMiddleware(r chi.Router, deps *Dependencies) {
     r.Use(middleware.RequestIDMiddleware)
     r.Use(middleware.GlobalErrorHandler)
@@ -347,35 +347,35 @@ func RegisterMiddleware(r chi.Router, deps *Dependencies) {
     r.Use(middleware.CORSMiddleware())
     r.Use(middleware.RateLimitMiddleware(deps.Redis))
 
-    // Auth (for protected routes)
-    // Permission (auto-derive or explicit)
-    // Audit
+    // 认证（用于受保护路由）
+    // 权限（自动推导或显式指定）
+    // 审计
 }
 ```
 
-## Directory Structure
+## 目录结构
 
 ```
 internal/bootstrap/
-    app.go          # Entry point, lifecycle management
-    config.go       # Config loading (Viper)
-    database.go     # DB init, connection, pool
-    middleware.go   # Global middleware registration
-    router.go       # Route registration
-    migrate.go      # Auto-migration runner
+    app.go          # 入口点，生命周期管理
+    config.go       # 配置加载（Viper）
+    database.go     # 数据库初始化、连接、连接池
+    middleware.go   # 全局中间件注册
+    router.go       # 路由注册
+    migrate.go      # 自动迁移执行器
 
 internal/config/
-    config.go       # Config struct definitions
-    config.yaml     # Default configuration
-    validator.go    # Config validation helpers
+    config.go       # 配置结构体定义
+    config.yaml     # 默认配置
+    validator.go    # 配置校验辅助方法
 ```
 
-## Best Practices
+## 最佳实践
 
-1. **NEVER** hard-code config values — always use config.yaml or env vars
-2. **Always** validate config before starting services
-3. **Always** implement graceful shutdown (30s timeout)
-4. **Treat** Database as required, Redis as optional
-5. **Use** environment-specific config overrides for production
-6. **Log** config values at startup (but mask secrets!)
-7. **Keep** bootstrap code focused on lifecycle, not business logic
+1. **禁止**硬编码配置值 — 始终使用 config.yaml 或环境变量
+2. **始终**在启动服务之前校验配置
+3. **始终**实现优雅关闭（30 秒超时）
+4. **将**数据库视为必需，Redis 视为可选
+5. **使用**针对不同环境的配置覆盖来管理生产环境
+6. **记录**启动时的配置值（但要遮盖密钥！）
+7. **保持** bootstrap 代码聚焦于生命周期，而非业务逻辑

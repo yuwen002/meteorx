@@ -36,22 +36,30 @@ meteorx/
 │   │   ├── contextx/             # 上下文扩展
 │   │   │   ├── constants.go       # 上下文 Key 常量
 │   │   │   └── contextx.go       # 上下文工具（获取 UserID/TenantID/Role 等）
+│   │   ├── tenantctx/            # ⭐ 租户上下文（统一租户隔离）
+│   │   │   ├── tenantctx.go       # From/RequireTenant/FilterQuery/CanAccessTenant
+│   │   │   └── tenantctx_test.go  # 租户隔离单元测试
+│   │   ├── auditctx/             # ⭐ 审计上下文（Service 层丰富审计）
+│   │   │   └── auditctx.go        # NewAction/WithUser/WithBefore/WithAfter/Succeeded/Failed
 │   │   ├── jwt/                  # JWT 工具封装
 │   │   │   └── jwt.go            # Token 生成/解析/验证
-│   │   ├── response/             # 统一响应封装
-│   │   │   └── response.go       # Success/Fail/Paginated 响应
+│   │   ├── response/             # ⭐ 统一响应封装（Framework Hardening）
+│   │   │   └── response.go       # Success/FailError/FailWithPagination/GlobalError 响应
 │   │   └── validator/            # 参数校验
 │   │       └── validator.go      # 基于 go-playground 的校验器
 │   │
 │   ├── config/                    # 配置管理
 │   │   ├── config.go             # 配置结构体定义（Server/Database/Redis/JWT/File/Security）
-│   │   └── config.yaml           # YAML 默认配置
+│   │   ├── config.yaml           # YAML 默认配置
+│   │   └── validator.go          # ⭐ 配置验证器（启动时校验必填项）
 │   │
 │   ├── middleware/                # HTTP 中间件
+│   │   ├── request_id.go         # ⭐ 请求 ID + 全局异常恢复（RequestIDMiddleware/GlobalErrorHandler）
 │   │   ├── auth.go               # JWT 认证中间件（解析 Token 注入上下文）
 │   │   ├── admin_middleware.go   # 超级管理员权限校验
 │   │   ├── auto_permission_middleware.go  # 自动权限推导（Method+Path → Permission Code）
 │   │   ├── auto_permission_middleware_test.go  # 中间件单元测试
+│   │   ├── explicit_permission.go # ⭐ 显式权限覆盖（特殊业务绕过自动推导）
 │   │   ├── permission_middleware.go       # 细粒度权限校验
 │   │   ├── role_middleware.go    # 角色校验
 │   │   ├── audit_middleware.go   # 审计日志记录（同步）
@@ -61,13 +69,13 @@ meteorx/
 │   │
 │   └── modules/                   # ⭐ 业务模块（核心代码，按领域划分）
 │       │
-│       ├── auth/                  # 认证模块
+│       │   ├── auth/                  # 认证模块
 │       │   ├── dto/
-│       │   │   └── auth_dto.go   # LoginReq/RegisterUserReq/LoginResp
+│       │   │   └── auth_dto.go   # LoginReq/RegisterUserReq/ForgotPasswordReq/ResetPasswordReq
 │       │   ├── handler/
 │       │   │   └── auth_handler.go  # HTTP Handler
 │       │   ├── service/
-│       │   │   └── auth_service.go # 业务逻辑（注册/登录/登出）
+│       │   │   └── auth_service.go # 业务逻辑（注册/登录/登出/忘记密码/重置密码）
 │       │   ├── module.go          # 模块装配
 │       │   └── routes.go          # 路由注册：/auth/*
 │       │
@@ -91,21 +99,26 @@ meteorx/
 │       │   ├── dto/
 │       │   │   ├── admin_tenant_dto.go  # 管理员 DTO
 │       │   │   ├── tenant_converter.go  # Model ↔ DTO 转换
-│       │   │   └── tenant_dto.go # RegisterTenantReq/TenantResp/注销审批 DTO 等
+│       │   │   ├── tenant_dto.go # RegisterTenantReq/TenantResp/注销审批 DTO 等
+│       │   │   └── tenant_settings_dto.go # 租户独立配置 DTO
 │       │   ├── handler/
-│       │   │   └── tenant_handler.go
+│       │   │   ├── tenant_handler.go
+│       │   │   └── tenant_settings_handler.go # 租户配置 HTTP Handler
 │       │   ├── model/
 │       │   │   ├── tenant.go     # Tenant 模型
+│       │   │   ├── tenant_settings.go # TenantSettings（租户独立配置）模型
 │       │   │   └── cancel_request.go # CancelRequest（租户注销申请）模型
 │       │   ├── repository/
 │       │   │   ├── interface.go
 │       │   │   ├── tenant_repository.go
+│       │   │   ├── tenant_settings_repository.go # 租户配置仓储
 │       │   │   └── cancel_request_repository.go # 注销申请仓储
 │       │   ├── service/
-│       │   │   └── tenant_service.go # 业务逻辑 + 注销申请/审批/执行
+│       │   │   ├── tenant_service.go # 业务逻辑 + 注销申请/审批/执行
+│       │   │   └── tenant_settings_service.go # 租户配置业务逻辑
 │       │   ├── cancel_cleanup_job.go # 到期注销后台任务
 │       │   ├── module.go
-│       │   └── routes.go         # 路由注册：/tenants/*, /admin/tenants/*, /admin/cancel-requests/*
+│       │   └── routes.go         # 路由注册：/tenants/*, /tenant-settings/*, /admin/tenants/*, /admin/cancel-requests/*
 │       │
 │       ├── rbac/                  # RBAC 权限模块
 │       │   ├── dto/
@@ -172,23 +185,35 @@ meteorx/
 │       │   ├── module.go
 │       │   └── routes.go         # 路由注册：/admin/plans/*, /tenant/current/plan
 │       │
-│       └── audit/                 # 审计日志模块
+│       │   └── audit/                 # 审计日志模块
 │           ├── dto/
-│           │   └── audit_dto.go # ListAuditLogsQuery/AuditLogResp 等
+│           │   └── audit_dto.go # ListAuditLogsQuery/AuditLogResp/DashboardDataResp
 │           ├── handler/
 │           │   └── audit_handler.go
 │           ├── model/
-│           │   ├── audit_log.go # AuditLog 模型
-│           │   └── stats.go     # Stats 模型
+│           │   └── audit_log.go # AuditLog + AuditTrendPoint + AuditDashboardData
 │           ├── repository/
 │           │   ├── interface.go
-│           │   ├── audit_repository.go
+│           │   ├── audit_repository.go # 含趋势统计、Top模块、仪表盘聚合
 │           │   └── mock_repository.go  # Mock 实现
 │           ├── service/
-│           │   ├── audit_service.go
-│           │   └── audit_service_test.go
+│           │   └── audit_service.go # 含 GetDashboard 可视化数据聚合
 │           ├── module.go
-│           └── routes.go        # 路由注册：/audit/*
+│           └── routes.go        # 路由注册：/audit/*（含 /audit/dashboard）
+│
+│       └── wiki/                  # ⭐ Wiki 知识库模块（Foundation Hardening 首个验证业务）
+│           ├── dto/
+│           │   └── wiki_dto.go   # CreateWikiSpaceReq/WikiNodeResp/DocumentResp 等
+│           ├── handler/
+│           │   └── wiki_handler.go # 22 个 API Handler（Space/Node/Document/Revision/Member/Stats）
+│           ├── model/
+│           │   └── wiki.go      # WikiSpace/WikiNode/Document/DocumentRevision/WikiSpaceMember
+│           ├── repository/
+│           │   └── wiki_repository.go # ⭐ 使用 tenantctx.FilterQuery 自动租户隔离
+│           ├── service/
+│           │   └── wiki_service.go   # 业务逻辑 + 权限校验
+│           ├── module.go
+│           └── routes.go        # 路由注册：/wiki/*
 │
 │       ├── dashboard/            # 运营看板模块
 │       │   ├── dto/
@@ -219,12 +244,16 @@ meteorx/
 │           └── routes.go        # 路由注册：/admin/announcements/*（仅平台管理员）
 │
 ├── pkg/                           # 可复用基础库（可对外暴露）
+│   ├── idgen/                     # ⭐ 统一 ID 生成入口（ULID，替代分散的 ulid/uuid）
+│   │   └── idgen.go             # New/NewUUID/MustParse/Parse
 │   ├── crypto/
 │   │   └── crypto.go             # bcrypt 密码哈希
+│   ├── emailer/
+│   │   └── emailer.go           # SMTP 邮件发送（重置密码等场景）
 │   ├── logger/
 │   │   └── logger.go             # 结构化日志
 │   ├── pagination/
-│   │   └── pagination.go         # 统一分页请求/响应
+│   │   └── pagination.go         # ⭐ 统一分页/排序/搜索（含 Sort Whitelist 防注入）
 │   ├── security/                 # 安全工具集
 │   │   ├── login_lockout.go      # 登录锁定逻辑
 │   │   ├── login_lockout_test.go
@@ -232,10 +261,17 @@ meteorx/
 │   │   ├── password_policy_test.go
 │   │   ├── rate_limiter.go       # 限流工具
 │   │   └── rate_limiter_test.go
-│   ├── ulid/
+│   ├── ulid/                     # （向后兼容）使用 pkg/idgen 替代
 │   │   └── ulid.go               # ULID 生成器封装
-│   └── uuid/
+│   └── uuid/                     # （向后兼容）使用 pkg/idgen 替代
 │       └── uuid.go               # UUID 工具
+│
+├── internal/pkg/                  # ⭐ 内部基础设施包（Framework Hardening 新增）
+│   ├── apperrors/                # ⭐ 集中式错误码 + AppError 结构体
+│   │   ├── codes.go              # ErrBadRequest/ErrNotFound/ErrInternal 等错误码
+│   │   └── app_error.go          # AppError{Code,Message,StatusCode,RequestID,Details}
+│   └── db/
+│       └── transaction.go        # ⭐ TxManager 事务管理器（WithTx/GetTx/GetDB）
 │
 ├── scripts/
 │   └── sql/
@@ -246,6 +282,15 @@ meteorx/
 │   ├── apifox/
 │   │   ├── MeteorX-backend.apifox.json
 │   │   └── MeteorX-backend.openapi.json
+│   ├── architecture/              # ⭐ 架构设计文档（Framework Hardening）
+│   │   ├── tenant.md             # 多租户隔离架构
+│   │   ├── permission.md         # RBAC 权限架构
+│   │   ├── error.md              # 错误/响应规范
+│   │   ├── database.md           # 数据库/事务架构
+│   │   ├── audit.md              # 审计架构
+│   │   ├── pagination.md         # 分页/排序/过滤架构
+│   │   ├── config.md             # 配置/启动架构
+│   │   └── idgen.md              # ID/ULID 统一架构
 │   ├── auth-api.md
 │   ├── user-api.md
 │   ├── tenant-api.md
@@ -253,6 +298,7 @@ meteorx/
 │   ├── file-module-api.md
 │   ├── plan-api.md
 │   ├── audit-api.md
+│   ├── wiki-api.md               # ⭐ Wiki 知识库接口文档
 │   ├── dashboard-api.md
 │   ├── announcement-api.md
 │   └── FEATURE_UPGRADE.md
@@ -294,8 +340,11 @@ meteorx/
         │   └── auth.ts           # Token 存储工具
         ├── views/
         │   ├── login/index.vue
+        │   ├── forgot-password/index.vue   # 忘记密码（邮箱找回）
+        │   ├── reset-password/index.vue    # 重置密码（令牌设置新密码）
         │   ├── dashboard/index.vue
         │   ├── profile/index.vue
+        │   ├── tenant/settings/index.vue   # 租户独立配置页
         │   └── system/
         │       ├── user/index.vue
         │       ├── master-admin/
@@ -310,7 +359,7 @@ meteorx/
         │       ├── permission/index.vue
         │       ├── file/index.vue
         │       ├── plan/index.vue
-        │       ├── audit/index.vue
+        │       ├── audit/index.vue          # 审计日志 + 可视化仪表盘
         │       ├── announcement/index.vue
         │       └── cancel-request/index.vue
         ├── App.vue
@@ -383,13 +432,14 @@ meteorx/
 
 | 模块 | 功能 | 状态 |
 |------|------|------|
-| **auth** | 注册、登录、登出、Token 管理 | ✅ 已实现 |
+| **auth** | 注册、登录、登出、Token 管理、忘记密码、重置密码、邮件找回 | ✅ 已实现 |
 | **user** | 个人中心、租户用户 CRUD、系统管理员 CRUD、跨租户用户管理、回收站、批量操作 | ✅ 已实现 |
-| **tenant** | 自助开户、租户信息管理、后台租户 CRUD、注销申请→审批→执行闭环 | ✅ 已实现 |
+| **tenant** | 自助开户、租户信息管理、后台租户 CRUD、租户独立配置（Logo/主题色/语言等）、注销申请→审批→执行闭环 | ✅ 已实现 |
 | **rbac** | 角色 CRUD、权限 CRUD、角色权限绑定、用户角色分配、自动权限推导 | ✅ 已实现 |
 | **file** | 文件上传/下载/重命名、MD5 去重、回收站、永久删除、存储抽象 | ✅ 已实现 |
 | **plan** | 套餐 CRUD、租户套餐分配、用量限制、到期检查 | ✅ 已实现 |
-| **audit** | 自动记录审计日志、多维度筛选、CSV 导出、过期清理 | ✅ 已实现 |
+| **audit** | 自动记录审计日志、多维度筛选、CSV 导出、过期清理、可视化仪表盘（趋势/模块分布/操作统计） | ✅ 已实现 |
+| **wiki** | Wiki 知识库：空间/节点（文件夹/文档）/Markdown 文档/版本历史/成员协作，完整租户隔离 | ✅ 已实现 |
 | **dashboard** | 平台运营数据总览：租户/用户/订阅/审计多维统计 | ✅ 已实现 |
 | **notification** | 公告 CRUD、发布/下架、全平台或指定租户定向推送 | ✅ 已实现 |
 
@@ -397,20 +447,24 @@ meteorx/
 
 | 包 | 功能 |
 |----|------|
+| `idgen` | ⭐ 统一 ID 生成（ULID/UUID，替代分散的 ulid/uuid 包） |
 | `crypto` | bcrypt 密码哈希（Generate/Compare） |
+| `emailer` | SMTP 邮件发送（重置密码通知等） |
 | `logger` | 结构化日志（基于 log/slog） |
-| `pagination` | 统一分页请求/响应结构体 |
+| `pagination` | ⭐ 统一分页/排序/搜索（含 Sort Whitelist 防注入） |
 | `security` | 登录锁定、密码策略、IP 限流 |
-| `ulid` | ULID 生成器封装 |
-| `uuid` | UUID v4 工具 |
+| `ulid` | （向后兼容）使用 pkg/idgen 替代 |
+| `uuid` | （向后兼容）使用 pkg/idgen 替代 |
 
 ### 中间件说明
 
 | 中间件 | 功能 |
 |--------|------|
+| `request_id` | ⭐ 请求 ID 注入 + 全局异常恢复（recover panic → AppError） |
 | `auth` | JWT Token 解析，注入 UserID/TenantID/IsMaster 到上下文 |
 | `admin_middleware` | 超级管理员权限校验（RequiresMasterAdmin） |
 | `auto_permission_middleware` | 根据 HTTP Method + Path 自动推导权限码 |
+| `explicit_permission` | ⭐ 显式权限覆盖（对自动推导结果进行替换/追加） |
 | `permission_middleware` | 校验当前用户是否拥有指定权限码 |
 | `role_middleware` | 角色校验（检查用户是否属于指定角色） |
 | `audit_middleware` | 同步记录每次请求的审计日志 |
@@ -428,13 +482,28 @@ meteorx/
 
 ### 数据库设计
 
-- **主键策略**：ULID（26 字符，按时间有序，适合 B+Tree 索引）
-- **多租户隔离**：所有业务表带 `tenant_id` 字段，Service 层强制校验
+- **主键策略**：ULID（26 字符，按时间有序，适合 B+Tree 索引），统一通过 `pkg/idgen` 生成
+- **多租户隔离**：所有业务表带 `tenant_id` 字段，通过 `tenantctx.FilterQuery()` 自动注入租户过滤条件
 - **软删除**：GORM `gorm.DeletedAt` 支持，回收站可恢复
 - **物理删除**：回收站中的记录支持永久删除（Unscoped）
-- **事务支持**：GORM Transaction 封装，用于租户创建等复杂场景
+- **事务支持**：`TxManager`（`internal/pkg/db/transaction.go`）统一管理事务，`WithTx(ctx, fn)` 模式
 - **自动迁移**：启动时 `AutoMigrate` 同步表结构
 - **种子数据**：首次启动自动插入默认管理员、角色、权限
+
+### Framework Hardening 基础设施
+
+| 包 | 功能 | 状态 |
+|----|------|------|
+| `pkg/idgen` | ⭐ 统一 ID 生成（ULID/UUID） | ✅ 已实现 |
+| `pkg/pagination` | ⭐ 分页/排序/搜索（Sort Whitelist 防注入） | ✅ 已实现 |
+| `internal/common/tenantctx` | ⭐ 租户上下文（From/FilterQuery/CanAccessTenant） | ✅ 已实现 |
+| `internal/common/auditctx` | ⭐ 审计上下文（NewAction/WithBefore/WithAfter） | ✅ 已实现 |
+| `internal/common/response` | ⭐ 统一响应封装（Success/FailError/SuccessWithPagination） | ✅ 已实现 |
+| `internal/pkg/apperrors` | ⭐ 集中式错误码 + AppError 结构体 | ✅ 已实现 |
+| `internal/pkg/db` | ⭐ TxManager 事务管理器 | ✅ 已实现 |
+| `internal/config/validator` | ⭐ 配置验证器（启动时校验必填项） | ✅ 已实现 |
+| `internal/middleware/explicit_permission` | ⭐ 显式权限覆盖 | ✅ 已实现 |
+| `internal/middleware/request_id` | ⭐ 请求 ID + 全局异常恢复 | ✅ 已实现 |
 
 ### 文件存储设计
 
@@ -452,20 +521,22 @@ Storage Interface (storage/storage.go)
 
 | 模块 | 前缀 | 主要端点 |
 |------|------|----------|
-| 认证 | `/api/v1/auth` | register, login, logout |
+| 认证 | `/api/v1/auth` | register, login, logout, forgot-password, reset-password |
 | 个人中心 | `/api/v1/profile` | stats, profile, password |
 | 用户管理 | `/api/v1/users` | CRUD, deleted, restore, permanent |
 | 系统管理员 | `/api/v1/admin/users` | CRUD, batch, recycle |
 | 跨租户用户 | `/api/v1/admin/tenant-users` | CRUD, batch |
 | 租户（公开） | `/api/v1/tenants` | register |
 | 租户（租户侧） | `/api/v1/tenants/current` | GET/PUT, status, cancel |
+| 租户独立配置 | `/api/v1/tenant-settings` | GET, PUT |
 | 租户（管理员） | `/api/v1/admin/tenants` | CRUD, batch, recycle |
 | 注销审批 | `/api/v1/admin/cancel-requests` | list, approve, reject |
 | RBAC | `/api/v1/rbac` | roles, permissions, user-roles |
 | 文件 | `/api/v1/files` | upload, CRUD, batch, recycle |
 | 套餐（管理员） | `/api/v1/admin/plans` | CRUD |
 | 套餐（租户） | `/api/v1/tenant/current/plan` | GET |
-| 审计 | `/api/v1/audit` | stats, logs, export, cleanup |
+| 审计 | `/api/v1/audit` | stats, dashboard, logs, export, cleanup |
+| Wiki 知识库 | `/api/v1/wiki` | spaces, nodes, documents, revisions, members, stats |
 | 运营看板 | `/api/v1/admin/dashboard` | overview |
 | 通知公告 | `/api/v1/admin/announcements` | CRUD, status |
 | 健康检查 | `/health` | GET |
