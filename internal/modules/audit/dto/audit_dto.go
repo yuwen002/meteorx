@@ -103,3 +103,25 @@ type AuditLogStatsResp struct {
 	ModuleStats map[string]int64 `json:"module_stats"` // 按模块统计
 	ResultStats map[string]int64 `json:"result_stats"` // 按结果统计
 }
+
+type TrendPoint struct {
+	Date    string `json:"date"`
+	Count   int64  `json:"count"`
+	Success int64  `json:"success"`
+	Failure int64  `json:"failure"`
+}
+
+type ModuleCount struct {
+	Module string `json:"module"`
+	Count  int64  `json:"count"`
+}
+
+type DashboardResp struct {
+	TotalCount  int64            `json:"total_count"`
+	TodayCount  int64            `json:"today_count"`
+	ActionStats map[string]int64 `json:"action_stats"`
+	ModuleStats map[string]int64 `json:"module_stats"`
+	ResultStats map[string]int64 `json:"result_stats"`
+	Trend       []TrendPoint     `json:"trend"`
+	TopModules  []ModuleCount    `json:"top_modules"`
+}

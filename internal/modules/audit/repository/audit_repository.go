@@ -244,6 +244,144 @@ func (r *auditLogRepository) GetModuleStats(ctx context.Context) (map[string]int
 	return stats, nil
 }
 
+func (r *auditLogRepository) GetTrendStats(ctx context.Context, tenantID string, days int) ([]model.AuditTrendPoint, error) {
+	type Result struct {
+		Date    string
+		Count   int64
+		Success int64
+		Failure int64
+	}
+
+	cutoff := time.Now().AddDate(0, 0, -days)
+	db := r.db.WithContext(ctx).Model(&AuditLogPO{})
+
+	if tenantID != "" {
+		db = db.Where("tenant_id = ?", tenantID)
+	}
+
+	var results []Result
+	err := db.Select("DATE(created_at) as date, COUNT(*) as count, SUM(CASE WHEN result = 'success' THEN 1 ELSE 0 END) as success, SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) as failure").
+		Where("created_at >= ?", cutoff).
+		Group("DATE(created_at)").
+		Order("date ASC").
+		Scan(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	points := make([]model.AuditTrendPoint, len(results))
+	for i, r := range results {
+		points[i] = model.AuditTrendPoint{
+			Date:    r.Date,
+			Count:   r.Count,
+			Success: r.Success,
+			Failure: r.Failure,
+		}
+	}
+	return points, nil
+}
+
+func (r *auditLogRepository) GetTopModules(ctx context.Context, tenantID string, limit int) ([]model.ModuleCount, error) {
+	type Result struct {
+		Module string
+		Count  int64
+	}
+
+	db := r.db.WithContext(ctx).Model(&AuditLogPO{})
+	if tenantID != "" {
+		db = db.Where("tenant_id = ?", tenantID)
+	}
+
+	var results []Result
+	err := db.Select("module, COUNT(*) as count").
+		Group("module").
+		Order("count DESC").
+		Limit(limit).
+		Scan(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	modules := make([]model.ModuleCount, len(results))
+	for i, r := range results {
+		modules[i] = model.ModuleCount{
+			Module: r.Module,
+			Count:  r.Count,
+		}
+	}
+	return modules, nil
+}
+
+func (r *auditLogRepository) GetDashboardData(ctx context.Context, tenantID string, days int) (*model.AuditDashboardData, error) {
+	db := r.db.WithContext(ctx).Model(&AuditLogPO{})
+
+	if tenantID != "" {
+		db = db.Where("tenant_id = ?", tenantID)
+	}
+
+	var totalCount int64
+	if err := db.Count(&totalCount).Error; err != nil {
+		return nil, err
+	}
+
+	var todayCount int64
+	today := time.Now().Format("2006-01-02")
+	db2 := r.db.WithContext(ctx).Model(&AuditLogPO{})
+	if tenantID != "" {
+		db2 = db2.Where("tenant_id = ?", tenantID)
+	}
+	if err := db2.Where("DATE(created_at) = ?", today).Count(&todayCount).Error; err != nil {
+		return nil, err
+	}
+
+	actionStats, err := r.GetActionStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	moduleStats, err := r.GetModuleStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var resultStats = make(map[string]int64)
+	var successCount, failureCount int64
+	db3 := r.db.WithContext(ctx).Model(&AuditLogPO{})
+	if tenantID != "" {
+		db3 = db3.Where("tenant_id = ?", tenantID)
+	}
+	db3.Where("result = ?", model.ResultSuccess).Count(&successCount)
+	db4 := r.db.WithContext(ctx).Model(&AuditLogPO{})
+	if tenantID != "" {
+		db4 = db4.Where("tenant_id = ?", tenantID)
+	}
+	db4.Where("result = ?", model.ResultFailure).Count(&failureCount)
+	resultStats[model.ResultSuccess] = successCount
+	resultStats[model.ResultFailure] = failureCount
+
+	trend, err := r.GetTrendStats(ctx, tenantID, days)
+	if err != nil {
+		return nil, err
+	}
+
+	topModules, err := r.GetTopModules(ctx, tenantID, 10)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.AuditDashboardData{
+		TotalCount:  totalCount,
+		TodayCount:  todayCount,
+		ActionStats: actionStats,
+		ModuleStats: moduleStats,
+		ResultStats: resultStats,
+		Trend:       trend,
+		TopModules:  topModules,
+	}, nil
+}
+
 func (r *auditLogRepository) Cleanup(ctx context.Context, days int) (int64, error) {
 	cutoff := time.Now().AddDate(0, 0, -days)
 	result := r.db.WithContext(ctx).Where("created_at < ?", cutoff).Delete(&AuditLogPO{})

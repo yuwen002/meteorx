@@ -20,6 +20,11 @@
           <template #title>首页</template>
         </el-menu-item>
 
+        <el-menu-item index="/tenant-settings" v-if="userStore.hasPermission('tenant:settings') || !userStore.isAdmin">
+          <el-icon><Setting /></el-icon>
+          <template #title>租户设置</template>
+        </el-menu-item>
+
         <el-sub-menu index="/system">
           <template #title>
             <el-icon><Setting /></el-icon>
@@ -121,7 +126,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Document, Folder, Goods } from '@element-plus/icons-vue'
+import { Document, Folder, Goods, Setting } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'

@@ -41,3 +41,55 @@ type AuditLog struct {
 	Duration     int64     // 请求耗时（毫秒）
 	CreatedAt    time.Time // 创建时间
 }
+
+type AuditLogStats struct {
+	TotalCount  int64            `json:"total_count"`
+	TodayCount  int64            `json:"today_count"`
+	ActionStats map[string]int64 `json:"action_stats"`
+	ModuleStats map[string]int64 `json:"module_stats"`
+	ResultStats map[string]int64 `json:"result_stats"`
+}
+
+type AuditTrendPoint struct {
+	Date      string `json:"date"`
+	Count     int64  `json:"count"`
+	Success   int64  `json:"success"`
+	Failure   int64  `json:"failure"`
+}
+
+type AuditDashboardData struct {
+	TotalCount  int64             `json:"total_count"`
+	TodayCount  int64             `json:"today_count"`
+	ActionStats map[string]int64  `json:"action_stats"`
+	ModuleStats map[string]int64  `json:"module_stats"`
+	ResultStats map[string]int64  `json:"result_stats"`
+	Trend       []AuditTrendPoint `json:"trend"`
+	TopModules  []ModuleCount     `json:"top_modules"`
+}
+
+type ModuleCount struct {
+	Module string `json:"module"`
+	Count  int64  `json:"count"`
+}
+
+type AuditLogQuery struct {
+	UserID   string `form:"user_id"`
+	Username string `form:"username"`
+	TenantID string `form:"tenant_id"`
+	Module   string `form:"module"`
+	Action   string `form:"action"`
+	Resource string `form:"resource"`
+	Result   string `form:"result"`
+	Keyword  string `form:"keyword"`
+	StartTime string `form:"start_time"`
+	EndTime   string `form:"end_time"`
+	Page     int    `form:"page"`
+	PageSize int    `form:"page_size"`
+}
+
+type TrendQuery struct {
+	TenantID  string `form:"tenant_id"`
+	Days      int    `form:"days"`
+	StartTime string `form:"start_time"`
+	EndTime   string `form:"end_time"`
+}

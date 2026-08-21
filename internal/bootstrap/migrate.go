@@ -34,6 +34,12 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 
+	err = tenantrepo.AutoMigrateTenantSettings(db)
+	if err != nil {
+		log.Printf("Tenant settings migration failed: %v", err)
+		return err
+	}
+
 	err = tenantrepo.CancelRequestsAutoMigrate(db)
 	if err != nil {
 		log.Printf("Cancel request migration failed: %v", err)

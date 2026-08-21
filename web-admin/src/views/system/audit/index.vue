@@ -10,7 +10,7 @@
             </div>
             <div class="stat-info">
               <div class="stat-label">总日志数</div>
-              <div class="stat-value">{{ stats.total_count }}</div>
+              <div class="stat-value">{{ dashboard.total_count }}</div>
             </div>
           </div>
         </el-card>
@@ -23,7 +23,7 @@
             </div>
             <div class="stat-info">
               <div class="stat-label">今日日志</div>
-              <div class="stat-value">{{ stats.today_count }}</div>
+              <div class="stat-value">{{ dashboard.today_count }}</div>
             </div>
           </div>
         </el-card>
@@ -36,7 +36,7 @@
             </div>
             <div class="stat-info">
               <div class="stat-label">成功操作</div>
-              <div class="stat-value">{{ stats.result_stats?.success || 0 }}</div>
+              <div class="stat-value">{{ dashboard.result_stats?.success || 0 }}</div>
             </div>
           </div>
         </el-card>
@@ -49,7 +49,168 @@
             </div>
             <div class="stat-info">
               <div class="stat-label">失败操作</div>
-              <div class="stat-value">{{ stats.result_stats?.failure || 0 }}</div>
+              <div class="stat-value">{{ dashboard.result_stats?.failure || 0 }}</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 图表区域 -->
+    <el-row :gutter="16" class="charts-row">
+      <!-- 趋势图 -->
+      <el-col :span="16">
+        <el-card shadow="hover" class="chart-card">
+          <template #header>
+            <div class="chart-header">
+              <span>操作趋势（近{{ trendDays }}天）</span>
+              <el-radio-group v-model="trendDays" size="small" @change="loadDashboard">
+                <el-radio-button :label="7">7天</el-radio-button>
+                <el-radio-button :label="14">14天</el-radio-button>
+                <el-radio-button :label="30">30天</el-radio-button>
+              </el-radio-group>
+            </div>
+          </template>
+          <div class="trend-chart">
+            <div class="trend-y-axis">
+              <span class="y-max">{{ trendMax }}</span>
+              <span class="y-mid">{{ Math.round(trendMax / 2) }}</span>
+              <span class="y-min">0</span>
+            </div>
+            <div class="trend-bars">
+              <div
+                v-for="point in dashboard.trend"
+                :key="point.date"
+                class="trend-bar-item"
+              >
+                <div class="bar-wrapper">
+                  <div
+                    class="bar bar-failure"
+                    :style="{ height: trendMax > 0 ? (point.failure / trendMax * 100) + '%' : '0%' }"
+                    :title="`失败: ${point.failure}`"
+                  ></div>
+                  <div
+                    class="bar bar-success"
+                    :style="{ height: trendMax > 0 ? (point.success / trendMax * 100) + '%' : '0%' }"
+                    :title="`成功: ${point.success}`"
+                  ></div>
+                </div>
+                <div class="bar-label">{{ formatDateLabel(point.date) }}</div>
+              </div>
+            </div>
+            <div class="trend-legend">
+              <span class="legend-item"><i class="dot success"></i>成功</span>
+              <span class="legend-item"><i class="dot failure"></i>失败</span>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+
+      <!-- 模块分布 -->
+      <el-col :span="8">
+        <el-card shadow="hover" class="chart-card">
+          <template #header>
+            <div class="chart-header">
+              <span>模块分布</span>
+            </div>
+          </template>
+          <div class="pie-chart-container">
+            <div
+              class="pie-chart"
+              :style="{ background: pieConicGradient }"
+            ></div>
+            <div class="pie-center">
+              <div class="pie-total">{{ totalModuleCount }}</div>
+              <div class="pie-label">总操作</div>
+            </div>
+          </div>
+          <div class="pie-legend">
+            <div
+              v-for="(item, index) in dashboard.top_modules"
+              :key="item.module"
+              class="legend-row"
+            >
+              <span class="legend-color" :style="{ background: pieColors[index % pieColors.length] }"></span>
+              <span class="legend-name">{{ getModuleLabel(item.module) }}</span>
+              <span class="legend-value">{{ item.count }}</span>
+              <span class="legend-percent">{{ getModulePercent(item.count) }}%</span>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 操作类型统计 -->
+    <el-row :gutter="16" class="charts-row">
+      <el-col :span="12">
+        <el-card shadow="hover" class="chart-card">
+          <template #header>
+            <div class="chart-header">
+              <span>操作类型统计</span>
+            </div>
+          </template>
+          <div class="action-stats">
+            <div
+              v-for="(count, action) in dashboard.action_stats"
+              :key="action"
+              class="action-stat-item"
+            >
+              <div class="action-info">
+                <span class="action-name">{{ getActionLabel(action) }}</span>
+                <span class="action-count">{{ count }}</span>
+              </div>
+              <div class="action-bar-bg">
+                <div
+                  class="action-bar-fill"
+                  :style="{ width: actionStatsMax > 0 ? (count / actionStatsMax * 100) + '%' : '0%', background: getActionColor(action) }"
+                ></div>
+              </div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card shadow="hover" class="chart-card">
+          <template #header>
+            <div class="chart-header">
+              <span>结果分布</span>
+            </div>
+          </template>
+          <div class="result-stats">
+            <div class="result-ring">
+              <svg viewBox="0 0 120 120" class="ring-svg">
+                <circle cx="60" cy="60" r="50" class="ring-bg" />
+                <circle
+                  cx="60"
+                  cy="60"
+                  r="50"
+                  class="ring-success"
+                  :style="{ strokeDasharray: successRingArray, strokeDashoffset: 0 }"
+                />
+                <circle
+                  cx="60"
+                  cy="60"
+                  r="50"
+                  class="ring-failure"
+                  :style="{ strokeDasharray: failureRingArray, strokeDashoffset: -successRingLength }"
+                />
+              </svg>
+              <div class="ring-center-text">
+                <span class="ring-percent">{{ successRate }}%</span>
+                <span class="ring-label">成功率</span>
+              </div>
+            </div>
+            <div class="result-details">
+              <div class="result-item success">
+                <span class="result-dot"></span>
+                <span class="result-name">成功</span>
+                <span class="result-count">{{ dashboard.result_stats?.success || 0 }}</span>
+              </div>
+              <div class="result-item failure">
+                <span class="result-dot"></span>
+                <span class="result-name">失败</span>
+                <span class="result-count">{{ dashboard.result_stats?.failure || 0 }}</span>
+              </div>
             </div>
           </div>
         </el-card>
@@ -233,17 +394,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Document, Calendar, CircleCheck, CircleClose, Search, Delete, Download, User, SwitchButton } from '@element-plus/icons-vue'
-import { getAuditLogList, getAuditStats, cleanupAuditLogs, exportAuditLogs } from '@/api/modules/audit'
-import type { AuditLogItem, AuditLogStats } from '@/api/modules/audit'
+import { getAuditLogList, getAuditDashboard, cleanupAuditLogs, exportAuditLogs } from '@/api/modules/audit'
+import type { AuditLogItem, AuditDashboardData } from '@/api/modules/audit'
 
 const loading = ref(false)
 const list = ref<AuditLogItem[]>([])
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+const trendDays = ref(7)
 
 const search = reactive({
   keyword: '',
@@ -253,23 +415,80 @@ const search = reactive({
   dateRange: [] as string[]
 })
 
-const stats = ref<AuditLogStats>({
+const dashboard = ref<AuditDashboardData>({
   total_count: 0,
   today_count: 0,
   action_stats: {},
   module_stats: {},
-  result_stats: {}
+  result_stats: {},
+  trend: [],
+  top_modules: []
 })
 
 const detailVisible = ref(false)
 const currentLog = ref<AuditLogItem | null>(null)
-
 const cleanupVisible = ref(false)
 const cleanupForm = reactive({ days: 30 })
 
+const pieColors = ['#667eea', '#52c41a', '#faad14', '#f56c6c', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16']
+
+const trendMax = computed(() => {
+  let max = 0
+  dashboard.value.trend.forEach(p => {
+    max = Math.max(max, p.count, p.success, p.failure)
+  })
+  return max > 0 ? Math.ceil(max * 1.1) : 100
+})
+
+const actionStatsMax = computed(() => {
+  let max = 0
+  Object.values(dashboard.value.action_stats).forEach(v => {
+    max = Math.max(max, v)
+  })
+  return max
+})
+
+const totalModuleCount = computed(() => {
+  return dashboard.value.top_modules.reduce((sum, m) => sum + m.count, 0)
+})
+
+const pieConicGradient = computed(() => {
+  if (totalModuleCount.value === 0) return 'conic-gradient(#f0f0f0 0deg 360deg)'
+  let result = ''
+  let currentAngle = 0
+  dashboard.value.top_modules.forEach((m, index) => {
+    const angle = (m.count / totalModuleCount.value) * 360
+    const color = pieColors[index % pieColors.length]
+    result += `${color} ${currentAngle}deg ${currentAngle + angle}deg, `
+    currentAngle += angle
+  })
+  return `conic-gradient(${result.slice(0, -2)})`
+})
+
+const successRingLength = computed(() => {
+  const total = (dashboard.value.result_stats?.success || 0) + (dashboard.value.result_stats?.failure || 0)
+  if (total === 0) return 0
+  return (dashboard.value.result_stats?.success || 0) / total * 314
+})
+
+const failureRingLength = computed(() => {
+  const total = (dashboard.value.result_stats?.success || 0) + (dashboard.value.result_stats?.failure || 0)
+  if (total === 0) return 0
+  return (dashboard.value.result_stats?.failure || 0) / total * 314
+})
+
+const successRingArray = computed(() => `${successRingLength.value} 314`)
+const failureRingArray = computed(() => `${failureRingLength.value} 314`)
+
+const successRate = computed(() => {
+  const total = (dashboard.value.result_stats?.success || 0) + (dashboard.value.result_stats?.failure || 0)
+  if (total === 0) return 0
+  return Math.round((dashboard.value.result_stats?.success || 0) / total * 100)
+})
+
 onMounted(() => {
   loadList()
-  loadStats()
+  loadDashboard()
 })
 
 async function loadList() {
@@ -297,12 +516,12 @@ async function loadList() {
   }
 }
 
-async function loadStats() {
+async function loadDashboard() {
   try {
-    const res = await getAuditStats()
-    stats.value = res
+    const res = await getAuditDashboard(trendDays.value)
+    dashboard.value = res
   } catch (error) {
-    console.error('加载统计失败', error)
+    console.error('加载看板数据失败', error)
   }
 }
 
@@ -316,7 +535,6 @@ function resetSearch() {
   loadList()
 }
 
-// 快捷筛选
 function quickFilter(action: string) {
   search.action = action
   page.value = 1
@@ -344,7 +562,7 @@ async function confirmCleanup() {
     ElMessage.success(`已清理 ${res.deleted_count} 条日志`)
     cleanupVisible.value = false
     loadList()
-    loadStats()
+    loadDashboard()
   } catch (error: any) {
     if (error !== 'cancel') {
       ElMessage.error('清理失败')
@@ -378,6 +596,19 @@ function getActionType(action: string): string {
   return map[action] || ''
 }
 
+function getActionColor(action: string): string {
+  const map: Record<string, string> = {
+    create: '#52c41a',
+    update: '#faad14',
+    delete: '#f56c6c',
+    query: '#667eea',
+    login: '#722ed1',
+    logout: '#13c2c2',
+    other: '#8c8c8c'
+  }
+  return map[action] || '#8c8c8c'
+}
+
 function getMethodType(method: string): string {
   const map: Record<string, string> = {
     GET: 'info',
@@ -395,6 +626,32 @@ function getDurationClass(duration: number): string {
   return 'duration-slow'
 }
 
+function getModuleLabel(module: string): string {
+  const map: Record<string, string> = {
+    auth: '认证',
+    user: '用户',
+    tenant: '租户',
+    rbac: '权限',
+    audit: '审计',
+    system: '系统'
+  }
+  return map[module] || module
+}
+
+function getModulePercent(count: number): string {
+  if (totalModuleCount.value === 0) return '0'
+  return ((count / totalModuleCount.value) * 100).toFixed(1)
+}
+
+function formatDateLabel(dateStr: string): string {
+  try {
+    const date = new Date(dateStr)
+    return `${date.getMonth() + 1}/${date.getDate()}`
+  } catch {
+    return dateStr.slice(5)
+  }
+}
+
 function formatJson(jsonStr: string): string {
   try {
     return JSON.stringify(JSON.parse(jsonStr), null, 2)
@@ -403,7 +660,6 @@ function formatJson(jsonStr: string): string {
   }
 }
 
-// 导出审计日志
 function handleExport() {
   const params: any = {
     format: 'csv',
@@ -418,15 +674,12 @@ function handleExport() {
   }
   
   const exportUrl = exportAuditLogs(params)
-  
-  // 创建临时链接下载
   const link = document.createElement('a')
   link.href = exportUrl
   link.download = `audit_logs_${new Date().toISOString().slice(0, 10)}.csv`
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
-  
   ElMessage.success('开始导出审计日志')
 }
 </script>
@@ -437,6 +690,10 @@ function handleExport() {
 }
 
 .stats-row {
+  margin-bottom: 16px;
+}
+
+.charts-row {
   margin-bottom: 16px;
 }
 
@@ -491,6 +748,335 @@ function handleExport() {
     font-size: 24px;
     font-weight: 600;
     color: #262626;
+  }
+}
+
+.chart-card {
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 500;
+  }
+}
+
+.trend-chart {
+  height: 240px;
+  display: flex;
+  padding: 16px 0;
+  position: relative;
+}
+
+.trend-y-axis {
+  width: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-right: 8px;
+  font-size: 12px;
+  color: #8c8c8c;
+
+  span {
+    line-height: 1;
+  }
+}
+
+.trend-bars {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  border-bottom: 1px solid #f0f0f0;
+  border-left: 1px solid #f0f0f0;
+  padding-left: 8px;
+}
+
+.trend-bar-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.bar-wrapper {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  justify-content: flex-start;
+}
+
+.bar {
+  width: 100%;
+  max-width: 20px;
+  margin: 0 auto;
+  border-radius: 2px 2px 0 0;
+  transition: height 0.3s;
+
+  &.bar-success {
+    background: linear-gradient(180deg, #52c41a 0%, #389e0d 100%);
+  }
+
+  &.bar-failure {
+    background: linear-gradient(180deg, #f56c6c 0%, #cf1322 100%);
+  }
+}
+
+.bar-label {
+  font-size: 11px;
+  color: #8c8c8c;
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+.trend-legend {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #595959;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+
+  &.success {
+    background: #52c41a;
+  }
+
+  &.failure {
+    background: #f56c6c;
+  }
+}
+
+.pie-chart-container {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  margin: 0 auto 16px;
+}
+
+.pie-chart {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+.pie-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  background: #fff;
+  border-radius: 50%;
+  width: 90px;
+  height: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.pie-total {
+  font-size: 24px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.pie-label {
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.pie-legend {
+  padding: 0 8px;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+
+  .legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+  }
+
+  .legend-name {
+    flex: 1;
+    color: #595959;
+  }
+
+  .legend-value {
+    color: #262626;
+    font-weight: 500;
+    min-width: 30px;
+    text-align: right;
+  }
+
+  .legend-percent {
+    color: #8c8c8c;
+    min-width: 45px;
+    text-align: right;
+  }
+}
+
+.action-stats {
+  padding: 8px 0;
+}
+
+.action-stat-item {
+  margin-bottom: 16px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.action-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 13px;
+
+  .action-name {
+    color: #595959;
+  }
+
+  .action-count {
+    color: #262626;
+    font-weight: 500;
+  }
+}
+
+.action-bar-bg {
+  height: 8px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.action-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s;
+}
+
+.result-stats {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 8px 0;
+}
+
+.result-ring {
+  position: relative;
+  width: 160px;
+  height: 160px;
+}
+
+.ring-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.ring-bg {
+  fill: none;
+  stroke: #f5f5f5;
+  stroke-width: 12;
+}
+
+.ring-success {
+  fill: none;
+  stroke: #52c41a;
+  stroke-width: 12;
+  stroke-linecap: round;
+}
+
+.ring-failure {
+  fill: none;
+  stroke: #f56c6c;
+  stroke-width: 12;
+  stroke-linecap: round;
+}
+
+.ring-center-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+
+  .ring-percent {
+    display: block;
+    font-size: 28px;
+    font-weight: 600;
+    color: #262626;
+  }
+
+  .ring-label {
+    display: block;
+    font-size: 12px;
+    color: #8c8c8c;
+  }
+}
+
+.result-details {
+  flex: 1;
+}
+
+.result-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  .result-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  &.success .result-dot {
+    background: #52c41a;
+  }
+
+  &.failure .result-dot {
+    background: #f56c6c;
+  }
+
+  .result-name {
+    flex: 1;
+    color: #595959;
+  }
+
+  .result-count {
+    color: #262626;
+    font-weight: 500;
   }
 }
 

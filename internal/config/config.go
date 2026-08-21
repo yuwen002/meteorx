@@ -10,6 +10,22 @@ type Config struct {
 	Log      LogConfig      `mapstructure:"log"`
 	Security SecurityConfig `mapstructure:"security"`
 	File     FileConfig     `mapstructure:"file"`
+	Email    EmailConfig    `mapstructure:"email"`
+	Client   ClientConfig   `mapstructure:"client"`
+}
+
+type EmailConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+	From     string `mapstructure:"from"`
+	FromName string `mapstructure:"from_name"`
+}
+
+type ClientConfig struct {
+	BaseURL string `mapstructure:"base_url"`
 }
 
 type ServerConfig struct {

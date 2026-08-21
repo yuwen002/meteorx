@@ -37,6 +37,28 @@ export interface AuditLogStats {
   result_stats: Record<string, number>
 }
 
+export interface TrendPoint {
+  date: string
+  count: number
+  success: number
+  failure: number
+}
+
+export interface ModuleCount {
+  module: string
+  count: number
+}
+
+export interface AuditDashboardData {
+  total_count: number
+  today_count: number
+  action_stats: Record<string, number>
+  module_stats: Record<string, number>
+  result_stats: Record<string, number>
+  trend: TrendPoint[]
+  top_modules: ModuleCount[]
+}
+
 export interface PaginatedResponse<T> {
   data: T[]
   pagination: {
@@ -77,11 +99,14 @@ export function getAuditStats(): Promise<AuditLogStats> {
   return get('/audit/stats')
 }
 
+export function getAuditDashboard(days?: number): Promise<AuditDashboardData> {
+  return get('/audit/dashboard', { days: days || 7 })
+}
+
 export function cleanupAuditLogs(days: number): Promise<{ deleted_count: number }> {
   return del('/audit/logs/cleanup', { params: { days } })
 }
 
-// 导出审计日志
 export function exportAuditLogs(params: {
   format?: 'csv'
   module?: string

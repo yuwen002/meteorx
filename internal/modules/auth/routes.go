@@ -18,5 +18,9 @@ func RegisterRoutes(r chi.Router, h *handler.AuthHandler) {
 		r.Post("/login", h.Login)
 		// POST /api/v1/auth/logout - 用户登出
 		r.Post("/logout", h.Logout)
+		// POST /api/v1/auth/forgot-password - 忘记密码
+		r.Post("/forgot-password", h.ForgotPassword)
+		// POST /api/v1/auth/reset-password - 重置密码
+		r.Post("/reset-password", h.ResetPassword)
 	})
 }

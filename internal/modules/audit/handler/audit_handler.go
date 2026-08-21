@@ -164,6 +164,26 @@ func (h *AuditHandler) ExportLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetDashboard 获取审计仪表盘数据
+// GET /api/v1/audit/dashboard?days=7
+func (h *AuditHandler) GetDashboard(w http.ResponseWriter, r *http.Request) {
+	daysStr := r.URL.Query().Get("days")
+	days, _ := strconv.Atoi(daysStr)
+
+	tenantID := contextx.GetTenantID(r.Context())
+	if tenantID == "" {
+		tenantID = r.URL.Query().Get("tenant_id")
+	}
+
+	data, err := h.svc.GetDashboard(r.Context(), tenantID, days)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取仪表盘数据失败")
+		return
+	}
+
+	response.Success(w, data)
+}
+
 // exportCSV 导出为 CSV 格式
 func (h *AuditHandler) exportCSV(w http.ResponseWriter, logs []*dto.AuditLogResp) {
 	filename := fmt.Sprintf("audit_logs_%s.csv", time.Now().Format("20060102_150405"))

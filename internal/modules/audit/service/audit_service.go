@@ -114,3 +114,43 @@ func (s *AuditService) GetStats(ctx context.Context) (*dto.AuditLogStatsResp, er
 func (s *AuditService) CleanupLogs(ctx context.Context, days int) (int64, error) {
 	return s.repo.Cleanup(ctx, days)
 }
+
+// GetDashboard 获取仪表盘数据
+func (s *AuditService) GetDashboard(ctx context.Context, tenantID string, days int) (*dto.DashboardResp, error) {
+	if days <= 0 {
+		days = 7
+	}
+
+	data, err := s.repo.GetDashboardData(ctx, tenantID, days)
+	if err != nil {
+		return nil, err
+	}
+
+	trend := make([]dto.TrendPoint, len(data.Trend))
+	for i, t := range data.Trend {
+		trend[i] = dto.TrendPoint{
+			Date:    t.Date,
+			Count:   t.Count,
+			Success: t.Success,
+			Failure: t.Failure,
+		}
+	}
+
+	topModules := make([]dto.ModuleCount, len(data.TopModules))
+	for i, m := range data.TopModules {
+		topModules[i] = dto.ModuleCount{
+			Module: m.Module,
+			Count:  m.Count,
+		}
+	}
+
+	return &dto.DashboardResp{
+		TotalCount:  data.TotalCount,
+		TodayCount:  data.TodayCount,
+		ActionStats: data.ActionStats,
+		ModuleStats: data.ModuleStats,
+		ResultStats: data.ResultStats,
+		Trend:       trend,
+		TopModules:  topModules,
+	}, nil
+}

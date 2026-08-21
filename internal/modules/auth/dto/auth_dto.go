@@ -30,3 +30,20 @@ type LoginErrorResp struct {
 	Locked           bool   `json:"locked"`            // 是否已锁定
 	LockoutDuration  int64  `json:"lockout_duration"`  // 锁定剩余时间（秒）
 }
+
+type ForgotPasswordReq struct {
+	Email string `json:"email" validate:"required,email" label:"邮箱"`
+}
+
+type ForgotPasswordResp struct {
+	Message string `json:"message"`
+}
+
+type ResetPasswordReq struct {
+	Token       string `json:"token" validate:"required" label:"重置令牌"`
+	NewPassword string `json:"new_password" validate:"required,min=8,max=32" label:"新密码"`
+}
+
+type ResetPasswordResp struct {
+	Message string `json:"message"`
+}

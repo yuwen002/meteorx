@@ -83,6 +83,10 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 			// 3. 租户私有接口（租户管理员登录后：管理本公司信息、查看套餐等）
 			tenant.InitPrivateModule(r, db)
 
+			// 3.1 租户设置接口
+			tenantSettingsHandler := tenant.NewTenantSettingsHandler(db)
+			tenant.RegisterTenantSettingsRoutes(r, tenantSettingsHandler)
+
 			// 4. 用户/业务接口
 			user.InitModule(r, db)
 

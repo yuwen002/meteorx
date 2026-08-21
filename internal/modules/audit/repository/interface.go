@@ -25,11 +25,19 @@ type AuditLogRepository interface {
 	// GetModuleStats 按模块统计
 	GetModuleStats(ctx context.Context) (map[string]int64, error)
 
+	// GetTrendStats 获取趋势统计
+	GetTrendStats(ctx context.Context, tenantID string, days int) ([]model.AuditTrendPoint, error)
+
+	// GetTopModules 获取热门模块
+	GetTopModules(ctx context.Context, tenantID string, limit int) ([]model.ModuleCount, error)
+
+	// GetDashboardData 获取仪表盘数据
+	GetDashboardData(ctx context.Context, tenantID string, days int) (*model.AuditDashboardData, error)
+
 	// Cleanup 清理指定天数之前的日志
 	Cleanup(ctx context.Context, days int) (int64, error)
 }
 
-// AuditLogQuery 审计日志查询条件
 type AuditLogQuery struct {
 	Page      int
 	PageSize  int

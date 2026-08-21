@@ -166,6 +166,54 @@ export function updateCurrentTenant(data: UpdateTenantParams) {
   return put<TenantItem>('/tenants/current', data)
 }
 
+// ==================== 租户设置接口 ====================
+
+export interface TenantSettings {
+  id: string
+  tenant_id: string
+  logo: string
+  favicon: string
+  primary_color: string
+  theme: string
+  language: string
+  timezone: string
+  description: string
+  welcome_text: string
+  contact_name: string
+  contact_email: string
+  contact_phone: string
+  address: string
+  extra: string
+  created_at: string
+  updated_at: string
+}
+
+export interface UpdateTenantSettingsReq {
+  logo?: string
+  favicon?: string
+  primary_color?: string
+  theme?: string
+  language?: string
+  timezone?: string
+  description?: string
+  welcome_text?: string
+  contact_name?: string
+  contact_email?: string
+  contact_phone?: string
+  address?: string
+  extra?: string
+}
+
+// 获取租户设置
+export function getTenantSettings() {
+  return get<TenantSettings>('/tenant-settings')
+}
+
+// 更新租户设置
+export function updateTenantSettings(data: UpdateTenantSettingsReq) {
+  return put<TenantSettings>('/tenant-settings', data)
+}
+
 // 类型定义辅助
 interface PageResult<T> {
   data: T[]

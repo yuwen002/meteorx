@@ -12,6 +12,8 @@ type UserRepository interface {
 	GetByUsername(ctx context.Context, tenantID, username string) (*model.User, error)
 	// GetByID 根据ID查询用户
 	GetByID(ctx context.Context, id string) (*model.User, error)
+	// GetByEmail 根据邮箱查询用户
+	GetByEmail(ctx context.Context, email string) (*model.User, error)
 	// UsernameExists 全局检查用户名是否已存在（跨所有租户）
 	UsernameExists(ctx context.Context, username string) (bool, error)
 	// ListByTenant 根据租户ID查询用户列表（支持分页和状态筛选）

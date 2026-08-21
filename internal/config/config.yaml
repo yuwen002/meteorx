@@ -61,3 +61,15 @@ file:
     - "application/vnd.ms-excel"
     - "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     - "text/plain"
+
+email:
+  enabled: false
+  host: "smtp.example.com"
+  port: 587
+  username: "noreply@example.com"
+  password: "your-email-password"
+  from: "noreply@example.com"
+  from_name: "MeteorX 平台"
+
+client:
+  base_url: "http://localhost:5173"

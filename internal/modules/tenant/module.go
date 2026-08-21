@@ -15,6 +15,13 @@ import (
 	"gorm.io/gorm"
 )
 
+// NewTenantSettingsHandler 创建租户设置处理器
+func NewTenantSettingsHandler(db *gorm.DB) *handler.TenantSettingsHandler {
+	repo := tenantrepo.NewTenantSettingsRepository(db)
+	svc := service.NewTenantSettingsService(repo)
+	return handler.NewTenantSettingsHandler(svc)
+}
+
 // 提取公共工厂方法，保持不变
 func initHandler(db *gorm.DB) *handler.TenantHandler {
 	tenantRepo := tenantrepo.NewTenantRepository(db)

@@ -70,6 +70,11 @@
             账号已锁定，请 {{ Math.ceil(loginError.lockoutDuration / 60) }} 分钟后重试
           </div>
         </div>
+        <div class="form-footer">
+          <el-link type="primary" :underline="false" @click="goForgotPassword">
+            忘记密码？
+          </el-link>
+        </div>
         <div class="tips">
           <el-icon><InfoFilled /></el-icon>
           {{ loginMode === 'admin' ? '默认管理员账号：admin / 123456' : '请输入租户 ID 和租户账号' }}
@@ -165,6 +170,10 @@ async function handleLogin() {
     }
   })
 }
+
+function goForgotPassword() {
+  router.push('/forgot-password')
+}
 </script>
 
 <style scoped>
@@ -232,6 +241,11 @@ async function handleLogin() {
 
 .login-form {
   margin-top: 0;
+}
+.form-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
 }
 .tips {
   display: flex;

@@ -24,6 +24,14 @@ func RegisterPrivateRoutes(r chi.Router, h *handler.TenantHandler) {
 	})
 }
 
+// RegisterTenantSettingsRoutes 注册租户设置路由
+func RegisterTenantSettingsRoutes(r chi.Router, h *handler.TenantSettingsHandler) {
+	r.Route("/tenant-settings", func(r chi.Router) {
+		r.Get("/", h.GetSettings)
+		r.Put("/", h.UpdateSettings)
+	})
+}
+
 // RegisterAdminRoutes 编排 MaaS 平台超级管理员的控制台接口
 // 挂载 AutoRequirePermission 中间件做细粒度权限校验
 func RegisterAdminRoutes(r chi.Router, h *handler.TenantHandler, checker middleware.PermissionChecker) {

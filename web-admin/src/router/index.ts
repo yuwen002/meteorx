@@ -9,6 +9,18 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '登录', public: true }
   },
   {
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: () => import('@/views/forgot-password/index.vue'),
+    meta: { title: '忘记密码', public: true }
+  },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: () => import('@/views/reset-password/index.vue'),
+    meta: { title: '重置密码', public: true }
+  },
+  {
     path: '/',
     component: () => import('@/layouts/DefaultLayout.vue'),
     redirect: '/dashboard',
@@ -24,6 +36,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Profile',
         component: () => import('@/views/profile/index.vue'),
         meta: { title: '个人中心', icon: 'User' }
+      },
+      {
+        path: 'tenant-settings',
+        name: 'TenantSettings',
+        component: () => import('@/views/tenant/settings/index.vue'),
+        meta: { title: '租户设置', icon: 'Setting', permission: 'tenant:settings' }
       },
       {
         path: 'system/user',

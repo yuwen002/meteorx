@@ -118,3 +118,49 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	// 3. 返回成功响应
 	response.Success(w, nil)
 }
+
+func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req dto.ForgotPasswordReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	err := h.svc.ForgotPassword(r.Context(), req.Email)
+	if err != nil {
+		if err.Error() == "email service not configured" {
+			response.Fail(w, 500, "邮件服务未配置")
+			return
+		}
+		response.Fail(w, 500, "发送重置邮件失败")
+		return
+	}
+
+	response.Success(w, dto.ForgotPasswordResp{
+		Message: "如果该邮箱已注册，重置链接已发送至您的邮箱",
+	})
+}
+
+func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var req dto.ResetPasswordReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	err := h.svc.ResetPassword(r.Context(), req.Token, req.NewPassword)
+	if err != nil {
+		if err.Error() == "invalid or expired token" {
+			response.Fail(w, 400, "重置链接已失效，请重新请求")
+			return
+		}
+		if err.Error() == "user not found" {
+			response.Fail(w, 404, "用户不存在")
+			return
+		}
+		response.Fail(w, 500, "重置密码失败")
+		return
+	}
+
+	response.Success(w, dto.ResetPasswordResp{
+		Message: "密码重置成功，请使用新密码登录",
+	})
+}

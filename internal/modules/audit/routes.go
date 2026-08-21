@@ -16,6 +16,7 @@ func RegisterRoutes(r chi.Router, h *handler.AuditHandler, checker middleware.Pe
 	r.Route("/audit", func(r chi.Router) {
 		// Dashboard 统计接口：无需细粒度权限校验（只需登录）
 		r.Get("/stats", h.GetStats)
+		r.Get("/dashboard", h.GetDashboard)
 
 		// 需要细粒度权限校验的路由组
 		r.Route("/logs", func(r chi.Router) {

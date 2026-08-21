@@ -1,10 +1,8 @@
 package emailer
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net/smtp"
-	"strings"
 )
 
 type Emailer struct {
@@ -44,44 +42,7 @@ func (e *Emailer) Send(to, subject, body string) error {
 
 	addr := fmt.Sprintf("%s:%d", e.Host, e.Port)
 
-	tlsConfig := &tls.Config{
-		ServerName: strings.Split(e.Host, ":")[0],
-	}
-
-	conn, err := tls.Dial("tcp", addr, tlsConfig)
-	if err != nil {
-		return fmt.Errorf("failed to connect to SMTP server: %w", err)
-	}
-	defer conn.Close()
-
-	client, err := smtp.NewClient(conn, e.Host)
-	if err != nil {
-		return fmt.Errorf("failed to create SMTP client: %w", err)
-	}
-	defer client.Quit()
-
-	if err = client.Auth(auth); err != nil {
-		return fmt.Errorf("SMTP authentication failed: %w", err)
-	}
-
-	if err = client.Mail(e.From); err != nil {
-		return fmt.Errorf("SMTP MAIL FROM failed: %w", err)
-	}
-
-	if err = client.Rcpt(to); err != nil {
-		return fmt.Errorf("SMTP RCPT TO failed: %w", err)
-	}
-
-	if err = client.Data(); err != nil {
-		return fmt.Errorf("SMTP DATA failed: %w", err)
-	}
-
-	_, err = client.Write([]byte(msg))
-	if err != nil {
-		return fmt.Errorf("failed to write message: %w", err)
-	}
-
-	return nil
+	return smtp.SendMail(addr, auth, e.From, []string{to}, []byte(msg))
 }
 
 func (e *Emailer) SendResetPasswordEmail(to, resetLink, username string) error {

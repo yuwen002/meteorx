@@ -23,7 +23,7 @@ func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, rdb *cache.Redis) 
 	rRepo := rbacRepo.NewRoleRepository(db)
 	urRepo := rbacRepo.NewUserRoleRepository(db)
 	rpRepo := rbacRepo.NewRolePermissionRepository(db)
-	svc := service.NewAuthService(uRepo, rRepo, urRepo, rpRepo, tokenHelper, rdb, cfg.Security)
+	svc := service.NewAuthService(uRepo, rRepo, urRepo, rpRepo, tokenHelper, rdb, cfg.Security, cfg.Email, cfg.Client)
 	h := handler.NewAuthHandler(svc)
 
 	// 3. 注册路由

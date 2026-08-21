@@ -14,8 +14,14 @@ import (
 	rbacRepo "meteorx/internal/modules/rbac/repository"
 	"meteorx/internal/modules/user/model"
 	"meteorx/internal/modules/user/repository"
+	"meteorx/internal/pkg/emailer"
 	"meteorx/pkg/crypto"
 	"meteorx/pkg/uuid"
+)
+
+const (
+	passwordResetPrefix = "password:reset:"
+	resetTokenExpire    = 30 * time.Minute
 )
 
 const (
@@ -43,9 +49,17 @@ type AuthService struct {
 	redis              *cache.Redis
 	securityCfg        config.SecurityConfig
 	lockout            *security.LoginLockout
+	emailer            *emailer.Emailer
+	clientBaseURL      string
+	emailEnabled       bool
 }
 
-func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, urr rbacRepo.UserRoleRepository, rpr rbacRepo.RolePermissionRepository, th *jwt.TokenHelper, redis *cache.Redis, securityCfg config.SecurityConfig) *AuthService {
+func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, urr rbacRepo.UserRoleRepository, rpr rbacRepo.RolePermissionRepository, th *jwt.TokenHelper, redis *cache.Redis, securityCfg config.SecurityConfig, emailCfg config.EmailConfig, clientCfg config.ClientConfig) *AuthService {
+	var em *emailer.Emailer
+	if emailCfg.Enabled {
+		em = emailer.NewEmailer(emailCfg.Host, emailCfg.Port, emailCfg.Username, emailCfg.Password, emailCfg.From, emailCfg.FromName)
+	}
+
 	return &AuthService{
 		userRepo:           ur,
 		roleRepo:           rr,
@@ -55,6 +69,9 @@ func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, ur
 		redis:              redis,
 		securityCfg:        securityCfg,
 		lockout:            security.NewLoginLockout(redis, securityCfg.LoginLockout),
+		emailer:            em,
+		clientBaseURL:      clientCfg.BaseURL,
+		emailEnabled:       emailCfg.Enabled,
 	}
 }
 
@@ -238,4 +255,68 @@ func (s *AuthService) IsTokenBlacklisted(ctx context.Context, tokenString string
 
 	key := fmt.Sprintf("%s%s", tokenBlacklistPrefix, tokenString)
 	return s.redis.Exists(ctx, key)
+}
+
+func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
+	user, err := s.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		return nil
+	}
+	if user == nil {
+		return nil
+	}
+
+	if !s.emailEnabled {
+		return errors.New("email service not configured")
+	}
+
+	token := uuid.Generate()
+
+	key := fmt.Sprintf("%s%s", passwordResetPrefix, token)
+	if err := s.redis.Set(ctx, key, user.ID, resetTokenExpire); err != nil {
+		return err
+	}
+
+	resetLink := fmt.Sprintf("%s/reset-password?token=%s", s.clientBaseURL, token)
+
+	return s.emailer.SendResetPasswordEmail(user.Email, resetLink, user.Username)
+}
+
+func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
+	if s.redis == nil {
+		return errors.New("redis not initialized")
+	}
+
+	key := fmt.Sprintf("%s%s", passwordResetPrefix, token)
+	userID, err := s.redis.Get(ctx, key)
+	if err != nil || userID == "" {
+		return errors.New("invalid or expired token")
+	}
+
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return errors.New("user not found")
+	}
+
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	if err := security.ValidatePassword(newPassword, s.securityCfg.PasswordPolicy); err != nil {
+		return err
+	}
+
+	hashedPassword, err := crypto.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	user.Password = hashedPassword
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return err
+	}
+
+	s.redis.Delete(ctx, key)
+
+	return nil
 }

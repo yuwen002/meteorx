@@ -116,6 +116,15 @@ func (r *userRepository) GetByID(ctx context.Context, id string) (*model.User, e
 	return record.toDomain(), nil
 }
 
+func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
+	var record UserPO
+	err := r.db.WithContext(ctx).Where("email = ?", email).First(&record).Error
+	if err != nil {
+		return nil, err
+	}
+	return record.toDomain(), nil
+}
+
 // UsernameExists 全局检查用户名是否已存在（跨所有租户）
 func (r *userRepository) UsernameExists(ctx context.Context, username string) (bool, error) {
 	var count int64
