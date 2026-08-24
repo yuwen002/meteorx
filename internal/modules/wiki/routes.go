@@ -7,11 +7,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"gorm.io/gorm"
+	db "meteorx/internal/pkg/db"
 )
 
-func InitModule(r chi.Router, db *gorm.DB) {
-	repo := repository.NewWikiRepository(db)
-	svc := service.NewWikiService(repo)
+func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager) {
+	repo := repository.NewWikiRepository(gormDB)
+	svc := service.NewWikiService(repo, tx)
 	h := handler.NewWikiHandler(svc)
 
 	r.Route("/wiki", func(r chi.Router) {

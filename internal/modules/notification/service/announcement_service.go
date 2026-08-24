@@ -6,7 +6,7 @@ import (
 	"meteorx/internal/modules/notification/dto"
 	"meteorx/internal/modules/notification/model"
 	"meteorx/internal/modules/notification/repository"
-	"meteorx/pkg/ulid"
+	"meteorx/pkg/idgen"
 	"time"
 )
 
@@ -23,7 +23,7 @@ func NewAnnouncementService(repo repository.AnnouncementRepository) *Announcemen
 // Create 创建公告
 func (s *AnnouncementService) Create(ctx context.Context, publisherID string, req dto.CreateAnnouncementReq) (*dto.AnnouncementResp, error) {
 	a := &model.Announcement{
-		ID:             ulid.Generate(),
+		ID:             idgen.New(),
 		Title:          req.Title,
 		Content:        req.Content,
 		Scope:          req.Scope,

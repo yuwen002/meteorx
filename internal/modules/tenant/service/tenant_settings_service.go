@@ -8,7 +8,7 @@ import (
 	"meteorx/internal/modules/tenant/dto"
 	"meteorx/internal/modules/tenant/model"
 	"meteorx/internal/modules/tenant/repository"
-	"meteorx/pkg/ulid"
+	"meteorx/pkg/idgen"
 )
 
 type TenantSettingsService struct {
@@ -56,7 +56,7 @@ func (s *TenantSettingsService) UpdateSettings(ctx context.Context, tenantID str
 	}
 
 	if existing == nil {
-		settings.ID = ulid.Generate()
+		settings.ID = idgen.New()
 		now := time.Now()
 		settings.CreatedAt = now
 		settings.UpdatedAt = now

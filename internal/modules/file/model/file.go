@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	"github.com/oklog/ulid/v2"
+	"meteorx/pkg/idgen"
 	"gorm.io/gorm"
 )
 
@@ -34,7 +34,7 @@ func (File) TableName() string {
 // BeforeCreate GORM hook - 在创建前生成ULID
 func (f *File) BeforeCreate(tx *gorm.DB) error {
 	if f.ID == "" {
-		f.ID = ulid.Make().String()
+		f.ID = idgen.New()
 	}
 	return nil
 }

@@ -7,18 +7,20 @@ import (
 
 	"meteorx/internal/common/tenantctx"
 	"meteorx/internal/modules/wiki/model"
-	"meteorx/pkg/ulid"
+	db "meteorx/internal/pkg/db"
+	"meteorx/pkg/idgen"
 
 	"gorm.io/gorm"
 )
 
 var (
-	ErrWikiSpaceNotFound   = errors.New("wiki space not found")
-	ErrWikiNodeNotFound    = errors.New("wiki node not found")
-	ErrDocumentNotFound    = errors.New("document not found")
-	ErrRevisionNotFound    = errors.New("document revision not found")
-	ErrWikiSpaceExist      = errors.New("wiki space already exists")
-	ErrWikiNodeTypeInvalid = errors.New("wiki node type invalid")
+	ErrWikiSpaceNotFound       = errors.New("wiki space not found")
+	ErrWikiNodeNotFound        = errors.New("wiki node not found")
+	ErrDocumentNotFound        = errors.New("document not found")
+	ErrRevisionNotFound        = errors.New("document revision not found")
+	ErrWikiSpaceExist          = errors.New("wiki space already exists")
+	ErrWikiNodeTypeInvalid     = errors.New("wiki node type invalid")
+	ErrDocumentVersionConflict = errors.New("document version conflict")
 )
 
 type WikiRepository interface {
@@ -39,7 +41,9 @@ type WikiRepository interface {
 	CreateDocument(ctx context.Context, doc *model.Document) error
 	GetDocumentByNodeID(ctx context.Context, nodeID string) (*model.Document, error)
 	GetDocumentByID(ctx context.Context, id string) (*model.Document, error)
-	UpdateDocument(ctx context.Context, doc *model.Document) error
+	// UpdateDocument 更新文档内容。expectedVer 为乐观锁期望的当前版本号，
+	// 若数据库中 current_ver 与 expectedVer 不一致则返回 ErrDocumentVersionConflict。
+	UpdateDocument(ctx context.Context, doc *model.Document, expectedVer int) error
 	DeleteDocument(ctx context.Context, id string) error
 	IncrementViewCount(ctx context.Context, id string) error
 
@@ -59,8 +63,15 @@ type wikiRepository struct {
 	db *gorm.DB
 }
 
-func NewWikiRepository(db *gorm.DB) WikiRepository {
-	return &wikiRepository{db: db}
+func NewWikiRepository(database *gorm.DB) WikiRepository {
+	return &wikiRepository{db: database}
+}
+
+// getDB 返回当前上下文对应的数据库连接。
+// 若调用方处于事务中（通过 db.GetDB 从 ctx 取到 tx），则返回事务连接，
+// 使所有查询自动加入事务；否则返回默认连接。
+func (r *wikiRepository) getDB(ctx context.Context) *gorm.DB {
+	return db.GetDB(ctx, r.db).WithContext(ctx)
 }
 
 func AutoMigrate(db *gorm.DB) error {
@@ -76,16 +87,19 @@ func AutoMigrate(db *gorm.DB) error {
 
 func (r *wikiRepository) CreateSpace(ctx context.Context, space *model.WikiSpace) error {
 	if space.ID == "" {
-		space.ID = ulid.Generate()
+		space.ID = idgen.New()
+	}
+	if space.TenantID == "" {
+		space.TenantID = tenantctx.TenantID(ctx)
 	}
 	space.CreatedAt = time.Now()
 	space.UpdatedAt = time.Now()
-	return r.db.WithContext(ctx).Create(space).Error
+	return r.getDB(ctx).Create(space).Error
 }
 
 func (r *wikiRepository) GetSpaceByID(ctx context.Context, id string) (*model.WikiSpace, error) {
 	var space model.WikiSpace
-	query := tenantctx.FilterQuery(ctx, r.db.WithContext(ctx), "tenant_id")
+	query := tenantctx.FilterQuery(ctx, r.getDB(ctx), "tenant_id")
 	err := query.Where("id = ?", id).First(&space).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrWikiSpaceNotFound
@@ -97,7 +111,7 @@ func (r *wikiRepository) ListSpaces(ctx context.Context, tenantID string, userID
 	var spaces []*model.WikiSpace
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&model.WikiSpace{}).Where("tenant_id = ?", tenantID)
+	query := r.getDB(ctx).Model(&model.WikiSpace{}).Where("tenant_id = ?", tenantID)
 
 	if userID != "" {
 		query = query.Joins("LEFT JOIN wiki_space_members wsm ON wsm.space_id = wiki_spaces.id AND wsm.user_id = ?", userID).
@@ -118,7 +132,7 @@ func (r *wikiRepository) ListSpaces(ctx context.Context, tenantID string, userID
 
 func (r *wikiRepository) UpdateSpace(ctx context.Context, space *model.WikiSpace) error {
 	space.UpdatedAt = time.Now()
-	result := r.db.WithContext(ctx).Model(&model.WikiSpace{}).Where("id = ?", space.ID).Updates(map[string]interface{}{
+	result := r.getDB(ctx).Model(&model.WikiSpace{}).Where("id = ?", space.ID).Updates(map[string]interface{}{
 		"name":        space.Name,
 		"description": space.Description,
 		"icon":        space.Icon,
@@ -132,7 +146,7 @@ func (r *wikiRepository) UpdateSpace(ctx context.Context, space *model.WikiSpace
 }
 
 func (r *wikiRepository) DeleteSpace(ctx context.Context, id string) error {
-	result := r.db.WithContext(ctx).Delete(&model.WikiSpace{}, "id = ?", id)
+	result := r.getDB(ctx).Delete(&model.WikiSpace{}, "id = ?", id)
 	if result.RowsAffected == 0 {
 		return ErrWikiSpaceNotFound
 	}
@@ -141,19 +155,21 @@ func (r *wikiRepository) DeleteSpace(ctx context.Context, id string) error {
 
 func (r *wikiRepository) CreateNode(ctx context.Context, node *model.WikiNode) error {
 	if node.ID == "" {
-		node.ID = ulid.Generate()
+		node.ID = idgen.New()
+	}
+	if node.TenantID == "" {
+		node.TenantID = tenantctx.TenantID(ctx)
 	}
 	node.CreatedAt = time.Now()
 	node.UpdatedAt = time.Now()
-	return r.db.WithContext(ctx).Create(node).Error
+	return r.getDB(ctx).Create(node).Error
 }
 
 func (r *wikiRepository) GetNodeByID(ctx context.Context, id string) (*model.WikiNode, error) {
 	var node model.WikiNode
-	query := r.db.WithContext(ctx).Model(&model.WikiNode{}).
-		Joins("JOIN wiki_spaces ws ON ws.id = wiki_nodes.space_id").
-		Where("wiki_nodes.id = ?", id)
-	query = tenantctx.FilterQuery(ctx, query, "ws.tenant_id")
+	query := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
+		Model(&model.WikiNode{}).
+		Where("id = ?", id)
 	err := query.First(&node).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrWikiNodeNotFound
@@ -163,19 +179,24 @@ func (r *wikiRepository) GetNodeByID(ctx context.Context, id string) (*model.Wik
 
 func (r *wikiRepository) ListNodesBySpace(ctx context.Context, spaceID string) ([]*model.WikiNode, error) {
 	var nodes []*model.WikiNode
-	err := r.db.WithContext(ctx).Where("space_id = ? AND parent_id = ''", spaceID).Order("sort ASC, created_at ASC").Find(&nodes).Error
+	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
+		Where("space_id = ? AND parent_id = ''", spaceID).
+		Order("sort ASC, created_at ASC").Find(&nodes).Error
 	return nodes, err
 }
 
 func (r *wikiRepository) ListChildNodes(ctx context.Context, parentID string) ([]*model.WikiNode, error) {
 	var nodes []*model.WikiNode
-	err := r.db.WithContext(ctx).Where("parent_id = ?", parentID).Order("sort ASC, created_at ASC").Find(&nodes).Error
+	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
+		Where("parent_id = ?", parentID).
+		Order("sort ASC, created_at ASC").Find(&nodes).Error
 	return nodes, err
 }
 
 func (r *wikiRepository) UpdateNode(ctx context.Context, node *model.WikiNode) error {
 	node.UpdatedAt = time.Now()
-	result := r.db.WithContext(ctx).Model(&model.WikiNode{}).Where("id = ?", node.ID).Updates(map[string]interface{}{
+	query := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").Model(&model.WikiNode{}).Where("id = ?", node.ID)
+	result := query.Updates(map[string]interface{}{
 		"title":      node.Title,
 		"icon":       node.Icon,
 		"parent_id":  node.ParentID,
@@ -190,7 +211,8 @@ func (r *wikiRepository) UpdateNode(ctx context.Context, node *model.WikiNode) e
 }
 
 func (r *wikiRepository) DeleteNode(ctx context.Context, id string) error {
-	result := r.db.WithContext(ctx).Delete(&model.WikiNode{}, "id = ?", id)
+	query := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id")
+	result := query.Delete(&model.WikiNode{}, "id = ?", id)
 	if result.RowsAffected == 0 {
 		return ErrWikiNodeNotFound
 	}
@@ -199,26 +221,25 @@ func (r *wikiRepository) DeleteNode(ctx context.Context, id string) error {
 
 func (r *wikiRepository) CountChildNodes(ctx context.Context, parentID string) (int64, error) {
 	var count int64
-	err := r.db.WithContext(ctx).Model(&model.WikiNode{}).Where("parent_id = ?", parentID).Count(&count).Error
+	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
+		Model(&model.WikiNode{}).Where("parent_id = ?", parentID).Count(&count).Error
 	return count, err
 }
 
 func (r *wikiRepository) CreateDocument(ctx context.Context, doc *model.Document) error {
 	if doc.ID == "" {
-		doc.ID = ulid.Generate()
+		doc.ID = idgen.New()
 	}
 	doc.CreatedAt = time.Now()
 	doc.UpdatedAt = time.Now()
-	return r.db.WithContext(ctx).Create(doc).Error
+	return r.getDB(ctx).Create(doc).Error
 }
 
 func (r *wikiRepository) GetDocumentByNodeID(ctx context.Context, nodeID string) (*model.Document, error) {
 	var doc model.Document
-	query := r.db.WithContext(ctx).Model(&model.Document{}).
-		Joins("JOIN wiki_nodes wn ON wn.id = wiki_documents.node_id").
-		Joins("JOIN wiki_spaces ws ON ws.id = wn.space_id").
-		Where("wiki_documents.node_id = ?", nodeID)
-	query = tenantctx.FilterQuery(ctx, query, "ws.tenant_id")
+	query := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
+		Model(&model.Document{}).
+		Where("node_id = ?", nodeID)
 	err := query.First(&doc).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrDocumentNotFound
@@ -228,11 +249,9 @@ func (r *wikiRepository) GetDocumentByNodeID(ctx context.Context, nodeID string)
 
 func (r *wikiRepository) GetDocumentByID(ctx context.Context, id string) (*model.Document, error) {
 	var doc model.Document
-	query := r.db.WithContext(ctx).Model(&model.Document{}).
-		Joins("JOIN wiki_nodes wn ON wn.id = wiki_documents.node_id").
-		Joins("JOIN wiki_spaces ws ON ws.id = wn.space_id").
-		Where("wiki_documents.id = ?", id)
-	query = tenantctx.FilterQuery(ctx, query, "ws.tenant_id")
+	query := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
+		Model(&model.Document{}).
+		Where("id = ?", id)
 	err := query.First(&doc).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrDocumentNotFound
@@ -240,10 +259,12 @@ func (r *wikiRepository) GetDocumentByID(ctx context.Context, id string) (*model
 	return &doc, err
 }
 
-func (r *wikiRepository) UpdateDocument(ctx context.Context, doc *model.Document) error {
+func (r *wikiRepository) UpdateDocument(ctx context.Context, doc *model.Document, expectedVer int) error {
 	doc.UpdatedAt = time.Now()
 	now := time.Now()
-	result := r.db.WithContext(ctx).Model(&model.Document{}).Where("id = ?", doc.ID).Updates(map[string]interface{}{
+	query := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").Model(&model.Document{}).
+		Where("id = ? AND current_ver = ?", doc.ID, expectedVer)
+	result := query.Updates(map[string]interface{}{
 		"content":        doc.Content,
 		"content_html":   doc.ContentHTML,
 		"format":         doc.Format,
@@ -252,14 +273,25 @@ func (r *wikiRepository) UpdateDocument(ctx context.Context, doc *model.Document
 		"last_edited_at": &now,
 		"updated_at":     doc.UpdatedAt,
 	})
-	if result.RowsAffected == 0 {
-		return ErrDocumentNotFound
+	if result.Error != nil {
+		return result.Error
 	}
-	return result.Error
+	// RowsAffected == 0 可能是文档不存在，也可能是版本冲突
+	if result.RowsAffected == 0 {
+		var count int64
+		exists := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").Model(&model.Document{}).
+			Where("id = ?", doc.ID).Count(&count).Error
+		if exists != nil || count == 0 {
+			return ErrDocumentNotFound
+		}
+		return ErrDocumentVersionConflict
+	}
+	return nil
 }
 
 func (r *wikiRepository) DeleteDocument(ctx context.Context, id string) error {
-	result := r.db.WithContext(ctx).Delete(&model.Document{}, "id = ?", id)
+	query := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id")
+	result := query.Delete(&model.Document{}, "id = ?", id)
 	if result.RowsAffected == 0 {
 		return ErrDocumentNotFound
 	}
@@ -267,27 +299,33 @@ func (r *wikiRepository) DeleteDocument(ctx context.Context, id string) error {
 }
 
 func (r *wikiRepository) IncrementViewCount(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).Model(&model.Document{}).Where("id = ?", id).
+	return tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
+		Model(&model.Document{}).Where("id = ?", id).
 		UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
 }
 
 func (r *wikiRepository) CreateRevision(ctx context.Context, revision *model.DocumentRevision) error {
 	if revision.ID == "" {
-		revision.ID = ulid.Generate()
+		revision.ID = idgen.New()
+	}
+	if revision.TenantID == "" {
+		revision.TenantID = tenantctx.TenantID(ctx)
 	}
 	revision.CreatedAt = time.Now()
-	return r.db.WithContext(ctx).Create(revision).Error
+	return r.getDB(ctx).Create(revision).Error
 }
 
 func (r *wikiRepository) ListRevisions(ctx context.Context, documentID string) ([]*model.DocumentRevision, error) {
 	var revisions []*model.DocumentRevision
-	err := r.db.WithContext(ctx).Where("document_id = ?", documentID).Order("version DESC").Find(&revisions).Error
+	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
+		Where("document_id = ?", documentID).Order("version DESC").Find(&revisions).Error
 	return revisions, err
 }
 
 func (r *wikiRepository) GetRevisionByVersion(ctx context.Context, documentID string, version int) (*model.DocumentRevision, error) {
 	var revision model.DocumentRevision
-	err := r.db.WithContext(ctx).Where("document_id = ? AND version = ?", documentID, version).First(&revision).Error
+	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
+		Where("document_id = ? AND version = ?", documentID, version).First(&revision).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrRevisionNotFound
 	}
@@ -296,26 +334,32 @@ func (r *wikiRepository) GetRevisionByVersion(ctx context.Context, documentID st
 
 func (r *wikiRepository) AddMember(ctx context.Context, member *model.WikiSpaceMember) error {
 	if member.ID == "" {
-		member.ID = ulid.Generate()
+		member.ID = idgen.New()
+	}
+	if member.TenantID == "" {
+		member.TenantID = tenantctx.TenantID(ctx)
 	}
 	member.CreatedAt = time.Now()
 	member.UpdatedAt = time.Now()
-	return r.db.WithContext(ctx).Create(member).Error
+	return r.getDB(ctx).Create(member).Error
 }
 
 func (r *wikiRepository) RemoveMember(ctx context.Context, spaceID, userID string) error {
-	return r.db.WithContext(ctx).Where("space_id = ? AND user_id = ?", spaceID, userID).Delete(&model.WikiSpaceMember{}).Error
+	return tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
+		Where("space_id = ? AND user_id = ?", spaceID, userID).Delete(&model.WikiSpaceMember{}).Error
 }
 
 func (r *wikiRepository) ListMembers(ctx context.Context, spaceID string) ([]*model.WikiSpaceMember, error) {
 	var members []*model.WikiSpaceMember
-	err := r.db.WithContext(ctx).Where("space_id = ?", spaceID).Order("created_at ASC").Find(&members).Error
+	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
+		Where("space_id = ?", spaceID).Order("created_at ASC").Find(&members).Error
 	return members, err
 }
 
 func (r *wikiRepository) GetMember(ctx context.Context, spaceID, userID string) (*model.WikiSpaceMember, error) {
 	var member model.WikiSpaceMember
-	err := r.db.WithContext(ctx).Where("space_id = ? AND user_id = ?", spaceID, userID).First(&member).Error
+	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
+		Where("space_id = ? AND user_id = ?", spaceID, userID).First(&member).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -325,28 +369,19 @@ func (r *wikiRepository) GetMember(ctx context.Context, spaceID, userID string) 
 func (r *wikiRepository) GetWikiStats(ctx context.Context, tenantID string) (*model.WikiStats, error) {
 	var stats model.WikiStats
 
-	r.db.WithContext(ctx).Model(&model.WikiSpace{}).Where("tenant_id = ?", tenantID).Count(&stats.TotalSpaces)
+	r.getDB(ctx).Model(&model.WikiSpace{}).Where("tenant_id = ?", tenantID).Count(&stats.TotalSpaces)
 
 	var nodeCount int64
-	r.db.WithContext(ctx).Model(&model.WikiNode{}).
-		Joins("JOIN wiki_spaces ws ON ws.id = wiki_nodes.space_id").
-		Where("ws.tenant_id = ?", tenantID).
-		Count(&nodeCount)
+	r.getDB(ctx).Model(&model.WikiNode{}).Where("tenant_id = ?", tenantID).Count(&nodeCount)
 	stats.TotalNodes = nodeCount
 
 	var docCount int64
-	r.db.WithContext(ctx).Model(&model.Document{}).
-		Joins("JOIN wiki_nodes wn ON wn.id = wiki_documents.node_id").
-		Joins("JOIN wiki_spaces ws ON ws.id = wn.space_id").
-		Where("ws.tenant_id = ?", tenantID).
-		Count(&docCount)
+	r.getDB(ctx).Model(&model.Document{}).Where("tenant_id = ?", tenantID).Count(&docCount)
 	stats.TotalDocuments = docCount
 
 	var viewCount int64
-	_ = r.db.WithContext(ctx).Model(&model.Document{}).
-		Joins("JOIN wiki_nodes wn ON wn.id = wiki_documents.node_id").
-		Joins("JOIN wiki_spaces ws ON ws.id = wn.space_id").
-		Where("ws.tenant_id = ?", tenantID).
+	_ = r.getDB(ctx).Model(&model.Document{}).
+		Where("tenant_id = ?", tenantID).
 		Select("COALESCE(SUM(view_count), 0)").
 		Scan(&viewCount).Error
 	stats.TotalViews = viewCount

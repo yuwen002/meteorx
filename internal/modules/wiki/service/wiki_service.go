@@ -8,7 +8,11 @@ import (
 	"meteorx/internal/modules/wiki/dto"
 	"meteorx/internal/modules/wiki/model"
 	"meteorx/internal/modules/wiki/repository"
-	"meteorx/pkg/ulid"
+	apperrors "meteorx/internal/pkg/apperrors"
+	db "meteorx/internal/pkg/db"
+	"meteorx/pkg/idgen"
+
+	"gorm.io/gorm"
 )
 
 type WikiService interface {
@@ -48,36 +52,49 @@ type WikiService interface {
 
 type wikiService struct {
 	repo repository.WikiRepository
+	tx   *db.TxManager
 }
 
-func NewWikiService(repo repository.WikiRepository) WikiService {
-	return &wikiService{repo: repo}
+func NewWikiService(repo repository.WikiRepository, tx *db.TxManager) WikiService {
+	return &wikiService{repo: repo, tx: tx}
 }
 
 func (s *wikiService) CreateSpace(ctx context.Context, tenantID string, userID string, req *dto.CreateWikiSpaceReq) (*dto.WikiSpaceResp, error) {
-	space := &model.WikiSpace{
-		Name:        req.Name,
-		Description: req.Description,
-		Icon:        req.Icon,
-		Visibility:  req.Visibility,
-		TenantID:    tenantID,
-		CreatedBy:   userID,
-	}
+	var resp *dto.WikiSpaceResp
+	err := s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
+		space := &model.WikiSpace{
+			Name:        req.Name,
+			Description: req.Description,
+			Icon:        req.Icon,
+			Visibility:  req.Visibility,
+			TenantID:    tenantID,
+			CreatedBy:   userID,
+		}
 
-	if err := s.repo.CreateSpace(ctx, space); err != nil {
+		if err := s.repo.CreateSpace(txCtx, space); err != nil {
+			return err
+		}
+
+		member := &model.WikiSpaceMember{
+			SpaceID: space.ID,
+			UserID:  userID,
+			Role:    model.SpaceRoleOwner,
+		}
+		if err := s.repo.AddMember(txCtx, member); err != nil {
+			return err
+		}
+
+		buildResp, err := s.buildSpaceResp(txCtx, space, userID)
+		if err != nil {
+			return err
+		}
+		resp = buildResp
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
-
-	member := &model.WikiSpaceMember{
-		SpaceID: space.ID,
-		UserID:   userID,
-		Role:     model.SpaceRoleOwner,
-	}
-	if err := s.repo.AddMember(ctx, member); err != nil {
-		return nil, err
-	}
-
-	return s.buildSpaceResp(ctx, space, userID)
+	return resp, nil
 }
 
 func (s *wikiService) GetSpace(ctx context.Context, id string, userID string) (*dto.WikiSpaceResp, error) {
@@ -163,45 +180,57 @@ func (s *wikiService) buildSpaceResp(ctx context.Context, space *model.WikiSpace
 
 func (s *wikiService) CreateNode(ctx context.Context, spaceID string, userID string, req *dto.CreateWikiNodeReq) (*dto.WikiNodeResp, error) {
 	if req.Type == model.NodeTypeDocument {
-		var parentID string
-		if req.ParentID != "" {
-			parentID = req.ParentID
-			parent, err := s.repo.GetNodeByID(ctx, parentID)
+		var resp *dto.WikiNodeResp
+		err := s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
+			var parentID string
+			if req.ParentID != "" {
+				parentID = req.ParentID
+				parent, err := s.repo.GetNodeByID(txCtx, parentID)
+				if err != nil {
+					return err
+				}
+				if parent.Type != model.NodeTypeFolder {
+					return errors.New("document parent must be a folder")
+				}
+			}
+
+			node := &model.WikiNode{
+				SpaceID:  spaceID,
+				ParentID: parentID,
+				Type:     model.NodeTypeDocument,
+				Title:    req.Title,
+				Icon:     req.Icon,
+				Sort:     req.Sort,
+				OwnerID:  userID,
+				Status:   model.NodeStatusActive,
+			}
+			if err := s.repo.CreateNode(txCtx, node); err != nil {
+				return err
+			}
+
+			doc := &model.Document{
+				NodeID:  node.ID,
+				Content: req.Content,
+				Format:  "markdown",
+			}
+			if req.Content == "" {
+				doc.Content = "# " + req.Title + "\n\n"
+			}
+			if err := s.repo.CreateDocument(txCtx, doc); err != nil {
+				return err
+			}
+
+			buildResp, err := s.buildNodeResp(txCtx, node)
 			if err != nil {
-				return nil, err
+				return err
 			}
-			if parent.Type != model.NodeTypeFolder {
-				return nil, errors.New("document parent must be a folder")
-			}
-		}
-
-		node := &model.WikiNode{
-			SpaceID:  spaceID,
-			ParentID: parentID,
-			Type:     model.NodeTypeDocument,
-			Title:    req.Title,
-			Icon:     req.Icon,
-			Sort:     req.Sort,
-			OwnerID:  userID,
-			Status:   model.NodeStatusActive,
-		}
-		if err := s.repo.CreateNode(ctx, node); err != nil {
+			resp = buildResp
+			return nil
+		})
+		if err != nil {
 			return nil, err
 		}
-
-		doc := &model.Document{
-			NodeID: node.ID,
-			Content: req.Content,
-			Format:  "markdown",
-		}
-		if req.Content == "" {
-			doc.Content = "# " + req.Title + "\n\n"
-		}
-		if err := s.repo.CreateDocument(ctx, doc); err != nil {
-			return nil, err
-		}
-
-		return s.buildNodeResp(ctx, node)
+		return resp, nil
 	}
 
 	var parentID string
@@ -325,9 +354,17 @@ func (s *wikiService) UpdateNode(ctx context.Context, id string, req *dto.Update
 }
 
 func (s *wikiService) DeleteNode(ctx context.Context, id string) error {
+	return s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
+		return s.deleteNodeRecursive(txCtx, id)
+	})
+}
+
+// deleteNodeRecursive 递归删除节点及其所有后代。
+// 仅在被 WithTx 包裹的最外层调用，避免递归产生嵌套事务。
+func (s *wikiService) deleteNodeRecursive(ctx context.Context, id string) error {
 	children, _ := s.repo.ListChildNodes(ctx, id)
 	for _, child := range children {
-		if err := s.DeleteNode(ctx, child.ID); err != nil {
+		if err := s.deleteNodeRecursive(ctx, child.ID); err != nil {
 			return err
 		}
 	}
@@ -357,7 +394,7 @@ func (s *wikiService) CreateDocument(ctx context.Context, nodeID string, userID 
 	}
 
 	doc := &model.Document{
-		NodeID: nodeID,
+		NodeID:  nodeID,
 		Content: req.Content,
 		Format:  req.Format,
 	}
@@ -388,48 +425,73 @@ func (s *wikiService) GetDocument(ctx context.Context, nodeID string, userID str
 }
 
 func (s *wikiService) UpdateDocument(ctx context.Context, id string, userID string, req *dto.UpdateDocumentReq) (*dto.DocumentResp, error) {
-	doc, err := s.repo.GetDocumentByID(ctx, id)
+	var resp *dto.DocumentResp
+	err := s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
+		doc, err := s.repo.GetDocumentByID(txCtx, id)
+		if err != nil {
+			return err
+		}
+		expectedVer := doc.CurrentVer
+
+		if req.Content != "" {
+			revision := &model.DocumentRevision{
+				DocumentID:  doc.ID,
+				Version:     doc.CurrentVer,
+				Content:     doc.Content,
+				ContentHTML: doc.ContentHTML,
+				Summary:     req.Summary,
+				EditedBy:    doc.LastEditedBy,
+			}
+			if err := s.repo.CreateRevision(txCtx, revision); err != nil {
+				return err
+			}
+
+			doc.Content = req.Content
+			doc.CurrentVer++
+			doc.LastEditedBy = userID
+			now := time.Now()
+			doc.LastEditedAt = &now
+		}
+
+		if req.Format != "" {
+			doc.Format = req.Format
+		}
+
+		if err := s.repo.UpdateDocument(txCtx, doc, expectedVer); err != nil {
+			if errors.Is(err, repository.ErrDocumentVersionConflict) {
+				return apperrors.NewConflict("文档已被其他用户修改，请刷新后重试")
+			}
+			return err
+		}
+
+		node, err := s.repo.GetNodeByID(txCtx, doc.NodeID)
+		if err != nil {
+			return err
+		}
+		buildResp, err := s.buildDocumentResp(txCtx, node, doc)
+		if err != nil {
+			return err
+		}
+		resp = buildResp
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	if req.Content != "" {
-		revision := &model.DocumentRevision{
-			DocumentID:  doc.ID,
-			Version:     doc.CurrentVer,
-			Content:     doc.Content,
-			ContentHTML: doc.ContentHTML,
-			Summary:     req.Summary,
-			EditedBy:    doc.LastEditedBy,
-		}
-		_ = s.repo.CreateRevision(ctx, revision)
-
-		doc.Content = req.Content
-		doc.CurrentVer++
-		doc.LastEditedBy = userID
-		now := time.Now()
-		doc.LastEditedAt = &now
-	}
-
-	if req.Format != "" {
-		doc.Format = req.Format
-	}
-
-	if err := s.repo.UpdateDocument(ctx, doc); err != nil {
-		return nil, err
-	}
-
-	node, _ := s.repo.GetNodeByID(ctx, doc.NodeID)
-	return s.buildDocumentResp(ctx, node, doc)
+	return resp, nil
 }
 
 func (s *wikiService) DeleteDocument(ctx context.Context, id string) error {
-	doc, err := s.repo.GetDocumentByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	_ = s.repo.DeleteNode(ctx, doc.NodeID)
-	return s.repo.DeleteDocument(ctx, id)
+	return s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
+		doc, err := s.repo.GetDocumentByID(txCtx, id)
+		if err != nil {
+			return err
+		}
+		if err := s.deleteNodeRecursive(txCtx, doc.NodeID); err != nil {
+			return err
+		}
+		return s.repo.DeleteDocument(txCtx, id)
+	})
 }
 
 func (s *wikiService) buildDocumentResp(ctx context.Context, node *model.WikiNode, doc *model.Document) (*dto.DocumentResp, error) {
@@ -512,7 +574,10 @@ func (s *wikiService) RestoreRevision(ctx context.Context, documentID string, ve
 	now := time.Now()
 	doc.LastEditedAt = &now
 
-	if err := s.repo.UpdateDocument(ctx, doc); err != nil {
+	if err := s.repo.UpdateDocument(ctx, doc, currentVer); err != nil {
+		if errors.Is(err, repository.ErrDocumentVersionConflict) {
+			return nil, apperrors.NewConflict("文档已被其他用户修改，请刷新后重试")
+		}
 		return nil, err
 	}
 
@@ -523,8 +588,8 @@ func (s *wikiService) RestoreRevision(ctx context.Context, documentID string, ve
 func (s *wikiService) AddMember(ctx context.Context, spaceID string, req *dto.WikiSpaceMemberReq) (*dto.WikiSpaceMemberResp, error) {
 	member := &model.WikiSpaceMember{
 		SpaceID: spaceID,
-		UserID:   req.UserID,
-		Role:     req.Role,
+		UserID:  req.UserID,
+		Role:    req.Role,
 	}
 	if err := s.repo.AddMember(ctx, member); err != nil {
 		return nil, err
@@ -575,5 +640,5 @@ func (s *wikiService) GetStats(ctx context.Context, tenantID string) (*dto.WikiS
 }
 
 func (s *wikiService) generateID() string {
-	return ulid.Generate()
+	return idgen.New()
 }

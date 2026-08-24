@@ -187,7 +187,10 @@ const search = reactive({ keyword: '', file_type: '' })
 
 // 上传相关
 const uploadDialogVisible = ref(false)
-const uploadRef = ref<UploadInstance>()
+// Element Plus 的 UploadInstance 类型未暴露内部 uploadFiles 列表，
+// 通过交叉类型扩展以便移除超限文件。
+type UploadInstanceWithFiles = UploadInstance & { uploadFiles: UploadUserFile[] }
+const uploadRef = ref<UploadInstanceWithFiles>()
 const uploading = ref(false)
 const fileList = ref<UploadUserFile[]>([])
 const uploadProgress = ref(0)

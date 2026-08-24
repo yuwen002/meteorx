@@ -27,6 +27,7 @@ import (
 	"meteorx/internal/modules/user"
 	userRepo "meteorx/internal/modules/user/repository"
 	"meteorx/internal/modules/wiki"
+	dbpkg "meteorx/internal/pkg/db"
 	"meteorx/pkg/security"
 )
 
@@ -35,6 +36,9 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 	SetupMiddleware(r)
 
 	tokenHelper := jwt.NewTokenHelper(cfg.JWT)
+
+	// 初始化事务管理器
+	txManager := dbpkg.NewTxManager(db)
 
 	// 初始化限流器
 	rateLimiter := security.NewRateLimiter(rdb, cfg.Security.RateLimit)
@@ -101,7 +105,7 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 			file.RegisterRoutes(r, db, cfg)
 
 			// 4.4 Wiki 知识库接口
-			wiki.InitModule(r, db)
+			wiki.InitModule(r, db, txManager)
 
 			// ========================================================
 			// 🔥 新增分组三：MaaS 平台运营后台特权接口 (Platform Admin Only)

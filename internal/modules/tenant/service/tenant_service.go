@@ -14,7 +14,7 @@ import (
 	userModel "meteorx/internal/modules/user/model"
 	userRepo "meteorx/internal/modules/user/repository"
 	"meteorx/pkg/crypto"
-	"meteorx/pkg/ulid"
+	"meteorx/pkg/idgen"
 	"time"
 )
 
@@ -103,8 +103,8 @@ func (s *TenantService) Register(ctx context.Context, req dto.RegisterTenantReq)
 	}
 
 	// 4. 生成符合 size:26 限制的唯一 ID (使用 ULID，高并发安全、支持字典序排序)
-	tenantID := ulid.Generate()
-	userID := ulid.Generate()
+	tenantID := idgen.New()
+	userID := idgen.New()
 
 	// 5. 密码加密
 	hashedPassword, err := crypto.HashPassword(req.AdminUser.Password)
@@ -154,8 +154,8 @@ func (s *TenantService) Register(ctx context.Context, req dto.RegisterTenantReq)
 // AdminCreate 后台管理员手动创建租户
 func (s *TenantService) AdminCreate(ctx context.Context, req dto.AdminCreateTenantReq) (*tenantModel.Tenant, error) {
 	// 1. 唯一 ID 生成
-	tenantID := ulid.Generate()
-	userID := ulid.Generate()
+	tenantID := idgen.New()
+	userID := idgen.New()
 
 	// 2. 初始管理员密码加密
 	hashedPassword, err := crypto.HashPassword(req.AdminUser.Password)
@@ -423,7 +423,7 @@ func (s *TenantService) ApplyCancellation(ctx context.Context, tenantID string, 
 	// 3. 创建注销申请记录
 	now := time.Now()
 	cancelReq := &tenantModel.CancelRequest{
-		ID:         ulid.Generate(),
+		ID:         idgen.New(),
 		TenantID:   tenant.ID,
 		TenantName: tenant.Name,
 		Reason:     req.Reason,

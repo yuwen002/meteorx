@@ -5,7 +5,7 @@ import (
 	"meteorx/internal/modules/audit/dto"
 	"meteorx/internal/modules/audit/model"
 	"meteorx/internal/modules/audit/repository"
-	"meteorx/pkg/ulid"
+	"meteorx/pkg/idgen"
 	"time"
 )
 
@@ -22,7 +22,7 @@ func NewAuditService(repo repository.AuditLogRepository) *AuditService {
 // CreateLog 创建审计日志
 func (s *AuditService) CreateLog(ctx context.Context, req dto.CreateAuditLogReq) (*model.AuditLog, error) {
 	log := &model.AuditLog{
-		ID:           ulid.Generate(),
+		ID:           idgen.New(),
 		UserID:       req.UserID,
 		Username:     req.Username,
 		TenantID:     req.TenantID,

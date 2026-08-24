@@ -16,7 +16,7 @@ import (
 	"meteorx/internal/modules/user/repository"
 	"meteorx/internal/pkg/emailer"
 	"meteorx/pkg/crypto"
-	"meteorx/pkg/uuid"
+	"meteorx/pkg/idgen"
 )
 
 const (
@@ -98,7 +98,7 @@ func (s *AuthService) Register(ctx context.Context, req dto.RegisterUserReq) (*m
 
 	now := time.Now()
 	user := &model.User{
-		ID:        uuid.Generate(),
+		ID:        idgen.NewUUID(),
 		TenantID:  req.TenantID,
 		Username:  req.Username,
 		Password:  hashedPassword,
@@ -270,7 +270,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 		return errors.New("email service not configured")
 	}
 
-	token := uuid.Generate()
+	token := idgen.NewUUID()
 
 	key := fmt.Sprintf("%s%s", passwordResetPrefix, token)
 	if err := s.redis.Set(ctx, key, user.ID, resetTokenExpire); err != nil {

@@ -7,7 +7,7 @@ import (
 	"meteorx/internal/modules/rbac/dto"
 	"meteorx/internal/modules/rbac/model"
 	"meteorx/internal/modules/rbac/repository"
-	"meteorx/pkg/ulid"
+	"meteorx/pkg/idgen"
 	"strconv"
 	"time"
 )
@@ -60,7 +60,7 @@ func (s *RBACService) CreateRole(ctx context.Context, req dto.CreateRoleReq) (*m
 	}
 
 	role := &model.Role{
-		ID:          ulid.Generate(),
+		ID:          idgen.New(),
 		Name:        req.Name,
 		Code:        req.Code,
 		Description: req.Description,
@@ -235,7 +235,7 @@ func (s *RBACService) CreatePermission(ctx context.Context, req dto.CreatePermis
 	}
 
 	permission := &model.Permission{
-		ID:          ulid.Generate(),
+		ID:          idgen.New(),
 		Name:        req.Name,
 		Code:        req.Code,
 		Description: req.Description,
@@ -267,7 +267,7 @@ func (s *RBACService) SeedPermissions(ctx context.Context, defs []*model.Permiss
 
 		// 不存在则插入
 		permission := &model.Permission{
-			ID:          ulid.Generate(),
+			ID:          idgen.New(),
 			Name:        p.Name,
 			Code:        p.Code,
 			Description: p.Description,

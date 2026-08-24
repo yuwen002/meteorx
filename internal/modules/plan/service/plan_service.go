@@ -10,7 +10,7 @@ import (
 	"meteorx/internal/modules/plan/dto"
 	"meteorx/internal/modules/plan/model"
 	"meteorx/internal/modules/plan/repository"
-	"meteorx/pkg/ulid"
+	"meteorx/pkg/idgen"
 )
 
 // 业务错误定义
@@ -64,7 +64,7 @@ func (s *PlanService) CreatePlan(ctx context.Context, req dto.CreatePlanReq) (*d
 	}
 
 	plan := &model.Plan{
-		ID:          ulid.Generate(),
+		ID:          idgen.New(),
 		Name:        req.Name,
 		Code:        req.Code,
 		Description: req.Description,
@@ -245,7 +245,7 @@ func (s *PlanService) AssignPlan(ctx context.Context, tenantID string, req dto.A
 
 	// 创建新订阅
 	sub := &model.TenantSubscription{
-		ID:        ulid.Generate(),
+		ID:        idgen.New(),
 		TenantID:  tenantID,
 		PlanID:    plan.ID,
 		Status:    model.SubscriptionActive,
@@ -341,7 +341,7 @@ func (s *PlanService) UpdateSubscriptionExpiry(ctx context.Context, tenantID str
 	}
 	// 重新创建一条订阅记录，保留历史
 	newSub := &model.TenantSubscription{
-		ID:        ulid.Generate(),
+		ID:        idgen.New(),
 		TenantID:  tenantID,
 		PlanID:    sub.PlanID,
 		Status:    model.SubscriptionActive,

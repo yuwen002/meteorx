@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/oklog/ulid/v2"
+	"meteorx/pkg/idgen"
 )
 
 // LocalStorage 本地文件存储实现
@@ -30,7 +30,7 @@ func NewLocalStorage(basePath, baseURL string) *LocalStorage {
 func (s *LocalStorage) Upload(ctx context.Context, reader io.Reader, originalName string) (string, error) {
 	// 生成唯一文件名
 	ext := filepath.Ext(originalName)
-	fileName := ulid.Make().String() + ext
+	fileName := idgen.New() + ext
 	
 	// 构建完整路径
 	fullPath := filepath.Join(s.basePath, fileName)

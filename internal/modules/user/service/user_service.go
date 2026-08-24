@@ -13,7 +13,7 @@ import (
 	"meteorx/internal/modules/user/model"
 	"meteorx/internal/modules/user/repository"
 	"meteorx/pkg/crypto"
-	ulpkg "meteorx/pkg/ulid"
+	"meteorx/pkg/idgen"
 )
 
 type UserService struct {
@@ -271,7 +271,7 @@ func (s *UserService) Create(ctx context.Context, tenantID string, req dto.Creat
 	}
 
 	user := &model.User{
-		ID:       ulpkg.Generate(),
+		ID:       idgen.New(),
 		TenantID: tenantID,
 		Username: req.Username,
 		Password: hashedPassword,
@@ -408,7 +408,7 @@ func (s *UserService) CreateMasterAdmin(ctx context.Context, req dto.CreateMaste
 	}
 
 	user := &model.User{
-		ID:       ulpkg.Generate(),
+		ID:       idgen.New(),
 		TenantID: "SYSTEM_ROOT",
 		Username: req.Username,
 		Password: hashedPassword,
@@ -619,7 +619,7 @@ func (s *UserService) AdminCreateTenantUser(ctx context.Context, req dto.AdminCr
 	}
 
 	user := &model.User{
-		ID:       ulpkg.Generate(),
+		ID:       idgen.New(),
 		TenantID: req.TenantID,
 		Username: req.Username,
 		Password: hashedPassword,
