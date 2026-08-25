@@ -20,70 +20,64 @@ import (
 )
 
 // AutoMigrate 执行数据库迁移
+// 关键迁移失败会返回错误并阻止应用启动；非关键迁移仅记录警告
 func AutoMigrate(db *gorm.DB) error {
 	fmt.Println("Running database migrations...")
 
-	err := authrepo.AutoMigrate(db)
-	if err != nil {
-		log.Printf("Migration failed: %v", err)
-		return err
+	var criticalErrs []string
+	var nonCriticalErrs []string
+
+	// ---- 关键迁移：失败则阻止启动 ----
+	critical := []struct {
+		name string
+		fn   func(db *gorm.DB) error
+	}{
+		{"users", authrepo.AutoMigrate},
+		{"tenants", tenantrepo.AutoMigrate},
+		{"tenant_settings", tenantrepo.AutoMigrateTenantSettings},
+		{"cancel_requests", tenantrepo.CancelRequestsAutoMigrate},
+		{"plans", planrepo.AutoMigrate},
+		{"rbac", rbacrepo.AutoMigrate},
 	}
 
-	err = tenantrepo.AutoMigrate(db)
-	if err != nil {
-		log.Printf("Migration failed: %v", err)
-		return err
+	for _, m := range critical {
+		if err := m.fn(db); err != nil {
+			criticalErrs = append(criticalErrs, fmt.Sprintf("%s: %v", m.name, err))
+		}
 	}
 
-	err = tenantrepo.AutoMigrateTenantSettings(db)
-	if err != nil {
-		log.Printf("Tenant settings migration failed: %v", err)
-		return err
+	// ---- 非关键迁移：失败仅警告，不阻止启动 ----
+	nonCritical := []struct {
+		name string
+		fn   func(db *gorm.DB) error
+	}{
+		{"audit", repository.AutoMigrate},
+		{"files", file.AutoMigrate},
+		{"notifications", notificationrepo.AutoMigrate},
+		{"wiki", wikirepo.AutoMigrate},
 	}
 
-	err = tenantrepo.CancelRequestsAutoMigrate(db)
-	if err != nil {
-		log.Printf("Cancel request migration failed: %v", err)
-		return err
+	for _, m := range nonCritical {
+		if err := m.fn(db); err != nil {
+			nonCriticalErrs = append(nonCriticalErrs, fmt.Sprintf("%s: %v", m.name, err))
+		}
 	}
 
-	err = planrepo.AutoMigrate(db)
-	if err != nil {
-		log.Printf("Plan migration failed: %v", err)
-		return err
+	// 处理结果
+	if len(nonCriticalErrs) > 0 {
+		for _, e := range nonCriticalErrs {
+			log.Printf("[WARN] Non-critical migration failed: %s", e)
+		}
 	}
 
-	err = rbacrepo.AutoMigrate(db)
-	if err != nil {
-		log.Printf("RBAC migration failed: %v", err)
-		return err
-	}
-
-	err = repository.AutoMigrate(db)
-	if err != nil {
-		log.Printf("Audit migration failed: %v", err)
-		return err
-	}
-
-	err = file.AutoMigrate(db)
-	if err != nil {
-		log.Printf("File migration failed: %v", err)
-		return err
-	}
-
-	err = notificationrepo.AutoMigrate(db)
-	if err != nil {
-		log.Printf("Notification migration failed: %v", err)
-		return err
-	}
-
-	err = wikirepo.AutoMigrate(db)
-	if err != nil {
-		log.Printf("Wiki migration failed: %v", err)
-		return err
+	if len(criticalErrs) > 0 {
+		return fmt.Errorf("critical migrations failed: %s", strings.Join(criticalErrs, "; "))
 	}
 
 	fmt.Println("Migrations completed successfully")
+	if len(nonCriticalErrs) > 0 {
+		log.Printf("Note: %d non-critical migration(s) failed, but the app will continue to run")
+	}
 	return nil
 }
 

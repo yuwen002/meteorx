@@ -20,53 +20,81 @@
           <template #title>首页</template>
         </el-menu-item>
 
-        <el-menu-item index="/tenant-settings" v-if="userStore.hasPermission('tenant:settings') || !userStore.isAdmin">
-          <el-icon><Setting /></el-icon>
-          <template #title>租户设置</template>
-        </el-menu-item>
-
-        <el-sub-menu index="/system">
+        <el-sub-menu index="/workspace">
           <template #title>
-            <el-icon><Setting /></el-icon>
-            <span>系统管理</span>
+            <el-icon><Monitor /></el-icon>
+            <span>工作台</span>
           </template>
-          <el-menu-item index="/system/user" v-if="userStore.hasPermission('user:list') || userStore.isAdmin">
-            <el-icon><User /></el-icon>
-            <template #title>用户管理</template>
+          <el-menu-item index="/announcement">
+            <el-icon><Bell /></el-icon>
+            <template #title>平台公告</template>
           </el-menu-item>
-          <el-menu-item index="/system/role" v-if="userStore.hasPermission('rbac:role:list') || userStore.isAdmin">
-            <el-icon><UserFilled /></el-icon>
-            <template #title>角色管理</template>
+          <el-menu-item index="/tenant-settings">
+            <el-icon><Setting /></el-icon>
+            <template #title>租户设置</template>
           </el-menu-item>
-          <el-menu-item index="/system/permission" v-if="userStore.hasPermission('rbac:perm:list') || userStore.isAdmin">
-            <el-icon><Lock /></el-icon>
-            <template #title>权限管理</template>
-          </el-menu-item>
-          <el-menu-item index="/system/master-admin" v-if="userStore.isAdmin">
-            <el-icon><Avatar /></el-icon>
-            <template #title>系统管理员</template>
-          </el-menu-item>
-          <el-menu-item index="/system/tenant" v-if="userStore.isAdmin">
-            <el-icon><OfficeBuilding /></el-icon>
-            <template #title>租户管理</template>
-          </el-menu-item>
-          <el-menu-item index="/system/audit" v-if="userStore.isAdmin">
-            <el-icon><Document /></el-icon>
-            <template #title>审计日志</template>
-          </el-menu-item>
-          <el-menu-item index="/system/cancel-request" v-if="userStore.isAdmin">
-            <el-icon><CloseBold /></el-icon>
-            <template #title>注销审批</template>
-          </el-menu-item>
-          <el-menu-item index="/system/plan" v-if="userStore.isAdmin">
-            <el-icon><Goods /></el-icon>
-            <template #title>套餐管理</template>
+          <el-menu-item index="/wiki" v-if="userStore.hasPermission('wiki:list') || userStore.isAdmin">
+            <el-icon><Reading /></el-icon>
+            <template #title>知识库</template>
           </el-menu-item>
           <el-menu-item index="/system/file" v-if="userStore.hasPermission('file:list') || userStore.isAdmin">
             <el-icon><Folder /></el-icon>
             <template #title>文件管理</template>
           </el-menu-item>
-          <el-menu-item index="/system/announcement" v-if="userStore.isAdmin">
+        </el-sub-menu>
+
+        <el-sub-menu index="/platform" v-if="userStore.isAdmin">
+          <template #title>
+            <el-icon><Platform /></el-icon>
+            <span>平台管理</span>
+          </template>
+          <el-menu-item index="/system/user">
+            <el-icon><User /></el-icon>
+            <template #title>用户管理</template>
+          </el-menu-item>
+          <el-menu-item index="/system/role">
+            <el-icon><UserFilled /></el-icon>
+            <template #title>角色管理</template>
+          </el-menu-item>
+          <el-menu-item index="/system/permission">
+            <el-icon><Lock /></el-icon>
+            <template #title>权限管理</template>
+          </el-menu-item>
+          <el-menu-item index="/system/master-admin">
+            <el-icon><Avatar /></el-icon>
+            <template #title>系统管理员</template>
+          </el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="/tenant-mgmt" v-if="userStore.isAdmin">
+          <template #title>
+            <el-icon><OfficeBuilding /></el-icon>
+            <span>租户运营</span>
+          </template>
+          <el-menu-item index="/system/tenant">
+            <el-icon><OfficeBuilding /></el-icon>
+            <template #title>租户管理</template>
+          </el-menu-item>
+          <el-menu-item index="/system/plan">
+            <el-icon><Goods /></el-icon>
+            <template #title>套餐管理</template>
+          </el-menu-item>
+          <el-menu-item index="/system/cancel-request">
+            <el-icon><CloseBold /></el-icon>
+            <template #title>注销审批</template>
+          </el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="/system" v-if="userStore.isAdmin">
+          <template #title>
+            <el-icon><Setting /></el-icon>
+            <span>系统</span>
+          </template>
+          <el-menu-item index="/system/audit">
+            <el-icon><Document /></el-icon>
+            <template #title>审计日志</template>
+          </el-menu-item>
+          <el-menu-item index="/system/announcement">
             <el-icon><Bell /></el-icon>
             <template #title>公告管理</template>
           </el-menu-item>
@@ -126,7 +154,27 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Document, Folder, Goods, Setting } from '@element-plus/icons-vue'
+import {
+  ArrowDown,
+  Avatar,
+  Bell,
+  CloseBold,
+  Document,
+  Expand,
+  Fold,
+  Folder,
+  Goods,
+  HomeFilled,
+  Lock,
+  Monitor,
+  OfficeBuilding,
+  Platform,
+  Reading,
+  Setting,
+  SwitchButton,
+  User,
+  UserFilled
+} from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'

@@ -4,12 +4,12 @@ import "time"
 
 type WikiSpace struct {
 	ID          string    `gorm:"primaryKey"`
-	TenantID    string    `gorm:"index;not null"`
+	TenantID    string    `gorm:"index;size:26;not null"`
 	Name        string    `gorm:"not null;size:200"`
 	Description string    `gorm:"size:500"`
 	Icon        string    `gorm:"size:255"`
 	Visibility  int       `gorm:"not null;default:1"`
-	CreatedBy   string    `gorm:"index"`
+	CreatedBy   string    `gorm:"index;size:26"`
 	CreatedAt   time.Time `gorm:"index"`
 	UpdatedAt   time.Time
 	DeletedAt   *time.Time `gorm:"index"`
@@ -27,14 +27,14 @@ func (WikiSpace) TableName() string {
 
 type WikiNode struct {
 	ID        string    `gorm:"primaryKey"`
-	TenantID  string    `gorm:"index;not null"`
-	SpaceID   string    `gorm:"index;not null"`
-	ParentID  string    `gorm:"index;default:''"`
+	TenantID  string    `gorm:"index;size:26;not null"`
+	SpaceID   string    `gorm:"index;size:26;not null"`
+	ParentID  string    `gorm:"index;size:26;default:''"`
 	Type      string    `gorm:"not null;size:20"`
 	Title     string    `gorm:"not null;size:500"`
 	Icon      string    `gorm:"size:255"`
 	Sort      int       `gorm:"default:0"`
-	OwnerID   string    `gorm:"index"`
+	OwnerID   string    `gorm:"index;size:26"`
 	Status    int       `gorm:"not null;default:1"`
 	CreatedAt time.Time `gorm:"index"`
 	UpdatedAt time.Time
@@ -55,14 +55,14 @@ func (WikiNode) TableName() string {
 
 type Document struct {
 	ID           string `gorm:"primaryKey"`
-	TenantID     string `gorm:"index;not null"`
-	NodeID       string `gorm:"uniqueIndex;not null"`
+	TenantID     string `gorm:"index;size:26;not null"`
+	NodeID       string `gorm:"size:26;uniqueIndex;not null"`
 	Content      string `gorm:"type:mediumtext"`
 	ContentHTML  string `gorm:"type:mediumtext"`
 	Format       string `gorm:"not null;default:'markdown';size:50"`
 	CurrentVer   int    `gorm:"not null;default:1"`
 	ViewCount    int64  `gorm:"not null;default:0"`
-	LastEditedBy string `gorm:"index"`
+	LastEditedBy string `gorm:"index;size:26"`
 	LastEditedAt *time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -75,13 +75,13 @@ func (Document) TableName() string {
 
 type DocumentRevision struct {
 	ID          string    `gorm:"primaryKey"`
-	TenantID    string    `gorm:"index;not null"`
-	DocumentID  string    `gorm:"index;not null"`
+	TenantID    string    `gorm:"index;size:26;not null"`
+	DocumentID  string    `gorm:"index;size:26;not null"`
 	Version     int       `gorm:"not null"`
 	Content     string    `gorm:"type:mediumtext"`
 	ContentHTML string    `gorm:"type:mediumtext"`
 	Summary     string    `gorm:"size:500"`
-	EditedBy    string    `gorm:"index"`
+	EditedBy    string    `gorm:"index;size:26"`
 	CreatedAt   time.Time `gorm:"index"`
 }
 
@@ -91,9 +91,9 @@ func (DocumentRevision) TableName() string {
 
 type WikiSpaceMember struct {
 	ID        string `gorm:"primaryKey"`
-	TenantID  string `gorm:"index;not null"`
-	SpaceID   string `gorm:"index;not null"`
-	UserID    string `gorm:"index;not null"`
+	TenantID  string `gorm:"index;size:26;not null"`
+	SpaceID   string `gorm:"index;size:26;not null"`
+	UserID    string `gorm:"index;size:26;not null"`
 	Role      string `gorm:"not null;size:50"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -112,8 +112,8 @@ func (WikiSpaceMember) TableName() string {
 
 type WikiNodePermission struct {
 	ID         string `gorm:"primaryKey"`
-	NodeID     string `gorm:"index;not null"`
-	UserID     string `gorm:"index;not null"`
+	NodeID     string `gorm:"index;size:26;not null"`
+	UserID     string `gorm:"index;size:26;not null"`
 	Permission string `gorm:"not null;size:20"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time

@@ -24,6 +24,16 @@ func InitModule(r chi.Router, db *gorm.DB) {
 	RegisterRoutes(r, h, checker)
 }
 
+// InitTenantModule 初始化租户端公告模块
+// 挂载在租户私有路由组下，需要登录态
+func InitTenantModule(r chi.Router, db *gorm.DB) {
+	repo := repository.NewAnnouncementRepository(db)
+	svc := service.NewAnnouncementService(repo)
+	h := handler.NewAnnouncementHandler(svc)
+
+	RegisterTenantRoutes(r, h)
+}
+
 // initPermissionChecker 创建权限检查器（复用 RBACService）
 func initPermissionChecker(db *gorm.DB) middleware.PermissionChecker {
 	roleRepo := rbacrepo.NewRoleRepository(db)

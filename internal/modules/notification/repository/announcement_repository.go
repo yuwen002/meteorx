@@ -132,3 +132,27 @@ func (r *announcementRepository) List(ctx context.Context, query *AnnouncementQu
 	}
 	return items, total, nil
 }
+
+func (r *announcementRepository) ListForTenant(ctx context.Context, tenantID string, page, pageSize int) ([]*model.Announcement, int64, error) {
+	now := time.Now()
+	db := r.db.WithContext(ctx).Model(&AnnouncementPO{}).
+		Where("status = ?", model.AnnouncementStatusPublished).
+		Where("(scope = ? AND target_tenant_id = ?) OR scope = ?", model.AnnouncementScopeTenant, tenantID, model.AnnouncementScopeAll).
+		Where("expire_at IS NULL OR expire_at > ?", now)
+
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var pos []AnnouncementPO
+	if err := db.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&pos).Error; err != nil {
+		return nil, 0, err
+	}
+
+	items := make([]*model.Announcement, len(pos))
+	for i, po := range pos {
+		items[i] = po.toDomain()
+	}
+	return items, total, nil
+}

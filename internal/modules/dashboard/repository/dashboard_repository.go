@@ -3,6 +3,7 @@ package repository
 
 import (
 	"context"
+	"log/slog"
 	"meteorx/internal/modules/dashboard/model"
 	"time"
 
@@ -26,42 +27,37 @@ func NewDashboardRepository(db *gorm.DB) DashboardRepository {
 }
 
 // GetOverview 获取运营数据总览
+// 采用容错策略：单个模块查询失败不影响其他模块，失败时返回零值并记录日志
 func (r *dashboardRepository) GetOverview(ctx context.Context) (*model.DashboardOverview, error) {
 	overview := &model.DashboardOverview{}
 
-	// 1. 租户统计
-	tenantStats, err := r.getTenantStats(ctx)
-	if err != nil {
-		return nil, err
-	}
-	overview.TenantStats = *tenantStats
+	var err error
 
-	// 2. 用户统计
-	userStats, err := r.getUserStats(ctx)
+	overview.TenantStats, err = r.getTenantStats(ctx)
 	if err != nil {
-		return nil, err
+		slog.Warn("Dashboard: tenant stats query failed", "error", err)
 	}
-	overview.UserStats = *userStats
 
-	// 3. 订阅统计
-	subStats, err := r.getSubscriptionStats(ctx)
+	overview.UserStats, err = r.getUserStats(ctx)
 	if err != nil {
-		return nil, err
+		slog.Warn("Dashboard: user stats query failed", "error", err)
 	}
-	overview.SubscriptionStats = *subStats
 
-	// 4. 审计统计
-	auditStats, err := r.getAuditStats(ctx)
+	overview.SubscriptionStats, err = r.getSubscriptionStats(ctx)
 	if err != nil {
-		return nil, err
+		slog.Warn("Dashboard: subscription stats query failed", "error", err)
 	}
-	overview.AuditStats = *auditStats
+
+	overview.AuditStats, err = r.getAuditStats(ctx)
+	if err != nil {
+		slog.Warn("Dashboard: audit stats query failed", "error", err)
+	}
 
 	return overview, nil
 }
 
 // getTenantStats 租户统计（基于 tenants 表）
-func (r *dashboardRepository) getTenantStats(ctx context.Context) (*model.TenantStats, error) {
+func (r *dashboardRepository) getTenantStats(ctx context.Context) (model.TenantStats, error) {
 	var total, enabled, disabled, todayNew, weekNew, monthNew int64
 	db := r.db.WithContext(ctx)
 
@@ -70,29 +66,26 @@ func (r *dashboardRepository) getTenantStats(ctx context.Context) (*model.Tenant
 	startWeek = time.Date(startWeek.Year(), startWeek.Month(), startWeek.Day(), 0, 0, 0, 0, startWeek.Location())
 	startMonth := time.Date(time.Now().Year(), time.Now().Month(), 1, 0, 0, 0, 0, time.Now().Location())
 
-	// 总数
 	if err := db.Table("tenants").Count(&total).Error; err != nil {
-		return nil, err
+		return model.TenantStats{}, err
 	}
-	// 启用/禁用
 	if err := db.Table("tenants").Where("status = ?", 1).Count(&enabled).Error; err != nil {
-		return nil, err
+		return model.TenantStats{}, err
 	}
 	if err := db.Table("tenants").Where("status = ?", 0).Count(&disabled).Error; err != nil {
-		return nil, err
+		return model.TenantStats{}, err
 	}
-	// 今日/本周/本月新增
 	if err := db.Table("tenants").Where("created_at >= ?", startToday).Count(&todayNew).Error; err != nil {
-		return nil, err
+		return model.TenantStats{}, err
 	}
 	if err := db.Table("tenants").Where("created_at >= ?", startWeek).Count(&weekNew).Error; err != nil {
-		return nil, err
+		return model.TenantStats{}, err
 	}
 	if err := db.Table("tenants").Where("created_at >= ?", startMonth).Count(&monthNew).Error; err != nil {
-		return nil, err
+		return model.TenantStats{}, err
 	}
 
-	return &model.TenantStats{
+	return model.TenantStats{
 		Total:    total,
 		Enabled:  enabled,
 		Disabled: disabled,
@@ -103,7 +96,7 @@ func (r *dashboardRepository) getTenantStats(ctx context.Context) (*model.Tenant
 }
 
 // getUserStats 用户统计（基于 users 表）
-func (r *dashboardRepository) getUserStats(ctx context.Context) (*model.UserStats, error) {
+func (r *dashboardRepository) getUserStats(ctx context.Context) (model.UserStats, error) {
 	var total, todayNew, weekNew, monthNew int64
 	db := r.db.WithContext(ctx)
 
@@ -113,19 +106,19 @@ func (r *dashboardRepository) getUserStats(ctx context.Context) (*model.UserStat
 	startMonth := time.Date(time.Now().Year(), time.Now().Month(), 1, 0, 0, 0, 0, time.Now().Location())
 
 	if err := db.Table("users").Count(&total).Error; err != nil {
-		return nil, err
+		return model.UserStats{}, err
 	}
 	if err := db.Table("users").Where("created_at >= ?", startToday).Count(&todayNew).Error; err != nil {
-		return nil, err
+		return model.UserStats{}, err
 	}
 	if err := db.Table("users").Where("created_at >= ?", startWeek).Count(&weekNew).Error; err != nil {
-		return nil, err
+		return model.UserStats{}, err
 	}
 	if err := db.Table("users").Where("created_at >= ?", startMonth).Count(&monthNew).Error; err != nil {
-		return nil, err
+		return model.UserStats{}, err
 	}
 
-	return &model.UserStats{
+	return model.UserStats{
 		Total:    total,
 		TodayNew: todayNew,
 		WeekNew:  weekNew,
@@ -134,32 +127,30 @@ func (r *dashboardRepository) getUserStats(ctx context.Context) (*model.UserStat
 }
 
 // getSubscriptionStats 订阅统计（基于 tenant_subscriptions 表）
-func (r *dashboardRepository) getSubscriptionStats(ctx context.Context) (*model.SubscriptionStats, error) {
+func (r *dashboardRepository) getSubscriptionStats(ctx context.Context) (model.SubscriptionStats, error) {
 	var total, active, expired, cancelled, activeTenant int64
 	db := r.db.WithContext(ctx)
 
 	if err := db.Table("tenant_subscriptions").Count(&total).Error; err != nil {
-		return nil, err
+		return model.SubscriptionStats{}, err
 	}
-	// 状态：1-生效 2-到期 3-取消
 	if err := db.Table("tenant_subscriptions").Where("status = ?", 1).Count(&active).Error; err != nil {
-		return nil, err
+		return model.SubscriptionStats{}, err
 	}
 	if err := db.Table("tenant_subscriptions").Where("status = ?", 2).Count(&expired).Error; err != nil {
-		return nil, err
+		return model.SubscriptionStats{}, err
 	}
 	if err := db.Table("tenant_subscriptions").Where("status = ?", 3).Count(&cancelled).Error; err != nil {
-		return nil, err
+		return model.SubscriptionStats{}, err
 	}
-	// 有生效订阅的租户数
 	if err := db.Table("tenant_subscriptions").
 		Where("status = ?", 1).
 		Distinct("tenant_id").
 		Count(&activeTenant).Error; err != nil {
-		return nil, err
+		return model.SubscriptionStats{}, err
 	}
 
-	return &model.SubscriptionStats{
+	return model.SubscriptionStats{
 		Total:        total,
 		Active:       active,
 		Expired:      expired,
@@ -169,35 +160,35 @@ func (r *dashboardRepository) getSubscriptionStats(ctx context.Context) (*model.
 }
 
 // getAuditStats 审计统计（基于 audit_logs 表）
-func (r *dashboardRepository) getAuditStats(ctx context.Context) (*model.AuditStats, error) {
+func (r *dashboardRepository) getAuditStats(ctx context.Context) (model.AuditStats, error) {
 	var total, today, success, failure int64
 	db := r.db.WithContext(ctx)
 
 	startToday := time.Now().Truncate(24 * time.Hour)
 
 	if err := db.Table("audit_logs").Count(&total).Error; err != nil {
-		return nil, err
+		return model.AuditStats{}, err
 	}
 	if err := db.Table("audit_logs").Where("created_at >= ?", startToday).Count(&today).Error; err != nil {
-		return nil, err
+		return model.AuditStats{}, err
 	}
 	if err := db.Table("audit_logs").Where("result = ?", "success").Count(&success).Error; err != nil {
-		return nil, err
+		return model.AuditStats{}, err
 	}
 	if err := db.Table("audit_logs").Where("result = ?", "failure").Count(&failure).Error; err != nil {
-		return nil, err
+		return model.AuditStats{}, err
 	}
 
 	actionStats, err := r.getGroupStats(ctx, "action")
 	if err != nil {
-		return nil, err
+		return model.AuditStats{}, err
 	}
 	moduleStats, err := r.getGroupStats(ctx, "module")
 	if err != nil {
-		return nil, err
+		return model.AuditStats{}, err
 	}
 
-	return &model.AuditStats{
+	return model.AuditStats{
 		Total:       total,
 		Today:       today,
 		Success:     success,

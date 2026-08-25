@@ -85,9 +85,13 @@ type RedisBlacklistChecker struct {
 }
 
 func (c *RedisBlacklistChecker) IsTokenBlacklisted(ctx context.Context, tokenString string) (bool, error) {
-	if c.Redis == nil {
+	if c.Redis == nil || !c.Redis.IsAvailable() {
 		return false, nil
 	}
 	key := "token:blacklist:" + tokenString
-	return c.Redis.Exists(ctx, key)
+	result, err := c.Redis.Exists(ctx, key)
+	if err == cache.ErrRedisUnavailable {
+		return false, nil
+	}
+	return result, err
 }

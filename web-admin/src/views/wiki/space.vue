@@ -107,10 +107,10 @@ import {
 import {
   getSpace,
   getNodeTree,
-  createNode,
+  createNode as createNodeApi,
   updateNode,
   deleteNode as deleteNodeApi,
-  createDocument,
+  createDocument as createDocumentApi,
   getDocument,
   updateDocument,
   listRevisions,
@@ -151,7 +151,7 @@ function goBack() {
 async function loadSpaceInfo() {
   try {
     const res = await getSpace(spaceId.value)
-    spaceInfo.value = res.data
+    spaceInfo.value = res
   } catch (e) {
     ElMessage.error('加载空间信息失败')
   }
@@ -160,7 +160,7 @@ async function loadSpaceInfo() {
 async function loadTree() {
   try {
     const res = await getNodeTree(spaceId.value)
-    treeData.value = res.data || []
+    treeData.value = res || []
   } catch (e) {
     treeData.value = []
   }
@@ -182,8 +182,8 @@ function handleNodeClick(node: WikiNodeTree) {
 async function loadDocument(nodeId: string) {
   try {
     const res = await getDocument(nodeId)
-    document.value = res.data
-    editableContent.value = res.data?.content || ''
+    document.value = res
+    editableContent.value = res?.content || ''
   } catch (e) {
     ElMessage.error('加载文档失败')
   }
@@ -207,7 +207,7 @@ async function saveDocument() {
 
 async function createNode(parentId: string | null) {
   try {
-    const res = await createNode(spaceId.value, {
+    const res = await createNodeApi(spaceId.value, {
       parent_id: parentId || undefined,
       type: 'folder',
       title: '新建文件夹',
@@ -222,16 +222,16 @@ async function createNode(parentId: string | null) {
 
 async function createDocument(parentId: string | null) {
   try {
-    const nodeRes = await createNode(spaceId.value, {
+    const nodeRes = await createNodeApi(spaceId.value, {
       parent_id: parentId || undefined,
       type: 'document',
       title: '新建文档',
       icon: 'document'
     })
-    await createDocument(nodeRes.data.id, { node_id: nodeRes.data.id })
+    await createDocumentApi(nodeRes.id, { node_id: nodeRes.id })
     ElMessage.success('创建成功')
     await loadTree()
-    currentNode.value = nodeRes.data
+    currentNode.value = nodeRes
     editableContent.value = ''
   } catch (e) {
     ElMessage.error('创建失败')
@@ -284,7 +284,7 @@ async function loadRevisions() {
   if (!document.value) return
   try {
     const res = await listRevisions(document.value.id)
-    revisions.value = res.data || []
+    revisions.value = res || []
   } catch (e) {
     revisions.value = []
   }

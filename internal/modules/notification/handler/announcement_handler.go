@@ -145,3 +145,24 @@ func (h *AnnouncementHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	response.Success(w, map[string]string{"id": id})
 }
+
+// ListForTenant 租户获取可见公告列表
+// GET /api/v1/announcements?page=1&page_size=10
+func (h *AnnouncementHandler) ListForTenant(w http.ResponseWriter, r *http.Request) {
+	tenantID := contextx.GetTenantID(r.Context())
+	if tenantID == "" {
+		response.Fail(w, http.StatusUnauthorized, "租户信息缺失")
+		return
+	}
+
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+	pg := pagination.NewPagination(page, pageSize)
+
+	result, err := h.svc.ListForTenant(r.Context(), tenantID, pg.Page, pg.PageSize)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取公告列表失败")
+		return
+	}
+	response.Success(w, pagination.NewPaginatedResult(result.Items, pg.Page, pg.PageSize, int(result.Total)))
+}

@@ -26,6 +26,9 @@
           <el-button size="small" type="primary" link @click="handleView(row)">查看</el-button>
         </template>
       </el-table-column>
+      <template #empty>
+        <el-empty description="暂无公告" />
+      </template>
     </el-table>
 
     <div class="pagination-wrapper">
@@ -46,32 +49,33 @@
         <el-button @click="detailVisible = false">关闭</el-button>
       </template>
     </el-dialog>
-
-    <el-empty v-if="!loading && list.length === 0" description="暂无公告" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { listTenantAnnouncements, type Announcement } from '@/api/modules/announcement'
+import { listTenantAnnouncements, type AnnouncementItem } from '@/api/modules/announcement'
 
 const loading = ref(false)
-const list = ref<Announcement[]>([])
+const list = ref<AnnouncementItem[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 
 const detailVisible = ref(false)
-const currentItem = ref<Announcement | null>(null)
+const currentItem = ref<AnnouncementItem | null>(null)
 
-function stripHtml(html: string) {
-  return html.replace(/<[^>]*>/g, '').substring(0, 100) + (html.length > 100 ? '...' : '')
+function stripHtml(html: string | undefined | null) {
+  if (!html) return ''
+  const text = html.replace(/<[^>]*>/g, '')
+  return text.substring(0, 100) + (text.length > 100 ? '...' : '')
 }
 
-function formatDate(dateStr: string) {
+function formatDate(dateStr: string | undefined | null) {
   if (!dateStr) return ''
   const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return ''
   return d.toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
@@ -85,7 +89,7 @@ async function loadList() {
   loading.value = true
   try {
     const res = await listTenantAnnouncements({ page: page.value, page_size: pageSize.value })
-    list.value = res.items || []
+    list.value = res.data || []
     total.value = res.pagination?.total || 0
   } catch (e) {
     list.value = []
@@ -96,7 +100,7 @@ async function loadList() {
   }
 }
 
-function handleView(row: Announcement) {
+function handleView(row: AnnouncementItem) {
   currentItem.value = row
   detailVisible.value = true
 }

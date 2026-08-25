@@ -39,7 +39,7 @@ func (r *RateLimiter) Allow(ctx context.Context, identifier string) (bool, error
 		return true, nil
 	}
 
-	if r.redis == nil {
+	if r.redis == nil || !r.redis.IsAvailable() {
 		return true, nil
 	}
 
@@ -47,6 +47,9 @@ func (r *RateLimiter) Allow(ctx context.Context, identifier string) (bool, error
 
 	// 获取当前窗口的请求数
 	val, err := r.redis.Get(ctx, key)
+	if err == cache.ErrRedisUnavailable {
+		return true, nil
+	}
 	var count int64 = 0
 	if err == nil && val != "" {
 		count, _ = strconv.ParseInt(val, 10, 64)
@@ -59,7 +62,7 @@ func (r *RateLimiter) Allow(ctx context.Context, identifier string) (bool, error
 
 	// 增加计数
 	count++
-	if err := r.redis.Set(ctx, key, strconv.FormatInt(count, 10), r.config.Window); err != nil {
+	if err := r.redis.Set(ctx, key, strconv.FormatInt(count, 10), r.config.Window); err != nil && err != cache.ErrRedisUnavailable {
 		return false, err
 	}
 

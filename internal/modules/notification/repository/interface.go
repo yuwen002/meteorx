@@ -16,8 +16,10 @@ type AnnouncementRepository interface {
 	GetByID(ctx context.Context, id string) (*model.Announcement, error)
 	// Delete 删除公告（软删除）
 	Delete(ctx context.Context, id string) error
-	// List 分页查询公告
+	// List 分页查询公告（管理端）
 	List(ctx context.Context, query *AnnouncementQuery) ([]*model.Announcement, int64, error)
+	// ListForTenant 查询租户可见的已发布公告
+	ListForTenant(ctx context.Context, tenantID string, page, pageSize int) ([]*model.Announcement, int64, error)
 }
 
 // AnnouncementQuery 公告查询条件

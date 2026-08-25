@@ -129,3 +129,17 @@ func (s *AnnouncementService) List(ctx context.Context, query *dto.ListAnnouncem
 	}
 	return &dto.AnnouncementListResp{Items: respItems, Total: total}, nil
 }
+
+// ListForTenant 查询租户可见的公告列表
+func (s *AnnouncementService) ListForTenant(ctx context.Context, tenantID string, page, pageSize int) (*dto.AnnouncementListResp, error) {
+	items, total, err := s.repo.ListForTenant(ctx, tenantID, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+
+	respItems := make([]*dto.AnnouncementResp, len(items))
+	for i, a := range items {
+		respItems[i] = dto.ToAnnouncementResp(a)
+	}
+	return &dto.AnnouncementListResp{Items: respItems, Total: total}, nil
+}

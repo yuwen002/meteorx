@@ -43,7 +43,14 @@ func (l *LoginLockout) IsLocked(ctx context.Context, identifier string) (bool, e
 		return false, nil
 	}
 
+	if l.redis == nil || !l.redis.IsAvailable() {
+		return false, nil
+	}
+
 	locked, err := l.redis.Exists(ctx, l.getLockKey(identifier))
+	if err == cache.ErrRedisUnavailable {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}
@@ -52,7 +59,7 @@ func (l *LoginLockout) IsLocked(ctx context.Context, identifier string) (bool, e
 
 // RecordFailedAttempt 记录一次登录失败
 func (l *LoginLockout) RecordFailedAttempt(ctx context.Context, identifier string) error {
-	if !l.config.Enabled || l.redis == nil {
+	if !l.config.Enabled || l.redis == nil || !l.redis.IsAvailable() {
 		return nil
 	}
 
@@ -70,7 +77,7 @@ func (l *LoginLockout) RecordFailedAttempt(ctx context.Context, identifier strin
 	// 如果达到最大尝试次数，锁定账号
 	if int(attempts) >= l.config.MaxAttempts {
 		lockKey := l.getLockKey(identifier)
-		if err := l.redis.Set(ctx, lockKey, "1", l.config.LockoutDuration); err != nil {
+		if err := l.redis.Set(ctx, lockKey, "1", l.config.LockoutDuration); err != nil && err != cache.ErrRedisUnavailable {
 			return err
 		}
 		// 删除尝试计数
@@ -79,7 +86,7 @@ func (l *LoginLockout) RecordFailedAttempt(ctx context.Context, identifier strin
 	}
 
 	// 更新尝试次数，设置过期时间
-	if err := l.redis.Set(ctx, key, strconv.FormatInt(attempts, 10), l.config.ResetAfter); err != nil {
+	if err := l.redis.Set(ctx, key, strconv.FormatInt(attempts, 10), l.config.ResetAfter); err != nil && err != cache.ErrRedisUnavailable {
 		return err
 	}
 
@@ -88,22 +95,26 @@ func (l *LoginLockout) RecordFailedAttempt(ctx context.Context, identifier strin
 
 // RecordSuccessAttempt 记录登录成功，清除失败计数
 func (l *LoginLockout) RecordSuccessAttempt(ctx context.Context, identifier string) error {
-	if !l.config.Enabled || l.redis == nil {
+	if !l.config.Enabled || l.redis == nil || !l.redis.IsAvailable() {
 		return nil
 	}
 
 	key := l.getAttemptKey(identifier)
-	return l.redis.Delete(ctx, key)
+	err := l.redis.Delete(ctx, key)
+	if err == cache.ErrRedisUnavailable {
+		return nil
+	}
+	return err
 }
 
 // GetRemainingAttempts 获取剩余可尝试次数
 func (l *LoginLockout) GetRemainingAttempts(ctx context.Context, identifier string) int {
-	if !l.config.Enabled || l.redis == nil {
+	if !l.config.Enabled || l.redis == nil || !l.redis.IsAvailable() {
 		return l.config.MaxAttempts
 	}
 
 	val, err := l.redis.Get(ctx, l.getAttemptKey(identifier))
-	if err != nil || val == "" {
+	if err == cache.ErrRedisUnavailable || err != nil || val == "" {
 		return l.config.MaxAttempts
 	}
 

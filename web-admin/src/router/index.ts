@@ -41,7 +41,25 @@ const routes: RouteRecordRaw[] = [
         path: 'tenant-settings',
         name: 'TenantSettings',
         component: () => import('@/views/tenant/settings/index.vue'),
-        meta: { title: '租户设置', icon: 'Setting', permission: 'tenant:settings' }
+        meta: { title: '租户设置', icon: 'Setting' }
+      },
+      {
+        path: 'wiki',
+        name: 'WikiSpaceList',
+        component: () => import('@/views/wiki/index.vue'),
+        meta: { title: '知识库', icon: 'Reading', permission: 'wiki:list' }
+      },
+      {
+        path: 'wiki/spaces/:id',
+        name: 'WikiSpaceDetail',
+        component: () => import('@/views/wiki/space.vue'),
+        meta: { title: '知识空间', icon: 'Reading', permission: 'wiki:list' }
+      },
+      {
+        path: 'announcement',
+        name: 'Announcement',
+        component: () => import('@/views/announcement/index.vue'),
+        meta: { title: '平台公告', icon: 'Bell' }
       },
       {
         path: 'system/user',
@@ -117,7 +135,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'system/announcement',
-        name: 'Announcement',
+        name: 'SystemAnnouncement',
         component: () => import('@/views/system/announcement/index.vue'),
         meta: { title: '公告管理', icon: 'Bell', permission: 'admin:announcement:list', requireMaster: true }
       }

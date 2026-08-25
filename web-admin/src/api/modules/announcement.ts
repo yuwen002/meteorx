@@ -1,6 +1,5 @@
-import { get, post, put, del } from '@/api/request'
+import request from '../request'
 
-// 公告响应类型
 export interface AnnouncementItem {
   id: string
   title: string
@@ -8,40 +7,72 @@ export interface AnnouncementItem {
   scope: string
   target_tenant_id: string
   status: number
-  status_text: string
+  status_text?: string
   publisher_id: string
-  publish_at: string
-  expire_at: string
+  publish_at: string | null
+  expire_at: string | null
   created_at: string
   updated_at: string
 }
 
-// 获取公告列表
-export function getAnnouncementList(params: any) {
-  return get('/admin/announcements', { params })
+export interface PaginationMeta {
+  page: number
+  page_size: number
+  total: number
+  total_pages: number
 }
 
-// 获取公告详情
+export interface PaginatedResult<T> {
+  data: T[]
+  pagination: PaginationMeta
+}
+
+export function getAnnouncementList(params?: {
+  page?: number
+  page_size?: number
+  keyword?: string
+  status?: number
+  scope?: string
+}) {
+  return request.get<any, PaginatedResult<AnnouncementItem>>('/admin/announcements', { params })
+}
+
 export function getAnnouncementDetail(id: string) {
-  return get(`/admin/announcements/${id}`)
+  return request.get<any, AnnouncementItem>(`/admin/announcements/${id}`)
 }
 
-// 创建公告
-export function createAnnouncement(data: any) {
-  return post('/admin/announcements', data)
+export function createAnnouncement(data: {
+  title: string
+  content: string
+  scope: string
+  target_tenant_id?: string
+  status: number
+  publish_at?: string
+  expire_at?: string
+}) {
+  return request.post<any, AnnouncementItem>('/admin/announcements', data)
 }
 
-// 更新公告
-export function updateAnnouncement(id: string, data: any) {
-  return put(`/admin/announcements/${id}`, data)
+export function updateAnnouncement(id: string, data: {
+  title: string
+  content: string
+  scope: string
+  target_tenant_id?: string
+  status: number
+  publish_at?: string
+  expire_at?: string
+}) {
+  return request.put<any, AnnouncementItem>(`/admin/announcements/${id}`, data)
 }
 
-// 发布/下架公告
 export function updateAnnouncementStatus(id: string, status: number) {
-  return put(`/admin/announcements/${id}/status`, { status })
+  return request.put<any, AnnouncementItem>(`/admin/announcements/${id}/status`, { status })
 }
 
-// 删除公告
 export function deleteAnnouncement(id: string) {
-  return del(`/admin/announcements/${id}`)
+  return request.delete<any, { id: string }>(`/admin/announcements/${id}`)
+}
+
+export function listTenantAnnouncements(params?: { page?: number; page_size?: number }) {
+  return request.get<any, PaginatedResult<AnnouncementItem>>('/announcements', { params })
 }

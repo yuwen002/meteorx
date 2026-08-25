@@ -222,14 +222,14 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User,
 
 // Logout 用户登出，将 token 加入黑名单
 func (s *AuthService) Logout(ctx context.Context, tokenString string) error {
-	if s.redis == nil {
-		return errors.New("redis not initialized")
+	if s.redis == nil || !s.redis.IsAvailable() {
+		return nil
 	}
 
 	// 解析 token 获取过期时间
 	claims, err := s.tokenHelper.ParseToken(tokenString)
 	if err != nil {
-		return errors.New("invalid token")
+		return nil
 	}
 
 	// 计算 token 剩余有效期
@@ -238,23 +238,30 @@ func (s *AuthService) Logout(ctx context.Context, tokenString string) error {
 	if claims.ExpiresAt != nil && claims.ExpiresAt.Time.After(now) {
 		expiration = claims.ExpiresAt.Time.Sub(now)
 	} else {
-		// token 已过期，无需加入黑名单
 		return nil
 	}
 
 	// 将 token 加入黑名单，有效期与 token 剩余有效期相同
 	key := fmt.Sprintf("%s%s", tokenBlacklistPrefix, tokenString)
-	return s.redis.Set(ctx, key, "1", expiration)
+	err = s.redis.Set(ctx, key, "1", expiration)
+	if err == cache.ErrRedisUnavailable {
+		return nil
+	}
+	return err
 }
 
 // IsTokenBlacklisted 检查 token 是否在黑名单中
 func (s *AuthService) IsTokenBlacklisted(ctx context.Context, tokenString string) (bool, error) {
-	if s.redis == nil {
+	if s.redis == nil || !s.redis.IsAvailable() {
 		return false, nil
 	}
 
 	key := fmt.Sprintf("%s%s", tokenBlacklistPrefix, tokenString)
-	return s.redis.Exists(ctx, key)
+	result, err := s.redis.Exists(ctx, key)
+	if err == cache.ErrRedisUnavailable {
+		return false, nil
+	}
+	return result, err
 }
 
 func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
@@ -270,10 +277,17 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 		return errors.New("email service not configured")
 	}
 
+	if s.redis == nil || !s.redis.IsAvailable() {
+		return errors.New("reset token storage unavailable")
+	}
+
 	token := idgen.NewUUID()
 
 	key := fmt.Sprintf("%s%s", passwordResetPrefix, token)
 	if err := s.redis.Set(ctx, key, user.ID, resetTokenExpire); err != nil {
+		if err == cache.ErrRedisUnavailable {
+			return errors.New("reset token storage unavailable")
+		}
 		return err
 	}
 
@@ -283,12 +297,15 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 }
 
 func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
-	if s.redis == nil {
+	if s.redis == nil || !s.redis.IsAvailable() {
 		return errors.New("redis not initialized")
 	}
 
 	key := fmt.Sprintf("%s%s", passwordResetPrefix, token)
 	userID, err := s.redis.Get(ctx, key)
+	if err == cache.ErrRedisUnavailable {
+		return errors.New("reset token storage unavailable")
+	}
 	if err != nil || userID == "" {
 		return errors.New("invalid or expired token")
 	}
@@ -316,7 +333,9 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 		return err
 	}
 
-	s.redis.Delete(ctx, key)
+	if err := s.redis.Delete(ctx, key); err != nil && err != cache.ErrRedisUnavailable {
+		return err
+	}
 
 	return nil
 }

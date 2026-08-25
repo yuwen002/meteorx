@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"log/slog"
 	"meteorx/internal/common/response"
 	"meteorx/internal/modules/dashboard/service"
 	"net/http"
@@ -22,7 +23,8 @@ func NewDashboardHandler(svc *service.DashboardService) *DashboardHandler {
 func (h *DashboardHandler) GetOverview(w http.ResponseWriter, r *http.Request) {
 	overview, err := h.svc.GetOverview(r.Context())
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, "获取运营数据总览失败")
+		slog.Error("获取运营数据总览失败", "error", err)
+		response.Fail(w, http.StatusInternalServerError, "获取运营数据总览失败: "+err.Error())
 		return
 	}
 

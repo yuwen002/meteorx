@@ -12,7 +12,7 @@ import (
 
 type TenantSettingsPO struct {
 	ID           string    `gorm:"primaryKey;size:26;comment:'设置ID'"`
-	TenantID     string    `gorm:"index;size:26;uniqueIndex;comment:'租户ID，唯一'"`
+	TenantID     string    `gorm:"size:26;uniqueIndex;comment:'租户ID，唯一'"`
 	Logo         string    `gorm:"size:500;comment:'租户Logo'"`
 	Favicon      string    `gorm:"size:500;comment:'Favicon图标'"`
 	PrimaryColor string    `gorm:"size:20;comment:'主题主色'"`

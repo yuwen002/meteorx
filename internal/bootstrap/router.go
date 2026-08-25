@@ -107,6 +107,9 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 			// 4.4 Wiki 知识库接口
 			wiki.InitModule(r, db, txManager)
 
+			// 4.5 租户端公告查看接口
+			notification.InitTenantModule(r, db)
+
 			// ========================================================
 			// 🔥 新增分组三：MaaS 平台运营后台特权接口 (Platform Admin Only)
 			// ========================================================
