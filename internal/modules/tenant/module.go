@@ -30,13 +30,14 @@ func initHandler(db *gorm.DB) *handler.TenantHandler {
 	userRoleRepo := rbacrepo.NewUserRoleRepository(db)
 	svc := service.NewTenantService(tenantRepo, userRepo, roleRepo, userRoleRepo)
 
-	// 注入套餐摘要查询器（PlanService 实现了 TenantPlanProvider 接口）
+	// 注入套餐摘要查询器 & 套餐分配器（PlanService 实现了两个接口）
 	planRepo := planrepo.NewPlanRepository(db)
 	subRepo := planrepo.NewSubscriptionRepository(db)
 	planSvc := plansvc.NewPlanService(planRepo, subRepo, userRepo)
 	svc.SetPlanProvider(planSvc)
+	svc.SetPlanAssignProvider(planSvc)
 
-	// 注入订阅仓库（注销时取消生效订阅）
+	// 注入订阅仓库（注销/物理删除时取消生效订阅）
 	svc.SetSubscriptionRepository(subRepo)
 
 	return handler.NewTenantHandler(svc)

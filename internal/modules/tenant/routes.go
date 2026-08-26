@@ -47,6 +47,8 @@ func RegisterAdminRoutes(r chi.Router, h *handler.TenantHandler, checker middlew
 		r.Put("/{id}/update", h.AdminUpdate)             // → admin:tenant:update
 		r.Delete("/{id}/delete", h.AdminDelete)          // → admin:tenant:delete
 		r.Put("/{id}/restore", h.AdminRestore)           // → admin:tenant:restore
+		r.Delete("/{id}/hard", h.AdminHardDelete)       // → admin:tenant:hard_delete
+		r.Put("/{id}/plan", h.AdminUpdatePlan)         // → admin:tenant:update_plan
 	})
 
 	// 注销申请审批

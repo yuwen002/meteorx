@@ -34,12 +34,13 @@ type TenantPlanProvider interface {
 }
 
 type TenantService struct {
-	repo         repository.TenantRepository
-	userRepo     userRepo.UserRepository
-	roleRepo     rbacRepo.RoleRepository
-	userRoleRepo rbacRepo.UserRoleRepository
-	planProvider TenantPlanProvider
-	subRepo      planRepo.SubscriptionRepository
+	repo              repository.TenantRepository
+	userRepo          userRepo.UserRepository
+	roleRepo          rbacRepo.RoleRepository
+	userRoleRepo      rbacRepo.UserRoleRepository
+	planProvider      TenantPlanProvider
+	planAssignProvider TenantPlanAssignProvider
+	subRepo           planRepo.SubscriptionRepository
 }
 
 func NewTenantService(
@@ -64,6 +65,16 @@ func (s *TenantService) SetPlanProvider(p TenantPlanProvider) {
 // SetSubscriptionRepository 注入订阅仓库（用于注销时取消生效订阅）
 func (s *TenantService) SetSubscriptionRepository(sub planRepo.SubscriptionRepository) {
 	s.subRepo = sub
+}
+
+// TenantPlanAssignProvider 套餐分配接口（由 plan 模块实现，避免循环依赖）
+type TenantPlanAssignProvider interface {
+	AssignPlan(ctx context.Context, tenantID string, req planDto.AssignPlanReq) error
+}
+
+// planAssignProvider 套餐分配器（由 bootstrap 组装注入）
+func (s *TenantService) SetPlanAssignProvider(p TenantPlanAssignProvider) {
+	s.planAssignProvider = p
 }
 
 // GetTenantPlanBriefs 批量查询租户套餐摘要（暴露给 handler 做列表增强）
@@ -296,6 +307,46 @@ func (s *TenantService) AdminDelete(ctx context.Context, id string) error {
 
 	// 2. 软删除租户
 	return s.repo.Delete(ctx, id)
+}
+
+// AdminHardDelete 后台物理删除租户（彻底销毁，不可恢复）
+// 仅应对测试数据或严重违规场景，操作需二次确认
+func (s *TenantService) AdminHardDelete(ctx context.Context, id string) error {
+	// 1. 先查询租户是否存在
+	_, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return ErrTenantNotFound
+	}
+
+	// 2. 物理删除租户
+	if err := s.repo.HardDelete(ctx, id); err != nil {
+		return err
+	}
+
+	// 3. 若存在生效订阅，同时取消
+	if s.subRepo != nil {
+		activeSub, err := s.subRepo.GetActiveByTenant(ctx, id)
+		if err == nil && activeSub != nil {
+			_ = s.subRepo.UpdateStatus(ctx, activeSub.ID, planModel.SubscriptionCancelled)
+		}
+	}
+
+	return nil
+}
+
+// AdminUpdatePlan 后台为租户分配/变更套餐
+func (s *TenantService) AdminUpdatePlan(ctx context.Context, id string, req planDto.AssignPlanReq) error {
+	// 1. 先查询租户是否存在
+	_, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return ErrTenantNotFound
+	}
+
+	// 2. 调用套餐分配器
+	if s.planAssignProvider == nil {
+		return fmt.Errorf("套餐分配器未初始化")
+	}
+	return s.planAssignProvider.AssignPlan(ctx, id, req)
 }
 
 // BatchUpdateStatus 批量更新租户状态，返回受影响行数、失败的ID列表和错误

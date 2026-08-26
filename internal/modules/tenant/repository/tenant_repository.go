@@ -300,6 +300,11 @@ func (r *tenantRepository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&TenantPO{}, "id = ?", id).Error
 }
 
+// HardDelete 物理删除租户（彻底删除，绕过 GORM 软删除）
+func (r *tenantRepository) HardDelete(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Unscoped().Delete(&TenantPO{}, "id = ?", id).Error
+}
+
 // FindPage 分页查询租户列表
 func (r *tenantRepository) FindPage(ctx context.Context, page, pageSize int, name string, status *int) ([]*model.Tenant, int64, error) {
 	var pos []*TenantPO

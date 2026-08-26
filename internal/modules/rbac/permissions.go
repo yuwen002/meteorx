@@ -127,8 +127,10 @@ const (
 	AdminTenantStatus      = "admin:tenant:status"       // 启用/禁用租户
 	AdminTenantListDeleted = "admin:tenant:list_deleted" // 查询已删除租户（回收站）
 	AdminTenantRestore     = "admin:tenant:restore"      // 恢复已删除租户
-	AdminTenantBatchStatus = "admin:tenant:batch_status" // 批量启用/禁用租户
-	AdminTenantBatchDelete = "admin:tenant:batch_delete" // 批量删除租户
+	AdminTenantBatchStatus  = "admin:tenant:batch_status"  // 批量启用/禁用租户
+	AdminTenantBatchDelete  = "admin:tenant:batch_delete"  // 批量删除租户
+	AdminTenantHardDelete   = "admin:tenant:hard_delete"   // 物理删除租户（彻底销毁）
+	AdminTenantUpdatePlan   = "admin:tenant:update_plan"   // 为租户分配/变更套餐
 )
 
 // ============================================================
@@ -337,6 +339,8 @@ func GetPermissionDefs() []PermissionDef {
 		{Name: "恢复已删除租户", Code: AdminTenantRestore, Description: "平台后台恢复已删除租户", Resource: "tenant", Action: "restore"},
 		{Name: "批量启用/禁用租户", Code: AdminTenantBatchStatus, Description: "平台后台批量启用/禁用租户", Resource: "tenant", Action: "batch_status"},
 		{Name: "批量删除租户", Code: AdminTenantBatchDelete, Description: "平台后台批量删除租户", Resource: "tenant", Action: "batch_delete"},
+		{Name: "物理删除租户", Code: AdminTenantHardDelete, Description: "平台后台彻底销毁租户（不可恢复）", Resource: "tenant", Action: "hard_delete"},
+		{Name: "分配/变更租户套餐", Code: AdminTenantUpdatePlan, Description: "平台后台为租户分配或变更套餐", Resource: "tenant", Action: "update_plan"},
 
 		// 系统管理员管理（平台后台）
 		{Name: "查询系统管理员列表", Code: AdminMasterList, Description: "平台后台查询系统管理员列表", Resource: "master_admin", Action: "list"},

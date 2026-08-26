@@ -12,6 +12,7 @@ import (
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
+	planDto "meteorx/internal/modules/plan/dto"
 	"meteorx/internal/modules/tenant/dto"
 	"meteorx/internal/modules/tenant/service"
 	"meteorx/pkg/pagination"
@@ -299,6 +300,64 @@ func (h *TenantHandler) AdminDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. 返回成功响应
+	response.Success(w, nil)
+}
+
+// AdminHardDelete DELETE /api/v1/admin/tenants/:id/hard
+// 物理删除租户（彻底销毁，不可恢复），用于清理测试数据或严重违规场景
+func (h *TenantHandler) AdminHardDelete(w http.ResponseWriter, r *http.Request) {
+	// 1. 从 URL 获取 ID
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		response.Fail(w, http.StatusBadRequest, "租户ID不能为空")
+		return
+	}
+
+	// 2. 调用服务层物理删除
+	err := h.svc.AdminHardDelete(r.Context(), id)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrTenantNotFound):
+			response.Fail(w, http.StatusNotFound, "租户不存在")
+		default:
+			response.Fail(w, http.StatusInternalServerError, "物理删除租户失败")
+		}
+		return
+	}
+
+	// 3. 返回成功响应
+	response.Success(w, nil)
+}
+
+// AdminUpdatePlan PUT /api/v1/admin/tenants/:id/plan
+// 为租户分配/变更套餐
+func (h *TenantHandler) AdminUpdatePlan(w http.ResponseWriter, r *http.Request) {
+	// 1. 从 URL 获取 ID
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		response.Fail(w, http.StatusBadRequest, "租户ID不能为空")
+		return
+	}
+
+	// 2. 解析请求体
+	var req planDto.AssignPlanReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	// 3. 调用服务层分配套餐
+	err := h.svc.AdminUpdatePlan(r.Context(), id, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrTenantNotFound):
+			response.Fail(w, http.StatusNotFound, "租户不存在")
+		default:
+			response.Fail(w, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+
+	// 4. 返回成功响应
 	response.Success(w, nil)
 }
 
