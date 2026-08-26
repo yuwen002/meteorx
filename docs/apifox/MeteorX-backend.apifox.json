@@ -11586,6 +11586,144 @@
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {}
               }
+            },
+            {
+              "name": "租户侧公告列表",
+              "api": {
+                "type": "http",
+                "path": "/api/v1/announcements",
+                "method": "GET",
+                "parameters": {
+                  "query": [
+                    {
+                      "name": "page",
+                      "type": "integer",
+                      "description": "页码",
+                      "required": false,
+                      "enable": true
+                    },
+                    {
+                      "name": "page_size",
+                      "type": "integer",
+                      "description": "每页数量",
+                      "required": false,
+                      "enable": true
+                    }
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": {}
+                },
+                "securityScheme": {},
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "responses": [
+                  {
+                    "id": "tenant-announcement-list-200",
+                    "code": 200,
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "content": {
+                                    "type": "string"
+                                  },
+                                  "scope": {
+                                    "type": "string"
+                                  },
+                                  "target_tenant_id": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "integer"
+                                  },
+                                  "status_text": {
+                                    "type": "string"
+                                  },
+                                  "publisher_id": {
+                                    "type": "string"
+                                  },
+                                  "publish_at": {
+                                    "type": "string"
+                                  },
+                                  "expire_at": {
+                                    "type": "string"
+                                  },
+                                  "created_at": {
+                                    "type": "string"
+                                  },
+                                  "updated_at": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "itemSchema": {},
+                    "description": "",
+                    "contentType": "json",
+                    "mediaType": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {},
+                "description": "",
+                "tags": [],
+                "status": "developing",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 70,
+                "cases": [],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
             }
           ]
         }

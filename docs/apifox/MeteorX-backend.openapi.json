@@ -1969,6 +1969,19 @@
         }
       }
     },
+    "/api/v1/announcements": {
+      "get": {
+        "summary": "租户侧公告列表（当前租户可见）",
+        "tags": ["Notification"],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiAnnouncementListResp" } } } }
+        }
+      }
+    },
     "/api/v1/wiki/stats": {
       "get": {
         "summary": "Wiki统计数据",

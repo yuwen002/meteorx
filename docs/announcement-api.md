@@ -16,8 +16,14 @@
 | POST | `/admin/announcements` | 创建公告 | `admin:announcement:create` |
 | GET | `/admin/announcements/{id}` | 公告详情 | `admin:announcement:read` |
 | PUT | `/admin/announcements/{id}` | 更新公告 | `admin:announcement:update` |
-| PUT | `/admin/announcements/{id}/status` | 发布 / 下架公告 | `admin:announcement:publish` |
+| PUT | `/admin/announcements/{id}/status` | 发布 / 下架公告 | `admin:announcement:status` |
 | DELETE | `/admin/announcements/{id}` | 删除公告 | `admin:announcement:delete` |
+
+### 1.2 租户侧接口（需登录）
+
+| 方法 | 路径 | 功能 | 认证 |
+|------|------|------|------|
+| GET | `/announcements` | 获取当前租户可见公告列表（分页） | 需登录 |
 
 ---
 
@@ -171,6 +177,24 @@
 
 `DELETE /api/v1/admin/announcements/{id}`
 
+### 3.7 租户侧公告列表
+
+`GET /api/v1/announcements`
+
+**Query 参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| page | int | 否 | 页码，默认 1 |
+| page_size | int | 否 | 每页数量，默认 20 |
+
+**业务规则：**
+- 仅返回当前租户可见的公告：全平台公告（scope=all）+ 定向推送给当前租户的公告（scope=tenant, target_tenant_id=当前租户ID）
+- 仅返回已发布状态（status=1）且在有效期内（publish_at <= now <= expire_at，若 expire_at 为空则不限制）
+- 无需细粒度权限码，仅需登录
+
+**成功响应（200）：** AnnouncementListResp
+
 ---
 
 ## 4. 权限码列表
@@ -181,5 +205,5 @@
 | `admin:announcement:create` | 创建公告 |
 | `admin:announcement:read` | 查看公告详情 |
 | `admin:announcement:update` | 更新公告 |
-| `admin:announcement:publish` | 发布 / 下架公告 |
+| `admin:announcement:status` | 发布 / 下架公告 |
 | `admin:announcement:delete` | 删除公告 |
