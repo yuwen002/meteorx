@@ -49,6 +49,8 @@ GET    /api/v1/rbac/roles                → rbac:role:list
 PUT    /api/v1/rbac/roles/{id}/permissions → rbac:role:bind_perm
 GET    /api/v1/admin/users               → admin:master:list
 POST   /api/v1/admin/users               → admin:master:create
+DELETE /api/v1/admin/tenants/{id}/hard   → admin:tenant:hard_delete
+PUT    /api/v1/admin/tenants/{id}/plan    → admin:tenant:update_plan
 ```
 
 ### 资源命名约定

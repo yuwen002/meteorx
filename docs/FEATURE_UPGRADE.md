@@ -59,6 +59,21 @@
 
 ---
 
+## 四、租户物理删除与套餐配给（Tenant）
+
+补充两个平台管理员高频操作接口：物理删除租户（彻底销毁）和为租户分配/变更套餐。
+
+**后端（`internal/modules/tenant`）**
+- 新增 `HardDelete` 仓储方法，通过 GORM `Unscoped().Delete()` 绕过软删除
+- 新增 `AdminHardDelete` 服务方法：物理删除租户 + 同步取消生效订阅
+- 新增 `AdminUpdatePlan` 服务方法：通过接口注入调用 `PlanService.AssignPlan`
+- 注入方式：`SetPlanAssignProvider` 接口，避免 Tenant 模块直接依赖 Plan 模块
+- 路由：
+  - `DELETE /admin/tenants/{id}/hard` → `admin:tenant:hard_delete`
+  - `PUT /admin/tenants/{id}/plan` → `admin:tenant:update_plan`
+
+---
+
 ## 权限注册汇总（`internal/modules/rbac/permissions.go`）
 
 | 权限码 | 说明 |
@@ -66,6 +81,8 @@
 | `admin:dashboard:list` | 查看运营数据看板 |
 | `admin:announcement:list/read/create/update/status/delete` | 公告管理 |
 | `admin:cancel_request:list/approve/reject` | 注销审批 |
+| `admin:tenant:hard_delete` | 物理删除租户（彻底销毁） |
+| `admin:tenant:update_plan` | 为租户分配/变更套餐 |
 
 全部通过幂等 `SeedPermissions` 注册，superadmin 直接放行。
 

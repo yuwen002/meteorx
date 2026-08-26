@@ -20,12 +20,13 @@
 | PUT | `/admin/plans/{id}/update` | 更新套餐 | `admin:plan:update` |
 | DELETE | `/admin/plans/{id}/delete` | 删除套餐 | `admin:plan:delete` |
 
-### 1.2 租户套餐分配（`/api/v1/admin/tenants-plan`）
+### 1.2 租户套餐分配（`/api/v1/admin`）
 
 | 方法 | 路径 | 功能 | 权限码 |
 |------|------|------|--------|
 | GET | `/admin/tenants-plan/{id}` | 查询租户套餐 | `admin:plan:list` |
-| PUT | `/admin/tenants-plan/{id}` | 为租户分配/变更套餐 | `admin:plan:assign` |
+| PUT | `/admin/tenants-plan/{id}` | 为租户分配/变更套餐（Plan 模块入口） | `admin:plan:assign` |
+| PUT | `/admin/tenants/{id}/plan` | 为租户分配/变更套餐（Tenant 模块入口） | `admin:tenant:update_plan` |
 
 ### 1.3 租户侧接口（`/api/v1/tenant/current/plan`）
 
@@ -180,7 +181,10 @@
 
 ### 3.7 为租户分配/变更套餐
 
-`PUT /api/v1/admin/tenants-plan/{id}`
+两个入口等价，均调用 `PlanService.AssignPlan`：
+
+- **Plan 模块入口：** `PUT /api/v1/admin/tenants-plan/{id}`
+- **Tenant 模块入口：** `PUT /api/v1/admin/tenants/{id}/plan`（`admin:tenant:update_plan`）
 
 **请求体：** AssignPlanReq
 

@@ -41,6 +41,8 @@
 | PUT | `/admin/tenants/{id}/restore` | 恢复已删除租户 | `admin:tenant:restore` |
 | PUT | `/admin/tenants/batch/status` | 批量更新租户状态 | `admin:tenant:batch_status` |
 | DELETE | `/admin/tenants/batch` | 批量删除租户 | `admin:tenant:batch_delete` |
+| DELETE | `/admin/tenants/{id}/hard` | 物理删除租户（彻底销毁，不可恢复） | `admin:tenant:hard_delete` |
+| PUT | `/admin/tenants/{id}/plan` | 为租户分配/变更套餐 | `admin:tenant:update_plan` |
 
 **注销审批接口**
 
@@ -294,7 +296,64 @@
 - `PUT /api/v1/admin/tenants/batch/status`
 - `DELETE /api/v1/admin/tenants/batch`
 
-### 3.13 注销申请列表
+### 3.13 物理删除租户（彻底销毁）
+
+`DELETE /api/v1/admin/tenants/{id}/hard`
+
+**权限码：** `admin:tenant:hard_delete`
+
+**说明：** 物理删除（物理卸载）租户，调用 GORM `Unscoped().Delete()` 绕过软删除直接从数据库删除。物理删除为**不可恢复**操作，仅用于测试数据清理或严重违规场景。
+
+**业务规则：**
+- 校验租户必须存在，不存在返回 404
+- 物理删除租户记录（绕过 deleted_at 软删除字段）
+- 同步将租户的生效订阅标记为「已取消」
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "ok",
+  "data": null
+}
+```
+
+### 3.14 为租户分配/变更套餐
+
+`PUT /api/v1/admin/tenants/{id}/plan`
+
+**权限码：** `admin:tenant:update_plan`
+
+**请求体：** AssignPlanReq
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| plan_id | string | 是 | 目标套餐 ID |
+| expires_at | string | 否 | 到期时间（格式：`2006-01-02 15:04:05`），不传则永久有效 |
+
+```json
+{
+  "plan_id": "01ARZ3NDEKTSV4RRFFQ69G5FAX",
+  "expires_at": "2026-12-31 23:59:59"
+}
+```
+
+**业务规则：**
+- 校验租户存在 + 套餐存在且为启用状态
+- 若租户已有生效订阅，自动取消旧订阅（状态置为「已取消」）
+- 创建新的订阅记录并立即生效
+- 不指定 `expires_at` 则订阅永不过期
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "ok",
+  "data": null
+}
+```
+
+### 3.15 注销申请列表
 
 `GET /api/v1/admin/cancel-requests`
 
@@ -336,7 +395,7 @@
 }
 ```
 
-### 3.14 审批通过注销申请
+### 3.16 审批通过注销申请
 
 `PUT /api/v1/admin/cancel-requests/{id}/approve`
 
@@ -350,7 +409,7 @@
 
 **业务规则：** `effective_days` 表示通过后多少天执行注销（0=立即执行）。通过后进入宽限期，后台定时任务到点自动软删除租户并取消订阅、标记为完成。
 
-### 3.15 驳回注销申请
+### 3.17 驳回注销申请
 
 `PUT /api/v1/admin/cancel-requests/{id}/reject`
 
@@ -365,7 +424,7 @@
 
 ---
 
-### 3.16 获取当前租户独立配置
+### 3.18 获取当前租户独立配置
 
 `GET /api/v1/tenant-settings`
 
@@ -373,7 +432,7 @@
 
 **成功响应（200）：** TenantSettingsResp
 
-### 3.17 更新当前租户独立配置
+### 3.19 更新当前租户独立配置
 
 `PUT /api/v1/tenant-settings`
 
@@ -416,6 +475,8 @@
 | `admin:tenant:restore` | 恢复已删除租户 |
 | `admin:tenant:batch_status` | 批量更新状态 |
 | `admin:tenant:batch_delete` | 批量删除租户 |
+| `admin:tenant:hard_delete` | 物理删除租户（彻底销毁，不可恢复） |
+| `admin:tenant:update_plan` | 为租户分配/变更套餐 |
 | `admin:cancel_request:list` | 查看注销申请列表 |
 | `admin:cancel_request:approve` | 审批通过注销申请 |
 | `admin:cancel_request:reject` | 审批驳回注销申请 |
