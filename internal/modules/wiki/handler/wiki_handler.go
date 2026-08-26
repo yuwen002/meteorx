@@ -330,3 +330,58 @@ func (h *WikiHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 	}
 	response.Success(w, stats)
 }
+
+// SetNodePermission 设置节点权限
+func (h *WikiHandler) SetNodePermission(w http.ResponseWriter, r *http.Request) {
+	nodeID := chi.URLParam(r, "id")
+	if nodeID == "" {
+		response.BadRequest(w, "node ID is required")
+		return
+	}
+
+	var req dto.SetNodePermissionReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	perm, err := h.svc.SetNodePermission(r.Context(), nodeID, &req)
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, perm)
+}
+
+// GetNodePermissions 获取节点的所有权限
+func (h *WikiHandler) GetNodePermissions(w http.ResponseWriter, r *http.Request) {
+	nodeID := chi.URLParam(r, "id")
+	if nodeID == "" {
+		response.BadRequest(w, "node ID is required")
+		return
+	}
+
+	perms, err := h.svc.GetNodePermissions(r.Context(), nodeID)
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, perms)
+}
+
+// RemoveNodePermission 移除节点权限
+func (h *WikiHandler) RemoveNodePermission(w http.ResponseWriter, r *http.Request) {
+	nodeID := chi.URLParam(r, "id")
+	userID := chi.URLParam(r, "userId")
+	permission := chi.URLParam(r, "permission")
+
+	if nodeID == "" || userID == "" || permission == "" {
+		response.BadRequest(w, "node ID, user ID and permission are required")
+		return
+	}
+
+	if err := h.svc.RemoveNodePermission(r.Context(), nodeID, userID, permission); err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, nil)
+}

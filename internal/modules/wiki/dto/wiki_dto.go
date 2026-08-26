@@ -123,6 +123,20 @@ type WikiSpaceMemberResp struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type SetNodePermissionReq struct {
+	UserID    string `json:"user_id" validate:"required"`
+	Permission string `json:"permission" validate:"required,oneof=view edit delete"`
+}
+
+type NodePermissionResp struct {
+	ID         string    `json:"id"`
+	NodeID     string    `json:"node_id"`
+	UserID     string    `json:"user_id"`
+	Permission string    `json:"permission"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
 type WikiStatsResp struct {
 	TotalSpaces    int64 `json:"total_spaces"`
 	TotalNodes     int64 `json:"total_nodes"`

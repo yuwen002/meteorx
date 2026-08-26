@@ -222,6 +222,35 @@ const (
 )
 
 // ============================================================
+// Wiki 模块权限码（/api/v1/wiki 相关，租户内知识库管理）
+// ============================================================
+const (
+	WikiSpaceList        = "wiki:space:list"         // 查询 Wiki 空间列表
+	WikiSpaceCreate      = "wiki:space:create"       // 创建 Wiki 空间
+	WikiSpaceRead        = "wiki:space:read"         // 查询 Wiki 空间详情
+	WikiSpaceUpdate      = "wiki:space:update"       // 更新 Wiki 空间
+	WikiSpaceDelete      = "wiki:space:delete"       // 删除 Wiki 空间
+	WikiSpaceMemberList  = "wiki:space_member:list"  // 查询空间成员列表
+	WikiSpaceMemberAdd   = "wiki:space_member:add"   // 添加空间成员
+	WikiSpaceMemberRemove = "wiki:space_member:remove" // 移除空间成员
+	WikiNodeList         = "wiki:node:list"          // 查询节点列表
+	WikiNodeCreate       = "wiki:node:create"        // 创建节点（目录/文档壳）
+	WikiNodeRead         = "wiki:node:read"          // 查询节点详情
+	WikiNodeUpdate       = "wiki:node:update"        // 更新节点（标题/排序/移动）
+	WikiNodeDelete       = "wiki:node:delete"        // 删除节点
+	WikiNodeMove         = "wiki:node:move"          // 移动节点
+	WikiNodeSort         = "wiki:node:sort"          // 排序节点
+	WikiDocumentCreate   = "wiki:document:create"    // 创建文档
+	WikiDocumentRead     = "wiki:document:read"      // 查询文档内容
+	WikiDocumentUpdate   = "wiki:document:update"    // 编辑文档
+	WikiDocumentDelete   = "wiki:document:delete"    // 删除文档
+	WikiRevisionList     = "wiki:revision:list"      // 查询文档修订历史
+	WikiRevisionRead     = "wiki:revision:read"      // 查询修订详情
+	WikiRevisionRestore  = "wiki:revision:restore"   // 恢复文档修订
+	WikiStatsRead        = "wiki:stats:read"         // 查询 Wiki 统计
+)
+
+// ============================================================
 // 预定义权限列表（服务启动时自动注册到 permissions 表）
 // ============================================================
 func GetPermissionDefs() []PermissionDef {
@@ -370,6 +399,31 @@ func GetPermissionDefs() []PermissionDef {
 		{Name: "永久删除租户用户", Code: AdminTenantUserPermanentDelete, Description: "平台后台永久删除租户用户", Resource: "tenant_user", Action: "permanent_delete"},
 		{Name: "批量启用/禁用租户用户", Code: AdminTenantUserBatchStatus, Description: "平台后台批量启用/禁用租户用户", Resource: "tenant_user", Action: "batch_status"},
 		{Name: "批量删除租户用户", Code: AdminTenantUserBatchDelete, Description: "平台后台批量删除租户用户", Resource: "tenant_user", Action: "batch_delete"},
+
+		// Wiki 模块（租户内知识库管理）
+		{Name: "查询Wiki空间列表", Code: WikiSpaceList, Description: "查询租户下Wiki空间列表", Resource: "wiki_space", Action: "list"},
+		{Name: "创建Wiki空间", Code: WikiSpaceCreate, Description: "创建新的Wiki空间", Resource: "wiki_space", Action: "create"},
+		{Name: "查询Wiki空间详情", Code: WikiSpaceRead, Description: "查询Wiki空间详情", Resource: "wiki_space", Action: "read"},
+		{Name: "更新Wiki空间", Code: WikiSpaceUpdate, Description: "更新Wiki空间信息", Resource: "wiki_space", Action: "update"},
+		{Name: "删除Wiki空间", Code: WikiSpaceDelete, Description: "删除Wiki空间（软删除）", Resource: "wiki_space", Action: "delete"},
+		{Name: "查询空间成员列表", Code: WikiSpaceMemberList, Description: "查询Wiki空间成员列表", Resource: "wiki_space_member", Action: "list"},
+		{Name: "添加空间成员", Code: WikiSpaceMemberAdd, Description: "为Wiki空间添加成员", Resource: "wiki_space_member", Action: "add"},
+		{Name: "移除空间成员", Code: WikiSpaceMemberRemove, Description: "移除Wiki空间成员", Resource: "wiki_space_member", Action: "remove"},
+		{Name: "查询Wiki节点列表", Code: WikiNodeList, Description: "查询Wiki节点列表", Resource: "wiki_node", Action: "list"},
+		{Name: "创建Wiki节点", Code: WikiNodeCreate, Description: "创建Wiki节点（目录或文档）", Resource: "wiki_node", Action: "create"},
+		{Name: "查询Wiki节点详情", Code: WikiNodeRead, Description: "查询Wiki节点详情", Resource: "wiki_node", Action: "read"},
+		{Name: "更新Wiki节点", Code: WikiNodeUpdate, Description: "更新Wiki节点信息", Resource: "wiki_node", Action: "update"},
+		{Name: "删除Wiki节点", Code: WikiNodeDelete, Description: "删除Wiki节点", Resource: "wiki_node", Action: "delete"},
+		{Name: "移动Wiki节点", Code: WikiNodeMove, Description: "移动Wiki节点到其他位置", Resource: "wiki_node", Action: "move"},
+		{Name: "排序Wiki节点", Code: WikiNodeSort, Description: "批量排序Wiki节点", Resource: "wiki_node", Action: "sort"},
+		{Name: "创建Wiki文档", Code: WikiDocumentCreate, Description: "创建Wiki文档", Resource: "wiki_document", Action: "create"},
+		{Name: "查询Wiki文档", Code: WikiDocumentRead, Description: "查询Wiki文档内容", Resource: "wiki_document", Action: "read"},
+		{Name: "编辑Wiki文档", Code: WikiDocumentUpdate, Description: "编辑Wiki文档内容", Resource: "wiki_document", Action: "update"},
+		{Name: "删除Wiki文档", Code: WikiDocumentDelete, Description: "删除Wiki文档", Resource: "wiki_document", Action: "delete"},
+		{Name: "查询文档修订历史", Code: WikiRevisionList, Description: "查询Wiki文档修订历史", Resource: "wiki_revision", Action: "list"},
+		{Name: "查询修订详情", Code: WikiRevisionRead, Description: "查询Wiki文档修订详情", Resource: "wiki_revision", Action: "read"},
+		{Name: "恢复文档修订", Code: WikiRevisionRestore, Description: "恢复Wiki文档到指定修订版本", Resource: "wiki_revision", Action: "restore"},
+		{Name: "查询Wiki统计", Code: WikiStatsRead, Description: "查询Wiki模块统计数据", Resource: "wiki_stats", Action: "read"},
 	}
 }
 

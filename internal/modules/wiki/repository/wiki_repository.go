@@ -56,6 +56,15 @@ type WikiRepository interface {
 	ListMembers(ctx context.Context, spaceID string) ([]*model.WikiSpaceMember, error)
 	GetMember(ctx context.Context, spaceID, userID string) (*model.WikiSpaceMember, error)
 
+	// Node Permission
+	CreateNodePermission(ctx context.Context, perm *model.WikiNodePermission) error
+	GetNodePermissions(ctx context.Context, nodeID string) ([]*model.WikiNodePermission, error)
+	GetNodePermission(ctx context.Context, nodeID, userID, permission string) (*model.WikiNodePermission, error)
+	UpdateNodePermission(ctx context.Context, perm *model.WikiNodePermission) error
+	DeleteNodePermission(ctx context.Context, id string) error
+	DeleteNodePermissionsByNode(ctx context.Context, nodeID string) error
+	GetUserNodePermissions(ctx context.Context, nodeID, userID string) ([]*model.WikiNodePermission, error)
+
 	GetWikiStats(ctx context.Context, tenantID string) (*model.WikiStats, error)
 }
 
@@ -387,4 +396,61 @@ func (r *wikiRepository) GetWikiStats(ctx context.Context, tenantID string) (*mo
 	stats.TotalViews = viewCount
 
 	return &stats, nil
+}
+
+// CreateNodePermission 创建节点权限
+func (r *wikiRepository) CreateNodePermission(ctx context.Context, perm *model.WikiNodePermission) error {
+	if perm.ID == "" {
+		perm.ID = idgen.New()
+	}
+	perm.CreatedAt = time.Now()
+	perm.UpdatedAt = time.Now()
+	return r.getDB(ctx).Create(perm).Error
+}
+
+// GetNodePermissions 获取节点的所有权限
+func (r *wikiRepository) GetNodePermissions(ctx context.Context, nodeID string) ([]*model.WikiNodePermission, error) {
+	var perms []*model.WikiNodePermission
+	err := r.getDB(ctx).Where("node_id = ?", nodeID).Find(&perms).Error
+	return perms, err
+}
+
+// GetNodePermission 获取节点特定权限
+func (r *wikiRepository) GetNodePermission(ctx context.Context, nodeID, userID, permission string) (*model.WikiNodePermission, error) {
+	var perm model.WikiNodePermission
+	err := r.getDB(ctx).Where("node_id = ? AND user_id = ? AND permission = ?", nodeID, userID, permission).First(&perm).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &perm, err
+}
+
+// UpdateNodePermission 更新节点权限
+func (r *wikiRepository) UpdateNodePermission(ctx context.Context, perm *model.WikiNodePermission) error {
+	perm.UpdatedAt = time.Now()
+	result := r.getDB(ctx).Model(&model.WikiNodePermission{}).Where("id = ?", perm.ID).Updates(map[string]interface{}{
+		"permission": perm.Permission,
+		"updated_at": perm.UpdatedAt,
+	})
+	if result.RowsAffected == 0 {
+		return ErrWikiNodeNotFound
+	}
+	return result.Error
+}
+
+// DeleteNodePermission 删除单个节点权限
+func (r *wikiRepository) DeleteNodePermission(ctx context.Context, id string) error {
+	return r.getDB(ctx).Delete(&model.WikiNodePermission{}, "id = ?", id).Error
+}
+
+// DeleteNodePermissionsByNode 删除节点的所有权限
+func (r *wikiRepository) DeleteNodePermissionsByNode(ctx context.Context, nodeID string) error {
+	return r.getDB(ctx).Where("node_id = ?", nodeID).Delete(&model.WikiNodePermission{}).Error
+}
+
+// GetUserNodePermissions 获取用户在节点上的所有权限
+func (r *wikiRepository) GetUserNodePermissions(ctx context.Context, nodeID, userID string) ([]*model.WikiNodePermission, error) {
+	var perms []*model.WikiNodePermission
+	err := r.getDB(ctx).Where("node_id = ? AND user_id = ?", nodeID, userID).Find(&perms).Error
+	return perms, err
 }

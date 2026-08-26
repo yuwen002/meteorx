@@ -31,6 +31,11 @@ func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager) {
 				r.Get("/{id}", h.GetNode)
 				r.Put("/{id}", h.UpdateNode)
 				r.Delete("/{id}", h.DeleteNode)
+
+				// Node Permission
+				r.Get("/{id}/permissions", h.GetNodePermissions)
+				r.Post("/{id}/permissions", h.SetNodePermission)
+				r.Delete("/{id}/permissions/{userId}/{permission}", h.RemoveNodePermission)
 			})
 
 			r.Route("/{spaceId}/members", func(r chi.Router) {

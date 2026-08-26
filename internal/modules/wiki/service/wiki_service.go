@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"meteorx/internal/common/contextx"
 	"meteorx/internal/modules/wiki/dto"
 	"meteorx/internal/modules/wiki/model"
 	"meteorx/internal/modules/wiki/repository"
@@ -45,6 +46,17 @@ type WikiService interface {
 	AddMember(ctx context.Context, spaceID string, req *dto.WikiSpaceMemberReq) (*dto.WikiSpaceMemberResp, error)
 	RemoveMember(ctx context.Context, spaceID, userID string) error
 	ListMembers(ctx context.Context, spaceID string) ([]*dto.WikiSpaceMemberResp, error)
+
+	// Node Permissions
+	SetNodePermission(ctx context.Context, nodeID string, req *dto.SetNodePermissionReq) (*dto.NodePermissionResp, error)
+	GetNodePermissions(ctx context.Context, nodeID string) ([]*dto.NodePermissionResp, error)
+	RemoveNodePermission(ctx context.Context, nodeID, userID, permission string) error
+
+	// Permission Check
+	CheckSpacePermission(ctx context.Context, spaceID, userID, action string) error
+	CheckNodePermission(ctx context.Context, nodeID, userID, action string) error
+	CheckDocumentPermission(ctx context.Context, documentID, userID, action string) error
+	GetEffectivePermissions(ctx context.Context, spaceID, userID string) map[string]bool
 
 	// Stats
 	GetStats(ctx context.Context, tenantID string) (*dto.WikiStatsResp, error)
@@ -98,10 +110,15 @@ func (s *wikiService) CreateSpace(ctx context.Context, tenantID string, userID s
 }
 
 func (s *wikiService) GetSpace(ctx context.Context, id string, userID string) (*dto.WikiSpaceResp, error) {
+	if err := s.CheckSpacePermission(ctx, id, userID, "space:read"); err != nil {
+		return nil, err
+	}
+
 	space, err := s.repo.GetSpaceByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
+
 	return s.buildSpaceResp(ctx, space, userID)
 }
 
@@ -123,6 +140,10 @@ func (s *wikiService) ListSpaces(ctx context.Context, tenantID string, userID st
 }
 
 func (s *wikiService) UpdateSpace(ctx context.Context, id string, tenantID string, req *dto.UpdateWikiSpaceReq) (*dto.WikiSpaceResp, error) {
+	if err := s.CheckSpacePermission(ctx, id, tenantID, "space:update"); err != nil {
+		return nil, err
+	}
+
 	space, err := s.repo.GetSpaceByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -145,6 +166,10 @@ func (s *wikiService) UpdateSpace(ctx context.Context, id string, tenantID strin
 }
 
 func (s *wikiService) DeleteSpace(ctx context.Context, id string, tenantID string) error {
+	if err := s.CheckSpacePermission(ctx, id, tenantID, "space:delete"); err != nil {
+		return err
+	}
+
 	return s.repo.DeleteSpace(ctx, id)
 }
 
@@ -179,6 +204,10 @@ func (s *wikiService) buildSpaceResp(ctx context.Context, space *model.WikiSpace
 }
 
 func (s *wikiService) CreateNode(ctx context.Context, spaceID string, userID string, req *dto.CreateWikiNodeReq) (*dto.WikiNodeResp, error) {
+	if err := s.CheckSpacePermission(ctx, spaceID, userID, "node:create"); err != nil {
+		return nil, err
+	}
+
 	if req.Type == model.NodeTypeDocument {
 		var resp *dto.WikiNodeResp
 		err := s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
@@ -263,6 +292,11 @@ func (s *wikiService) CreateNode(ctx context.Context, spaceID string, userID str
 }
 
 func (s *wikiService) GetNode(ctx context.Context, id string) (*dto.WikiNodeResp, error) {
+	userID := contextx.GetUserID(ctx)
+	if err := s.CheckNodePermission(ctx, id, userID, "read"); err != nil {
+		return nil, err
+	}
+
 	node, err := s.repo.GetNodeByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -271,6 +305,11 @@ func (s *wikiService) GetNode(ctx context.Context, id string) (*dto.WikiNodeResp
 }
 
 func (s *wikiService) GetNodeTree(ctx context.Context, spaceID string) ([]*dto.WikiNodeTreeResp, error) {
+	userID := contextx.GetUserID(ctx)
+	if err := s.CheckSpacePermission(ctx, spaceID, userID, "node:read"); err != nil {
+		return nil, err
+	}
+
 	nodes, err := s.repo.ListNodesBySpace(ctx, spaceID)
 	if err != nil {
 		return nil, err
@@ -330,6 +369,11 @@ func (s *wikiService) buildNodeResp(ctx context.Context, node *model.WikiNode) (
 }
 
 func (s *wikiService) UpdateNode(ctx context.Context, id string, req *dto.UpdateWikiNodeReq) (*dto.WikiNodeResp, error) {
+	userID := contextx.GetUserID(ctx)
+	if err := s.CheckNodePermission(ctx, id, userID, "update"); err != nil {
+		return nil, err
+	}
+
 	node, err := s.repo.GetNodeByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -354,6 +398,11 @@ func (s *wikiService) UpdateNode(ctx context.Context, id string, req *dto.Update
 }
 
 func (s *wikiService) DeleteNode(ctx context.Context, id string) error {
+	userID := contextx.GetUserID(ctx)
+	if err := s.CheckNodePermission(ctx, id, userID, "delete"); err != nil {
+		return err
+	}
+
 	return s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
 		return s.deleteNodeRecursive(txCtx, id)
 	})
@@ -385,6 +434,10 @@ func (s *wikiService) deleteNodeRecursive(ctx context.Context, id string) error 
 }
 
 func (s *wikiService) CreateDocument(ctx context.Context, nodeID string, userID string, req *dto.CreateDocumentReq) (*dto.DocumentResp, error) {
+	if err := s.CheckNodePermission(ctx, nodeID, userID, "create"); err != nil {
+		return nil, err
+	}
+
 	node, err := s.repo.GetNodeByID(ctx, nodeID)
 	if err != nil {
 		return nil, err
@@ -409,6 +462,10 @@ func (s *wikiService) CreateDocument(ctx context.Context, nodeID string, userID 
 }
 
 func (s *wikiService) GetDocument(ctx context.Context, nodeID string, userID string) (*dto.DocumentResp, error) {
+	if err := s.CheckNodePermission(ctx, nodeID, userID, "read"); err != nil {
+		return nil, err
+	}
+
 	node, err := s.repo.GetNodeByID(ctx, nodeID)
 	if err != nil {
 		return nil, err
@@ -425,6 +482,10 @@ func (s *wikiService) GetDocument(ctx context.Context, nodeID string, userID str
 }
 
 func (s *wikiService) UpdateDocument(ctx context.Context, id string, userID string, req *dto.UpdateDocumentReq) (*dto.DocumentResp, error) {
+	if err := s.CheckDocumentPermission(ctx, id, userID, "update"); err != nil {
+		return nil, err
+	}
+
 	var resp *dto.DocumentResp
 	err := s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
 		doc, err := s.repo.GetDocumentByID(txCtx, id)
@@ -482,6 +543,11 @@ func (s *wikiService) UpdateDocument(ctx context.Context, id string, userID stri
 }
 
 func (s *wikiService) DeleteDocument(ctx context.Context, id string) error {
+	userID := contextx.GetUserID(ctx)
+	if err := s.CheckDocumentPermission(ctx, id, userID, "delete"); err != nil {
+		return err
+	}
+
 	return s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
 		doc, err := s.repo.GetDocumentByID(txCtx, id)
 		if err != nil {
@@ -517,6 +583,11 @@ func (s *wikiService) buildDocumentResp(ctx context.Context, node *model.WikiNod
 }
 
 func (s *wikiService) ListRevisions(ctx context.Context, documentID string) ([]*dto.DocumentRevisionResp, error) {
+	userID := contextx.GetUserID(ctx)
+	if err := s.CheckDocumentPermission(ctx, documentID, userID, "read"); err != nil {
+		return nil, err
+	}
+
 	revisions, err := s.repo.ListRevisions(ctx, documentID)
 	if err != nil {
 		return nil, err
@@ -539,6 +610,11 @@ func (s *wikiService) ListRevisions(ctx context.Context, documentID string) ([]*
 }
 
 func (s *wikiService) GetRevision(ctx context.Context, documentID string, version int) (*dto.DocumentRevisionResp, error) {
+	userID := contextx.GetUserID(ctx)
+	if err := s.CheckDocumentPermission(ctx, documentID, userID, "read"); err != nil {
+		return nil, err
+	}
+
 	revision, err := s.repo.GetRevisionByVersion(ctx, documentID, version)
 	if err != nil {
 		return nil, err
@@ -556,6 +632,10 @@ func (s *wikiService) GetRevision(ctx context.Context, documentID string, versio
 }
 
 func (s *wikiService) RestoreRevision(ctx context.Context, documentID string, version int, userID string) (*dto.DocumentResp, error) {
+	if err := s.CheckDocumentPermission(ctx, documentID, userID, "update"); err != nil {
+		return nil, err
+	}
+
 	revision, err := s.repo.GetRevisionByVersion(ctx, documentID, version)
 	if err != nil {
 		return nil, err
@@ -586,6 +666,11 @@ func (s *wikiService) RestoreRevision(ctx context.Context, documentID string, ve
 }
 
 func (s *wikiService) AddMember(ctx context.Context, spaceID string, req *dto.WikiSpaceMemberReq) (*dto.WikiSpaceMemberResp, error) {
+	userID := contextx.GetUserID(ctx)
+	if err := s.CheckSpacePermission(ctx, spaceID, userID, "member:manage"); err != nil {
+		return nil, err
+	}
+
 	member := &model.WikiSpaceMember{
 		SpaceID: spaceID,
 		UserID:  req.UserID,
@@ -604,10 +689,20 @@ func (s *wikiService) AddMember(ctx context.Context, spaceID string, req *dto.Wi
 }
 
 func (s *wikiService) RemoveMember(ctx context.Context, spaceID, userID string) error {
+	currentUserID := contextx.GetUserID(ctx)
+	if err := s.CheckSpacePermission(ctx, spaceID, currentUserID, "member:manage"); err != nil {
+		return err
+	}
+
 	return s.repo.RemoveMember(ctx, spaceID, userID)
 }
 
 func (s *wikiService) ListMembers(ctx context.Context, spaceID string) ([]*dto.WikiSpaceMemberResp, error) {
+	userID := contextx.GetUserID(ctx)
+	if err := s.CheckSpacePermission(ctx, spaceID, userID, "space:read"); err != nil {
+		return nil, err
+	}
+
 	members, err := s.repo.ListMembers(ctx, spaceID)
 	if err != nil {
 		return nil, err
@@ -623,6 +718,87 @@ func (s *wikiService) ListMembers(ctx context.Context, spaceID string) ([]*dto.W
 		})
 	}
 	return resps, nil
+}
+
+func (s *wikiService) SetNodePermission(ctx context.Context, nodeID string, req *dto.SetNodePermissionReq) (*dto.NodePermissionResp, error) {
+	userID := contextx.GetUserID(ctx)
+	if err := s.CheckNodePermission(ctx, nodeID, userID, "update"); err != nil {
+		return nil, err
+	}
+
+	existing, err := s.repo.GetNodePermission(ctx, nodeID, req.UserID, req.Permission)
+	if err != nil {
+		return nil, err
+	}
+
+	var perm *model.WikiNodePermission
+	if existing != nil {
+		existing.Permission = req.Permission
+		if err := s.repo.UpdateNodePermission(ctx, existing); err != nil {
+			return nil, err
+		}
+		perm = existing
+	} else {
+		perm = &model.WikiNodePermission{
+			NodeID:     nodeID,
+			UserID:     req.UserID,
+			Permission: req.Permission,
+		}
+		if err := s.repo.CreateNodePermission(ctx, perm); err != nil {
+			return nil, err
+		}
+	}
+
+	return &dto.NodePermissionResp{
+		ID:         perm.ID,
+		NodeID:     perm.NodeID,
+		UserID:     perm.UserID,
+		Permission: perm.Permission,
+		CreatedAt:  perm.CreatedAt,
+		UpdatedAt:  perm.UpdatedAt,
+	}, nil
+}
+
+func (s *wikiService) GetNodePermissions(ctx context.Context, nodeID string) ([]*dto.NodePermissionResp, error) {
+	userID := contextx.GetUserID(ctx)
+	if err := s.CheckNodePermission(ctx, nodeID, userID, "read"); err != nil {
+		return nil, err
+	}
+
+	perms, err := s.repo.GetNodePermissions(ctx, nodeID)
+	if err != nil {
+		return nil, err
+	}
+
+	var resps []*dto.NodePermissionResp
+	for _, p := range perms {
+		resps = append(resps, &dto.NodePermissionResp{
+			ID:         p.ID,
+			NodeID:     p.NodeID,
+			UserID:     p.UserID,
+			Permission: p.Permission,
+			CreatedAt:  p.CreatedAt,
+			UpdatedAt:  p.UpdatedAt,
+		})
+	}
+	return resps, nil
+}
+
+func (s *wikiService) RemoveNodePermission(ctx context.Context, nodeID, userID, permission string) error {
+	currentUserID := contextx.GetUserID(ctx)
+	if err := s.CheckNodePermission(ctx, nodeID, currentUserID, "update"); err != nil {
+		return err
+	}
+
+	perm, err := s.repo.GetNodePermission(ctx, nodeID, userID, permission)
+	if err != nil {
+		return err
+	}
+	if perm == nil {
+		return apperrors.ErrNotFound("权限记录不存在")
+	}
+
+	return s.repo.DeleteNodePermission(ctx, perm.ID)
 }
 
 func (s *wikiService) GetStats(ctx context.Context, tenantID string) (*dto.WikiStatsResp, error) {

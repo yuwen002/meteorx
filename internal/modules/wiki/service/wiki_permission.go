@@ -101,51 +101,66 @@ func (s *wikiService) CheckSpacePermission(ctx context.Context, spaceID, userID 
 }
 
 // CheckNodePermission 检查用户对 Node 的权限（包含权限继承）
+// Node 权限是 Space 权限的补充：可以为特定用户在特定节点授予额外权限
 func (s *wikiService) CheckNodePermission(ctx context.Context, nodeID, userID string, action string) error {
 	node, err := s.repo.GetNodeByID(ctx, nodeID)
 	if err != nil {
 		return err
 	}
 
-	// 1. 检查 Space 级别权限
+	// 1. 首先检查 Space 级别权限（基础权限）
 	spaceID := node.SpaceID
 	spaceAction := mapActionToSpaceLevel(action)
-	if err := s.CheckSpacePermission(ctx, spaceID, userID, spaceAction); err != nil {
-		return err
+	spaceErr := s.CheckSpacePermission(ctx, spaceID, userID, spaceAction)
+
+	// 2. 检查 Node 级别权限（可以覆盖/补充 Space 权限）
+	nodeLevelErr := s.checkNodeLevelPermission(ctx, nodeID, userID, action)
+
+	// 如果 Space 权限通过，直接允许
+	if spaceErr == nil {
+		return nil
 	}
 
-	// 2. 检查 Node 级别权限（覆盖 Space 权限）
-	if err := s.checkNodeLevelPermission(ctx, nodeID, userID, action); err != nil {
-		return err
+	// 如果 Space 权限不通过，但 Node 权限通过，则允许（Node 权限可以授予额外权限）
+	if nodeLevelErr == nil {
+		return nil
 	}
 
-	return nil
+	// 两个都不通过，返回 Space 权限错误
+	return spaceErr
 }
 
 // checkNodeLevelPermission 检查节点级别的权限设置
+// Node 权限可以为用户在特定节点授予额外权限（即使 Space 级别没有权限）
 func (s *wikiService) checkNodeLevelPermission(ctx context.Context, nodeID, userID string, action string) error {
-	// 获取用户在该节点的所有权限
 	perms, err := s.repo.GetUserNodePermissions(ctx, nodeID, userID)
 	if err != nil {
 		return err
 	}
 
-	// 如果没有节点级别权限，使用默认的 Space 权限（已在 CheckSpacePermission 中检查）
+	// 如果没有节点级别权限，直接返回错误（让调用方决定使用 Space 权限）
 	if len(perms) == 0 {
-		return nil
+		return apperrors.ErrForbidden("无节点级别权限")
 	}
 
-	// 检查节点级别的拒绝/允许
+	// 检查节点级别的权限
 	for _, perm := range perms {
-		if perm.Permission == model.NodePermEdit && (action == "update" || action == "delete") {
-			return nil
-		}
-		if perm.Permission == model.NodePermDelete && action == "delete" {
-			return nil
+		switch perm.Permission {
+		case model.NodePermView:
+			if action == "read" {
+				return nil
+			}
+		case model.NodePermEdit:
+			if action == "read" || action == "update" {
+				return nil
+			}
+		case model.NodePermDelete:
+			if action == "read" || action == "update" || action == "delete" {
+				return nil
+			}
 		}
 	}
 
-	// 有节点权限但没有匹配的，返回权限不足
 	return apperrors.ErrForbidden("您没有执行此操作的节点权限")
 }
 
