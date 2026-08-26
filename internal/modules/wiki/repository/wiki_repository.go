@@ -65,6 +65,24 @@ type WikiRepository interface {
 	DeleteNodePermissionsByNode(ctx context.Context, nodeID string) error
 	GetUserNodePermissions(ctx context.Context, nodeID, userID string) ([]*model.WikiNodePermission, error)
 
+	// Trash
+	CreateTrashItem(ctx context.Context, item *model.TrashItem) error
+	ListTrashItems(ctx context.Context, tenantID string, spaceID string, itemType string, page, pageSize int) ([]*model.TrashItem, int64, error)
+	GetTrashItem(ctx context.Context, id string) (*model.TrashItem, error)
+	DeleteTrashItem(ctx context.Context, id string) error
+	ExpireTrashItems(ctx context.Context) error
+
+	// Search
+	SearchNodesByTitle(ctx context.Context, tenantID string, spaceID string, query string) ([]*model.WikiNode, error)
+	SearchDocumentsByContent(ctx context.Context, tenantID string, spaceID string, query string) ([]*model.Document, error)
+
+	// Attachment
+	CreateAttachment(ctx context.Context, attachment *model.Attachment) error
+	ListAttachmentsByDocument(ctx context.Context, documentID string) ([]*model.Attachment, error)
+	GetAttachment(ctx context.Context, id string) (*model.Attachment, error)
+	DeleteAttachment(ctx context.Context, id string) error
+	DeleteAttachmentsByDocument(ctx context.Context, documentID string) error
+
 	GetWikiStats(ctx context.Context, tenantID string) (*model.WikiStats, error)
 }
 
@@ -91,6 +109,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.DocumentRevision{},
 		&model.WikiSpaceMember{},
 		&model.WikiNodePermission{},
+		&model.TrashItem{},
+		&model.Attachment{},
 	)
 }
 
@@ -453,4 +473,114 @@ func (r *wikiRepository) GetUserNodePermissions(ctx context.Context, nodeID, use
 	var perms []*model.WikiNodePermission
 	err := r.getDB(ctx).Where("node_id = ? AND user_id = ?", nodeID, userID).Find(&perms).Error
 	return perms, err
+}
+
+// CreateTrashItem 创建回收站记录
+func (r *wikiRepository) CreateTrashItem(ctx context.Context, item *model.TrashItem) error {
+	if item.ID == "" {
+		item.ID = idgen.New()
+	}
+	item.DeletedAt = time.Now()
+	return r.getDB(ctx).Create(item).Error
+}
+
+// ListTrashItems 列出回收站项目
+func (r *wikiRepository) ListTrashItems(ctx context.Context, tenantID string, spaceID string, itemType string, page, pageSize int) ([]*model.TrashItem, int64, error) {
+	var items []*model.TrashItem
+	var total int64
+
+	query := r.getDB(ctx).Model(&model.TrashItem{}).Where("tenant_id = ?", tenantID)
+	if spaceID != "" {
+		query = query.Where("space_id = ?", spaceID)
+	}
+	if itemType != "" {
+		query = query.Where("item_type = ?", itemType)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	if err := query.Order("deleted_at DESC").Offset(offset).Limit(pageSize).Find(&items).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return items, total, nil
+}
+
+// GetTrashItem 获取回收站项目
+func (r *wikiRepository) GetTrashItem(ctx context.Context, id string) (*model.TrashItem, error) {
+	var item model.TrashItem
+	if err := r.getDB(ctx).Where("id = ?", id).First(&item).Error; err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+// DeleteTrashItem 删除回收站项目（物理删除）
+func (r *wikiRepository) DeleteTrashItem(ctx context.Context, id string) error {
+	return r.getDB(ctx).Where("id = ?", id).Delete(&model.TrashItem{}).Error
+}
+
+// ExpireTrashItems 清理过期的回收站项目
+func (r *wikiRepository) ExpireTrashItems(ctx context.Context) error {
+	now := time.Now()
+	return r.getDB(ctx).Where("expires_at < ?", now).Delete(&model.TrashItem{}).Error
+}
+
+// SearchNodesByTitle 按标题搜索节点
+func (r *wikiRepository) SearchNodesByTitle(ctx context.Context, tenantID string, spaceID string, query string) ([]*model.WikiNode, error) {
+	var nodes []*model.WikiNode
+	db := r.getDB(ctx).Where("tenant_id = ?", tenantID)
+	if spaceID != "" {
+		db = db.Where("space_id = ?", spaceID)
+	}
+	pattern := "%" + query + "%"
+	err := db.Where("title LIKE ?", pattern).Find(&nodes).Error
+	return nodes, err
+}
+
+// SearchDocumentsByContent 按内容搜索文档
+func (r *wikiRepository) SearchDocumentsByContent(ctx context.Context, tenantID string, spaceID string, query string) ([]*model.Document, error) {
+	var docs []*model.Document
+	db := r.getDB(ctx).Model(&model.Document{})
+
+	pattern := "%" + query + "%"
+	err := db.Where("content LIKE ?", pattern).Find(&docs).Error
+	return docs, err
+}
+
+// CreateAttachment 创建附件
+func (r *wikiRepository) CreateAttachment(ctx context.Context, attachment *model.Attachment) error {
+	if attachment.ID == "" {
+		attachment.ID = idgen.New()
+	}
+	return r.getDB(ctx).Create(attachment).Error
+}
+
+// ListAttachmentsByDocument 列出文档的所有附件
+func (r *wikiRepository) ListAttachmentsByDocument(ctx context.Context, documentID string) ([]*model.Attachment, error) {
+	var attachments []*model.Attachment
+	err := r.getDB(ctx).Where("document_id = ?", documentID).Find(&attachments).Error
+	return attachments, err
+}
+
+// GetAttachment 获取单个附件
+func (r *wikiRepository) GetAttachment(ctx context.Context, id string) (*model.Attachment, error) {
+	var attachment model.Attachment
+	if err := r.getDB(ctx).Where("id = ?", id).First(&attachment).Error; err != nil {
+		return nil, err
+	}
+	return &attachment, nil
+}
+
+// DeleteAttachment 删除单个附件
+func (r *wikiRepository) DeleteAttachment(ctx context.Context, id string) error {
+	return r.getDB(ctx).Where("id = ?", id).Delete(&model.Attachment{}).Error
+}
+
+// DeleteAttachmentsByDocument 删除文档的所有附件
+func (r *wikiRepository) DeleteAttachmentsByDocument(ctx context.Context, documentID string) error {
+	return r.getDB(ctx).Where("document_id = ?", documentID).Delete(&model.Attachment{}).Error
 }

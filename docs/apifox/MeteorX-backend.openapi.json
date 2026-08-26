@@ -19,7 +19,8 @@
     { "name": "Dashboard", "description": "运营看板" },
     { "name": "Notification", "description": "通知公告" },
     { "name": "Tenant-Cancel", "description": "租户注销审批" },
-    { "name": "Tenant-Settings", "description": "租户独立配置" }
+    { "name": "Tenant-Settings", "description": "租户独立配置" },
+    { "name": "Wiki", "description": "知识库/文档管理" }
   ],
   "security": [{ "bearer": [] }],
   "servers": [
@@ -283,7 +284,7 @@
         "responses": {
           "200": {
             "description": "成功",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TenantSettingsResp" } } }
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiTenantSettingsResp" } } }
           }
         }
       },
@@ -299,7 +300,7 @@
         "responses": {
           "200": {
             "description": "成功",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TenantSettingsResp" } } }
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiTenantSettingsResp" } } }
           }
         }
       }
@@ -1712,6 +1713,14 @@
       }
     },
     "/api/v1/admin/tenants-plan/{id}": {
+      "get": {
+        "summary": "查询租户套餐详情",
+        "tags": ["Plan"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "租户ID" }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiCurrentPlanResp" } } } }
+        }
+      },
       "post": {
         "summary": "为租户分配套餐",
         "tags": ["Plan"],
@@ -1726,6 +1735,15 @@
       }
     },
     "/api/v1/plan/current": {
+      "get": {
+        "summary": "当前租户套餐",
+        "tags": ["Plan"],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiCurrentPlanResp" } } } }
+        }
+      }
+    },
+    "/api/v1/tenant/current/plan": {
       "get": {
         "summary": "获取当前租户套餐信息",
         "tags": ["Plan"],
@@ -1987,7 +2005,7 @@
         "summary": "Wiki统计数据",
         "tags": ["Wiki"],
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiStatsResp" } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiWikiStatsResp" } } } }
         }
       }
     },
@@ -2011,7 +2029,7 @@
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateWikiSpaceReq" } } }
         },
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiSpaceResp" } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiWikiSpaceResp" } } } }
         }
       }
     },
@@ -2021,7 +2039,7 @@
         "tags": ["Wiki"],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiSpaceResp" } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiWikiSpaceResp" } } } }
         }
       },
       "put": {
@@ -2033,7 +2051,7 @@
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateWikiSpaceReq" } } }
         },
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiSpaceResp" } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiWikiSpaceResp" } } } }
         }
       },
       "delete": {
@@ -2051,7 +2069,7 @@
         "tags": ["Wiki"],
         "parameters": [{ "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "code": { "type": "integer" }, "message": { "type": "string" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/WikiNodeTreeResp" } } } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "allOf": [ { "$ref": "#/components/schemas/ApiSuccess" }, { "type": "object", "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/WikiNodeTreeResp" } } } } ] } } } }
         }
       }
     },
@@ -2065,7 +2083,7 @@
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateWikiNodeReq" } } }
         },
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiNodeResp" } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiWikiNodeResp" } } } }
         }
       }
     },
@@ -2078,7 +2096,7 @@
           { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiNodeResp" } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiWikiNodeResp" } } } }
         }
       },
       "put": {
@@ -2093,7 +2111,7 @@
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateWikiNodeReq" } } }
         },
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiNodeResp" } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiWikiNodeResp" } } } }
         }
       },
       "delete": {
@@ -2114,7 +2132,7 @@
         "tags": ["Wiki"],
         "parameters": [{ "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "code": { "type": "integer" }, "message": { "type": "string" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/WikiSpaceMemberResp" } } } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "allOf": [ { "$ref": "#/components/schemas/ApiSuccess" }, { "type": "object", "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/WikiSpaceMemberResp" } } } } ] } } } }
         }
       },
       "post": {
@@ -2126,7 +2144,7 @@
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiSpaceMemberReq" } } }
         },
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WikiSpaceMemberResp" } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiWikiSpaceMemberResp" } } } }
         }
       }
     },
@@ -2153,7 +2171,7 @@
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateDocumentReq" } } }
         },
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentResp" } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiDocumentResp" } } } }
         }
       },
       "get": {
@@ -2161,7 +2179,7 @@
         "tags": ["Wiki"],
         "parameters": [{ "name": "nodeId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentResp" } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiDocumentResp" } } } }
         }
       }
     },
@@ -2175,7 +2193,7 @@
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateDocumentReq" } } }
         },
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentResp" } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiDocumentResp" } } } }
         }
       },
       "delete": {
@@ -2193,7 +2211,7 @@
         "tags": ["Wiki"],
         "parameters": [{ "name": "documentId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "code": { "type": "integer" }, "message": { "type": "string" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/DocumentRevisionResp" } } } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "allOf": [ { "$ref": "#/components/schemas/ApiSuccess" }, { "type": "object", "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/DocumentRevisionResp" } } } } ] } } } }
         }
       }
     },
@@ -2206,7 +2224,7 @@
           { "name": "version", "in": "path", "required": true, "schema": { "type": "integer" } }
         ],
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentRevisionResp" } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiDocumentRevisionResp" } } } }
         }
       }
     },
@@ -2219,7 +2237,245 @@
           { "name": "version", "in": "path", "required": true, "schema": { "type": "integer" } }
         ],
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentResp" } } } }
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiDocumentResp" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/search": {
+      "get": {
+        "summary": "Wiki搜索（标题+内容）",
+        "tags": ["Wiki"],
+        "parameters": [
+          { "name": "q", "in": "query", "required": true, "schema": { "type": "string" }, "description": "搜索关键字" },
+          { "name": "space_id", "in": "query", "schema": { "type": "string" }, "description": "限定空间范围" },
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiWikiSearchResp" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/trash": {
+      "get": {
+        "summary": "回收站列表",
+        "tags": ["Wiki"],
+        "parameters": [
+          { "name": "space_id", "in": "query", "schema": { "type": "string" }, "description": "按空间过滤" },
+          { "name": "item_type", "in": "query", "schema": { "type": "string" }, "description": "按类型过滤：space/node/document" },
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiWikiTrashListResp" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/trash/{id}/restore": {
+      "post": {
+        "summary": "从回收站恢复",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/trash/{id}": {
+      "delete": {
+        "summary": "永久删除回收站项目",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/spaces/{spaceId}/nodes/{id}/move": {
+      "post": {
+        "summary": "移动节点",
+        "tags": ["Wiki"],
+        "parameters": [
+          { "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": { "new_parent_id": { "type": "string", "description": "新父节点ID，为空表示移动到根级" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/spaces/{spaceId}/nodes/{id}/sort": {
+      "put": {
+        "summary": "节点排序",
+        "tags": ["Wiki"],
+        "parameters": [
+          { "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sort"],
+                "properties": { "sort": { "type": "integer", "description": "排序值，数值越小越靠前" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/spaces/{spaceId}/nodes/{id}/permissions": {
+      "get": {
+        "summary": "获取节点权限列表",
+        "tags": ["Wiki"],
+        "parameters": [
+          { "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiWikiNodePermissionListResp" } } } }
+        }
+      },
+      "post": {
+        "summary": "设置节点权限",
+        "tags": ["Wiki"],
+        "parameters": [
+          { "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["user_id", "permission"],
+                "properties": {
+                  "user_id": { "type": "string", "description": "目标用户ID" },
+                  "permission": { "type": "string", "enum": ["view", "edit", "delete"], "description": "权限类型" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiWikiNodePermissionResp" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/spaces/{spaceId}/nodes/{id}/permissions/{userId}/{permission}": {
+      "delete": {
+        "summary": "移除节点权限",
+        "tags": ["Wiki"],
+        "parameters": [
+          { "name": "spaceId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "permission", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/documents/attachments": {
+      "post": {
+        "summary": "创建附件",
+        "tags": ["Wiki"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateWikiAttachmentReq" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiWikiAttachmentResp" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/documents/{documentId}/attachments": {
+      "get": {
+        "summary": "列出文档附件",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "documentId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiWikiAttachmentListResp" } } } }
+        }
+      }
+    },
+    "/api/v1/wiki/documents/attachments/{id}": {
+      "delete": {
+        "summary": "删除附件",
+        "tags": ["Wiki"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/admin/tenants/{id}/hard": {
+      "delete": {
+        "summary": "硬删除租户（不可恢复）",
+        "tags": ["Tenant"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/admin/tenants/{id}/plan": {
+      "put": {
+        "summary": "更新租户套餐",
+        "tags": ["Tenant"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["plan_id"],
+                "properties": {
+                  "plan_id": { "type": "string", "description": "套餐ID" },
+                  "expires_at": { "type": "string", "format": "date-time", "description": "过期时间" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/api/v1/files/my": {
+      "get": {
+        "summary": "我的文件列表",
+        "tags": ["File"],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiListFile" } } } }
         }
       }
     }
@@ -2235,264 +2491,343 @@
     "schemas": {
       "ApiSuccess": {
         "type": "object",
+        "description": "统一成功响应封装，所有成功返回均使用此结构",
         "properties": {
-          "code": { "type": "integer", "example": 0 },
-          "message": { "type": "string", "example": "success" },
-          "data": { "nullable": true }
+          "pagination": { "$ref": "#/components/schemas/Pagination" },
+          "request_id": { "type": "string", "description": "请求跟踪ID" }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "description": "分页信息",
+        "properties": {
+          "page": { "type": "integer", "description": "当前页码" },
+          "page_size": { "type": "integer", "description": "每页数量" },
+          "total": { "type": "integer", "description": "总记录数" }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "description": "统一错误响应",
+        "properties": {
+          "code": { "type": "string", "description": "错误码，如 ERR_INVALID_PARAM" },
+          "message": { "type": "string", "description": "错误信息" },
+          "request_id": { "type": "string", "description": "请求跟踪ID" },
+          "details": { "description": "错误详情" }
         }
       },
       "ApiLoginResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer", "example": 0 },
-          "message": { "type": "string", "example": "success" },
-          "data": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
             "type": "object",
             "properties": {
-              "token": { "type": "string", "description": "JWT令牌" },
-              "user": { "$ref": "#/components/schemas/UserResp" },
-              "permissions": { "type": "array", "items": { "type": "string" } }
+              "data": {
+                "type": "object",
+                "properties": {
+                  "token": { "type": "string", "description": "JWT令牌" },
+                  "user": { "$ref": "#/components/schemas/UserResp" },
+                  "permissions": { "type": "array", "items": { "type": "string" } }
+                }
+              }
             }
           }
-        }
+        ]
       },
       "ApiUserResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer", "example": 0 },
-          "message": { "type": "string", "example": "success" },
-          "data": { "$ref": "#/components/schemas/UserResp" }
-        }
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/UserResp" }
+            }
+          }
+        ]
       },
       "ApiListUser": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
             "type": "object",
             "properties": {
-              "items": { "type": "array", "items": { "$ref": "#/components/schemas/UserResp" } },
-              "total": { "type": "integer" }
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": { "type": "array", "items": { "$ref": "#/components/schemas/UserResp" } }
+                }
+              }
             }
           }
-        }
+        ]
       },
       "ApiDataRole": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": { "$ref": "#/components/schemas/RoleResp" }
-        }
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/RoleResp" }
+            }
+          }
+        ]
       },
       "ApiListRole": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
             "type": "object",
             "properties": {
-              "items": { "type": "array", "items": { "$ref": "#/components/schemas/RoleResp" } },
-              "total": { "type": "integer" }
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": { "type": "array", "items": { "$ref": "#/components/schemas/RoleResp" } }
+                }
+              }
             }
           }
-        }
+        ]
       },
       "ApiListPermission": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
             "type": "object",
             "properties": {
-              "items": { "type": "array", "items": { "$ref": "#/components/schemas/PermissionResp" } },
-              "total": { "type": "integer" }
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": { "type": "array", "items": { "$ref": "#/components/schemas/PermissionResp" } }
+                }
+              }
             }
           }
-        }
+        ]
       },
       "ApiDataPermission": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": { "$ref": "#/components/schemas/PermissionResp" }
-        }
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/PermissionResp" }
+            }
+          }
+        ]
       },
       "ApiListRolePermission": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
             "type": "object",
             "properties": {
-              "items": { "type": "array", "items": { "$ref": "#/components/schemas/RolePermissionResp" } },
-              "total": { "type": "integer" }
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": { "type": "array", "items": { "$ref": "#/components/schemas/RolePermissionResp" } }
+                }
+              }
             }
           }
-        }
+        ]
       },
       "ApiListUserRole": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
             "type": "object",
             "properties": {
-              "items": { "type": "array", "items": { "$ref": "#/components/schemas/UserRoleResp" } },
-              "total": { "type": "integer" }
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": { "type": "array", "items": { "$ref": "#/components/schemas/UserRoleResp" } }
+                }
+              }
             }
           }
-        }
+        ]
       },
       "ApiTenantResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": { "$ref": "#/components/schemas/TenantResp" }
-        }
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/TenantResp" }
+            }
+          }
+        ]
       },
       "ApiListTenant": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
             "type": "object",
             "properties": {
-              "items": { "type": "array", "items": { "$ref": "#/components/schemas/AdminTenantResp" } },
-              "total": { "type": "integer" }
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": { "type": "array", "items": { "$ref": "#/components/schemas/AdminTenantResp" } }
+                }
+              }
             }
           }
-        }
+        ]
       },
       "ApiAdminTenantResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": { "$ref": "#/components/schemas/AdminTenantResp" }
-        }
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/AdminTenantResp" }
+            }
+          }
+        ]
       },
       "ApiGetInitStatusResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": { "$ref": "#/components/schemas/GetInitStatusResp" }
-        }
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/GetInitStatusResp" }
+            }
+          }
+        ]
       },
       "ApiApplyCancellationResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": { "$ref": "#/components/schemas/ApplyCancellationResp" }
-        }
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/ApplyCancellationResp" }
+            }
+          }
+        ]
       },
       "ApiUploadFileResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": { "$ref": "#/components/schemas/UploadFileResp" }
-        }
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/UploadFileResp" }
+            }
+          }
+        ]
       },
       "ApiFileResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": { "$ref": "#/components/schemas/FileResp" }
-        }
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/FileResp" }
+            }
+          }
+        ]
       },
       "ApiListFile": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
             "type": "object",
             "properties": {
-              "items": { "type": "array", "items": { "$ref": "#/components/schemas/FileResp" } },
-              "total": { "type": "integer" }
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": { "type": "array", "items": { "$ref": "#/components/schemas/FileResp" } }
+                }
+              }
             }
           }
-        }
+        ]
       },
       "ApiListPlan": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
             "type": "object",
             "properties": {
-              "items": { "type": "array", "items": { "$ref": "#/components/schemas/PlanResp" } },
-              "total": { "type": "integer" }
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": { "type": "array", "items": { "$ref": "#/components/schemas/PlanResp" } }
+                }
+              }
             }
           }
-        }
+        ]
       },
       "ApiPlanResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": { "$ref": "#/components/schemas/PlanResp" }
-        }
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/PlanResp" }
+            }
+          }
+        ]
       },
       "ApiCurrentPlanResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": { "$ref": "#/components/schemas/CurrentPlanResp" }
-        }
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/CurrentPlanResp" }
+            }
+          }
+        ]
       },
       "ApiListAuditLog": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
             "type": "object",
             "properties": {
-              "items": { "type": "array", "items": { "$ref": "#/components/schemas/AuditLogResp" } },
-              "total": { "type": "integer" }
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": { "type": "array", "items": { "$ref": "#/components/schemas/AuditLogResp" } }
+                }
+              }
             }
           }
-        }
+        ]
       },
       "ApiAuditLogResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": { "$ref": "#/components/schemas/AuditLogResp" }
-        }
-      },
-      "ApiAuditStatsResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
             "type": "object",
             "properties": {
-              "total": { "type": "integer" },
-              "today": { "type": "integer" },
-              "success_count": { "type": "integer" },
-              "failure_count": { "type": "integer" }
+              "data": { "$ref": "#/components/schemas/AuditLogResp" }
             }
           }
-        }
+        ]
+      },
+      "ApiAuditStatsResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "total": { "type": "integer" },
+                  "today": { "type": "integer" },
+                  "success_count": { "type": "integer" },
+                  "failure_count": { "type": "integer" }
+                }
+              }
+            }
+          }
+        ]
       },
       "LoginReq": {
         "type": "object",
@@ -3032,18 +3367,20 @@
         }
       },
       "ApiCancelRequestListResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
             "type": "object",
             "properties": {
-              "items": { "type": "array", "items": { "$ref": "#/components/schemas/CancelRequestResp" } },
-              "total": { "type": "integer" }
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": { "type": "array", "items": { "$ref": "#/components/schemas/CancelRequestResp" } }
+                }
+              }
             }
           }
-        }
+        ]
       },
       "CancelRequestResp": {
         "type": "object",
@@ -3078,12 +3415,15 @@
         }
       },
       "ApiDashboardOverviewResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": { "$ref": "#/components/schemas/DashboardOverviewResp" }
-        }
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/DashboardOverviewResp" }
+            }
+          }
+        ]
       },
       "DashboardOverviewResp": {
         "type": "object",
@@ -3205,26 +3545,31 @@
         }
       },
       "ApiAnnouncementListResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
             "type": "object",
             "properties": {
-              "items": { "type": "array", "items": { "$ref": "#/components/schemas/AnnouncementResp" } },
-              "total": { "type": "integer" }
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": { "type": "array", "items": { "$ref": "#/components/schemas/AnnouncementResp" } }
+                }
+              }
             }
           }
-        }
+        ]
       },
       "ApiAnnouncementResp": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": { "$ref": "#/components/schemas/AnnouncementResp" }
-        }
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/AnnouncementResp" }
+            }
+          }
+        ]
       },
       "CreateAnnouncementReq": {
         "type": "object",
@@ -3313,20 +3658,15 @@
         }
       },
       "ApiListWikiSpace": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": { "type": "array", "items": { "$ref": "#/components/schemas/WikiSpaceResp" } },
-          "pagination": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
             "type": "object",
             "properties": {
-              "page": { "type": "integer" },
-              "page_size": { "type": "integer" },
-              "total": { "type": "integer" }
+              "data": { "type": "array", "items": { "$ref": "#/components/schemas/WikiSpaceResp" } }
             }
           }
-        }
+        ]
       },
       "CreateWikiNodeReq": {
         "type": "object",
@@ -3454,6 +3794,228 @@
           "total_documents": { "type": "integer" },
           "total_views": { "type": "integer" }
         }
+      },
+      "CreateWikiAttachmentReq": {
+        "type": "object",
+        "required": ["document_id", "file_url"],
+        "properties": {
+          "document_id": { "type": "string", "description": "文档ID" },
+          "file_name": { "type": "string", "description": "文件名" },
+          "file_size": { "type": "integer", "description": "文件大小(字节)" },
+          "mime_type": { "type": "string", "description": "MIME类型" },
+          "file_url": { "type": "string", "description": "文件存储URL" }
+        }
+      },
+      "SearchResultItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string", "description": "结果类型: folder/document" },
+          "title": { "type": "string" },
+          "space_id": { "type": "string" },
+          "node_id": { "type": "string" },
+          "snippet": { "type": "string", "description": "内容摘要" },
+          "highlight": { "type": "string", "description": "高亮HTML" },
+          "updated_at": { "type": "string" },
+          "score": { "type": "number", "format": "float", "description": "相关度评分" }
+        }
+      },
+      "TrashItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "item_type": { "type": "string", "description": "类型: space/node/document" },
+          "item_id": { "type": "string" },
+          "space_id": { "type": "string" },
+          "title": { "type": "string" },
+          "deleted_by": { "type": "string" },
+          "deleted_at": { "type": "string" },
+          "expires_at": { "type": "string" }
+        }
+      },
+      "NodePermission": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "node_id": { "type": "string" },
+          "user_id": { "type": "string" },
+          "permission": { "type": "string", "enum": ["view", "edit", "delete"] },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" }
+        }
+      },
+      "Attachment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "document_id": { "type": "string" },
+          "file_name": { "type": "string" },
+          "file_size": { "type": "integer" },
+          "mime_type": { "type": "string" },
+          "file_url": { "type": "string" },
+          "uploaded_by": { "type": "string" },
+          "created_at": { "type": "string" }
+        }
+      },
+      "ApiWikiStatsResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/WikiStatsResp" }
+            }
+          }
+        ]
+      },
+      "ApiWikiSpaceResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/WikiSpaceResp" }
+            }
+          }
+        ]
+      },
+      "ApiWikiNodeResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/WikiNodeResp" }
+            }
+          }
+        ]
+      },
+      "ApiWikiSpaceMemberResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/WikiSpaceMemberResp" }
+            }
+          }
+        ]
+      },
+      "ApiDocumentResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/DocumentResp" }
+            }
+          }
+        ]
+      },
+      "ApiDocumentRevisionResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/DocumentRevisionResp" }
+            }
+          }
+        ]
+      },
+      "ApiWikiSearchResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "results": { "type": "array", "items": { "$ref": "#/components/schemas/SearchResultItem" } },
+                  "total": { "type": "integer" },
+                  "page": { "type": "integer" },
+                  "page_size": { "type": "integer" },
+                  "query": { "type": "string" }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ApiWikiTrashListResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": { "type": "array", "items": { "$ref": "#/components/schemas/TrashItem" } },
+                  "total": { "type": "integer" },
+                  "page": { "type": "integer" },
+                  "page_size": { "type": "integer" }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ApiWikiNodePermissionResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/NodePermission" }
+            }
+          }
+        ]
+      },
+      "ApiWikiNodePermissionListResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "type": "array", "items": { "$ref": "#/components/schemas/NodePermission" } }
+            }
+          }
+        ]
+      },
+      "ApiWikiAttachmentResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/Attachment" }
+            }
+          }
+        ]
+      },
+      "ApiWikiAttachmentListResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "type": "array", "items": { "$ref": "#/components/schemas/Attachment" } }
+            }
+          }
+        ]
+      },
+      "ApiTenantSettingsResp": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiSuccess" },
+          {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/components/schemas/TenantSettingsResp" }
+            }
+          }
+        ]
       }
     }
   }

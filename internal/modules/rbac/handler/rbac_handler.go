@@ -1,7 +1,4 @@
-// internal/modules/rbac/handler/rbac_handler.go
-// RBAC 角色权限管理模块的 HTTP 处理器层
-// 负责接收和解析 HTTP 请求，调用业务逻辑层（service）处理，
-// 并将处理结果以统一的响应格式返回给客户端。
+// Package handler 提供 RBAC 角色权限管理 HTTP 处理器
 package handler
 
 import (
@@ -19,23 +16,18 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// RBACHandler 角色权限管理处理器结构体
-// 封装了 RBACService 服务引用，用于处理所有角色和权限相关的 HTTP 请求
+// RBACHandler 角色权限管理处理器
 type RBACHandler struct {
-	svc *service.RBACService // RBAC 业务逻辑服务实例
+	svc *service.RBACService
 }
 
-// NewRBACHandler 创建并返回一个新的 RBACHandler 实例
-// 采用依赖注入的方式接收 RBACService，便于单元测试和模块解耦
-// svc: 已初始化的 RBACService 指针
-// 返回: 初始化后的 RBACHandler 指针
+// NewRBACHandler 创建角色权限管理处理器
 func NewRBACHandler(svc *service.RBACService) *RBACHandler {
 	return &RBACHandler{svc: svc}
 }
 
 // CreateRole 创建角色
 // POST /api/v1/rbac/roles
-// 从请求体中解析角色创建参数，支持指定 tenant_id（为空则创建系统级角色）
 func (h *RBACHandler) CreateRole(w http.ResponseWriter, r *http.Request) {
 	var req dto.CreateRoleReq
 	if !validator.ValidateJSON(w, r, &req) {
@@ -54,7 +46,6 @@ func (h *RBACHandler) CreateRole(w http.ResponseWriter, r *http.Request) {
 
 // GetRole 获取单个角色详情
 // GET /api/v1/rbac/roles/{id}/detail
-// 根据 URL 路径参数中的角色 ID 查询并返回角色详细信息
 func (h *RBACHandler) GetRole(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id") // 从 URL 路径中提取角色 ID
 	if id == "" {
@@ -74,8 +65,6 @@ func (h *RBACHandler) GetRole(w http.ResponseWriter, r *http.Request) {
 
 // ListRoles 获取角色列表（带分页和关键字搜索）
 // GET /api/v1/rbac/roles
-// 支持通过查询参数：page、page_size、keyword、tenant_id 进行分页、模糊搜索和租户过滤
-// tenant_id 为空时返回所有角色，指定时仅返回该租户下的角色
 func (h *RBACHandler) ListRoles(w http.ResponseWriter, r *http.Request) {
 	// 从 URL 查询参数中读取分页参数
 	pageStr := r.URL.Query().Get("page")
@@ -105,7 +94,6 @@ func (h *RBACHandler) ListRoles(w http.ResponseWriter, r *http.Request) {
 
 // ListRolesForSelect 获取角色下拉列表（不分页，用于选择）
 // GET /api/v1/rbac/roles/select
-// 支持通过 scope 参数过滤角色作用域：system/tenant/all
 func (h *RBACHandler) ListRolesForSelect(w http.ResponseWriter, r *http.Request) {
 	scope := r.URL.Query().Get("scope")
 	if scope == "" {
@@ -127,9 +115,8 @@ func (h *RBACHandler) ListRolesForSelect(w http.ResponseWriter, r *http.Request)
 	response.Success(w, resp)
 }
 
-// ListSystemAdminRoles 获取系统管理员角色列表（用于创建系统管理员时选择角色）
+// ListSystemAdminRoles 获取系统管理员角色列表
 // GET /api/v1/rbac/roles/system-admin
-// 只返回 IsSystem=true 且 scope 为 system 或 all 的角色
 func (h *RBACHandler) ListSystemAdminRoles(w http.ResponseWriter, r *http.Request) {
 	roles, err := h.svc.ListSystemAdminRoles(r.Context())
 	if err != nil {
@@ -148,7 +135,6 @@ func (h *RBACHandler) ListSystemAdminRoles(w http.ResponseWriter, r *http.Reques
 
 // UpdateRole 更新角色信息
 // PUT /api/v1/rbac/roles/{id}/update
-// 根据角色 ID 和请求体参数更新角色的属性
 func (h *RBACHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id") // 获取要更新的角色 ID
 	if id == "" {
@@ -175,7 +161,6 @@ func (h *RBACHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 
 // DeleteRole 删除角色
 // DELETE /api/v1/rbac/roles/{id}/delete
-// 根据角色 ID 删除角色（逻辑删除或物理删除，取决于 service 层实现）
 func (h *RBACHandler) DeleteRole(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id") // 获取要删除的角色 ID
 	if id == "" {
@@ -195,7 +180,6 @@ func (h *RBACHandler) DeleteRole(w http.ResponseWriter, r *http.Request) {
 
 // BindRolePermissions 为角色绑定权限
 // PUT /api/v1/rbac/roles/{id}/permissions
-// 将一组权限 ID 关联到指定角色，实现角色与权限的多对多关系
 func (h *RBACHandler) BindRolePermissions(w http.ResponseWriter, r *http.Request) {
 	roleID := chi.URLParam(r, "id") // 获取角色 ID
 	if roleID == "" {
@@ -220,7 +204,6 @@ func (h *RBACHandler) BindRolePermissions(w http.ResponseWriter, r *http.Request
 
 // GetRolePermissions 获取角色拥有的权限列表
 // GET /api/v1/rbac/roles/{id}/permissions
-// 根据角色 ID 查询该角色被授予的所有权限，支持按 resource 参数筛选
 func (h *RBACHandler) GetRolePermissions(w http.ResponseWriter, r *http.Request) {
 	roleID := chi.URLParam(r, "id") // 获取角色 ID
 	if roleID == "" {
@@ -254,7 +237,6 @@ func (h *RBACHandler) GetRolePermissions(w http.ResponseWriter, r *http.Request)
 
 // CreatePermission 创建权限
 // POST /api/v1/rbac/permissions
-// 创建新的权限条目，权限通常描述对某个资源的特定操作
 func (h *RBACHandler) CreatePermission(w http.ResponseWriter, r *http.Request) {
 	var req dto.CreatePermissionReq
 	if !validator.ValidateJSON(w, r, &req) {
@@ -272,7 +254,6 @@ func (h *RBACHandler) CreatePermission(w http.ResponseWriter, r *http.Request) {
 
 // GetPermission 获取单个权限详情
 // GET /api/v1/rbac/permissions/{id}/detail
-// 根据权限 ID 查询权限的详细信息
 func (h *RBACHandler) GetPermission(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -289,7 +270,6 @@ func (h *RBACHandler) GetPermission(w http.ResponseWriter, r *http.Request) {
 
 // ListPermissions 获取权限列表（带分页、按资源和关键字筛选）
 // GET /api/v1/rbac/permissions
-// 支持查询参数：page、page_size、resource（按资源过滤）、keyword（关键字搜索）
 func (h *RBACHandler) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	pageStr := r.URL.Query().Get("page")
 	pageSizeStr := r.URL.Query().Get("page_size")
@@ -317,7 +297,6 @@ func (h *RBACHandler) ListPermissions(w http.ResponseWriter, r *http.Request) {
 
 // UpdatePermission 更新权限信息
 // PUT /api/v1/rbac/permissions/{id}/update
-// 根据权限 ID 和请求体参数更新权限的属性
 func (h *RBACHandler) UpdatePermission(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -375,7 +354,6 @@ func (h *RBACHandler) BatchUpdatePermissionStatus(w http.ResponseWriter, r *http
 
 // DeletePermission 删除权限
 // DELETE /api/v1/rbac/permissions/{id}/delete
-// 根据权限 ID 删除权限条目
 func (h *RBACHandler) DeletePermission(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -407,7 +385,6 @@ func (h *RBACHandler) BatchDeletePermissions(w http.ResponseWriter, r *http.Requ
 
 // ListDeletedRoles 获取已软删除的角色列表
 // GET /api/v1/rbac/roles/deleted
-// 支持查询参数：page、page_size、keyword
 func (h *RBACHandler) ListDeletedRoles(w http.ResponseWriter, r *http.Request) {
 	pageStr := r.URL.Query().Get("page")
 	pageSizeStr := r.URL.Query().Get("page_size")
@@ -503,7 +480,6 @@ func (h *RBACHandler) BatchDeleteRoles(w http.ResponseWriter, r *http.Request) {
 
 // UnbindRolePermission 解绑角色单个权限
 // DELETE /api/v1/rbac/roles/{id}/permissions
-// 根据角色 ID 和权限 ID 解绑单个权限
 func (h *RBACHandler) UnbindRolePermission(w http.ResponseWriter, r *http.Request) {
 	roleID := chi.URLParam(r, "id")
 
@@ -526,7 +502,6 @@ func (h *RBACHandler) UnbindRolePermission(w http.ResponseWriter, r *http.Reques
 
 // UnbindRolePermissions 解绑角色多个权限
 // DELETE /api/v1/rbac/roles/{id}/permissions/batch
-// 根据角色 ID 和权限 ID 列表批量解绑
 func (h *RBACHandler) UnbindRolePermissions(w http.ResponseWriter, r *http.Request) {
 	roleID := chi.URLParam(r, "id")
 	if roleID == "" {

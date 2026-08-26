@@ -1,3 +1,4 @@
+// Package handler 提供租户管理 HTTP 处理器
 package handler
 
 import (
@@ -18,15 +19,18 @@ import (
 	"meteorx/pkg/pagination"
 )
 
+// TenantHandler 租户管理处理器
 type TenantHandler struct {
 	svc *service.TenantService
 }
 
+// NewTenantHandler 创建租户管理处理器
 func NewTenantHandler(svc *service.TenantService) *TenantHandler {
 	return &TenantHandler{svc: svc}
 }
 
-// Register POST /api/v1/tenants/register
+// Register 前端自助注册租户
+// POST /api/v1/tenants/register
 func (h *TenantHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req dto.RegisterTenantReq
 
@@ -57,8 +61,8 @@ func (h *TenantHandler) Register(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, converter.ToTenantResponse(tenant))
 }
 
-// AdminCreate POST /api/v1/admin/tenants
-// 运营后台管理员手动创建租户接口，需要超级管理员权限
+// AdminCreate 后台创建租户
+// POST /api/v1/admin/tenants
 func (h *TenantHandler) AdminCreate(w http.ResponseWriter, r *http.Request) {
 	var req dto.AdminCreateTenantReq
 
@@ -100,7 +104,8 @@ func (h *TenantHandler) AdminCreate(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, respData)
 }
 
-// AdminUpdateStatus PUT /api/v1/admin/tenants/:id/status
+// AdminUpdateStatus 后台更新租户状态
+// PUT /api/v1/admin/tenants/{id}/status
 func (h *TenantHandler) AdminUpdateStatus(w http.ResponseWriter, r *http.Request) {
 	// 1. 从 URL 获取 ID
 	id := chi.URLParam(r, "id")
@@ -131,9 +136,8 @@ func (h *TenantHandler) AdminUpdateStatus(w http.ResponseWriter, r *http.Request
 	response.Success(w, nil)
 }
 
-// List GET /api/v1/admin/tenants?page=1&page_size=10&name=极客&status=1
-// List 是一个处理 HTTP 请求的方法，用于获取租户列表
-// 它接收一个 http.ResponseWriter 和 http.Request 作为参数，并返回租户列表的分页数据
+// List 后台获取租户列表（分页+搜索）
+// GET /api/v1/admin/tenants
 func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 	// 1. 从 URL query 获取参数
 	// 从请求的 URL 查询参数中获取分页页码、每页大小、租户名称和状态
@@ -203,7 +207,8 @@ func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, result)
 }
 
-// AdminDetail GET /api/v1/admin/tenants/:id/detail
+// AdminDetail 后台获取租户详情
+// GET /api/v1/admin/tenants/{id}/detail
 func (h *TenantHandler) AdminDetail(w http.ResponseWriter, r *http.Request) {
 	// 1. 从 URL 获取 ID
 	id := chi.URLParam(r, "id")
@@ -243,7 +248,8 @@ func (h *TenantHandler) AdminDetail(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, respData)
 }
 
-// AdminUpdate PUT /api/v1/admin/tenants/:id/update
+// AdminUpdate 后台更新租户信息
+// PUT /api/v1/admin/tenants/{id}/update
 func (h *TenantHandler) AdminUpdate(w http.ResponseWriter, r *http.Request) {
 	// 1. 从 URL 获取 ID
 	id := chi.URLParam(r, "id")
@@ -278,7 +284,8 @@ func (h *TenantHandler) AdminUpdate(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
-// AdminDelete DELETE /api/v1/admin/tenants/:id/delete
+// AdminDelete 后台删除租户（软删除）
+// DELETE /api/v1/admin/tenants/{id}/delete
 func (h *TenantHandler) AdminDelete(w http.ResponseWriter, r *http.Request) {
 	// 1. 从 URL 获取 ID
 	id := chi.URLParam(r, "id")
@@ -303,8 +310,8 @@ func (h *TenantHandler) AdminDelete(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
-// AdminHardDelete DELETE /api/v1/admin/tenants/:id/hard
-// 物理删除租户（彻底销毁，不可恢复），用于清理测试数据或严重违规场景
+// AdminHardDelete 后台物理删除租户（不可恢复）
+// DELETE /api/v1/admin/tenants/{id}/hard
 func (h *TenantHandler) AdminHardDelete(w http.ResponseWriter, r *http.Request) {
 	// 1. 从 URL 获取 ID
 	id := chi.URLParam(r, "id")
@@ -329,8 +336,8 @@ func (h *TenantHandler) AdminHardDelete(w http.ResponseWriter, r *http.Request) 
 	response.Success(w, nil)
 }
 
-// AdminUpdatePlan PUT /api/v1/admin/tenants/:id/plan
-// 为租户分配/变更套餐
+// AdminUpdatePlan 后台为租户分配/变更套餐
+// PUT /api/v1/admin/tenants/{id}/plan
 func (h *TenantHandler) AdminUpdatePlan(w http.ResponseWriter, r *http.Request) {
 	// 1. 从 URL 获取 ID
 	id := chi.URLParam(r, "id")
@@ -361,7 +368,8 @@ func (h *TenantHandler) AdminUpdatePlan(w http.ResponseWriter, r *http.Request) 
 	response.Success(w, nil)
 }
 
-// AdminBatchUpdateStatus PUT /api/v1/admin/tenants/batch/status
+// AdminBatchUpdateStatus 后台批量更新租户状态
+// PUT /api/v1/admin/tenants/batch/status
 func (h *TenantHandler) AdminBatchUpdateStatus(w http.ResponseWriter, r *http.Request) {
 	// 1. 解析请求体
 	var req dto.AdminBatchUpdateStatusReq
@@ -389,7 +397,8 @@ func (h *TenantHandler) AdminBatchUpdateStatus(w http.ResponseWriter, r *http.Re
 	response.Success(w, resp)
 }
 
-// AdminBatchDelete DELETE /api/v1/admin/tenants/batch
+// AdminBatchDelete 后台批量删除租户
+// DELETE /api/v1/admin/tenants/batch
 func (h *TenantHandler) AdminBatchDelete(w http.ResponseWriter, r *http.Request) {
 	// 1. 解析请求体
 	var req dto.AdminBatchDeleteReq
@@ -416,7 +425,8 @@ func (h *TenantHandler) AdminBatchDelete(w http.ResponseWriter, r *http.Request)
 	response.Success(w, resp)
 }
 
-// AdminDeletedList GET /api/v1/admin/tenants/deleted?page=1&page_size=10&name=极客
+// AdminDeletedList 后台获取已删除租户列表（回收站）
+// GET /api/v1/admin/tenants/deleted
 func (h *TenantHandler) AdminDeletedList(w http.ResponseWriter, r *http.Request) {
 	// 1. 从 URL query 获取参数
 	pageStr := r.URL.Query().Get("page")
@@ -463,7 +473,8 @@ func (h *TenantHandler) AdminDeletedList(w http.ResponseWriter, r *http.Request)
 	response.Success(w, result)
 }
 
-// AdminRestore PUT /api/v1/admin/tenants/{id}/restore
+// AdminRestore 后台恢复已删除的租户
+// PUT /api/v1/admin/tenants/{id}/restore
 func (h *TenantHandler) AdminRestore(w http.ResponseWriter, r *http.Request) {
 	// 1. 从 URL 获取 ID
 	id := chi.URLParam(r, "id")
@@ -488,11 +499,8 @@ func (h *TenantHandler) AdminRestore(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
-// GetCurrentTenant GET /api/v1/tenants/current
-// GetCurrentTenant 获取当前租户信息的处理函数
-// 该函数从请求上下文中获取租户ID，查询租户信息，并将其转换为DTO返回
-// @param w HTTP响应写入器
-// @param r HTTP请求指针
+// GetCurrentTenant 获取当前租户信息
+// GET /api/v1/tenants/current
 func (h *TenantHandler) GetCurrentTenant(w http.ResponseWriter, r *http.Request) {
 	// 1. 从上下文获取当前租户ID
 	tenantID := contextx.GetTenantID(r.Context())
@@ -519,7 +527,8 @@ func (h *TenantHandler) GetCurrentTenant(w http.ResponseWriter, r *http.Request)
 	response.Success(w, converter.ToTenantResponse(tenant))
 }
 
-// UpdateCurrentTenant PUT /api/v1/tenants/current
+// UpdateCurrentTenant 更新当前租户信息
+// PUT /api/v1/tenants/current
 func (h *TenantHandler) UpdateCurrentTenant(w http.ResponseWriter, r *http.Request) {
 	// 1. 从上下文获取当前租户ID
 	tenantID := contextx.GetTenantID(r.Context())
@@ -552,7 +561,8 @@ func (h *TenantHandler) UpdateCurrentTenant(w http.ResponseWriter, r *http.Reque
 	response.Success(w, nil)
 }
 
-// GetInitStatus GET /api/v1/tenants/current/status
+// GetInitStatus 获取租户初始化状态
+// GET /api/v1/tenants/current/status
 func (h *TenantHandler) GetInitStatus(w http.ResponseWriter, r *http.Request) {
 	// 1. 从上下文获取当前租户ID
 	tenantID := contextx.GetTenantID(r.Context())
@@ -577,7 +587,8 @@ func (h *TenantHandler) GetInitStatus(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, status)
 }
 
-// ApplyCancellation POST /api/v1/tenants/current/cancel
+// ApplyCancellation 租户申请注销
+// POST /api/v1/tenants/current/cancel
 func (h *TenantHandler) ApplyCancellation(w http.ResponseWriter, r *http.Request) {
 	// 1. 从上下文获取当前租户ID
 	tenantID := contextx.GetTenantID(r.Context())
@@ -608,8 +619,8 @@ func (h *TenantHandler) ApplyCancellation(w http.ResponseWriter, r *http.Request
 	response.Success(w, result)
 }
 
-// AdminListCancelRequests GET /api/v1/admin/cancel-requests
-// 平台管理员分页查询注销申请列表
+// AdminListCancelRequests 后台查询注销申请列表
+// GET /api/v1/admin/cancel-requests
 func (h *TenantHandler) AdminListCancelRequests(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
@@ -627,8 +638,8 @@ func (h *TenantHandler) AdminListCancelRequests(w http.ResponseWriter, r *http.R
 	response.Success(w, pagination.NewPaginatedResult(result.Items, pg.Page, pg.PageSize, int(result.Total)))
 }
 
-// AdminApproveCancel PUT /api/v1/admin/cancel-requests/{id}/approve
-// 平台管理员审批通过注销申请
+// AdminApproveCancel 后台审批通过注销申请
+// PUT /api/v1/admin/cancel-requests/{id}/approve
 func (h *TenantHandler) AdminApproveCancel(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -656,8 +667,8 @@ func (h *TenantHandler) AdminApproveCancel(w http.ResponseWriter, r *http.Reques
 	response.Success(w, resp)
 }
 
-// AdminRejectCancel PUT /api/v1/admin/cancel-requests/{id}/reject
-// 平台管理员驳回注销申请
+// AdminRejectCancel 后台驳回注销申请
+// PUT /api/v1/admin/cancel-requests/{id}/reject
 func (h *TenantHandler) AdminRejectCancel(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {

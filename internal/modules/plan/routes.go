@@ -7,23 +7,24 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// RegisterAdminRoutes 平台管理员套餐管理接口
+// RegisterAdminRoutes 注册平台管理员套餐管理路由
 // 挂载 AutoRequirePermission 中间件做细粒度权限校验
 func RegisterAdminRoutes(r chi.Router, h *handler.PlanHandler, checker middleware.PermissionChecker) {
+	// 套餐 CRUD
 	r.Route("/admin/plans", func(r chi.Router) {
 		r.Use(middleware.AutoRequirePermission(checker))
-		r.Get("/", h.ListPlans)                    // → admin:plan:list
-		r.Get("/select", h.ListAllEnabledPlans)    // → admin:plan:list
-		r.Post("/", h.CreatePlan)                  // → admin:plan:create
-		r.Put("/{id}/update", h.UpdatePlan)        // → admin:plan:update
-		r.Delete("/{id}/delete", h.DeletePlan)     // → admin:plan:delete
+		r.Get("/", h.ListPlans)                    // 套餐列表
+		r.Get("/select", h.ListAllEnabledPlans)    // 启用套餐下拉列表
+		r.Post("/", h.CreatePlan)                  // 创建套餐
+		r.Put("/{id}/update", h.UpdatePlan)        // 更新套餐
+		r.Delete("/{id}/delete", h.DeletePlan)     // 删除套餐
 	})
 
-	// 后台查询/分配租户套餐
+	// 租户套餐查询与分配
 	r.Route("/admin/tenants-plan", func(r chi.Router) {
 		r.Use(middleware.AutoRequirePermission(checker))
-		r.Get("/{id}", h.CheckTenantPlan)    // → admin:plan:list (读取)
-		r.Put("/{id}", h.AssignPlan)         // → admin:plan:assign
+		r.Get("/{id}", h.CheckTenantPlan)    // 查询租户套餐
+		r.Put("/{id}", h.AssignPlan)         // 分配套餐
 	})
 }
 

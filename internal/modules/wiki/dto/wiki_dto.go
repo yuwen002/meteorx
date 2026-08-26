@@ -143,3 +143,62 @@ type WikiStatsResp struct {
 	TotalDocuments int64 `json:"total_documents"`
 	TotalViews     int64 `json:"total_views"`
 }
+
+// Trash DTOs
+
+type TrashItemResp struct {
+	ID        string    `json:"id"`
+	ItemType  string    `json:"item_type"`
+	ItemID    string    `json:"item_id"`
+	SpaceID   string    `json:"space_id"`
+	Title     string    `json:"title"`
+	DeletedBy string    `json:"deleted_by"`
+	DeletedAt time.Time `json:"deleted_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+type TrashListReq struct {
+	SpaceID  string `json:"space_id"`
+	ItemType string `json:"item_type"`
+	Page     int    `json:"page"`
+	PageSize int    `json:"page_size"`
+}
+
+type TrashRestoreReq struct {
+	RestoreChildren bool `json:"restore_children"`
+}
+
+// Search DTOs
+
+type SearchResultResp struct {
+	ID          string    `json:"id"`
+	Type        string    `json:"type"`
+	Title       string    `json:"title"`
+	SpaceID     string    `json:"space_id"`
+	NodeID      string    `json:"node_id"`
+	Snippet     string    `json:"snippet"`
+	Highlight   string    `json:"highlight"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Score       float64   `json:"score"`
+}
+
+// Attachment DTOs
+
+type CreateAttachmentReq struct {
+	DocumentID string `json:"document_id" validate:"required"`
+	FileName   string `json:"file_name" validate:"required"`
+	FileSize   int64  `json:"file_size"`
+	MimeType   string `json:"mime_type"`
+	FileURL    string `json:"file_url" validate:"required"`
+}
+
+type AttachmentResp struct {
+	ID         string    `json:"id"`
+	DocumentID string    `json:"document_id"`
+	FileName   string    `json:"file_name"`
+	FileSize   int64     `json:"file_size"`
+	MimeType   string    `json:"mime_type"`
+	FileURL    string    `json:"file_url"`
+	UploadedBy string    `json:"uploaded_by"`
+	CreatedAt  time.Time `json:"created_at"`
+}

@@ -1,4 +1,5 @@
-﻿package handler
+﻿// Package handler 提供用户管理 HTTP 处理器
+package handler
 
 import (
 	"errors"
@@ -18,15 +19,18 @@ import (
 	"gorm.io/gorm"
 )
 
+// UserHandler 用户管理处理器
 type UserHandler struct {
 	svc *service.UserService
 }
 
+// NewUserHandler 创建用户管理处理器
 func NewUserHandler(svc *service.UserService) *UserHandler {
 	return &UserHandler{svc: svc}
 }
 
-// ListUsers GET /api/v1/users?page=1&page_size=10&keyword=xxx - 获取租户下的用户列表
+// ListUsers 获取租户下的用户列表（分页+搜索）
+// GET /api/v1/users
 func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	if tenantID == "" {
@@ -63,7 +67,8 @@ func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, result)
 }
 
-// GetUser GET /api/v1/users/{id}/detail - 获取用户详情
+// GetUser 获取用户详情
+// GET /api/v1/users/{id}/detail
 func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "id")
 	if userID == "" {
@@ -91,7 +96,8 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, user)
 }
 
-// CreateUser POST /api/v1/users - 创建新用户
+// CreateUser 创建新用户
+// POST /api/v1/users
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	if tenantID == "" {
@@ -116,7 +122,8 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, user)
 }
 
-// UpdateUser PUT /api/v1/users/{id}/update - 更新用户信息
+// UpdateUser 更新用户信息
+// PUT /api/v1/users/{id}/update
 func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "id")
 	if userID == "" {
@@ -149,7 +156,8 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, user)
 }
 
-// DeleteUser DELETE /api/v1/users/{id}/delete - 删除用户
+// DeleteUser 删除用户
+// DELETE /api/v1/users/{id}/delete
 func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "id")
 	if userID == "" {
@@ -176,7 +184,8 @@ func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
-// GetStats GET /api/v1/profile/stats - 获取当前租户用户总数
+// GetStats 获取当前租户用户总数
+// GET /api/v1/profile/stats
 func (h *UserHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	count, err := h.svc.CountByTenant(r.Context(), tenantID)
@@ -187,7 +196,8 @@ func (h *UserHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, map[string]interface{}{"user_count": count})
 }
 
-// GetAllStats GET /api/v1/admin/stats - 获取所有用户总数（跨租户，仅限管理员）
+// GetAllStats 获取所有用户总数（跨租户，仅限管理员）
+// GET /api/v1/admin/stats
 func (h *UserHandler) GetAllStats(w http.ResponseWriter, r *http.Request) {
 	count, err := h.svc.CountAllUsers(r.Context())
 	if err != nil {
@@ -199,7 +209,8 @@ func (h *UserHandler) GetAllStats(w http.ResponseWriter, r *http.Request) {
 
 // ============ 系统管理员管理接口 ============
 
-// ListMasterAdmins GET /api/v1/admin/users?page=1&page_size=10&keyword=xxx - 获取系统管理员列表
+// ListMasterAdmins 获取系统管理员列表（分页+搜索）
+// GET /api/v1/admin/users
 func (h *UserHandler) ListMasterAdmins(w http.ResponseWriter, r *http.Request) {
 	// 1. 解析分页参数
 	pageStr := r.URL.Query().Get("page")
@@ -223,7 +234,8 @@ func (h *UserHandler) ListMasterAdmins(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, result)
 }
 
-// GetMasterAdmin GET /api/v1/admin/users/{id}/detail - 获取系统管理员详情
+// GetMasterAdmin 获取系统管理员详情
+// GET /api/v1/admin/users/{id}/detail
 func (h *UserHandler) GetMasterAdmin(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "id")
 	if userID == "" {
@@ -243,7 +255,8 @@ func (h *UserHandler) GetMasterAdmin(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, user)
 }
 
-// CreateMasterAdmin POST /api/v1/admin/users - 创建系统管理员
+// CreateMasterAdmin 创建系统管理员
+// POST /api/v1/admin/users
 func (h *UserHandler) CreateMasterAdmin(w http.ResponseWriter, r *http.Request) {
 	var req dto.CreateMasterAdminReq
 	if !validator.ValidateJSON(w, r, &req) {
@@ -262,7 +275,8 @@ func (h *UserHandler) CreateMasterAdmin(w http.ResponseWriter, r *http.Request) 
 	response.Success(w, user)
 }
 
-// UpdateMasterAdmin PUT /api/v1/admin/users/{id}/update - 更新系统管理员信息
+// UpdateMasterAdmin 更新系统管理员信息
+// PUT /api/v1/admin/users/{id}/update
 func (h *UserHandler) UpdateMasterAdmin(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "id")
 	if userID == "" {
@@ -287,7 +301,8 @@ func (h *UserHandler) UpdateMasterAdmin(w http.ResponseWriter, r *http.Request) 
 	response.Success(w, user)
 }
 
-// DeleteMasterAdmin DELETE /api/v1/admin/users/{id}/delete - 删除系统管理员
+// DeleteMasterAdmin 删除系统管理员
+// DELETE /api/v1/admin/users/{id}/delete
 func (h *UserHandler) DeleteMasterAdmin(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "id")
 	if userID == "" {
@@ -307,7 +322,8 @@ func (h *UserHandler) DeleteMasterAdmin(w http.ResponseWriter, r *http.Request) 
 	response.Success(w, nil)
 }
 
-// UpdateMasterAdminStatus PUT /api/v1/admin/users/{id}/status - 更新系统管理员状态
+// UpdateMasterAdminStatus 更新系统管理员状态
+// PUT /api/v1/admin/users/{id}/status
 func (h *UserHandler) UpdateMasterAdminStatus(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "id")
 	if userID == "" {

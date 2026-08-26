@@ -135,3 +135,42 @@ type WikiStats struct {
 	TotalDocuments int64 `gorm:"-"`
 	TotalViews     int64 `gorm:"-"`
 }
+
+type TrashItem struct {
+	ID        string    `gorm:"primaryKey"`
+	TenantID  string    `gorm:"index;size:26;not null"`
+	ItemType  string    `gorm:"index;size:50;not null"`
+	ItemID    string    `gorm:"index;size:26;not null"`
+	SpaceID   string    `gorm:"index;size:26"`
+	Title     string    `gorm:"size:500"`
+	DeletedBy string    `gorm:"index;size:26"`
+	DeletedAt time.Time `gorm:"index"`
+	ExpiresAt time.Time `gorm:"index"`
+}
+
+const (
+	TrashTypeSpace    = "space"
+	TrashTypeNode     = "node"
+	TrashTypeDocument = "document"
+)
+
+func (TrashItem) TableName() string {
+	return "wiki_trash"
+}
+
+type Attachment struct {
+	ID         string    `gorm:"primaryKey"`
+	TenantID   string    `gorm:"index;size:26;not null"`
+	DocumentID string    `gorm:"index;size:26;not null"`
+	FileID     string    `gorm:"index;size:26;not null"`
+	FileName   string    `gorm:"size:500;not null"`
+	FileSize   int64     `gorm:""`
+	MimeType   string    `gorm:"size:100"`
+	FileURL    string    `gorm:"size:1000"`
+	UploadedBy string    `gorm:"index;size:26"`
+	CreatedAt  time.Time `gorm:"index"`
+}
+
+func (Attachment) TableName() string {
+	return "wiki_attachments"
+}

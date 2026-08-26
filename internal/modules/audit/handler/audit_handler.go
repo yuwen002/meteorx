@@ -1,3 +1,4 @@
+// Package handler 提供审计日志 HTTP 处理器
 package handler
 
 import (
@@ -61,8 +62,8 @@ func (h *AuditHandler) GetLog(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, log)
 }
 
-// ListLogs 分页查询审计日志
-// GET /api/v1/audit/logs?page=1&page_size=10&user_id=&username=&module=&action=&result=&start_time=&end_time=&keyword=
+// ListLogs 分页查询审计日志（支持多条件筛选）
+// GET /api/v1/audit/logs
 func (h *AuditHandler) ListLogs(w http.ResponseWriter, r *http.Request) {
 	pageStr := r.URL.Query().Get("page")
 	pageSizeStr := r.URL.Query().Get("page_size")
@@ -107,8 +108,8 @@ func (h *AuditHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, stats)
 }
 
-// CleanupLogs 清理审计日志
-// DELETE /api/v1/audit/logs/cleanup?days=30
+// CleanupLogs 清理过期审计日志（超级管理员）
+// DELETE /api/v1/audit/logs/cleanup
 func (h *AuditHandler) CleanupLogs(w http.ResponseWriter, r *http.Request) {
 	daysStr := r.URL.Query().Get("days")
 	days, _ := strconv.Atoi(daysStr)
@@ -131,8 +132,8 @@ func (h *AuditHandler) CleanupLogs(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, map[string]int64{"deleted_count": affected})
 }
 
-// ExportLogs 导出审计日志
-// GET /api/v1/audit/logs/export?format=csv&module=&action=&result=&start_time=&end_time=
+// ExportLogs 导出审计日志（CSV 格式）
+// GET /api/v1/audit/logs/export
 func (h *AuditHandler) ExportLogs(w http.ResponseWriter, r *http.Request) {
 	format := r.URL.Query().Get("format")
 	if format == "" {
@@ -164,8 +165,8 @@ func (h *AuditHandler) ExportLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetDashboard 获取审计仪表盘数据
-// GET /api/v1/audit/dashboard?days=7
+// GetDashboard 获取审计仪表盘数据（按天统计）
+// GET /api/v1/audit/dashboard
 func (h *AuditHandler) GetDashboard(w http.ResponseWriter, r *http.Request) {
 	daysStr := r.URL.Query().Get("days")
 	days, _ := strconv.Atoi(daysStr)

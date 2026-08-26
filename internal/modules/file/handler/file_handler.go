@@ -1,3 +1,4 @@
+// Package handler 提供文件管理 HTTP 处理器
 package handler
 
 import (
@@ -28,6 +29,7 @@ func NewFileHandler(svc *service.FileService, cfg config.FileConfig) *FileHandle
 }
 
 // Upload 上传文件
+// POST /api/v1/files/upload
 func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	maxSize := h.cfg.MaxFileSize
 	if maxSize <= 0 {
@@ -112,6 +114,7 @@ func (h *FileHandler) isValidFileType(mimeType string) bool {
 }
 
 // GetByID 获取文件详情
+// GET /api/v1/files/{id}
 func (h *FileHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -128,7 +131,8 @@ func (h *FileHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, file)
 }
 
-// ListByTenant 获取租户文件列表
+// ListByTenant 获取租户文件列表（分页+过滤）
+// GET /api/v1/files
 func (h *FileHandler) ListByTenant(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	if tenantID == "" {
@@ -147,7 +151,8 @@ func (h *FileHandler) ListByTenant(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, pagination.NewPaginatedResult(files, req.Page, req.PageSize, int(total)))
 }
 
-// ListByUser 获取用户文件列表
+// ListByUser 获取当前用户文件列表
+// GET /api/v1/files/mine
 func (h *FileHandler) ListByUser(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	userID := contextx.GetUserID(r.Context())
@@ -183,6 +188,7 @@ func (h *FileHandler) parseListReq(r *http.Request) *dto.FileListReq {
 }
 
 // Update 更新文件信息
+// PUT /api/v1/files/{id}
 func (h *FileHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -205,7 +211,8 @@ func (h *FileHandler) Update(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
-// Delete 删除文件
+// Delete 删除文件（软删除）
+// DELETE /api/v1/files/{id}
 func (h *FileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -223,6 +230,7 @@ func (h *FileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // BatchDelete 批量删除文件
+// POST /api/v1/files/batch/delete
 func (h *FileHandler) BatchDelete(w http.ResponseWriter, r *http.Request) {
 	var req dto.BatchDeleteReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -240,7 +248,8 @@ func (h *FileHandler) BatchDelete(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, result)
 }
 
-// GetDeletedList 获取已删除文件列表
+// GetDeletedList 获取已删除文件列表（回收站）
+// GET /api/v1/files/deleted
 func (h *FileHandler) GetDeletedList(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	if tenantID == "" {
@@ -260,6 +269,7 @@ func (h *FileHandler) GetDeletedList(w http.ResponseWriter, r *http.Request) {
 }
 
 // Restore 恢复已删除文件
+// POST /api/v1/files/{id}/restore
 func (h *FileHandler) Restore(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -276,7 +286,8 @@ func (h *FileHandler) Restore(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
-// PermanentDelete 永久删除文件（从回收站物理删除）
+// PermanentDelete 永久删除文件（物理删除，不可恢复）
+// DELETE /api/v1/files/{id}/permanent
 func (h *FileHandler) PermanentDelete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -294,6 +305,7 @@ func (h *FileHandler) PermanentDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 // Download 下载文件
+// GET /api/v1/files/{id}/download
 func (h *FileHandler) Download(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {

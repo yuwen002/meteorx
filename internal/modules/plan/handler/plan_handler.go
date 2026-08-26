@@ -1,3 +1,4 @@
+// Package handler 提供套餐管理 HTTP 处理器
 package handler
 
 import (
@@ -15,15 +16,18 @@ import (
 	"meteorx/pkg/pagination"
 )
 
+// PlanHandler 套餐管理处理器
 type PlanHandler struct {
 	svc *service.PlanService
 }
 
+// NewPlanHandler 创建套餐管理处理器
 func NewPlanHandler(svc *service.PlanService) *PlanHandler {
 	return &PlanHandler{svc: svc}
 }
 
-// CreatePlan POST /api/v1/admin/plans
+// CreatePlan 后台创建套餐
+// POST /api/v1/admin/plans
 func (h *PlanHandler) CreatePlan(w http.ResponseWriter, r *http.Request) {
 	var req dto.CreatePlanReq
 	if !validator.ValidateJSON(w, r, &req) {
@@ -45,7 +49,8 @@ func (h *PlanHandler) CreatePlan(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, plan)
 }
 
-// UpdatePlan PUT /api/v1/admin/plans/{id}/update
+// UpdatePlan 后台更新套餐
+// PUT /api/v1/admin/plans/{id}/update
 func (h *PlanHandler) UpdatePlan(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -71,7 +76,8 @@ func (h *PlanHandler) UpdatePlan(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, plan)
 }
 
-// ListPlans GET /api/v1/admin/plans?page=1&page_size=10&keyword=&status=
+// ListPlans 后台获取套餐列表（分页+搜索）
+// GET /api/v1/admin/plans
 func (h *PlanHandler) ListPlans(w http.ResponseWriter, r *http.Request) {
 	pageStr := r.URL.Query().Get("page")
 	pageSizeStr := r.URL.Query().Get("page_size")
@@ -100,7 +106,8 @@ func (h *PlanHandler) ListPlans(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, result)
 }
 
-// ListAllEnabledPlans GET /api/v1/admin/plans/select - 套餐下拉列表（启用中的套餐）
+// ListAllEnabledPlans 获取启用中的套餐下拉列表
+// GET /api/v1/admin/plans/select
 func (h *PlanHandler) ListAllEnabledPlans(w http.ResponseWriter, r *http.Request) {
 	plans, err := h.svc.ListEnabledPlans(r.Context())
 	if err != nil {
@@ -110,7 +117,8 @@ func (h *PlanHandler) ListAllEnabledPlans(w http.ResponseWriter, r *http.Request
 	response.Success(w, plans)
 }
 
-// DeletePlan DELETE /api/v1/admin/plans/{id}/delete
+// DeletePlan 后台删除套餐
+// DELETE /api/v1/admin/plans/{id}/delete
 func (h *PlanHandler) DeletePlan(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -133,7 +141,8 @@ func (h *PlanHandler) DeletePlan(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
-// AssignPlan PUT /api/v1/admin/tenants/{id}/plan
+// AssignPlan 后台为租户分配套餐
+// PUT /api/v1/admin/tenants/{id}/plan
 func (h *PlanHandler) AssignPlan(w http.ResponseWriter, r *http.Request) {
 	tenantID := chi.URLParam(r, "id")
 	if tenantID == "" {
@@ -161,7 +170,8 @@ func (h *PlanHandler) AssignPlan(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
-// GetCurrentPlan GET /api/v1/tenant/current/plan - 获取当前租户套餐与用量
+// GetCurrentPlan 获取当前租户套餐与用量
+// GET /api/v1/tenant/current/plan
 func (h *PlanHandler) GetCurrentPlan(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	if tenantID == "" {
@@ -182,7 +192,8 @@ func (h *PlanHandler) GetCurrentPlan(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, plan)
 }
 
-// CheckTenantPlan GET /api/v1/admin/tenants/{id}/plan - 后台查询指定租户当前套餐（含到期状态）
+// CheckTenantPlan 后台查询指定租户当前套餐（含到期状态）
+// GET /api/v1/admin/tenants/{id}/plan
 func (h *PlanHandler) CheckTenantPlan(w http.ResponseWriter, r *http.Request) {
 	tenantID := chi.URLParam(r, "id")
 	if tenantID == "" {

@@ -1,3 +1,4 @@
+// Package handler 提供租户设置管理 HTTP 处理器
 package handler
 
 import (
@@ -10,14 +11,18 @@ import (
 	"meteorx/internal/modules/tenant/service"
 )
 
+// TenantSettingsHandler 租户设置处理器
 type TenantSettingsHandler struct {
 	svc *service.TenantSettingsService
 }
 
+// NewTenantSettingsHandler 创建租户设置处理器
 func NewTenantSettingsHandler(svc *service.TenantSettingsService) *TenantSettingsHandler {
 	return &TenantSettingsHandler{svc: svc}
 }
 
+// GetSettings 获取当前租户设置
+// GET /api/v1/tenant-settings
 func (h *TenantSettingsHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	if tenantID == "" {
@@ -34,6 +39,8 @@ func (h *TenantSettingsHandler) GetSettings(w http.ResponseWriter, r *http.Reque
 	response.Success(w, settings)
 }
 
+// UpdateSettings 更新当前租户设置
+// PUT /api/v1/tenant-settings
 func (h *TenantSettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	if tenantID == "" {

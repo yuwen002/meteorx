@@ -483,6 +483,339 @@ Space
 
 ---
 
+## 6. 回收站管理 (Trash)
+
+### 6.1 列出回收站项目
+
+`GET /api/v1/wiki/trash`
+
+**权限码**：`wiki:trash:list`
+
+**描述**：分页列出当前租户的回收站项目，支持按空间和类型过滤
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| space_id | string | 否 | 按空间 ID 过滤 |
+| item_type | string | 否 | 按类型过滤：`space` / `node` / `document` |
+| page | int | 否 | 页码，默认 1 |
+| page_size | int | 否 | 每页数量，默认 20 |
+
+**响应**：
+```json
+{
+  "items": [
+    {
+      "id": "01H...",
+      "item_type": "node",
+      "item_id": "01H...",
+      "space_id": "01H...",
+      "title": "已删除的文档",
+      "deleted_by": "01H...",
+      "deleted_at": "2024-01-01T00:00:00Z",
+      "expires_at": "2024-01-31T00:00:00Z"
+    }
+  ],
+  "total": 10,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+**说明**：回收站项目 30 天后自动过期删除
+
+---
+
+### 6.2 从回收站恢复
+
+`POST /api/v1/wiki/trash/{id}/restore`
+
+**权限码**：`wiki:trash:restore`
+
+**路径参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| id | string | 回收站项目 ID |
+
+**描述**：将回收站中的项目恢复（根据类型调用不同的恢复逻辑）
+
+---
+
+### 6.3 永久删除回收站项目
+
+`DELETE /api/v1/wiki/trash/{id}`
+
+**权限码**：`wiki:trash:delete`
+
+**路径参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| id | string | 回收站项目 ID |
+
+**描述**：永久删除回收站项目（不可恢复）
+
+---
+
+## 7. 搜索 (Search)
+
+### 7.1 搜索 Wiki
+
+`GET /api/v1/wiki/search`
+
+**权限码**：`wiki:wiki_node:list`
+
+**描述**：按标题和内容搜索 Wiki，自动过滤无权限内容，返回带摘要片段的搜索结果
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| q | string | 是 | 搜索关键字 |
+| space_id | string | 否 | 限定空间范围 |
+| page | int | 否 | 页码，默认 1 |
+| page_size | int | 否 | 每页数量，默认 20 |
+
+**响应**：
+```json
+{
+  "results": [
+    {
+      "id": "01H...",
+      "type": "document",
+      "title": "API 规范",
+      "space_id": "01H...",
+      "node_id": "01H...",
+      "snippet": "...API 接口设计**规范**包括...",
+      "highlight": "规范",
+      "updated_at": "2024-01-01T00:00:00Z",
+      "score": 0.8
+    }
+  ],
+  "total": 25,
+  "page": 1,
+  "page_size": 20,
+  "query": "规范"
+}
+```
+
+**说明**：标题搜索结果权重高于内容搜索（Score 1.0 vs 0.8），摘要围绕关键字位置生成
+
+---
+
+## 8. 节点权限管理 (Node Permission)
+
+### 8.1 设置节点权限
+
+`POST /api/v1/wiki/spaces/{spaceId}/nodes/{id}/permissions`
+
+**权限码**：`wiki:wiki_node:update`
+
+**路径参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| spaceId | string | 空间 ID |
+| id | string | 节点 ID |
+
+**请求体**：
+```json
+{
+  "user_id": "01H...",
+  "permission": "edit"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| user_id | string | 是 | 目标用户 ID |
+| permission | string | 是 | 权限类型：`view` / `edit` / `delete` |
+
+**权限类型说明**：
+| 权限 | 能力 |
+|------|------|
+| view | 仅查看 |
+| edit | 查看 + 编辑 |
+| delete | 查看 + 编辑 + 删除 |
+
+**响应**：
+```json
+{
+  "id": "01H...",
+  "node_id": "01H...",
+  "user_id": "01H...",
+  "permission": "edit",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+**说明**：节点权限是 Space 角色权限的补充，可为特定用户在特定节点授予额外权限
+
+---
+
+### 8.2 获取节点权限列表
+
+`GET /api/v1/wiki/spaces/{spaceId}/nodes/{id}/permissions`
+
+**权限码**：`wiki:wiki_node:read`
+
+**路径参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| spaceId | string | 空间 ID |
+| id | string | 节点 ID |
+
+**响应**：返回该节点的所有权限配置列表
+
+---
+
+### 8.3 移除节点权限
+
+`DELETE /api/v1/wiki/spaces/{spaceId}/nodes/{id}/permissions/{userId}/{permission}`
+
+**权限码**：`wiki:wiki_node:update`
+
+**路径参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| spaceId | string | 空间 ID |
+| id | string | 节点 ID |
+| userId | string | 用户 ID |
+| permission | string | 权限类型 |
+
+---
+
+## 9. 附件管理 (Attachment)
+
+### 9.1 创建附件
+
+`POST /api/v1/wiki/documents/attachments`
+
+**权限码**：`wiki:document:update`
+
+**请求体**：
+```json
+{
+  "document_id": "01H...",
+  "file_name": "设计稿.pdf",
+  "file_size": 2048576,
+  "mime_type": "application/pdf",
+  "file_url": "/uploads/tenant1/2024/01/01/xxx.pdf"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| document_id | string | 是 | 关联的文档 ID |
+| file_name | string | 是 | 文件名 |
+| file_size | int64 | 否 | 文件大小（字节） |
+| mime_type | string | 否 | MIME 类型 |
+| file_url | string | 是 | 文件访问 URL |
+
+**响应**：
+```json
+{
+  "id": "01H...",
+  "document_id": "01H...",
+  "file_name": "设计稿.pdf",
+  "file_size": 2048576,
+  "mime_type": "application/pdf",
+  "file_url": "/uploads/tenant1/2024/01/01/xxx.pdf",
+  "uploaded_by": "01H...",
+  "created_at": "2024-01-01T00:00:00Z"
+}
+```
+
+---
+
+### 9.2 列出文档附件
+
+`GET /api/v1/wiki/documents/{documentId}/attachments`
+
+**权限码**：`wiki:document:read`
+
+**路径参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| documentId | string | 文档 ID |
+
+**响应**：返回文档的所有附件列表
+
+---
+
+### 9.3 删除附件
+
+`DELETE /api/v1/wiki/documents/attachments/{id}`
+
+**权限码**：`wiki:document:update`
+
+**路径参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| id | string | 附件 ID |
+
+---
+
+## 10. 节点移动 (Move)
+
+### 10.1 移动节点
+
+`POST /api/v1/wiki/spaces/{spaceId}/nodes/{id}/move`
+
+**权限码**：`wiki:wiki_node:update`
+
+**路径参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| spaceId | string | 空间 ID |
+| id | string | 要移动的节点 ID |
+
+**请求体**：
+```json
+{
+  "new_parent_id": "01H..."
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| new_parent_id | string | 是 | 新父节点 ID（为空表示移动到根级） |
+
+**安全校验**：
+- 不能移动到自身
+- 不能跨 Space 移动
+- 目标父节点必须是文件夹类型
+- 不能移动到自己的子节点下（防止循环引用）
+
+---
+
+## 11. 节点排序 (Sort)
+
+### 11.1 设置节点排序
+
+`PUT /api/v1/wiki/spaces/{spaceId}/nodes/{id}/sort`
+
+**权限码**：`wiki:wiki_node:update`
+
+**路径参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| spaceId | string | 空间 ID |
+| id | string | 节点 ID |
+
+**请求体**：
+```json
+{
+  "sort": 10
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| sort | int | 是 | 排序值（数值越小越靠前） |
+
+**说明**：节点树按 Sort 字段递归排序，同级节点按 Sort 值升序排列
+
+---
+
 ## 权限码汇总
 
 | 权限码 | 说明 | 推导自 |
@@ -497,6 +830,8 @@ Space
 | `wiki:wiki_node:read` | 查看节点 | `GET /wiki/spaces/{spaceId}/nodes/{id}` |
 | `wiki:wiki_node:update` | 更新节点 | `PUT /wiki/spaces/{spaceId}/nodes/{id}` |
 | `wiki:wiki_node:delete` | 删除节点 | `DELETE /wiki/spaces/{spaceId}/nodes/{id}` |
+| `wiki:wiki_node:move` | 移动节点 | `POST /wiki/spaces/{spaceId}/nodes/{id}/move` |
+| `wiki:wiki_node:sort` | 节点排序 | `PUT /wiki/spaces/{spaceId}/nodes/{id}/sort` |
 | `wiki:document:create` | 创建文档 | `POST /wiki/documents/nodes/{nodeId}` |
 | `wiki:document:read` | 查看文档 | `GET /wiki/documents/nodes/{nodeId}` |
 | `wiki:document:update` | 更新文档 | `PUT /wiki/documents/{id}` |
@@ -508,6 +843,13 @@ Space
 | `wiki:wiki_space_member:create` | 添加成员 | `POST /wiki/spaces/{spaceId}/members` |
 | `wiki:wiki_space_member:delete` | 移除成员 | `DELETE /wiki/spaces/{spaceId}/members/{userId}` |
 | `wiki:wiki_space:stats` | 获取统计 | `GET /wiki/stats` |
+| `wiki:trash:list` | 回收站列表 | `GET /wiki/trash` |
+| `wiki:trash:restore` | 恢复回收站项目 | `POST /wiki/trash/{id}/restore` |
+| `wiki:trash:delete` | 永久删除回收站项目 | `DELETE /wiki/trash/{id}` |
+| `wiki:search` | Wiki 搜索 | `GET /wiki/search` |
+| `wiki:attachment:create` | 创建附件 | `POST /wiki/documents/attachments` |
+| `wiki:attachment:list` | 列出附件 | `GET /wiki/documents/{id}/attachments` |
+| `wiki:attachment:delete` | 删除附件 | `DELETE /wiki/documents/attachments/{id}` |
 
 ---
 
@@ -546,9 +888,17 @@ Space
 | `WIKI_NODE_CREATE` | 创建节点 |
 | `WIKI_NODE_UPDATE` | 更新节点 |
 | `WIKI_NODE_DELETE` | 删除节点 |
+| `WIKI_NODE_MOVE` | 移动节点 |
+| `WIKI_NODE_SORT` | 节点排序 |
 | `WIKI_DOCUMENT_CREATE` | 创建文档 |
 | `WIKI_DOCUMENT_UPDATE` | 更新文档 |
 | `WIKI_DOCUMENT_DELETE` | 删除文档 |
 | `WIKI_REVISION_RESTORE` | 恢复版本 |
 | `WIKI_MEMBER_ADD` | 添加成员 |
 | `WIKI_MEMBER_REMOVE` | 移除成员 |
+| `WIKI_TRASH_RESTORE` | 从回收站恢复 |
+| `WIKI_TRASH_PERMANENT_DELETE` | 永久删除回收站项目 |
+| `WIKI_PERMISSION_SET` | 设置节点权限 |
+| `WIKI_PERMISSION_REMOVE` | 移除节点权限 |
+| `WIKI_ATTACHMENT_CREATE` | 创建附件 |
+| `WIKI_ATTACHMENT_DELETE` | 删除附件 |
