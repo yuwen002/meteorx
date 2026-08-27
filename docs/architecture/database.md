@@ -150,7 +150,7 @@ UpdatedAt → set on every update
 ```
 Phase 1 (Core):
   1. users → roles → permissions → role_permissions → user_roles
-  2. tenants → tenant_settings → plans → subscriptions
+  2. tenants → tenant_settings → cancel_requests → plans → subscriptions
 
 Phase 2 (Business):
   3. audit_logs

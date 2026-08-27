@@ -76,7 +76,7 @@ func AutoMigrate(db *gorm.DB) error {
 
 	fmt.Println("Migrations completed successfully")
 	if len(nonCriticalErrs) > 0 {
-		log.Printf("Note: %d non-critical migration(s) failed, but the app will continue to run")
+		log.Printf("Note: %d non-critical migration(s) failed, but the app will continue to run", len(nonCriticalErrs))
 	}
 	return nil
 }

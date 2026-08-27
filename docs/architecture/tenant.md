@@ -63,6 +63,7 @@ query := tenantctx.FilterQuery(ctx, db, "tenant_id")
 | WikiSpaceMember | wiki_space_members | 是 | Wiki 模块 |
 | Subscription | subscriptions | 是 | 租户订阅 |
 | Announcement | announcements | 是 | 租户公告 |
+| CancelRequest | cancel_requests | 是 | 租户注销申请 |
 
 ## 实现示例
 

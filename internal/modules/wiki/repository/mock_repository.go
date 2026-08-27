@@ -150,9 +150,89 @@ func (m *MockWikiRepository) ListMembers(ctx context.Context, spaceID string) ([
 }
 
 func (m *MockWikiRepository) GetMember(ctx context.Context, spaceID, userID string) (*model.WikiSpaceMember, error) {
-	return nil, nil
+	return &model.WikiSpaceMember{
+		SpaceID: spaceID,
+		UserID:  userID,
+		Role:    model.SpaceRoleOwner,
+	}, nil
 }
 
 func (m *MockWikiRepository) GetWikiStats(ctx context.Context, tenantID string) (*model.WikiStats, error) {
 	return &model.WikiStats{}, nil
+}
+
+func (m *MockWikiRepository) CreateNodePermission(ctx context.Context, perm *model.WikiNodePermission) error {
+	return nil
+}
+
+func (m *MockWikiRepository) GetNodePermissions(ctx context.Context, nodeID string) ([]*model.WikiNodePermission, error) {
+	return nil, nil
+}
+
+func (m *MockWikiRepository) GetNodePermission(ctx context.Context, nodeID, userID, permission string) (*model.WikiNodePermission, error) {
+	return nil, nil
+}
+
+func (m *MockWikiRepository) UpdateNodePermission(ctx context.Context, perm *model.WikiNodePermission) error {
+	return nil
+}
+
+func (m *MockWikiRepository) DeleteNodePermission(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockWikiRepository) DeleteNodePermissionsByNode(ctx context.Context, nodeID string) error {
+	return nil
+}
+
+func (m *MockWikiRepository) GetUserNodePermissions(ctx context.Context, nodeID, userID string) ([]*model.WikiNodePermission, error) {
+	return nil, nil
+}
+
+func (m *MockWikiRepository) CreateTrashItem(ctx context.Context, item *model.TrashItem) error {
+	return nil
+}
+
+func (m *MockWikiRepository) ListTrashItems(ctx context.Context, tenantID string, spaceID string, itemType string, page, pageSize int) ([]*model.TrashItem, int64, error) {
+	return nil, 0, nil
+}
+
+func (m *MockWikiRepository) GetTrashItem(ctx context.Context, id string) (*model.TrashItem, error) {
+	return nil, nil
+}
+
+func (m *MockWikiRepository) DeleteTrashItem(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockWikiRepository) ExpireTrashItems(ctx context.Context) error {
+	return nil
+}
+
+func (m *MockWikiRepository) SearchNodesByTitle(ctx context.Context, tenantID string, spaceID string, query string) ([]*model.WikiNode, error) {
+	return nil, nil
+}
+
+func (m *MockWikiRepository) SearchDocumentsByContent(ctx context.Context, tenantID string, spaceID string, query string) ([]*model.Document, error) {
+	return nil, nil
+}
+
+func (m *MockWikiRepository) CreateAttachment(ctx context.Context, attachment *model.Attachment) error {
+	return nil
+}
+
+func (m *MockWikiRepository) ListAttachmentsByDocument(ctx context.Context, documentID string) ([]*model.Attachment, error) {
+	return nil, nil
+}
+
+func (m *MockWikiRepository) GetAttachment(ctx context.Context, id string) (*model.Attachment, error) {
+	return nil, nil
+}
+
+func (m *MockWikiRepository) DeleteAttachment(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockWikiRepository) DeleteAttachmentsByDocument(ctx context.Context, documentID string) error {
+	return nil
 }

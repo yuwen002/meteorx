@@ -60,7 +60,7 @@ func TestUpdateDocument_VersionConflictIs409(t *testing.T) {
 
 	assert.Error(t, err)
 	var appErr *apperrors.AppError
-	assert.ErrorAs(t, err, &appErr)
+	assert.True(t, errors.As(err, &appErr), "error should be AppError type")
 	if appErr != nil {
 		assert.Equal(t, 409, appErr.StatusCode)
 	}
