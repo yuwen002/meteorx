@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"fmt"
-	"log"
 	"meteorx/internal/config"
 	"strings"
 
@@ -20,9 +19,10 @@ func mustBindEnv(v *viper.Viper, input ...string) error {
 }
 
 // LoadConfig 加载配置；出错时返回 error 供调用方决定是否继续
+// 语义：以 config.yaml 为默认值基底，.env 中的环境变量覆盖对应项。
 func LoadConfig() (*config.Config, error) {
-	// 1. 首先尝试加载 .env 文件
-	envErr := godotenv.Load()
+	// 1. 首先尝试加载 .env 文件（存在则导入环境变量，缺失不报错）
+	_ = godotenv.Load()
 
 	// 2. 设置环境变量绑定
 	viper.SetEnvPrefix("METEORX")
@@ -57,19 +57,14 @@ func LoadConfig() (*config.Config, error) {
 		}
 	}
 
-	// 3. 检查是否需要读取 YAML 文件
-	if envErr == nil {
-		log.Println("Using configuration from .env file")
-	} else {
-		log.Println("No .env file found, loading from YAML")
-		viper.SetConfigName("config")
-		viper.SetConfigType("yaml")
-		viper.AddConfigPath("./internal/config")
-		viper.AddConfigPath(".")
+	// 3. 始终读取 config.yaml 作为默认值，.env 中的变量对其做覆盖
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath("./internal/config")
+	viper.AddConfigPath(".")
 
-		if err := viper.ReadInConfig(); err != nil {
-			return nil, fmt.Errorf("failed to read config.yaml: %w", err)
-		}
+	if err := viper.ReadInConfig(); err != nil {
+		return nil, fmt.Errorf("failed to read config.yaml: %w", err)
 	}
 
 	conf := &config.Config{}

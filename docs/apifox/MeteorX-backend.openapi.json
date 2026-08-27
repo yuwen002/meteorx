@@ -7,64 +7,68 @@
   },
   "tags": [
     {
-      "name": "Auth",
-      "description": "认证登录/注册/登出"
+      "name": "认证",
+      "description": "注册 / 登录 / 登出 / 忘记密码 / 重置密码"
     },
     {
-      "name": "Profile",
-      "description": "当前用户个人信息"
+      "name": "个人中心",
+      "description": "当前用户个人信息、修改密码、个人统计"
     },
     {
-      "name": "Tenant",
-      "description": "租户管理"
+      "name": "租户管理",
+      "description": "当前租户信息、租户注册、平台租户管理（含套餐绑定）"
     },
     {
-      "name": "User",
-      "description": "租户用户管理"
+      "name": "租户注销审批",
+      "description": "租户申请注销及平台审批"
     },
     {
-      "name": "Admin-User",
-      "description": "系统管理员管理"
+      "name": "租户独立配置",
+      "description": "当前租户的独立配置"
     },
     {
-      "name": "Admin-TenantUser",
-      "description": "系统管理员跨租户用户管理"
+      "name": "租户用户管理",
+      "description": "租户内部用户管理（含回收站）"
     },
     {
-      "name": "RBAC",
-      "description": "角色/权限/用户角色管理"
+      "name": "管理员用户管理",
+      "description": "平台管理员用户管理（含回收站）"
     },
     {
-      "name": "File",
-      "description": "文件管理"
+      "name": "跨租户用户管理",
+      "description": "平台管理员跨租户用户管理"
     },
     {
-      "name": "Plan",
-      "description": "套餐管理"
+      "name": "角色与权限",
+      "description": "角色、权限、用户-角色分配"
     },
     {
-      "name": "Audit",
-      "description": "审计日志"
+      "name": "文件管理",
+      "description": "文件上传、下载、回收站管理"
     },
     {
-      "name": "Dashboard",
-      "description": "运营看板"
+      "name": "套餐管理",
+      "description": "套餐列表、启用套餐下拉、当前租户套餐"
     },
     {
-      "name": "Notification",
-      "description": "通知公告"
+      "name": "审计日志",
+      "description": "操作审计日志、统计、导出与清理"
     },
     {
-      "name": "Tenant-Cancel",
-      "description": "租户注销审批"
+      "name": "运营看板",
+      "description": "平台运营数据概览与统计"
     },
     {
-      "name": "Tenant-Settings",
-      "description": "租户独立配置"
+      "name": "通知公告",
+      "description": "公告发布与管理、前台公告查看"
     },
     {
-      "name": "Wiki",
-      "description": "知识库/文档管理"
+      "name": "知识库",
+      "description": "空间、节点、文档、回收站"
+    },
+    {
+      "name": "系统",
+      "description": "系统健康检查"
     }
   ],
   "security": [
@@ -74,7 +78,7 @@
   ],
   "servers": [
     {
-      "url": "http://localhost:8080",
+      "url": "http://localhost:8081",
       "description": "本地开发服务器"
     }
   ],
@@ -83,7 +87,7 @@
       "post": {
         "summary": "用户注册",
         "tags": [
-          "Auth"
+          "认证"
         ],
         "requestBody": {
           "required": true,
@@ -113,7 +117,7 @@
       "post": {
         "summary": "用户登录",
         "tags": [
-          "Auth"
+          "认证"
         ],
         "security": [],
         "requestBody": {
@@ -144,7 +148,7 @@
       "post": {
         "summary": "用户登出",
         "tags": [
-          "Auth"
+          "认证"
         ],
         "responses": {
           "200": {
@@ -164,7 +168,7 @@
       "post": {
         "summary": "忘记密码（发送重置邮件）",
         "tags": [
-          "Auth"
+          "认证"
         ],
         "security": [],
         "requestBody": {
@@ -205,7 +209,7 @@
       "post": {
         "summary": "重置密码（通过邮件令牌）",
         "tags": [
-          "Auth"
+          "认证"
         ],
         "security": [],
         "requestBody": {
@@ -255,7 +259,7 @@
       "get": {
         "summary": "当前用户统计（Dashboard）",
         "tags": [
-          "Profile"
+          "个人中心"
         ],
         "responses": {
           "200": {
@@ -275,7 +279,7 @@
       "get": {
         "summary": "获取当前用户信息",
         "tags": [
-          "Profile"
+          "个人中心"
         ],
         "responses": {
           "200": {
@@ -293,7 +297,7 @@
       "put": {
         "summary": "更新当前用户信息",
         "tags": [
-          "Profile"
+          "个人中心"
         ],
         "requestBody": {
           "required": true,
@@ -332,7 +336,7 @@
       "put": {
         "summary": "修改当前用户密码",
         "tags": [
-          "Profile"
+          "个人中心"
         ],
         "requestBody": {
           "required": true,
@@ -362,7 +366,7 @@
       "post": {
         "summary": "租户注册",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "security": [],
         "requestBody": {
@@ -393,7 +397,7 @@
       "get": {
         "summary": "当前租户详情",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "responses": {
           "200": {
@@ -411,7 +415,7 @@
       "put": {
         "summary": "编辑当前租户信息",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "requestBody": {
           "required": true,
@@ -441,7 +445,7 @@
       "get": {
         "summary": "当前租户开通状态",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "responses": {
           "200": {
@@ -461,7 +465,7 @@
       "post": {
         "summary": "当前租户申请注销",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "requestBody": {
           "required": true,
@@ -500,7 +504,7 @@
       "get": {
         "summary": "获取当前租户独立配置",
         "tags": [
-          "Tenant-Settings"
+          "租户独立配置"
         ],
         "responses": {
           "200": {
@@ -518,7 +522,7 @@
       "put": {
         "summary": "更新当前租户独立配置",
         "tags": [
-          "Tenant-Settings"
+          "租户独立配置"
         ],
         "requestBody": {
           "required": true,
@@ -548,7 +552,7 @@
       "post": {
         "summary": "创建租户",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "requestBody": {
           "required": true,
@@ -576,7 +580,7 @@
       "get": {
         "summary": "租户列表",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "parameters": [
           {
@@ -621,7 +625,7 @@
       "get": {
         "summary": "租户列表（回收站）",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "parameters": [
           {
@@ -666,7 +670,7 @@
       "get": {
         "summary": "租户详情",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "parameters": [
           {
@@ -696,7 +700,7 @@
       "put": {
         "summary": "编辑租户",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "parameters": [
           {
@@ -736,7 +740,7 @@
       "put": {
         "summary": "启用/禁用租户",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "parameters": [
           {
@@ -785,7 +789,7 @@
       "put": {
         "summary": "启用/禁用租户（批量）",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "requestBody": {
           "required": true,
@@ -830,7 +834,7 @@
       "delete": {
         "summary": "删除租户",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "parameters": [
           {
@@ -860,7 +864,7 @@
       "delete": {
         "summary": "删除租户（批量）",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "requestBody": {
           "required": true,
@@ -901,7 +905,7 @@
       "put": {
         "summary": "恢复租户（已软删除）",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "parameters": [
           {
@@ -931,7 +935,7 @@
       "get": {
         "summary": "用户列表",
         "tags": [
-          "User"
+          "租户用户管理"
         ],
         "parameters": [
           {
@@ -974,7 +978,7 @@
       "post": {
         "summary": "创建用户",
         "tags": [
-          "User"
+          "租户用户管理"
         ],
         "requestBody": {
           "required": true,
@@ -1004,7 +1008,7 @@
       "get": {
         "summary": "用户列表（回收站）",
         "tags": [
-          "User"
+          "租户用户管理"
         ],
         "parameters": [
           {
@@ -1047,7 +1051,7 @@
       "get": {
         "summary": "用户详情",
         "tags": [
-          "User"
+          "租户用户管理"
         ],
         "parameters": [
           {
@@ -1077,7 +1081,7 @@
       "put": {
         "summary": "编辑用户",
         "tags": [
-          "User"
+          "租户用户管理"
         ],
         "parameters": [
           {
@@ -1117,7 +1121,7 @@
       "put": {
         "summary": "重置用户密码",
         "tags": [
-          "User"
+          "租户用户管理"
         ],
         "parameters": [
           {
@@ -1157,7 +1161,7 @@
       "delete": {
         "summary": "删除用户",
         "tags": [
-          "User"
+          "租户用户管理"
         ],
         "parameters": [
           {
@@ -1187,7 +1191,7 @@
       "put": {
         "summary": "恢复用户（已软删除）",
         "tags": [
-          "User"
+          "租户用户管理"
         ],
         "parameters": [
           {
@@ -1217,7 +1221,7 @@
       "delete": {
         "summary": "永久删除用户",
         "tags": [
-          "User"
+          "租户用户管理"
         ],
         "parameters": [
           {
@@ -1247,7 +1251,7 @@
       "post": {
         "summary": "创建系统管理员",
         "tags": [
-          "Admin-User"
+          "管理员用户管理"
         ],
         "requestBody": {
           "required": true,
@@ -1275,7 +1279,7 @@
       "get": {
         "summary": "系统管理员列表",
         "tags": [
-          "Admin-User"
+          "管理员用户管理"
         ],
         "parameters": [
           {
@@ -1320,7 +1324,7 @@
       "get": {
         "summary": "系统管理员列表（回收站）",
         "tags": [
-          "Admin-User"
+          "管理员用户管理"
         ],
         "parameters": [
           {
@@ -1363,7 +1367,7 @@
       "get": {
         "summary": "系统管理员详情",
         "tags": [
-          "Admin-User"
+          "管理员用户管理"
         ],
         "parameters": [
           {
@@ -1393,7 +1397,7 @@
       "put": {
         "summary": "编辑系统管理员",
         "tags": [
-          "Admin-User"
+          "管理员用户管理"
         ],
         "parameters": [
           {
@@ -1433,7 +1437,7 @@
       "put": {
         "summary": "启用/禁用系统管理员",
         "tags": [
-          "Admin-User"
+          "管理员用户管理"
         ],
         "parameters": [
           {
@@ -1482,7 +1486,7 @@
       "delete": {
         "summary": "删除系统管理员",
         "tags": [
-          "Admin-User"
+          "管理员用户管理"
         ],
         "parameters": [
           {
@@ -1512,7 +1516,7 @@
       "put": {
         "summary": "恢复系统管理员",
         "tags": [
-          "Admin-User"
+          "管理员用户管理"
         ],
         "parameters": [
           {
@@ -1542,7 +1546,7 @@
       "delete": {
         "summary": "永久删除系统管理员",
         "tags": [
-          "Admin-User"
+          "管理员用户管理"
         ],
         "parameters": [
           {
@@ -1572,7 +1576,7 @@
       "put": {
         "summary": "启用/禁用系统管理员（批量）",
         "tags": [
-          "Admin-User"
+          "管理员用户管理"
         ],
         "requestBody": {
           "required": true,
@@ -1617,7 +1621,7 @@
       "delete": {
         "summary": "删除系统管理员（批量）",
         "tags": [
-          "Admin-User"
+          "管理员用户管理"
         ],
         "requestBody": {
           "required": true,
@@ -1658,7 +1662,7 @@
       "get": {
         "summary": "所有用户统计（Dashboard）",
         "tags": [
-          "Admin-User"
+          "运营看板"
         ],
         "responses": {
           "200": {
@@ -1678,7 +1682,7 @@
       "post": {
         "summary": "为租户创建用户",
         "tags": [
-          "Admin-TenantUser"
+          "跨租户用户管理"
         ],
         "requestBody": {
           "required": true,
@@ -1708,7 +1712,7 @@
       "get": {
         "summary": "所有租户用户列表",
         "tags": [
-          "Admin-TenantUser"
+          "跨租户用户管理"
         ],
         "parameters": [
           {
@@ -1751,7 +1755,7 @@
       "get": {
         "summary": "所有租户用户列表（回收站）",
         "tags": [
-          "Admin-TenantUser"
+          "跨租户用户管理"
         ],
         "parameters": [
           {
@@ -1794,7 +1798,7 @@
       "get": {
         "summary": "指定租户用户列表",
         "tags": [
-          "Admin-TenantUser"
+          "跨租户用户管理"
         ],
         "parameters": [
           {
@@ -1845,7 +1849,7 @@
       "get": {
         "summary": "指定租户用户列表（回收站）",
         "tags": [
-          "Admin-TenantUser"
+          "跨租户用户管理"
         ],
         "parameters": [
           {
@@ -1875,7 +1879,7 @@
       "put": {
         "summary": "编辑租户用户",
         "tags": [
-          "Admin-TenantUser"
+          "跨租户用户管理"
         ],
         "parameters": [
           {
@@ -1923,7 +1927,7 @@
       "put": {
         "summary": "启用/禁用租户用户",
         "tags": [
-          "Admin-TenantUser"
+          "跨租户用户管理"
         ],
         "parameters": [
           {
@@ -1979,7 +1983,7 @@
       "put": {
         "summary": "重置租户用户密码",
         "tags": [
-          "Admin-TenantUser"
+          "跨租户用户管理"
         ],
         "parameters": [
           {
@@ -2027,7 +2031,7 @@
       "put": {
         "summary": "恢复租户用户",
         "tags": [
-          "Admin-TenantUser"
+          "跨租户用户管理"
         ],
         "parameters": [
           {
@@ -2065,7 +2069,7 @@
       "delete": {
         "summary": "删除租户用户",
         "tags": [
-          "Admin-TenantUser"
+          "跨租户用户管理"
         ],
         "parameters": [
           {
@@ -2103,7 +2107,7 @@
       "delete": {
         "summary": "永久删除租户用户",
         "tags": [
-          "Admin-TenantUser"
+          "跨租户用户管理"
         ],
         "parameters": [
           {
@@ -2141,7 +2145,7 @@
       "put": {
         "summary": "启用/禁用租户用户（批量）",
         "tags": [
-          "Admin-TenantUser"
+          "跨租户用户管理"
         ],
         "parameters": [
           {
@@ -2196,7 +2200,7 @@
       "delete": {
         "summary": "删除租户用户（批量）",
         "tags": [
-          "Admin-TenantUser"
+          "跨租户用户管理"
         ],
         "parameters": [
           {
@@ -2247,7 +2251,7 @@
       "get": {
         "summary": "RBAC 统计（Dashboard）",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "responses": {
           "200": {
@@ -2267,7 +2271,7 @@
       "get": {
         "summary": "角色列表",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -2308,7 +2312,7 @@
       "post": {
         "summary": "创建角色",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "requestBody": {
           "required": true,
@@ -2338,7 +2342,7 @@
       "get": {
         "summary": "角色下拉列表（不分页）",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -2367,7 +2371,7 @@
       "get": {
         "summary": "系统管理员角色列表",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "responses": {
           "200": {
@@ -2387,7 +2391,7 @@
       "get": {
         "summary": "角色列表（回收站）",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -2430,7 +2434,7 @@
       "get": {
         "summary": "角色详情",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -2460,7 +2464,7 @@
       "put": {
         "summary": "编辑角色",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -2500,7 +2504,7 @@
       "put": {
         "summary": "启用/禁用角色",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -2549,7 +2553,7 @@
       "delete": {
         "summary": "删除角色",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -2579,7 +2583,7 @@
       "put": {
         "summary": "恢复角色",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -2609,7 +2613,7 @@
       "get": {
         "summary": "获取角色权限",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -2645,7 +2649,7 @@
       "put": {
         "summary": "绑定角色权限",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -2694,7 +2698,7 @@
       "delete": {
         "summary": "解绑角色单个权限",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -2742,7 +2746,7 @@
       "delete": {
         "summary": "批量解绑角色权限",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -2793,7 +2797,7 @@
       "put": {
         "summary": "启用/禁用角色（批量）",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "requestBody": {
           "required": true,
@@ -2838,7 +2842,7 @@
       "delete": {
         "summary": "删除角色（批量）",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "requestBody": {
           "required": true,
@@ -2879,7 +2883,7 @@
       "put": {
         "summary": "批量为多个角色绑定权限",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "requestBody": {
           "required": true,
@@ -2925,7 +2929,7 @@
       "delete": {
         "summary": "批量为多个角色解绑权限",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "requestBody": {
           "required": true,
@@ -2973,7 +2977,7 @@
       "get": {
         "summary": "权限列表",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -3021,7 +3025,7 @@
       "post": {
         "summary": "创建权限",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "requestBody": {
           "required": true,
@@ -3051,7 +3055,7 @@
       "get": {
         "summary": "权限详情",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -3081,7 +3085,7 @@
       "put": {
         "summary": "编辑权限",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -3121,7 +3125,7 @@
       "put": {
         "summary": "启用/禁用权限",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -3170,7 +3174,7 @@
       "delete": {
         "summary": "删除权限",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -3200,7 +3204,7 @@
       "put": {
         "summary": "启用/禁用权限（批量）",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "requestBody": {
           "required": true,
@@ -3245,7 +3249,7 @@
       "delete": {
         "summary": "删除权限（批量）",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "requestBody": {
           "required": true,
@@ -3286,7 +3290,7 @@
       "get": {
         "summary": "角色权限关系列表",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -3329,7 +3333,7 @@
       "get": {
         "summary": "用户角色关系列表",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -3372,7 +3376,7 @@
       "get": {
         "summary": "获取用户角色",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -3400,7 +3404,7 @@
       "post": {
         "summary": "分配用户角色",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -3438,7 +3442,7 @@
       "delete": {
         "summary": "移除用户所有角色",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -3468,7 +3472,7 @@
       "delete": {
         "summary": "移除用户单个角色",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -3506,7 +3510,7 @@
       "get": {
         "summary": "获取角色下的用户",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "parameters": [
           {
@@ -3536,7 +3540,7 @@
       "post": {
         "summary": "文件上传",
         "tags": [
-          "File"
+          "文件管理"
         ],
         "requestBody": {
           "required": true,
@@ -3580,7 +3584,7 @@
       "get": {
         "summary": "文件列表",
         "tags": [
-          "File"
+          "文件管理"
         ],
         "parameters": [
           {
@@ -3631,7 +3635,7 @@
       "get": {
         "summary": "已删除文件列表（回收站）",
         "tags": [
-          "File"
+          "文件管理"
         ],
         "parameters": [
           {
@@ -3667,7 +3671,7 @@
       "get": {
         "summary": "文件详情",
         "tags": [
-          "File"
+          "文件管理"
         ],
         "parameters": [
           {
@@ -3695,7 +3699,7 @@
       "put": {
         "summary": "更新文件信息（重命名）",
         "tags": [
-          "File"
+          "文件管理"
         ],
         "parameters": [
           {
@@ -3738,7 +3742,7 @@
       "delete": {
         "summary": "删除文件（软删除）",
         "tags": [
-          "File"
+          "文件管理"
         ],
         "parameters": [
           {
@@ -3768,7 +3772,7 @@
       "get": {
         "summary": "下载文件",
         "tags": [
-          "File"
+          "文件管理"
         ],
         "parameters": [
           {
@@ -3799,7 +3803,7 @@
       "put": {
         "summary": "恢复已删除文件",
         "tags": [
-          "File"
+          "文件管理"
         ],
         "parameters": [
           {
@@ -3829,7 +3833,7 @@
       "delete": {
         "summary": "永久删除文件",
         "tags": [
-          "File"
+          "文件管理"
         ],
         "parameters": [
           {
@@ -3859,7 +3863,7 @@
       "post": {
         "summary": "批量删除文件",
         "tags": [
-          "File"
+          "文件管理"
         ],
         "requestBody": {
           "required": true,
@@ -3900,7 +3904,7 @@
       "get": {
         "summary": "套餐列表",
         "tags": [
-          "Plan"
+          "套餐管理"
         ],
         "parameters": [
           {
@@ -3941,7 +3945,7 @@
       "post": {
         "summary": "创建套餐",
         "tags": [
-          "Plan"
+          "套餐管理"
         ],
         "requestBody": {
           "required": true,
@@ -3971,7 +3975,7 @@
       "get": {
         "summary": "启用套餐下拉列表",
         "tags": [
-          "Plan"
+          "套餐管理"
         ],
         "responses": {
           "200": {
@@ -3991,7 +3995,7 @@
       "put": {
         "summary": "更新套餐",
         "tags": [
-          "Plan"
+          "套餐管理"
         ],
         "parameters": [
           {
@@ -4031,7 +4035,7 @@
       "delete": {
         "summary": "删除套餐",
         "tags": [
-          "Plan"
+          "套餐管理"
         ],
         "parameters": [
           {
@@ -4061,7 +4065,7 @@
       "get": {
         "summary": "查询租户套餐详情",
         "tags": [
-          "Plan"
+          "租户管理"
         ],
         "parameters": [
           {
@@ -4090,7 +4094,7 @@
       "put": {
         "summary": "为租户分配套餐",
         "tags": [
-          "Plan"
+          "租户管理"
         ],
         "parameters": [
           {
@@ -4131,7 +4135,7 @@
       "get": {
         "summary": "获取当前租户套餐信息",
         "tags": [
-          "Plan"
+          "套餐管理"
         ],
         "responses": {
           "200": {
@@ -4151,7 +4155,7 @@
       "get": {
         "summary": "审计日志统计",
         "tags": [
-          "Audit"
+          "审计日志"
         ],
         "responses": {
           "200": {
@@ -4171,7 +4175,7 @@
       "get": {
         "summary": "审计可视化仪表盘（趋势/模块分布/操作统计）",
         "tags": [
-          "Audit"
+          "审计日志"
         ],
         "parameters": [
           {
@@ -4201,7 +4205,7 @@
       "get": {
         "summary": "审计日志列表",
         "tags": [
-          "Audit"
+          "审计日志"
         ],
         "parameters": [
           {
@@ -4279,7 +4283,7 @@
       "post": {
         "summary": "手动创建审计日志",
         "tags": [
-          "Audit"
+          "审计日志"
         ],
         "requestBody": {
           "required": true,
@@ -4309,7 +4313,7 @@
       "get": {
         "summary": "导出审计日志（CSV）",
         "tags": [
-          "Audit"
+          "审计日志"
         ],
         "parameters": [
           {
@@ -4369,7 +4373,7 @@
       "get": {
         "summary": "审计日志详情",
         "tags": [
-          "Audit"
+          "审计日志"
         ],
         "parameters": [
           {
@@ -4399,7 +4403,7 @@
       "delete": {
         "summary": "清理过期审计日志",
         "tags": [
-          "Audit"
+          "审计日志"
         ],
         "requestBody": {
           "content": {
@@ -4434,7 +4438,7 @@
       "get": {
         "summary": "租户注销申请列表",
         "tags": [
-          "Tenant-Cancel"
+          "租户注销审批"
         ],
         "parameters": [
           {
@@ -4485,7 +4489,7 @@
       "put": {
         "summary": "审批通过租户注销申请",
         "tags": [
-          "Tenant-Cancel"
+          "租户注销审批"
         ],
         "parameters": [
           {
@@ -4525,7 +4529,7 @@
       "put": {
         "summary": "驳回租户注销申请",
         "tags": [
-          "Tenant-Cancel"
+          "租户注销审批"
         ],
         "parameters": [
           {
@@ -4565,7 +4569,7 @@
       "get": {
         "summary": "平台运营数据总览",
         "tags": [
-          "Dashboard"
+          "运营看板"
         ],
         "responses": {
           "200": {
@@ -4585,7 +4589,7 @@
       "get": {
         "summary": "公告列表",
         "tags": [
-          "Notification"
+          "通知公告"
         ],
         "parameters": [
           {
@@ -4642,7 +4646,7 @@
       "post": {
         "summary": "创建公告",
         "tags": [
-          "Notification"
+          "通知公告"
         ],
         "requestBody": {
           "required": true,
@@ -4672,7 +4676,7 @@
       "get": {
         "summary": "公告详情",
         "tags": [
-          "Notification"
+          "通知公告"
         ],
         "parameters": [
           {
@@ -4700,7 +4704,7 @@
       "put": {
         "summary": "更新公告",
         "tags": [
-          "Notification"
+          "通知公告"
         ],
         "parameters": [
           {
@@ -4738,7 +4742,7 @@
       "delete": {
         "summary": "删除公告",
         "tags": [
-          "Notification"
+          "通知公告"
         ],
         "parameters": [
           {
@@ -4768,7 +4772,7 @@
       "put": {
         "summary": "发布/下架公告",
         "tags": [
-          "Notification"
+          "通知公告"
         ],
         "parameters": [
           {
@@ -4808,7 +4812,7 @@
       "get": {
         "summary": "租户侧公告列表（当前租户可见）",
         "tags": [
-          "Notification"
+          "通知公告"
         ],
         "parameters": [
           {
@@ -4844,7 +4848,7 @@
       "get": {
         "summary": "Wiki统计数据",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "responses": {
           "200": {
@@ -4864,7 +4868,7 @@
       "get": {
         "summary": "空间列表",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -4898,7 +4902,7 @@
       "post": {
         "summary": "创建空间",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "requestBody": {
           "required": true,
@@ -4928,7 +4932,7 @@
       "get": {
         "summary": "空间详情",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -4956,7 +4960,7 @@
       "put": {
         "summary": "更新空间",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -4994,7 +4998,7 @@
       "delete": {
         "summary": "删除空间",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5024,7 +5028,7 @@
       "get": {
         "summary": "获取节点树",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5069,7 +5073,7 @@
       "post": {
         "summary": "创建节点",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5109,7 +5113,7 @@
       "get": {
         "summary": "节点详情",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5145,7 +5149,7 @@
       "put": {
         "summary": "更新节点",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5191,7 +5195,7 @@
       "delete": {
         "summary": "删除节点",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5229,7 +5233,7 @@
       "get": {
         "summary": "空间成员列表",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5272,7 +5276,7 @@
       "post": {
         "summary": "添加空间成员",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5312,7 +5316,7 @@
       "delete": {
         "summary": "移除空间成员",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5350,7 +5354,7 @@
       "post": {
         "summary": "创建文档",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5388,7 +5392,7 @@
       "get": {
         "summary": "通过节点获取文档",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5418,7 +5422,7 @@
       "put": {
         "summary": "更新文档",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5456,7 +5460,7 @@
       "delete": {
         "summary": "删除文档",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5486,7 +5490,7 @@
       "get": {
         "summary": "文档版本列表",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5531,7 +5535,7 @@
       "get": {
         "summary": "获取指定版本",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5569,7 +5573,7 @@
       "post": {
         "summary": "恢复到指定版本",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5607,7 +5611,7 @@
       "get": {
         "summary": "Wiki搜索（标题+内容）",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5660,7 +5664,7 @@
       "get": {
         "summary": "回收站列表",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5712,7 +5716,7 @@
       "post": {
         "summary": "从回收站恢复",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5742,7 +5746,7 @@
       "delete": {
         "summary": "永久删除回收站项目",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5772,7 +5776,7 @@
       "post": {
         "summary": "移动节点",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5826,7 +5830,7 @@
       "put": {
         "summary": "节点排序",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5883,7 +5887,7 @@
       "get": {
         "summary": "获取节点权限列表",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5919,7 +5923,7 @@
       "post": {
         "summary": "设置节点权限",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -5986,7 +5990,7 @@
       "delete": {
         "summary": "移除节点权限",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -6040,7 +6044,7 @@
       "post": {
         "summary": "创建附件",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "requestBody": {
           "required": true,
@@ -6070,7 +6074,7 @@
       "get": {
         "summary": "列出文档附件",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -6100,7 +6104,7 @@
       "delete": {
         "summary": "删除附件",
         "tags": [
-          "Wiki"
+          "知识库"
         ],
         "parameters": [
           {
@@ -6130,7 +6134,7 @@
       "delete": {
         "summary": "硬删除租户（不可恢复）",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "parameters": [
           {
@@ -6160,7 +6164,7 @@
       "put": {
         "summary": "更新租户套餐",
         "tags": [
-          "Tenant"
+          "租户管理"
         ],
         "parameters": [
           {
@@ -6214,7 +6218,7 @@
       "get": {
         "summary": "我的文件列表",
         "tags": [
-          "File"
+          "文件管理"
         ],
         "parameters": [
           {
@@ -6250,7 +6254,7 @@
       "post": {
         "summary": "批量分配用户角色",
         "tags": [
-          "RBAC"
+          "角色与权限"
         ],
         "requestBody": {
           "required": true,
@@ -6280,7 +6284,7 @@
       "get": {
         "summary": "健康检查",
         "tags": [
-          "System"
+          "系统"
         ],
         "responses": {
           "200": {

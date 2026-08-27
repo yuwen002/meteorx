@@ -12,7 +12,7 @@
 
 ```yaml
 server:
-  port: 8080
+  port: 8081
   mode: development
 
 database:
@@ -62,7 +62,7 @@ security:
 
 file:
   upload_path: ./uploads
-  upload_url: /files
+  upload_url: http://localhost:8081/uploads
   max_file_size: 10485760
   allowed_types:
     - image/jpeg
@@ -80,7 +80,7 @@ email:
   from_name: MeteorX
 
 client:
-  base_url: http://localhost:8080
+  base_url: http://localhost:5173
 ```
 
 ### 环境变量覆盖

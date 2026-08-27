@@ -140,7 +140,7 @@ func (r *wikiRepository) ListSpaces(ctx context.Context, tenantID string, userID
 	var spaces []*model.WikiSpace
 	var total int64
 
-	query := r.getDB(ctx).Model(&model.WikiSpace{}).Where("tenant_id = ?", tenantID)
+	query := r.getDB(ctx).Model(&model.WikiSpace{}).Where("wiki_spaces.tenant_id = ?", tenantID)
 
 	if userID != "" {
 		query = query.Joins("LEFT JOIN wiki_space_members wsm ON wsm.space_id = wiki_spaces.id AND wsm.user_id = ?", userID).
@@ -152,7 +152,7 @@ func (r *wikiRepository) ListSpaces(ctx context.Context, tenantID string, userID
 	}
 
 	offset := (page - 1) * pageSize
-	if err := query.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&spaces).Error; err != nil {
+	if err := query.Order("wiki_spaces.created_at DESC").Offset(offset).Limit(pageSize).Find(&spaces).Error; err != nil {
 		return nil, 0, err
 	}
 

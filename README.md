@@ -589,7 +589,7 @@ HTTP 204 No Content
 
 | YAML 路径 | .env 变量 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `server.port` | `METEORX_APP_PORT` | 8080 | 服务端口 |
+| `server.port` | `METEORX_APP_PORT` | 8081 | 服务端口 |
 | `server.mode` | `METEORX_APP_MODE` | `debug` | `debug` / `release` |
 | `database.host` | `METEORX_DB_HOST` | `127.0.0.1` | MySQL 地址 |
 | `database.port` | `METEORX_DB_PORT` | `3306` | MySQL 端口 |
@@ -605,7 +605,7 @@ HTTP 204 No Content
 | `jwt.expiration` | `METEORX_JWT_EXPIRATION` | `24h` | Token 有效期 |
 | `jwt.issuer` | `METEORX_JWT_ISSUER` | `meteorx-auth` | Token Issuer |
 | `file.upload_path` | — | `./uploads` | 文件存储路径 |
-| `file.upload_url` | — | `/uploads` | 文件访问 URL 前缀 |
+| `file.upload_url` | — | `http://localhost:8081/uploads` | 文件访问 URL 前缀 |
 | `file.max_file_size` | — | `10485760` | 最大文件大小（10MB） |
 | `file.storage_type` | — | `local` | 存储类型（local/oss/s3） |
 | `log.level` | — | `info` | 日志等级 |
