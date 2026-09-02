@@ -3,7 +3,7 @@ package handler
 
 import (
 	"errors"
-	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -482,7 +482,7 @@ func (h *UserHandler) AdminListTenantUsers(w http.ResponseWriter, r *http.Reques
 	// 调用服务层查询
 	users, total, err := h.svc.AdminListTenantUsers(r.Context(), tenantID, pg.Page, pg.PageSize, keyword)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("[UserHandler] AdminListTenantUsers failed: %v", err)
 		response.Fail(w, http.StatusInternalServerError, "获取用户列表失败")
 		return
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"path/filepath"
 	"strings"
@@ -192,7 +193,7 @@ func (s *FileService) Delete(ctx context.Context, id, tenantID string) error {
 	// 同步删除物理文件；失败只记日志，不回滚软删除（软删除已符合业务语义）
 	if file != nil && file.FilePath != "" {
 		if err := s.storage.Delete(ctx, file.FilePath); err != nil {
-			fmt.Printf("[FileService] warning: physical file delete failed for %s: %v\n", file.FilePath, err)
+			log.Printf("[FileService] warning: physical file delete failed for %s: %v\n", file.FilePath, err)
 		}
 	}
 	return nil

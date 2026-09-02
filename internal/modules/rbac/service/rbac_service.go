@@ -165,6 +165,38 @@ func (s *RBACService) RestoreRole(ctx context.Context, id string) error {
 	return s.roleRepo.Restore(ctx, id)
 }
 
+// PermanentDeleteRole 永久删除角色（物理删除，不可恢复）
+func (s *RBACService) PermanentDeleteRole(ctx context.Context, id string) error {
+	role, err := s.roleRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if role.IsSystem {
+		return errors.New("系统内置角色不可永久删除")
+	}
+	return s.roleRepo.PermanentDelete(ctx, id)
+}
+
+// BatchPermanentDeleteRoles 批量永久删除角色，返回实际删除的数量
+func (s *RBACService) BatchPermanentDeleteRoles(ctx context.Context, ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, errors.New("角色ID列表不能为空")
+	}
+
+	// 检查是否有系统角色
+	for _, id := range ids {
+		role, err := s.roleRepo.GetByID(ctx, id)
+		if err != nil {
+			return 0, err
+		}
+		if role.IsSystem {
+			return 0, errors.New("角色 [" + role.Name + "] 是系统内置角色，不可永久删除")
+		}
+	}
+
+	return s.roleRepo.BatchPermanentDelete(ctx, ids)
+}
+
 // UpdateRoleStatus 更改角色状态（启用/禁用）
 func (s *RBACService) UpdateRoleStatus(ctx context.Context, id string, status int) error {
 	role, err := s.roleRepo.GetByID(ctx, id)

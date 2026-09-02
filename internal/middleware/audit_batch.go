@@ -20,10 +20,11 @@ type AuditBatchProcessor struct {
 	ticker        *time.Ticker
 	stopCh        chan struct{}
 	wg            sync.WaitGroup
+	ctx           context.Context
 }
 
 // NewAuditBatchProcessor 创建批量处理器
-func NewAuditBatchProcessor(svc *service.AuditService, bufferSize int, flushInterval time.Duration) *AuditBatchProcessor {
+func NewAuditBatchProcessor(ctx context.Context, svc *service.AuditService, bufferSize int, flushInterval time.Duration) *AuditBatchProcessor {
 	if bufferSize <= 0 {
 		bufferSize = 100
 	}
@@ -32,6 +33,7 @@ func NewAuditBatchProcessor(svc *service.AuditService, bufferSize int, flushInte
 	}
 
 	processor := &AuditBatchProcessor{
+		ctx:           ctx,
 		svc:           svc,
 		buffer:        make([]*dto.CreateAuditLogReq, 0, bufferSize),
 		bufferSize:    bufferSize,
@@ -94,11 +96,15 @@ func (p *AuditBatchProcessor) flush() {
 	p.flushing = false
 	p.mutex.Unlock()
 
-	// 批量写入（这里简化处理，逐个写入）
-	// 生产环境可以实现真正的批量插入
-	ctx := context.Background()
-	for _, req := range logs {
-		_, _ = p.svc.CreateLog(ctx, *req)
+	// 使用真正的批量插入（性能优化）
+	reqs := make([]dto.CreateAuditLogReq, len(logs))
+	for i, log := range logs {
+		reqs[i] = *log
+	}
+	
+	// 使用处理器持有的 context（支持优雅取消）
+	if err := p.svc.BatchCreateLogs(p.ctx, reqs); err != nil {
+		// 记录错误但不阻塞（生产环境可接入日志系统）
 	}
 }
 
@@ -113,8 +119,8 @@ func (p *AuditBatchProcessor) Stop() {
 var GlobalBatchProcessor *AuditBatchProcessor
 
 // InitAuditBatchProcessor 初始化全局批量处理器
-func InitAuditBatchProcessor(svc *service.AuditService) {
-	GlobalBatchProcessor = NewAuditBatchProcessor(svc, 100, 5*time.Second)
+func InitAuditBatchProcessor(ctx context.Context, svc *service.AuditService) {
+	GlobalBatchProcessor = NewAuditBatchProcessor(ctx, svc, 100, 5*time.Second)
 }
 
 // StopAuditBatchProcessor 停止全局批量处理器

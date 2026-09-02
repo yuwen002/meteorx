@@ -7,6 +7,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// 文件状态
+const (
+	FileStatusDeleted = 0 // 已删除（回收站）
+	FileStatusActive  = 1 // 正常
+)
+
 // File 文件模型
 type File struct {
 	ID          string    `gorm:"primaryKey;type:varchar(26)" json:"id"`

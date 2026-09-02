@@ -3,7 +3,7 @@ package handler
 
 import (
 	"errors"
-	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -45,13 +45,13 @@ func (h *TenantHandler) Register(w http.ResponseWriter, r *http.Request) {
 		// 分门别类处理错误
 		switch {
 		case errors.Is(err, service.ErrDomainConflict):
-			response.Fail(w, 409, "该域名已被其他租户占用")
+			response.Fail(w, http.StatusConflict, "该域名已被其他租户占用")
 		case errors.Is(err, service.ErrUsernameConflict):
-			response.Fail(w, 409, "该用户名已被使用")
+			response.Fail(w, http.StatusConflict, "该用户名已被使用")
 		default:
 			// 记录日志并在响应中隐藏细节
 			// log.Printf("Register Error: %v", err)
-			response.Fail(w, 500, "服务器开小差了，请稍后再试")
+			response.Fail(w, http.StatusInternalServerError, "服务器开小差了，请稍后再试")
 		}
 		return
 	}
@@ -73,13 +73,12 @@ func (h *TenantHandler) AdminCreate(w http.ResponseWriter, r *http.Request) {
 
 	// 2. 调用服务层逻辑
 	tenant, err := h.svc.AdminCreate(r.Context(), req)
-	fmt.Println(tenant)
 	if err != nil {
+		log.Printf("[TenantHandler] AdminCreate failed: %v", err)
 		switch {
 		case errors.Is(err, service.ErrDomainConflict):
 			response.Fail(w, http.StatusConflict, "该租户域名已被占用")
 		default:
-			// 可在此处调用你的日志组件记录底层错误细节，如：log.Printf("%v", err)
 			response.Fail(w, http.StatusInternalServerError, "创建租户失败，服务器内部错误")
 		}
 		return
@@ -380,7 +379,7 @@ func (h *TenantHandler) AdminBatchUpdateStatus(w http.ResponseWriter, r *http.Re
 	// 2. 调用服务层批量更新
 	affected, failedIDs, err := h.svc.BatchUpdateStatus(r.Context(), req.IDs, *req.Status)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("[TenantHandler] BatchUpdateStatus failed: %v", err)
 		response.Fail(w, http.StatusInternalServerError, "批量更新租户状态失败")
 		return
 	}

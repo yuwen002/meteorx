@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"meteorx/internal/modules/audit"
 	"meteorx/internal/modules/dashboard"
 	"meteorx/internal/modules/notification"
@@ -31,7 +32,7 @@ import (
 	"meteorx/pkg/security"
 )
 
-func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
+func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 	r := chi.NewRouter()
 	SetupMiddleware(r)
 
@@ -46,9 +47,54 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 	// 初始化默认套餐（幂等）
 	initPlans(db)
 
-	// 基础检查
+	// 健康检查（基础）
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok"}`))
+	})
+
+	// 深度健康检查（检查数据库和Redis连接状态）
+	r.Get("/health/ready", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		
+		health := map[string]interface{}{
+			"status": "ok",
+			"checks": map[string]string{},
+		}
+		
+		// 检查数据库连接
+		sqlDB, err := db.DB()
+		if err != nil {
+			health["status"] = "error"
+			health["checks"].(map[string]string)["database"] = "error: " + err.Error()
+		} else if err := sqlDB.Ping(); err != nil {
+			health["status"] = "error"
+			health["checks"].(map[string]string)["database"] = "error: " + err.Error()
+		} else {
+			health["checks"].(map[string]string)["database"] = "ok"
+		}
+		
+		// 检查Redis连接
+		if rdb != nil && rdb.IsAvailable() {
+			if err := rdb.Ping(r.Context()); err != nil {
+				health["status"] = "degraded"
+				health["checks"].(map[string]string)["redis"] = "error: " + err.Error()
+			} else {
+				health["checks"].(map[string]string)["redis"] = "ok"
+			}
+		} else if rdb == nil {
+			health["status"] = "degraded"
+			health["checks"].(map[string]string)["redis"] = "not_configured"
+		} else {
+			health["checks"].(map[string]string)["redis"] = "unavailable"
+		}
+		
+		statusCode := http.StatusOK
+		if health["status"] == "error" {
+			statusCode = http.StatusServiceUnavailable
+		}
+		w.WriteHeader(statusCode)
+		json.NewEncoder(w).Encode(health)
 	})
 
 	// 静态文件服务 - 提供上传文件的访问
@@ -80,8 +126,8 @@ func InitRouter(db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 			repo := auditRepo.NewAuditLogRepository(db)
 			auditService := auditSvc.NewAuditService(repo)
 
-			// 初始化批量处理器（性能优化）
-			middleware.InitAuditBatchProcessor(auditService)
+			// 初始化批量处理器（性能优化，使用传入的context支持优雅取消）
+			middleware.InitAuditBatchProcessor(ctx, auditService)
 
 			r.Use(middleware.AuditMiddleware(auditService))
 

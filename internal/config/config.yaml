@@ -19,7 +19,9 @@ redis:
   db: 0
 
 jwt:
-  secret: "your-secret-key"
+  # ⚠️ 生产环境务必使用强随机密钥（至少32位）
+  # 生成方式: openssl rand -base64 64
+  secret: "CHANGE-THIS-TO-A-STRONG-RANDOM-SECRET-KEY-IN-PRODUCTION"
   expiration: 24h    # 对应 Go 的 time.Duration
 
 log:

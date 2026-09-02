@@ -269,6 +269,27 @@ func (r *roleRepository) Restore(ctx context.Context, id string) error {
 	return nil
 }
 
+// PermanentDelete 永久删除角色（物理删除，不可恢复）
+func (r *roleRepository) PermanentDelete(ctx context.Context, id string) error {
+	result := r.db.WithContext(ctx).Unscoped().Delete(&RolePO{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("角色不存在")
+	}
+	return nil
+}
+
+// BatchPermanentDelete 批量永久删除角色，返回实际删除的数量
+func (r *roleRepository) BatchPermanentDelete(ctx context.Context, ids []string) (int64, error) {
+	result := r.db.WithContext(ctx).Unscoped().Where("id IN ?", ids).Delete(&RolePO{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
 // Count 统计角色总数（按租户过滤，不传 tenantID 则统计全部）
 func (r *roleRepository) Count(ctx context.Context, tenantID string) (int64, error) {
 	var total int64

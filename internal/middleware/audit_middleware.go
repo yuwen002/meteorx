@@ -70,17 +70,19 @@ func AuditMiddleware(auditSvc *service.AuditService) func(http.Handler) http.Han
 			duration := time.Since(start).Milliseconds()
 
 			// 异步记录审计日志（不阻塞响应）
+			// 使用带超时的 context，避免服务器关闭时 goroutine 泄漏
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			
 			go func() {
-				recordAuditLog(auditSvc, r, recorder, requestBody, duration)
+				recordAuditLog(ctx, auditSvc, r, recorder, requestBody, duration)
 			}()
 		})
 	}
 }
 
 // recordAuditLog 记录审计日志
-func recordAuditLog(auditSvc *service.AuditService, r *http.Request, recorder *responseRecorder, requestBody string, duration int64) {
-	ctx := context.Background()
-
+func recordAuditLog(ctx context.Context, auditSvc *service.AuditService, r *http.Request, recorder *responseRecorder, requestBody string, duration int64) {
 	// 获取用户信息
 	userID := contextx.GetUserID(r.Context())
 	username := "anonymous"

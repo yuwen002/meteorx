@@ -148,3 +148,13 @@ export function getDeletedRoleList(params: RoleListParams) {
 export function restoreRole(id: string) {
   return put(`/rbac/roles/${id}/restore`)
 }
+
+// 永久删除角色（从回收站彻底删除）
+export function permanentDeleteRole(id: string) {
+  return del(`/rbac/roles/${id}/permanent`)
+}
+
+// 批量永久删除角色
+export function batchPermanentDeleteRoles(ids: string[]) {
+  return del('/rbac/roles/batch/permanent', { data: { ids } })
+}

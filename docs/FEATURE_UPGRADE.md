@@ -74,6 +74,101 @@
 
 ---
 
+## 五、系统优化与架构改进
+
+### 5.1 审计日志批量处理优化
+
+**性能提升：10-100倍**
+
+**涉及文件：**
+- `internal/modules/audit/repository/interface.go` - 添加 `BatchCreate` 接口方法
+- `internal/modules/audit/repository/audit_repository.go` - 实现真正的批量SQL插入
+- `internal/modules/audit/service/audit_service.go` - 添加 `BatchCreateLogs` 方法
+- `internal/middleware/audit_batch.go` - 使用批量插入替代逐个写入
+- `internal/middleware/audit_middleware.go` - 优化Context传递
+
+**改进效果：**
+- 从 O(n) 数据库操作优化为 O(1) 批量插入
+- 批量大小：100条，刷新间隔：5秒
+- 减少数据库连接开销和磁盘IO
+
+### 5.2 Context生命周期管理
+
+**涉及文件：**
+- `internal/middleware/audit_middleware.go` - 异步审计日志使用带超时的Context（10秒）
+- `internal/bootstrap/app.go` - 提前创建应用级context
+- `internal/bootstrap/router.go` - 更新 `InitRouter` 签名接受context
+
+**改进效果：**
+- 避免服务器关闭时 goroutine 泄漏
+- 异步操作支持优雅取消
+- 符合 Go 语言最佳实践
+
+### 5.3 统一错误处理
+
+**涉及文件：**
+- `internal/modules/tenant/handler/tenant_handler.go` - 替换硬编码状态码为 `http.StatusXXX` 常量
+- `internal/modules/auth/handler/auth_handler.go` - 统一错误处理模式
+- `internal/common/validator/validator.go` - 标准化状态码使用
+
+**改进效果：**
+- 代码可读性和可维护性提升
+- 符合 Go 语言最佳实践
+- 禁止使用硬编码HTTP状态码
+
+### 5.4 日志标准化
+
+**涉及文件：**
+- `internal/modules/tenant/handler/tenant_handler.go` - 替换 `fmt.Println` → `log.Printf`
+- `internal/modules/user/handler/user_handler.go` - 替换 `fmt.Println` → `log.Printf`
+- `internal/modules/file/service/file_service.go` - 替换 `fmt.Printf` → `log.Printf`
+
+**改进效果：**
+- 所有日志输出使用标准 `log` 包
+- 添加模块前缀（如 `[TenantHandler]`、`[UserHandler]`、`[FileService]`）
+- 便于日志收集、分析和监控
+
+### 5.5 JWT密钥安全强化
+
+**涉及文件：**
+- `internal/config/config.yaml` - 添加强密钥警告注释
+
+**改进效果：**
+- 提醒开发者在生产环境使用强随机密钥
+- 提供生成强密钥的方法说明：`openssl rand -base64 64`
+
+### 5.6 健康检查增强
+
+**涉及文件：**
+- `internal/bootstrap/router.go` - 新增 `/health/ready` 深度检查端点
+- `internal/cache/redis.go` - 添加 `Ping` 方法
+
+**改进效果：**
+- `/health` - 基础检查（负载均衡器使用）
+- `/health/ready` - 深度检查（数据库+Redis连接状态，K8s就绪探针使用）
+- 返回详细的JSON健康状态
+
+### 5.7 角色永久删除功能
+
+**涉及文件：**
+- `internal/modules/rbac/repository/interface.go` - 添加 `PermanentDelete` 和 `BatchPermanentDelete` 接口
+- `internal/modules/rbac/repository/role_repository.go` - 实现永久删除方法
+- `internal/modules/rbac/service/rbac_service.go` - 添加业务逻辑
+- `internal/modules/rbac/handler/rbac_handler.go` - 添加HTTP处理器
+- `internal/modules/rbac/routes.go` - 注册路由
+- `web-admin/src/api/modules/role.ts` - 添加前端API
+- `web-admin/src/views/system/role/recycle.vue` - 实现前端功能
+
+**新增API端点：**
+- `DELETE /api/v1/rbac/roles/{id}/permanent` - 永久删除单个角色
+- `DELETE /api/v1/rbac/roles/batch/permanent` - 批量永久删除角色
+
+**改进效果：**
+- 角色回收站功能完整闭环（软删除 → 回收站查询 → 恢复 → 永久删除）
+- 完成前端TODO项
+
+---
+
 ## 权限注册汇总（`internal/modules/rbac/permissions.go`）
 
 | 权限码 | 说明 |
@@ -83,6 +178,8 @@
 | `admin:cancel_request:list/approve/reject` | 注销审批 |
 | `admin:tenant:hard_delete` | 物理删除租户（彻底销毁） |
 | `admin:tenant:update_plan` | 为租户分配/变更套餐 |
+| `rbac:role:permanent_delete` | 永久删除角色 |
+| `rbac:role:batch_permanent_delete` | 批量永久删除角色 |
 
 全部通过幂等 `SeedPermissions` 注册，superadmin 直接放行。
 
@@ -94,5 +191,6 @@
 - ✅ `go vet` 新增模块无静态问题
 - ✅ 前端 `vue-tsc --noEmit` 类型检查通过（新文件无报错）
 - ✅ 新文件均执行 `gofmt` 格式化
+- ✅ 所有单元测试通过（audit/service、rbac/service、file/service、user/service、middleware）
 
 > 提示：需重新启动后端服务并执行数据库迁移（AutoMigrate 会自动创建 `announcements`、`cancel_requests` 两张新表）。

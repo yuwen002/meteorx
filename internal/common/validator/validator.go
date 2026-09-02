@@ -54,9 +54,9 @@ func ValidateAndResponse(w http.ResponseWriter, s interface{}) bool {
 			for _, e := range validationErrors {
 				errors[e.Field()] = getFieldErrorMessage(s, e)
 			}
-			response.JSON(w, http.StatusBadRequest, 400, "请求参数验证失败", errors)
+			response.JSON(w, http.StatusBadRequest, http.StatusBadRequest, "请求参数验证失败", errors)
 		} else {
-			response.Fail(w, 400, "请求参数验证失败")
+			response.Fail(w, http.StatusBadRequest, "请求参数验证失败")
 		}
 		return false
 	}

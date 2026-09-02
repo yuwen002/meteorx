@@ -101,6 +101,8 @@ import { ArrowLeft, Search, RefreshLeft, Delete } from '@element-plus/icons-vue'
 import {
   getDeletedRoleList,
   restoreRole,
+  permanentDeleteRole,
+  batchPermanentDeleteRoles,
   type RoleItem,
   type RoleListParams
 } from '@/api/modules/role'
@@ -211,8 +213,9 @@ function handlePermanentDelete(row: RoleItem) {
     }
   )
     .then(async () => {
-      // TODO: 需要后端提供永久删除接口
-      ElMessage.warning('永久删除功能需要后端支持')
+      await permanentDeleteRole(row.id)
+      ElMessage.success('永久删除成功')
+      loadList()
     })
     .catch(() => {})
 }
@@ -233,9 +236,10 @@ function handleBatchPermanentDelete() {
     }
   )
     .then(async () => {
-      // TODO: 需要后端提供永久删除接口
-      ElMessage.warning('永久删除功能需要后端支持')
+      await batchPermanentDeleteRoles(selectedIds.value)
+      ElMessage.success('批量永久删除成功')
       selectedIds.value = []
+      loadList()
     })
     .catch(() => {})
 }

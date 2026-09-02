@@ -42,6 +42,14 @@ func (r *Redis) IsAvailable() bool {
 	return r != nil && r.Client != nil
 }
 
+// Ping 检查 Redis 连接是否正常
+func (r *Redis) Ping(ctx context.Context) error {
+	if !r.IsAvailable() {
+		return ErrRedisUnavailable
+	}
+	return r.Client.Ping(ctx).Err()
+}
+
 func (r *Redis) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
 	if !r.IsAvailable() {
 		return ErrRedisUnavailable

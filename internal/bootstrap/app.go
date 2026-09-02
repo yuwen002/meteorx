@@ -44,15 +44,17 @@ func StartApp() {
 		log.Printf("Warning: Redis connection failed, running without cache: %v", redisErr)
 	}
 
-	// 6. 初始化路由并注入依赖
-	r := InitRouter(db, cfg, rdb)
-
-	// 6.1 启动订阅到期自动禁用租户的定时任务（绑定 app 主 context，支持优雅取消）
+	// 6. 创建应用级 context（支持优雅取消）
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// 7. 初始化路由并注入依赖
+	r := InitRouter(ctx, db, cfg, rdb)
+
+	// 7.1 启动订阅到期自动禁用租户的定时任务（绑定 app 主 context，支持优雅取消）
 	StartPlanExpiryJob(ctx, db)
 
-	// 6.2 启动租户注销定时执行任务（执行已到期的注销申请）
+	// 7.2 启动租户注销定时执行任务（执行已到期的注销申请）
 	StartCancelCleanupJob(ctx, db)
 
 	// 7. 构造 http.Server 以支持优雅关闭

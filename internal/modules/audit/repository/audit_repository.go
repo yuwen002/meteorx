@@ -105,6 +105,17 @@ func (r *auditLogRepository) Create(ctx context.Context, log *model.AuditLog) er
 	return r.db.WithContext(ctx).Create(po).Error
 }
 
+func (r *auditLogRepository) BatchCreate(ctx context.Context, logs []*model.AuditLog) error {
+	if len(logs) == 0 {
+		return nil
+	}
+	pos := make([]*AuditLogPO, len(logs))
+	for i, log := range logs {
+		pos[i] = auditLogFromDomain(log)
+	}
+	return r.db.WithContext(ctx).Create(&pos).Error
+}
+
 func (r *auditLogRepository) GetByID(ctx context.Context, id string) (*model.AuditLog, error) {
 	var po AuditLogPO
 	if err := r.db.WithContext(ctx).First(&po, "id = ?", id).Error; err != nil {

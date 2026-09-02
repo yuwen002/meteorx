@@ -10,6 +10,9 @@ type AuditLogRepository interface {
 	// Create 创建审计日志
 	Create(ctx context.Context, log *model.AuditLog) error
 
+	// BatchCreate 批量创建审计日志（性能优化）
+	BatchCreate(ctx context.Context, logs []*model.AuditLog) error
+
 	// GetByID 根据ID获取审计日志
 	GetByID(ctx context.Context, id string) (*model.AuditLog, error)
 

@@ -178,6 +178,38 @@ func (h *RBACHandler) DeleteRole(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
+// PermanentDeleteRole 永久删除角色（从回收站彻底删除）
+// DELETE /api/v1/rbac/roles/{id}/permanent
+func (h *RBACHandler) PermanentDeleteRole(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		response.Fail(w, http.StatusBadRequest, "角色ID不能为空")
+		return
+	}
+
+	if err := h.svc.PermanentDeleteRole(r.Context(), id); err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, nil)
+}
+
+// BatchPermanentDeleteRoles 批量永久删除角色
+// DELETE /api/v1/rbac/roles/batch/permanent
+func (h *RBACHandler) BatchPermanentDeleteRoles(w http.ResponseWriter, r *http.Request) {
+	var req dto.BatchDeleteRolesReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	deleted, err := h.svc.BatchPermanentDeleteRoles(r.Context(), req.IDs)
+	if err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(w, map[string]interface{}{"deleted": deleted})
+}
+
 // BindRolePermissions 为角色绑定权限
 // PUT /api/v1/rbac/roles/{id}/permissions
 func (h *RBACHandler) BindRolePermissions(w http.ResponseWriter, r *http.Request) {

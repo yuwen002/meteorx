@@ -149,6 +149,37 @@ apperrors.FromError(err) → 带状态码的 AppError
 GlobalErrorHandler 捕获 panic → INTERNAL_ERROR
 ```
 
+## 错误处理最佳实践
+
+### 统一错误处理
+
+- 所有Handler使用 `response.FailError()` 或快捷方法返回错误
+- 禁止使用硬编码HTTP状态码（如 `409`、`500`）
+- 使用 `http.StatusXXX` 常量替代数字状态码
+- 错误信息统一通过 `apperrors` 包管理
+
+### 日志标准化
+
+- 禁止使用 `fmt.Println` 或 `fmt.Printf` 输出日志
+- 使用 `log.Printf` 并添加模块前缀（如 `[TenantHandler]`、`[UserHandler]`）
+- 错误日志格式：`log.Printf("[模块名] 操作失败: %v", err)`
+- 示例：
+  ```go
+  // 错误 ❌
+  fmt.Println(err)
+  fmt.Printf("failed: %v\n", err)
+  
+  // 正确 ✅
+  log.Printf("[TenantHandler] AdminCreate failed: %v", err)
+  log.Printf("[UserHandler] AdminListTenantUsers failed: %v", err)
+  ```
+
+### Request ID追踪
+
+- 每个请求自动生成唯一 `request_id`
+- 错误响应自动包含 `request_id` 字段
+- 便于日志关联和问题排查
+
 ## 请求 ID
 
 每个响应都包含 `request_id` 用于追踪：

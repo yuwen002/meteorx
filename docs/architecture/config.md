@@ -136,6 +136,17 @@ err := v.MustValid()
 将 config.yaml 加入 .gitignore（改用 config.example.yaml）
 ```
 
+### JWT密钥安全强化
+
+- 配置文件中的 `jwt.secret` 包含强密钥警告注释
+- 提供生成强密钥的方法说明：
+  ```bash
+  # 生成64字节随机密钥并base64编码
+  openssl rand -base64 64
+  ```
+- 生产环境必须使用随机生成的强密钥（至少32字节）
+- 弱密钥（如 "your-secret-key"）仅用于开发环境
+
 ## Bootstrap 启动引导
 
 ### 包路径：`internal/bootstrap`

@@ -49,6 +49,40 @@ func (s *AuditService) CreateLog(ctx context.Context, req dto.CreateAuditLogReq)
 	return log, nil
 }
 
+// BatchCreateLogs 批量创建审计日志（性能优化）
+func (s *AuditService) BatchCreateLogs(ctx context.Context, reqs []dto.CreateAuditLogReq) error {
+	if len(reqs) == 0 {
+		return nil
+	}
+	
+	logs := make([]*model.AuditLog, len(reqs))
+	for i, req := range reqs {
+		logs[i] = &model.AuditLog{
+			ID:           idgen.New(),
+			UserID:       req.UserID,
+			Username:     req.Username,
+			TenantID:     req.TenantID,
+			Module:       req.Module,
+			Action:       req.Action,
+			Resource:     req.Resource,
+			ResourceID:   req.ResourceID,
+			Method:       req.Method,
+			Path:         req.Path,
+			RequestBody:  req.RequestBody,
+			ResponseBody: req.ResponseBody,
+			StatusCode:   req.StatusCode,
+			Result:       req.Result,
+			ErrorMessage: req.ErrorMessage,
+			ClientIP:     req.ClientIP,
+			UserAgent:    req.UserAgent,
+			Duration:     req.Duration,
+			CreatedAt:    time.Now(),
+		}
+	}
+
+	return s.repo.BatchCreate(ctx, logs)
+}
+
 // GetLog 获取审计日志详情
 func (s *AuditService) GetLog(ctx context.Context, id string) (*dto.AuditLogResp, error) {
 	log, err := s.repo.GetByID(ctx, id)

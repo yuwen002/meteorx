@@ -20,6 +20,8 @@ type RoleRepository interface {
 	BatchDelete(ctx context.Context, ids []string) (int64, error)
 	FindDeleted(ctx context.Context, page, pageSize int, keyword string) ([]*model.Role, int64, error)
 	Restore(ctx context.Context, id string) error
+	PermanentDelete(ctx context.Context, id string) error
+	BatchPermanentDelete(ctx context.Context, ids []string) (int64, error)
 	Count(ctx context.Context, tenantID string) (int64, error)
 }
 

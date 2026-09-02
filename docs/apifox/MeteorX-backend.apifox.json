@@ -10816,6 +10816,137 @@
               }
             },
             {
+              "name": "永久删除角色",
+              "api": {
+                "id": "476515508",
+                "method": "delete",
+                "path": "/api/v1/rbac/roles/{id}/permanent",
+                "parameters": {
+                  "path": [
+                    {
+                      "id": "id#0",
+                      "name": "id",
+                      "required": true,
+                      "enable": true,
+                      "description": "角色ID",
+                      "example": "",
+                      "type": "string",
+                      "schema": {
+                        "type": "string"
+                      }
+                    }
+                  ],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {},
+                "securityScheme": {},
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "151180933",
+                    "code": "200",
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/308584977"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "required": false,
+                  "additionalContentTypes": [],
+                  "oasExtensions": ""
+                },
+                "description": "永久删除已软删除的角色，此操作不可恢复",
+                "tags": [
+                  "角色与权限"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 61,
+                "cases": [
+                  {
+                    "id": 408281816,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "151180933",
+                    "parameters": {
+                      "path": [
+                        {
+                          "id": "id#0",
+                          "relatedId": "id#0",
+                          "relatedName": "id",
+                          "name": "id",
+                          "value": "",
+                          "enable": true
+                        }
+                      ],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {
+                      "enable": {},
+                      "defaultEnable": {}
+                    },
+                    "inheritPreProcessors": {
+                      "enable": {},
+                      "defaultEnable": {}
+                    }
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
               "name": "获取角色权限",
               "api": {
                 "id": "478578289",
@@ -11762,6 +11893,135 @@
                     "path": null,
                     "name": "成功",
                     "responseId": "154615124",
+                    "parameters": {
+                      "path": [],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "data": "",
+                      "type": "application/json",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 7675120,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {
+                      "enable": {},
+                      "defaultEnable": {}
+                    },
+                    "inheritPreProcessors": {
+                      "enable": {},
+                      "defaultEnable": {}
+                    }
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "批量永久删除角色",
+              "api": {
+                "id": "476540110",
+                "method": "delete",
+                "path": "/api/v1/rbac/roles/batch/permanent",
+                "parameters": {
+                  "path": [],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {},
+                "securityScheme": {},
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "152251893",
+                    "code": "200",
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/308584977"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "application/json",
+                  "parameters": [],
+                  "jsonSchema": {
+                    "type": "object",
+                    "required": [
+                      "ids"
+                    ],
+                    "properties": {
+                      "ids": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "要永久删除的角色ID列表"
+                      }
+                    },
+                    "x-apifox-orders": [
+                      "ids"
+                    ]
+                  },
+                  "mediaType": "application/json",
+                  "oasExtensions": "",
+                  "required": true,
+                  "additionalContentTypes": []
+                },
+                "description": "批量永久删除已软删除的角色，此操作不可恢复",
+                "tags": [
+                  "角色与权限"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 97,
+                "cases": [
+                  {
+                    "id": 408281817,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "152251893",
                     "parameters": {
                       "path": [],
                       "query": [],

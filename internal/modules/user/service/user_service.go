@@ -125,6 +125,7 @@ func (s *UserService) buildUserResp(ctx context.Context, user *model.User) (*dto
 		Roles:      roleCodes,
 		RoleIDs:    roleIDs,
 		Status:     user.Status,
+		IsMaster:   user.IsMaster,
 		CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt:  user.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}

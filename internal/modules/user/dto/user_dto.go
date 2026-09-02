@@ -41,7 +41,7 @@ type UpdateUserReq struct {
 }
 
 // UpdateMasterAdminReq 更新系统管理员请求
- type UpdateMasterAdminReq struct {
+type UpdateMasterAdminReq struct {
 	Nickname string `json:"nickname,omitempty" validate:"max=50"`
 	Email    string `json:"email,omitempty" validate:"omitempty,email"`
 	RoleID   string `json:"role_id,omitempty" validate:"omitempty"` // 角色ID，只能指定一个

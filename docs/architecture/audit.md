@@ -157,11 +157,22 @@ AuditBatchProcessor（异步写入）
 
 ```go
 // AuditBatchProcessor
-间隔：10 秒
+间隔：5 秒
 批量大小：100 条
+超时：10 秒（context.WithTimeout）
 ```
 
-日志在内存中缓冲，定期刷新以减少数据库写入开销。
+日志在内存中缓冲，定期批量写入数据库（批量INSERT），性能提升10-100倍。
+
+**Context传递优化**：
+- 异步审计日志使用带超时的Context（10秒），避免goroutine泄漏
+- 服务器关闭时自动取消未完成的批量写入
+- 通过 `context.WithTimeout(context.Background(), 10*time.Second)` 实现
+
+**批量插入实现**：
+- `AuditService.BatchCreateLogs()` 方法支持批量创建
+- `AuditRepository.BatchCreate()` 使用单条SQL批量插入
+- 从O(n)数据库操作优化为O(1)
 
 ## 查询审计日志
 

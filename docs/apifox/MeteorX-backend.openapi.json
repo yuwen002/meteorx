@@ -2609,6 +2609,38 @@
         }
       }
     },
+    "/api/v1/rbac/roles/{id}/permanent": {
+      "delete": {
+        "summary": "永久删除角色",
+        "description": "永久删除已软删除的角色，此操作不可恢复",
+        "tags": [
+          "角色与权限"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "角色ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccess"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/rbac/roles/{id}/permissions": {
       "get": {
         "summary": "获取角色权限",
@@ -2859,6 +2891,49 @@
                     "items": {
                       "type": "string"
                     }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccess"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rbac/roles/batch/permanent": {
+      "delete": {
+        "summary": "批量永久删除角色",
+        "description": "批量永久删除已软删除的角色，此操作不可恢复",
+        "tags": [
+          "角色与权限"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "要永久删除的角色ID列表"
                   }
                 }
               }

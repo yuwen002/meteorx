@@ -29,6 +29,7 @@
 | PUT | `/rbac/roles/{id}/status` | 更新角色状态 | `rbac:role:status` |
 | DELETE | `/rbac/roles/{id}/delete` | 删除角色 | `rbac:role:delete` |
 | PUT | `/rbac/roles/{id}/restore` | 恢复已删除角色 | `rbac:role:restore` |
+| DELETE | `/rbac/roles/{id}/permanent` | 永久删除角色 | `rbac:role:permanent_delete` |
 | PUT | `/rbac/roles/{id}/permissions` | 绑定角色权限（覆盖式） | `rbac:role:bind_perm` |
 | GET | `/rbac/roles/{id}/permissions` | 获取角色已绑定权限 | `rbac:role:get_perms` |
 | DELETE | `/rbac/roles/{id}/permissions` | 解绑角色单个权限 | `rbac:role:unbind_perm` |
@@ -36,6 +37,7 @@
 | GET | `/rbac/roles/deleted` | 已删除角色列表 | `rbac:role:list_deleted` |
 | PUT | `/rbac/roles/batch/status` | 批量更新角色状态 | `rbac:role:batch_status` |
 | DELETE | `/rbac/roles/batch/delete` | 批量删除角色 | `rbac:role:batch_delete` |
+| DELETE | `/rbac/roles/batch/permanent` | 批量永久删除角色 | `rbac:role:batch_permanent_delete` |
 | PUT | `/rbac/roles/batch/permissions` | 批量为多个角色绑定权限 | `rbac:role:batch_bind` |
 | DELETE | `/rbac/roles/batch/permissions` | 批量为多个角色解绑权限 | `rbac:role:batch_unbind` |
 

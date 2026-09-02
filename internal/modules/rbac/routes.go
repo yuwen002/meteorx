@@ -44,10 +44,12 @@ func RegisterRoutes(r chi.Router, h *handler.RBACHandler, checker middleware.Per
 			r.Put("/{id}/update", h.UpdateRole)              // rbac:role:update（更新角色）
 			r.Put("/{id}/status", h.UpdateRoleStatus)        // rbac:role:status（更新角色状态）
 			r.Delete("/{id}/delete", h.DeleteRole)           // rbac:role:delete（删除角色）
+			r.Delete("/{id}/permanent", h.PermanentDeleteRole) // rbac:role:permanent_delete（永久删除角色）
 			r.Put("/{id}/permissions", h.BindRolePermissions)             // rbac:role:bind_perm（绑定权限）
 			r.Get("/{id}/permissions", h.GetRolePermissions)              // rbac:role:get_perms（获取角色权限）
 			r.Delete("/{id}/permissions", h.UnbindRolePermission)         // rbac:role:unbind_perm（解绑权限）
 			r.Delete("/{id}/permissions/batch", h.UnbindRolePermissions)  // rbac:role:batch_unbind_perm（批量解绑权限）
+			r.Delete("/batch/permanent", h.BatchPermanentDeleteRoles)     // rbac:role:batch_permanent_delete（批量永久删除）
 		})
 
 			// 权限管理

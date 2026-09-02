@@ -33,7 +33,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.svc.Register(r.Context(), req)
 	if err != nil {
-		response.Fail(w, 500, "用户注册失败: "+err.Error())
+		response.Fail(w, http.StatusInternalServerError, "用户注册失败: "+err.Error())
 		return
 	}
 
@@ -59,10 +59,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 				Locked:            loginErr.Locked,
 				LockoutDuration:   loginErr.LockoutDuration,
 			}
-			response.FailWithData(w, 401, loginErr.Message, errorResp)
+			response.FailWithData(w, http.StatusUnauthorized, loginErr.Message, errorResp)
 			return
 		}
-		response.Fail(w, 401, err.Error())
+		response.Fail(w, http.StatusUnauthorized, err.Error())
 		return
 	}
 
@@ -81,20 +81,20 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		response.Fail(w, 401, "未授权，请先登录")
+		response.Fail(w, http.StatusUnauthorized, "未授权，请先登录")
 		return
 	}
 
 	parts := strings.SplitN(authHeader, " ", 2)
 	if !(len(parts) == 2 && parts[0] == "Bearer") {
-		response.Fail(w, 401, "无效的 Token 格式")
+		response.Fail(w, http.StatusUnauthorized, "无效的 Token 格式")
 		return
 	}
 
 	tokenString := parts[1]
 
 	if err := h.svc.Logout(r.Context(), tokenString); err != nil {
-		response.Fail(w, 500, "登出失败: "+err.Error())
+		response.Fail(w, http.StatusInternalServerError, "登出失败: "+err.Error())
 		return
 	}
 
@@ -112,10 +112,10 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	err := h.svc.ForgotPassword(r.Context(), req.Email)
 	if err != nil {
 		if err.Error() == "email service not configured" {
-			response.Fail(w, 500, "邮件服务未配置")
+			response.Fail(w, http.StatusInternalServerError, "邮件服务未配置")
 			return
 		}
-		response.Fail(w, 500, "发送重置邮件失败")
+		response.Fail(w, http.StatusInternalServerError, "发送重置邮件失败")
 		return
 	}
 
@@ -135,14 +135,14 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	err := h.svc.ResetPassword(r.Context(), req.Token, req.NewPassword)
 	if err != nil {
 		if err.Error() == "invalid or expired token" {
-			response.Fail(w, 400, "重置链接已失效，请重新请求")
+			response.Fail(w, http.StatusBadRequest, "重置链接已失效，请重新请求")
 			return
 		}
 		if err.Error() == "user not found" {
-			response.Fail(w, 404, "用户不存在")
+			response.Fail(w, http.StatusNotFound, "用户不存在")
 			return
 		}
-		response.Fail(w, 500, "重置密码失败")
+		response.Fail(w, http.StatusInternalServerError, "重置密码失败")
 		return
 	}
 

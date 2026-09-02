@@ -34,6 +34,17 @@ func (m *MockAuditLogRepository) Create(ctx context.Context, log *model.AuditLog
 	return nil
 }
 
+func (m *MockAuditLogRepository) BatchCreate(ctx context.Context, logs []*model.AuditLog) error {
+	for _, log := range logs {
+		m.logs = append(m.logs, log)
+		m.stats.TotalCount++
+		m.stats.ActionStats[log.Action]++
+		m.stats.ModuleStats[log.Module]++
+		m.stats.ResultStats[log.Result]++
+	}
+	return nil
+}
+
 func (m *MockAuditLogRepository) GetByID(ctx context.Context, id string) (*model.AuditLog, error) {
 	for _, log := range m.logs {
 		if log.ID == id {
