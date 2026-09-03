@@ -45,6 +45,7 @@ func RegisterRoutes(r chi.Router, h *handler.AuditHandler, alertH *handler.Alert
 		r.Route("/alerts", func(r chi.Router) {
 			r.Use(middleware.AutoRequirePermission(checker))
 			r.Get("/", alertH.ListAlerts)          // audit:alert:list
+			r.Get("/stats", alertH.GetAlertStats)  // audit:alert:stats
 		})
 
 		// 会话分析（需要权限）

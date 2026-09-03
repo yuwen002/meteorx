@@ -12,6 +12,13 @@ type Config struct {
 	File     FileConfig     `mapstructure:"file"`
 	Email    EmailConfig    `mapstructure:"email"`
 	Client   ClientConfig   `mapstructure:"client"`
+	IPLocation IPLocationConfig `mapstructure:"ip_location"`
+}
+
+type IPLocationConfig struct {
+	Provider string `mapstructure:"provider"` // 解析方式：http-api / ip2region
+	DBPath   string `mapstructure:"db_path"`  // ip2region.xdb 文件路径（仅 provider=ip2region 时需要）
+	Timeout  int    `mapstructure:"timeout"`  // HTTP API 超时时间（秒），默认 3
 }
 
 type EmailConfig struct {

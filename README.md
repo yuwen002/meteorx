@@ -21,6 +21,8 @@
 | **文件管理** | 上传/下载/重命名/删除；回收站恢复+永久删除；MD5 去重；租户隔离；本地/云存储可扩展 |
 | **套餐管理** | 套餐 CRUD；租户套餐分配；用量限制（用户数上限）；到期提醒 |
 | **审计日志** | 自动记录所有请求；`auditctx` Service 层丰富（before/after）；批量异步写入；多维度筛选查询；可视化仪表盘 |
+| **告警管理** | 基于审计日志的实时告警；支持风险等级/操作类型/特定用户触发；邮件/钉钉/企业微信/Webhook 通知；冷却机制防告警风暴 |
+| **会话分析** | 用户会话追踪；操作时间线分析；会话统计（请求数/成功率/平均耗时）；IP 地理位置自动解析 |
 | **Wiki 知识库** | 空间/节点/文档/版本/成员 五层模型；Markdown 编辑；版本历史与回滚；完整租户隔离 |
 | **运营看板** | 平台运营数据总览：租户/用户/订阅/审计多维统计，实时掌握平台健康状况 |
 | **通知公告** | 平台公告 CRUD + 发布/下架；支持全平台或指定租户范围定向推送 |
@@ -414,6 +416,25 @@ meteorx/
 | `GET` | `/audit/logs/{id}` | 日志详情 |
 | `DELETE` | `/audit/logs/cleanup` | 清理过期日志 |
 
+### 10.1 告警管理
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/audit/alert-rules` | 创建告警规则 |
+| `GET` | `/audit/alert-rules` | 获取所有告警规则 |
+| `GET` | `/audit/alert-rules/{id}` | 告警规则详情 |
+| `PUT` | `/audit/alert-rules/{id}` | 更新告警规则 |
+| `DELETE` | `/audit/alert-rules/{id}` | 删除告警规则 |
+| `GET` | `/audit/alerts` | 告警记录列表（分页） |
+| `GET` | `/audit/alerts/{id}` | 告警记录详情 |
+
+### 10.2 会话分析
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/audit/sessions` | 会话摘要列表（分页） |
+| `GET` | `/audit/sessions/{id}/logs` | 获取会话的所有日志 |
+
 ### 11. Wiki 知识库
 
 | 方法 | 路径 | 说明 |
@@ -669,7 +690,7 @@ go test -bench=. ./pkg/security/...
 | [rbac-api.md](docs/rbac-api.md) | RBAC 权限接口（角色/权限/绑定） |
 | [file-module-api.md](docs/file-module-api.md) | 文件管理接口（上传/下载/回收站） |
 | [plan-api.md](docs/plan-api.md) | 套餐管理接口（CRUD/分配/用量） |
-| [audit-api.md](docs/audit-api.md) | 审计日志接口（查询/导出/清理/仪表盘） |
+| [audit-api.md](docs/audit-api.md) | 审计日志接口（查询/导出/清理/仪表盘/告警管理/会话分析） |
 | [wiki-api.md](docs/wiki-api.md) | ⭐ Wiki 知识库接口（空间/节点/文档/版本/成员） |
 | [dashboard-api.md](docs/dashboard-api.md) | 运营看板接口（平台数据总览） |
 | [announcement-api.md](docs/announcement-api.md) | 通知公告接口（CRUD/发布/定向推送） |
@@ -684,6 +705,7 @@ go test -bench=. ./pkg/security/...
 | [error.md](docs/architecture/error.md) | 错误/响应规范（AppError/统一响应信封） |
 | [database.md](docs/architecture/database.md) | 数据库/事务架构（TxManager/ULID） |
 | [audit.md](docs/architecture/audit.md) | 审计架构（自动/手动/批量异步） |
+| [audit-enhanced.md](docs/architecture/audit-enhanced.md) | ⭐ 审计增强功能（IP地理位置/告警管理/会话分析） |
 | [pagination.md](docs/architecture/pagination.md) | 分页/排序/过滤架构（Sort Whitelist 防注入） |
 | [config.md](docs/architecture/config.md) | 配置/启动架构（Viper/优雅关闭） |
 | [idgen.md](docs/architecture/idgen.md) | ID/ULID 统一架构（pkg/idgen） |
@@ -718,6 +740,8 @@ OpenAPI 规范文件位于 `docs/apifox/`：
 | 文件管理 | `/system/file` | 上传/下载/重命名/回收站/永久删除 |
 | 套餐管理 | `/system/plan` | 套餐 CRUD |
 | 审计日志 | `/system/audit` | 日志查询/导出/可视化仪表盘 |
+| 告警管理 | `/system/audit/alert` | 告警规则管理/告警记录查询/通知配置 |
+| 会话分析 | `/system/audit/session` | 会话追踪/操作时间线/会话统计 |
 | Wiki 空间 | `/wiki/spaces` | Wiki 空间列表/创建/管理 |
 | Wiki 节点树 | `/wiki/spaces/:id/tree` | 节点树浏览/创建文件夹/创建文档 |
 | Wiki 文档编辑 | `/wiki/documents/:id` | Markdown 文档编辑/版本历史/版本恢复 |

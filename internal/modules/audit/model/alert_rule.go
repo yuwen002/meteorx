@@ -48,3 +48,30 @@ const (
 	NotifyChannelWeChat   = "wechat"   // 企业微信
 	NotifyChannelWebhook  = "webhook"  // 自定义Webhook
 )
+
+// AlertStats 告警统计
+type AlertStats struct {
+	TotalAlerts    int64            `json:"total_alerts"`
+	TodayAlerts    int64            `json:"today_alerts"`
+	NotifiedCount  int64            `json:"notified_count"`
+	PendingCount   int64            `json:"pending_count"`
+	RiskLevelStats map[string]int64 `json:"risk_level_stats"`
+	RuleStats      map[string]int64 `json:"rule_stats"`
+	Trend          []TrendPoint     `json:"trend"`
+	TopRules       []RuleCount      `json:"top_rules"`
+}
+
+// TrendPoint 趋势点
+type TrendPoint struct {
+	Date    string `json:"date"`
+	Count   int64  `json:"count"`
+	Success int64  `json:"success"`
+	Failure int64  `json:"failure"`
+}
+
+// RuleCount 规则计数
+type RuleCount struct {
+	RuleID   string `json:"rule_id"`
+	RuleName string `json:"rule_name"`
+	Count    int64  `json:"count"`
+}

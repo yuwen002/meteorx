@@ -121,7 +121,10 @@ func NewAuditLogRepository(db *gorm.DB) AuditLogRepository {
 
 // AutoMigrate 自动迁移表结构
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&AuditLogPO{})
+	if err := db.AutoMigrate(&AuditLogPO{}, &AlertRulePO{}, &AuditAlertPO{}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *auditLogRepository) Create(ctx context.Context, log *model.AuditLog) error {

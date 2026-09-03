@@ -235,6 +235,98 @@ func deserializeJSON(data string, v interface{}) error {
 	return json.Unmarshal([]byte(data), v)
 }
 
+// GetAlertStats 获取告警统计数据
+func (r *alertRuleRepository) GetAlertStats(ctx context.Context, days int) (*model.AlertStats, error) {
+	stats := &model.AlertStats{
+		RiskLevelStats: make(map[string]int64),
+		RuleStats:      make(map[string]int64),
+	}
+
+	// 总告警数
+	r.db.WithContext(ctx).Model(&AuditAlertPO{}).Count(&stats.TotalAlerts)
+
+	// 今日告警数
+	today := time.Now().Truncate(24 * time.Hour)
+	r.db.WithContext(ctx).Model(&AuditAlertPO{}).Where("created_at >= ?", today).Count(&stats.TodayAlerts)
+
+	// 已通知数
+	r.db.WithContext(ctx).Model(&AuditAlertPO{}).Where("notified = ?", true).Count(&stats.NotifiedCount)
+
+	// 未通知数
+	r.db.WithContext(ctx).Model(&AuditAlertPO{}).Where("notified = ?", false).Count(&stats.PendingCount)
+
+	// 按风险等级统计
+	var riskLevelStats []struct {
+		RiskLevel string
+		Count     int64
+	}
+	r.db.WithContext(ctx).Model(&AuditAlertPO{}).
+		Select("risk_level, COUNT(*) as count").
+		Group("risk_level").
+		Scan(&riskLevelStats)
+	
+	for _, item := range riskLevelStats {
+		stats.RiskLevelStats[item.RiskLevel] = item.Count
+	}
+
+	// 按规则统计
+	var ruleStats []struct {
+		RuleID   string
+		RuleName string
+		Count    int64
+	}
+	r.db.WithContext(ctx).Model(&AuditAlertPO{}).
+		Select("rule_id, rule_name, COUNT(*) as count").
+		Group("rule_id, rule_name").
+		Order("count DESC").
+		Limit(10).
+		Scan(&ruleStats)
+	
+	for _, item := range ruleStats {
+		stats.RuleStats[item.RuleID] = item.Count
+		stats.TopRules = append(stats.TopRules, model.RuleCount{
+			RuleID:   item.RuleID,
+			RuleName: item.RuleName,
+			Count:    item.Count,
+		})
+	}
+
+	// 告警趋势（最近 N 天）
+	if days <= 0 {
+		days = 7
+	}
+	
+	startDate := time.Now().AddDate(0, 0, -days+1).Truncate(24 * time.Hour)
+	
+	var trendStats []struct {
+		Date    string
+		Count   int64
+		Success int64
+		Failure int64
+	}
+	
+	r.db.WithContext(ctx).Model(&AuditAlertPO{}).
+		Select(`DATE(created_at) as date, 
+				COUNT(*) as count,
+				SUM(CASE WHEN risk_level IN ('low', 'medium') THEN 1 ELSE 0 END) as success,
+				SUM(CASE WHEN risk_level IN ('high', 'critical') THEN 1 ELSE 0 END) as failure`).
+		Where("created_at >= ?", startDate).
+		Group("DATE(created_at)").
+		Order("date ASC").
+		Scan(&trendStats)
+	
+	for _, item := range trendStats {
+		stats.Trend = append(stats.Trend, model.TrendPoint{
+			Date:    item.Date,
+			Count:   item.Count,
+			Success: item.Success,
+			Failure: item.Failure,
+		})
+	}
+
+	return stats, nil
+}
+
 // 初始化默认告警规则
 func InitDefaultAlertRules(db *gorm.DB) error {
 	var count int64

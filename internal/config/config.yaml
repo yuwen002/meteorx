@@ -75,3 +75,9 @@ email:
 
 client:
   base_url: "http://localhost:5173"
+
+# IP 地理位置解析配置
+ip_location:
+  provider: "http-api"  # 解析方式：http-api（在线）/ ip2region（离线）
+  db_path: "./data/ip2region.xdb"  # ip2region 数据库文件路径（仅 provider=ip2region 时需要）
+  timeout: 3  # HTTP API 超时时间（秒），默认 3

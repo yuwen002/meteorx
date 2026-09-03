@@ -116,6 +116,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '审计日志', icon: 'Document', permission: 'audit:log:list', requireMaster: true }
       },
       {
+        path: 'system/audit/alert',
+        name: 'AuditAlert',
+        component: () => import('@/views/system/audit/alert.vue'),
+        meta: { title: '告警管理', icon: 'Bell', permission: 'audit:alert-rule:list', requireMaster: true }
+      },
+      {
+        path: 'system/audit/session',
+        name: 'AuditSession',
+        component: () => import('@/views/system/audit/session.vue'),
+        meta: { title: '会话分析', icon: 'Connection', permission: 'audit:session:list', requireMaster: true }
+      },
+      {
         path: 'system/cancel-request',
         name: 'CancelRequest',
         component: () => import('@/views/system/cancel-request/index.vue'),

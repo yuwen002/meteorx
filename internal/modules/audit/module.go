@@ -7,9 +7,10 @@ import (
 	"meteorx/internal/modules/audit/handler"
 	"meteorx/internal/modules/audit/repository"
 	"meteorx/internal/modules/audit/service"
-	"meteorx/pkg/iplocation"
 	rbacrepo "meteorx/internal/modules/rbac/repository"
 	rbacsvc "meteorx/internal/modules/rbac/service"
+	"meteorx/internal/pkg/emailer"
+	"meteorx/pkg/iplocation"
 
 	"github.com/go-chi/chi/v5"
 	"gorm.io/gorm"
@@ -17,15 +18,15 @@ import (
 
 // InitModule 初始化审计日志模块
 // 挂载在平台管理员路由组下，需要超级管理员权限
-func InitModule(r chi.Router, db *gorm.DB) {
+func InitModule(r chi.Router, db *gorm.DB, emailCfg *emailer.Emailer) {
 	repo := repository.NewAuditLogRepository(db)
 	alertRepo := repository.NewAlertRuleRepository(db)
 	ipLocator := iplocation.NewHTTPLocator("ip-api", 3*time.Second)
-	
+
 	svc := service.NewAuditService(repo)
-	alertSvc := service.NewAlertService(alertRepo)
+	alertSvc := service.NewAlertService(alertRepo, emailCfg)
 	sessionSvc := service.NewSessionService(repo)
-	
+
 	h := handler.NewAuditHandler(svc)
 	alertH := handler.NewAlertHandler(alertSvc)
 	sessionH := handler.NewSessionHandler(sessionSvc)

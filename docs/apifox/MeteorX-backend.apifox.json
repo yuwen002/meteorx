@@ -24611,6 +24611,1514 @@
               }
             }
           ]
+        },
+        {
+          "name": "告警管理",
+          "id": 85990004,
+          "auth": {},
+          "securityScheme": {},
+          "parentId": 0,
+          "serverId": "",
+          "description": "审计告警规则管理和告警记录查询",
+          "identityPattern": {
+            "httpApi": {
+              "type": "inherit",
+              "bodyType": "",
+              "fields": []
+            }
+          },
+          "shareSettings": {},
+          "visibility": "INHERITED",
+          "moduleId": 7675120,
+          "preProcessors": [
+            {
+              "id": "inheritProcessors",
+              "type": "inheritProcessors",
+              "data": {}
+            }
+          ],
+          "postProcessors": [
+            {
+              "id": "inheritProcessors",
+              "type": "inheritProcessors",
+              "data": {}
+            }
+          ],
+          "inheritPostProcessors": {},
+          "inheritPreProcessors": {},
+          "items": [
+            {
+              "name": "创建告警规则",
+              "api": {
+                "type": "http",
+                "path": "/api/v1/audit/alert-rules",
+                "method": "POST",
+                "parameters": {},
+                "auth": {
+                  "type": "bearer",
+                  "bearer": {}
+                },
+                "securityScheme": {},
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "responses": [
+                  {
+                    "id": "822668609",
+                    "code": 200,
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "title": "规则ID"
+                            },
+                            "name": {
+                              "type": "string",
+                              "title": "规则名称"
+                            },
+                            "description": {
+                              "type": "string",
+                              "title": "规则描述"
+                            },
+                            "enabled": {
+                              "type": "boolean",
+                              "title": "是否启用"
+                            },
+                            "trigger_type": {
+                              "type": "string",
+                              "title": "触发类型",
+                              "enum": [
+                                "risk_level",
+                                "action",
+                                "user"
+                              ]
+                            },
+                            "trigger_value": {
+                              "type": "string",
+                              "title": "触发值"
+                            },
+                            "notify_channels": {
+                              "type": "array",
+                              "title": "通知渠道",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "notify_targets": {
+                              "type": "array",
+                              "title": "通知目标",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "notify_template": {
+                              "type": "string",
+                              "title": "通知模板"
+                            },
+                            "cooldown_minutes": {
+                              "type": "integer",
+                              "title": "冷却时间（分钟）"
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "title": "创建时间"
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "title": "更新时间"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "itemSchema": {},
+                    "description": "",
+                    "contentType": "json",
+                    "mediaType": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "application/json",
+                  "parameters": [],
+                  "jsonSchema": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "title": "规则名称"
+                      },
+                      "description": {
+                        "type": "string",
+                        "title": "规则描述"
+                      },
+                      "enabled": {
+                        "type": "boolean",
+                        "title": "是否启用"
+                      },
+                      "trigger_type": {
+                        "type": "string",
+                        "title": "触发类型",
+                        "enum": [
+                          "risk_level",
+                          "action",
+                          "user"
+                        ]
+                      },
+                      "trigger_value": {
+                        "type": "string",
+                        "title": "触发值"
+                      },
+                      "notify_channels": {
+                        "type": "array",
+                        "title": "通知渠道",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "notify_targets": {
+                        "type": "array",
+                        "title": "通知目标",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "notify_template": {
+                        "type": "string",
+                        "title": "通知模板"
+                      },
+                      "cooldown_minutes": {
+                        "type": "integer",
+                        "title": "冷却时间（分钟）"
+                      }
+                    },
+                    "x-apifox-orders": [
+                      "name",
+                      "description",
+                      "enabled",
+                      "trigger_type",
+                      "trigger_value",
+                      "notify_channels",
+                      "notify_targets",
+                      "notify_template",
+                      "cooldown_minutes"
+                    ],
+                    "required": [
+                      "name",
+                      "trigger_type",
+                      "trigger_value",
+                      "notify_channels",
+                      "notify_targets"
+                    ]
+                  },
+                  "required": true,
+                  "mediaType": "",
+                  "examples": [],
+                  "oasExtensions": ""
+                },
+                "description": "创建新的告警规则",
+                "tags": [],
+                "status": "developing",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 10,
+                "cases": [],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "获取所有告警规则",
+              "api": {
+                "type": "http",
+                "path": "/api/v1/audit/alert-rules",
+                "method": "GET",
+                "parameters": {},
+                "auth": {
+                  "type": "bearer",
+                  "bearer": {}
+                },
+                "securityScheme": {},
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "responses": [
+                  {
+                    "id": "984226686",
+                    "code": 200,
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "title": "规则ID"
+                              },
+                              "name": {
+                                "type": "string",
+                                "title": "规则名称"
+                              },
+                              "description": {
+                                "type": "string",
+                                "title": "规则描述"
+                              },
+                              "enabled": {
+                                "type": "boolean",
+                                "title": "是否启用"
+                              },
+                              "trigger_type": {
+                                "type": "string",
+                                "title": "触发类型",
+                                "enum": [
+                                  "risk_level",
+                                  "action",
+                                  "user"
+                                ]
+                              },
+                              "trigger_value": {
+                                "type": "string",
+                                "title": "触发值"
+                              },
+                              "notify_channels": {
+                                "type": "array",
+                                "title": "通知渠道",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "notify_targets": {
+                                "type": "array",
+                                "title": "通知目标",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "notify_template": {
+                                "type": "string",
+                                "title": "通知模板"
+                              },
+                              "cooldown_minutes": {
+                                "type": "integer",
+                                "title": "冷却时间（分钟）"
+                              },
+                              "created_at": {
+                                "type": "string",
+                                "title": "创建时间"
+                              },
+                              "updated_at": {
+                                "type": "string",
+                                "title": "更新时间"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "itemSchema": {},
+                    "description": "",
+                    "contentType": "json",
+                    "mediaType": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {},
+                "description": "获取所有告警规则列表",
+                "tags": [],
+                "status": "developing",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 20,
+                "cases": [],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "告警规则详情",
+              "api": {
+                "type": "http",
+                "path": "/api/v1/audit/alert-rules/{id}",
+                "method": "GET",
+                "parameters": {
+                  "path": [
+                    {
+                      "name": "id",
+                      "type": "string",
+                      "description": "规则ID",
+                      "required": true,
+                      "enable": true
+                    }
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": {}
+                },
+                "securityScheme": {},
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "responses": [
+                  {
+                    "id": "732113035",
+                    "code": 200,
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "title": "规则ID"
+                            },
+                            "name": {
+                              "type": "string",
+                              "title": "规则名称"
+                            },
+                            "description": {
+                              "type": "string",
+                              "title": "规则描述"
+                            },
+                            "enabled": {
+                              "type": "boolean",
+                              "title": "是否启用"
+                            },
+                            "trigger_type": {
+                              "type": "string",
+                              "title": "触发类型",
+                              "enum": [
+                                "risk_level",
+                                "action",
+                                "user"
+                              ]
+                            },
+                            "trigger_value": {
+                              "type": "string",
+                              "title": "触发值"
+                            },
+                            "notify_channels": {
+                              "type": "array",
+                              "title": "通知渠道",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "notify_targets": {
+                              "type": "array",
+                              "title": "通知目标",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "notify_template": {
+                              "type": "string",
+                              "title": "通知模板"
+                            },
+                            "cooldown_minutes": {
+                              "type": "integer",
+                              "title": "冷却时间（分钟）"
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "title": "创建时间"
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "title": "更新时间"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "itemSchema": {},
+                    "description": "",
+                    "contentType": "json",
+                    "mediaType": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {},
+                "description": "获取单个告警规则详情",
+                "tags": [],
+                "status": "developing",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 30,
+                "cases": [],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "更新告警规则",
+              "api": {
+                "type": "http",
+                "path": "/api/v1/audit/alert-rules/{id}",
+                "method": "PUT",
+                "parameters": {
+                  "path": [
+                    {
+                      "name": "id",
+                      "type": "string",
+                      "description": "规则ID",
+                      "required": true,
+                      "enable": true
+                    }
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": {}
+                },
+                "securityScheme": {},
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "responses": [
+                  {
+                    "id": "672917261",
+                    "code": 200,
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "title": "规则ID"
+                            },
+                            "name": {
+                              "type": "string",
+                              "title": "规则名称"
+                            },
+                            "description": {
+                              "type": "string",
+                              "title": "规则描述"
+                            },
+                            "enabled": {
+                              "type": "boolean",
+                              "title": "是否启用"
+                            },
+                            "trigger_type": {
+                              "type": "string",
+                              "title": "触发类型",
+                              "enum": [
+                                "risk_level",
+                                "action",
+                                "user"
+                              ]
+                            },
+                            "trigger_value": {
+                              "type": "string",
+                              "title": "触发值"
+                            },
+                            "notify_channels": {
+                              "type": "array",
+                              "title": "通知渠道",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "notify_targets": {
+                              "type": "array",
+                              "title": "通知目标",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "notify_template": {
+                              "type": "string",
+                              "title": "通知模板"
+                            },
+                            "cooldown_minutes": {
+                              "type": "integer",
+                              "title": "冷却时间（分钟）"
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "title": "创建时间"
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "title": "更新时间"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "itemSchema": {},
+                    "description": "",
+                    "contentType": "json",
+                    "mediaType": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "application/json",
+                  "parameters": [],
+                  "jsonSchema": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "title": "规则名称"
+                      },
+                      "description": {
+                        "type": "string",
+                        "title": "规则描述"
+                      },
+                      "enabled": {
+                        "type": "boolean",
+                        "title": "是否启用"
+                      },
+                      "trigger_type": {
+                        "type": "string",
+                        "title": "触发类型",
+                        "enum": [
+                          "risk_level",
+                          "action",
+                          "user"
+                        ]
+                      },
+                      "trigger_value": {
+                        "type": "string",
+                        "title": "触发值"
+                      },
+                      "notify_channels": {
+                        "type": "array",
+                        "title": "通知渠道",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "notify_targets": {
+                        "type": "array",
+                        "title": "通知目标",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "notify_template": {
+                        "type": "string",
+                        "title": "通知模板"
+                      },
+                      "cooldown_minutes": {
+                        "type": "integer",
+                        "title": "冷却时间（分钟）"
+                      }
+                    },
+                    "x-apifox-orders": [
+                      "name",
+                      "description",
+                      "enabled",
+                      "trigger_type",
+                      "trigger_value",
+                      "notify_channels",
+                      "notify_targets",
+                      "notify_template",
+                      "cooldown_minutes"
+                    ],
+                    "required": []
+                  },
+                  "required": true,
+                  "mediaType": "",
+                  "examples": [],
+                  "oasExtensions": ""
+                },
+                "description": "更新告警规则",
+                "tags": [],
+                "status": "developing",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 40,
+                "cases": [],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "删除告警规则",
+              "api": {
+                "type": "http",
+                "path": "/api/v1/audit/alert-rules/{id}",
+                "method": "DELETE",
+                "parameters": {
+                  "path": [
+                    {
+                      "name": "id",
+                      "type": "string",
+                      "description": "规则ID",
+                      "required": true,
+                      "enable": true
+                    }
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": {}
+                },
+                "securityScheme": {},
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "responses": [
+                  {
+                    "id": "545577298",
+                    "code": 200,
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "itemSchema": {},
+                    "description": "",
+                    "contentType": "json",
+                    "mediaType": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {},
+                "description": "删除告警规则",
+                "tags": [],
+                "status": "developing",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 50,
+                "cases": [],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "告警记录列表",
+              "api": {
+                "type": "http",
+                "path": "/api/v1/audit/alerts",
+                "method": "GET",
+                "parameters": {
+                  "query": [
+                    {
+                      "name": "page",
+                      "type": "integer",
+                      "description": "页码",
+                      "required": false,
+                      "enable": true
+                    },
+                    {
+                      "name": "page_size",
+                      "type": "integer",
+                      "description": "每页数量",
+                      "required": false,
+                      "enable": true
+                    },
+                    {
+                      "name": "rule_id",
+                      "type": "string",
+                      "description": "规则ID",
+                      "required": false,
+                      "enable": true
+                    },
+                    {
+                      "name": "user_id",
+                      "type": "string",
+                      "description": "用户ID",
+                      "required": false,
+                      "enable": true
+                    },
+                    {
+                      "name": "risk_level",
+                      "type": "string",
+                      "description": "风险等级",
+                      "required": false,
+                      "enable": true
+                    }
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": {}
+                },
+                "securityScheme": {},
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "responses": [
+                  {
+                    "id": "336375315",
+                    "code": 200,
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "title": "告警ID"
+                                  },
+                                  "rule_id": {
+                                    "type": "string",
+                                    "title": "规则ID"
+                                  },
+                                  "rule_name": {
+                                    "type": "string",
+                                    "title": "规则名称"
+                                  },
+                                  "audit_log_id": {
+                                    "type": "string",
+                                    "title": "审计日志ID"
+                                  },
+                                  "user_id": {
+                                    "type": "string",
+                                    "title": "用户ID"
+                                  },
+                                  "username": {
+                                    "type": "string",
+                                    "title": "用户名"
+                                  },
+                                  "risk_level": {
+                                    "type": "string",
+                                    "title": "风险等级",
+                                    "enum": [
+                                      "low",
+                                      "medium",
+                                      "high",
+                                      "critical"
+                                    ]
+                                  },
+                                  "action": {
+                                    "type": "string",
+                                    "title": "操作类型"
+                                  },
+                                  "message": {
+                                    "type": "string",
+                                    "title": "告警消息"
+                                  },
+                                  "notified": {
+                                    "type": "boolean",
+                                    "title": "是否已通知"
+                                  },
+                                  "notify_time": {
+                                    "type": "string",
+                                    "title": "通知时间"
+                                  },
+                                  "created_at": {
+                                    "type": "string",
+                                    "title": "创建时间"
+                                  }
+                                }
+                              }
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "itemSchema": {},
+                    "description": "",
+                    "contentType": "json",
+                    "mediaType": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {},
+                "description": "分页查询告警记录",
+                "tags": [],
+                "status": "developing",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 60,
+                "cases": [],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "告警记录详情",
+              "api": {
+                "type": "http",
+                "path": "/api/v1/audit/alerts/{id}",
+                "method": "GET",
+                "parameters": {
+                  "path": [
+                    {
+                      "name": "id",
+                      "type": "string",
+                      "description": "告警ID",
+                      "required": true,
+                      "enable": true
+                    }
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": {}
+                },
+                "securityScheme": {},
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "responses": [
+                  {
+                    "id": "964193022",
+                    "code": 200,
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "title": "告警ID"
+                            },
+                            "rule_id": {
+                              "type": "string",
+                              "title": "规则ID"
+                            },
+                            "rule_name": {
+                              "type": "string",
+                              "title": "规则名称"
+                            },
+                            "audit_log_id": {
+                              "type": "string",
+                              "title": "审计日志ID"
+                            },
+                            "user_id": {
+                              "type": "string",
+                              "title": "用户ID"
+                            },
+                            "username": {
+                              "type": "string",
+                              "title": "用户名"
+                            },
+                            "risk_level": {
+                              "type": "string",
+                              "title": "风险等级",
+                              "enum": [
+                                "low",
+                                "medium",
+                                "high",
+                                "critical"
+                              ]
+                            },
+                            "action": {
+                              "type": "string",
+                              "title": "操作类型"
+                            },
+                            "message": {
+                              "type": "string",
+                              "title": "告警消息"
+                            },
+                            "notified": {
+                              "type": "boolean",
+                              "title": "是否已通知"
+                            },
+                            "notify_time": {
+                              "type": "string",
+                              "title": "通知时间"
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "title": "创建时间"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "itemSchema": {},
+                    "description": "",
+                    "contentType": "json",
+                    "mediaType": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {},
+                "description": "获取单个告警记录详情",
+                "tags": [],
+                "status": "developing",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 70,
+                "cases": [],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "会话分析",
+          "id": 85990005,
+          "auth": {},
+          "securityScheme": {},
+          "parentId": 0,
+          "serverId": "",
+          "description": "用户会话追踪和操作时间线分析",
+          "identityPattern": {
+            "httpApi": {
+              "type": "inherit",
+              "bodyType": "",
+              "fields": []
+            }
+          },
+          "shareSettings": {},
+          "visibility": "INHERITED",
+          "moduleId": 7675120,
+          "preProcessors": [
+            {
+              "id": "inheritProcessors",
+              "type": "inheritProcessors",
+              "data": {}
+            }
+          ],
+          "postProcessors": [
+            {
+              "id": "inheritProcessors",
+              "type": "inheritProcessors",
+              "data": {}
+            }
+          ],
+          "inheritPostProcessors": {},
+          "inheritPreProcessors": {},
+          "items": [
+            {
+              "name": "会话摘要列表",
+              "api": {
+                "type": "http",
+                "path": "/api/v1/audit/sessions",
+                "method": "GET",
+                "parameters": {
+                  "query": [
+                    {
+                      "name": "page",
+                      "type": "integer",
+                      "description": "页码",
+                      "required": false,
+                      "enable": true
+                    },
+                    {
+                      "name": "page_size",
+                      "type": "integer",
+                      "description": "每页数量",
+                      "required": false,
+                      "enable": true
+                    },
+                    {
+                      "name": "user_id",
+                      "type": "string",
+                      "description": "用户ID",
+                      "required": false,
+                      "enable": true
+                    }
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": {}
+                },
+                "securityScheme": {},
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "responses": [
+                  {
+                    "id": "454849688",
+                    "code": 200,
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "session_id": {
+                                    "type": "string",
+                                    "title": "会话ID"
+                                  },
+                                  "user_id": {
+                                    "type": "string",
+                                    "title": "用户ID"
+                                  },
+                                  "username": {
+                                    "type": "string",
+                                    "title": "用户名"
+                                  },
+                                  "total_requests": {
+                                    "type": "integer",
+                                    "title": "总请求数"
+                                  },
+                                  "success_count": {
+                                    "type": "integer",
+                                    "title": "成功次数"
+                                  },
+                                  "failure_count": {
+                                    "type": "integer",
+                                    "title": "失败次数"
+                                  },
+                                  "avg_duration": {
+                                    "type": "integer",
+                                    "title": "平均耗时（毫秒）"
+                                  },
+                                  "first_request": {
+                                    "type": "string",
+                                    "title": "首次请求时间"
+                                  },
+                                  "last_request": {
+                                    "type": "string",
+                                    "title": "最后请求时间"
+                                  },
+                                  "duration_minutes": {
+                                    "type": "integer",
+                                    "title": "会话时长（分钟）"
+                                  }
+                                }
+                              }
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "itemSchema": {},
+                    "description": "",
+                    "contentType": "json",
+                    "mediaType": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {},
+                "description": "分页查询会话摘要列表",
+                "tags": [],
+                "status": "developing",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 80,
+                "cases": [],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "获取会话的所有日志",
+              "api": {
+                "type": "http",
+                "path": "/api/v1/audit/sessions/{id}/logs",
+                "method": "GET",
+                "parameters": {
+                  "path": [
+                    {
+                      "name": "id",
+                      "type": "string",
+                      "description": "会话ID",
+                      "required": true,
+                      "enable": true
+                    }
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": {}
+                },
+                "securityScheme": {},
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "responses": [
+                  {
+                    "id": "244293695",
+                    "code": 200,
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "session_id": {
+                              "type": "string",
+                              "title": "会话ID"
+                            },
+                            "user_id": {
+                              "type": "string",
+                              "title": "用户ID"
+                            },
+                            "username": {
+                              "type": "string",
+                              "title": "用户名"
+                            },
+                            "total_requests": {
+                              "type": "integer",
+                              "title": "总请求数"
+                            },
+                            "success_count": {
+                              "type": "integer",
+                              "title": "成功次数"
+                            },
+                            "failure_count": {
+                              "type": "integer",
+                              "title": "失败次数"
+                            },
+                            "avg_duration": {
+                              "type": "integer",
+                              "title": "平均耗时（毫秒）"
+                            },
+                            "first_request": {
+                              "type": "string",
+                              "title": "首次请求时间"
+                            },
+                            "last_request": {
+                              "type": "string",
+                              "title": "最后请求时间"
+                            },
+                            "duration_minutes": {
+                              "type": "integer",
+                              "title": "会话时长（分钟）"
+                            },
+                            "logs": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "title": "日志ID"
+                                  },
+                                  "user_id": {
+                                    "type": "string",
+                                    "title": "用户ID"
+                                  },
+                                  "username": {
+                                    "type": "string",
+                                    "title": "用户名"
+                                  },
+                                  "module": {
+                                    "type": "string",
+                                    "title": "模块"
+                                  },
+                                  "action": {
+                                    "type": "string",
+                                    "title": "操作类型"
+                                  },
+                                  "method": {
+                                    "type": "string",
+                                    "title": "HTTP方法"
+                                  },
+                                  "path": {
+                                    "type": "string",
+                                    "title": "请求路径"
+                                  },
+                                  "status_code": {
+                                    "type": "integer",
+                                    "title": "HTTP状态码"
+                                  },
+                                  "result": {
+                                    "type": "string",
+                                    "title": "结果"
+                                  },
+                                  "client_ip": {
+                                    "type": "string",
+                                    "title": "客户端IP"
+                                  },
+                                  "ip_location": {
+                                    "type": "string",
+                                    "title": "IP地理位置"
+                                  },
+                                  "duration": {
+                                    "type": "integer",
+                                    "title": "请求耗时（毫秒）"
+                                  },
+                                  "error_message": {
+                                    "type": "string",
+                                    "title": "错误信息"
+                                  },
+                                  "created_at": {
+                                    "type": "string",
+                                    "title": "创建时间"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "itemSchema": {},
+                    "description": "",
+                    "contentType": "json",
+                    "mediaType": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {},
+                "description": "获取指定会话的所有审计日志",
+                "tags": [],
+                "status": "developing",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 90,
+                "cases": [],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            }
+          ]
         }
       ]
     }

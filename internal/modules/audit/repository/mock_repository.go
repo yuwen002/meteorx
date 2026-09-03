@@ -126,3 +126,145 @@ func (m *MockAuditLogRepository) GetDashboardData(ctx context.Context, tenantID 
 		TopModules:  []model.ModuleCount{},
 	}, nil
 }
+
+func (m *MockAuditLogRepository) ListBySessionID(ctx context.Context, sessionID string) ([]*model.AuditLog, error) {
+	var result []*model.AuditLog
+	for _, log := range m.logs {
+		if log.SessionID == sessionID {
+			result = append(result, log)
+		}
+	}
+	return result, nil
+}
+
+// MockAlertRuleRepository 告警规则仓库的内存实现（用于测试）
+type MockAlertRuleRepository struct {
+	rules  []*model.AlertRule
+	alerts []*model.AuditAlert
+}
+
+// NewMockAlertRuleRepository 创建 Mock 告警规则仓库
+func NewMockAlertRuleRepository() *MockAlertRuleRepository {
+	return &MockAlertRuleRepository{
+		rules:  make([]*model.AlertRule, 0),
+		alerts: make([]*model.AuditAlert, 0),
+	}
+}
+
+func (m *MockAlertRuleRepository) Create(ctx context.Context, rule *model.AlertRule) error {
+	m.rules = append(m.rules, rule)
+	return nil
+}
+
+func (m *MockAlertRuleRepository) Update(ctx context.Context, rule *model.AlertRule) error {
+	for i, r := range m.rules {
+		if r.ID == rule.ID {
+			m.rules[i] = rule
+			return nil
+		}
+	}
+	return nil
+}
+
+func (m *MockAlertRuleRepository) Delete(ctx context.Context, id string) error {
+	for i, r := range m.rules {
+		if r.ID == id {
+			m.rules = append(m.rules[:i], m.rules[i+1:]...)
+			return nil
+		}
+	}
+	return nil
+}
+
+func (m *MockAlertRuleRepository) GetByID(ctx context.Context, id string) (*model.AlertRule, error) {
+	for _, r := range m.rules {
+		if r.ID == id {
+			return r, nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *MockAlertRuleRepository) List(ctx context.Context) ([]*model.AlertRule, error) {
+	return m.rules, nil
+}
+
+func (m *MockAlertRuleRepository) GetEnabledRules(ctx context.Context) ([]*model.AlertRule, error) {
+	var result []*model.AlertRule
+	for _, r := range m.rules {
+		if r.Enabled {
+			result = append(result, r)
+		}
+	}
+	return result, nil
+}
+
+func (m *MockAlertRuleRepository) CreateAlert(ctx context.Context, alert *model.AuditAlert) error {
+	m.alerts = append(m.alerts, alert)
+	return nil
+}
+
+func (m *MockAlertRuleRepository) ListAlerts(ctx context.Context, page, pageSize int, ruleID, userID, riskLevel string) ([]*model.AuditAlert, int64, error) {
+	var result []*model.AuditAlert
+	for _, a := range m.alerts {
+		if ruleID != "" && a.RuleID != ruleID {
+			continue
+		}
+		if userID != "" && a.UserID != userID {
+			continue
+		}
+		if riskLevel != "" && a.RiskLevel != riskLevel {
+			continue
+		}
+		result = append(result, a)
+	}
+
+	start := (page - 1) * pageSize
+	if start > len(result) {
+		start = len(result)
+	}
+	end := start + pageSize
+	if end > len(result) {
+		end = len(result)
+	}
+
+	return result[start:end], int64(len(result)), nil
+}
+
+func (m *MockAlertRuleRepository) GetAlertByID(ctx context.Context, id string) (*model.AuditAlert, error) {
+	for _, a := range m.alerts {
+		if a.ID == id {
+			return a, nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *MockAlertRuleRepository) IsInCooldown(ctx context.Context, ruleID string, cooldownMinutes int) (bool, error) {
+	return false, nil
+}
+
+func (m *MockAlertRuleRepository) GetAlertStats(ctx context.Context, days int) (*model.AlertStats, error) {
+	stats := &model.AlertStats{
+		TotalAlerts:    int64(len(m.alerts)),
+		TodayAlerts:    0,
+		NotifiedCount:  0,
+		PendingCount:   0,
+		RiskLevelStats: make(map[string]int64),
+		RuleStats:      make(map[string]int64),
+		Trend:          []model.TrendPoint{},
+		TopRules:       []model.RuleCount{},
+	}
+
+	for _, alert := range m.alerts {
+		stats.RiskLevelStats[alert.RiskLevel]++
+		stats.RuleStats[alert.RuleID]++
+		if alert.Notified {
+			stats.NotifiedCount++
+		} else {
+			stats.PendingCount++
+		}
+	}
+
+	return stats, nil
+}

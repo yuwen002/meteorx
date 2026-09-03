@@ -91,4 +91,7 @@ type AlertRuleRepository interface {
 
 	// IsInCooldown 检查规则是否在冷却期内
 	IsInCooldown(ctx context.Context, ruleID string, cooldownMinutes int) (bool, error)
+
+	// GetAlertStats 获取告警统计数据
+	GetAlertStats(ctx context.Context, days int) (*model.AlertStats, error)
 }

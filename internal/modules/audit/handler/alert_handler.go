@@ -133,3 +133,22 @@ func (h *AlertHandler) ListAlerts(w http.ResponseWriter, r *http.Request) {
 	}
 	response.Success(w, result)
 }
+
+// GetAlertStats 获取告警统计数据
+// GET /api/v1/audit/alerts/stats
+func (h *AlertHandler) GetAlertStats(w http.ResponseWriter, r *http.Request) {
+	daysStr := r.URL.Query().Get("days")
+	days, _ := strconv.Atoi(daysStr)
+	
+	if days <= 0 {
+		days = 7
+	}
+
+	stats, err := h.alertSvc.GetAlertStats(r.Context(), days)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取告警统计失败")
+		return
+	}
+
+	response.Success(w, stats)
+}

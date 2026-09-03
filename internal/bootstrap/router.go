@@ -6,6 +6,7 @@ import (
 	"meteorx/internal/modules/audit"
 	"meteorx/internal/modules/dashboard"
 	"meteorx/internal/modules/notification"
+	"meteorx/internal/pkg/emailer"
 	"meteorx/pkg/iplocation"
 	"net/http"
 	"time"
@@ -125,7 +126,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 
 			// 审计日志中间件：自动记录所有请求（挂载在认证之后，确保能获取用户信息）
 			repo := auditRepo.NewAuditLogRepository(db)
-			ipLocator := iplocation.NewHTTPLocator("ip-api", 3*time.Second)
+			ipLocator := initIPLocator(cfg)
 			auditService := auditSvc.NewAuditService(repo)
 
 			// 初始化批量处理器（性能优化，使用传入的context支持优雅取消）
@@ -175,7 +176,8 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 				rbac.InitModule(r, db)
 
 				// 8. 审计日志管理接口（仅后台管理员可操作）
-				audit.InitModule(r, db)
+				emailCfg := emailer.NewEmailer(cfg.Email.Host, cfg.Email.Port, cfg.Email.Username, cfg.Email.Password, cfg.Email.From, cfg.Email.FromName)
+				audit.InitModule(r, db, emailCfg)
 
 				// 9. 套餐管理接口（仅平台超级管理员可操作）
 				plan.InitAdminModule(r, db)
@@ -213,4 +215,41 @@ func StartPlanExpiryJob(ctx context.Context, db *gorm.DB) {
 func StartCancelCleanupJob(ctx context.Context, db *gorm.DB) {
 	job := tenant.NewCancelCleanupJob(db)
 	job.Start(ctx, 5*time.Minute)
+}
+
+// initIPLocator 根据配置初始化 IP 地理位置解析器
+func initIPLocator(cfg *config.Config) iplocation.IPLocator {
+	provider := cfg.IPLocation.Provider
+	if provider == "" {
+		provider = "http-api" // 默认使用 HTTP API
+	}
+
+	switch provider {
+	case "ip2region":
+		// 使用本地 ip2region 数据库（离线解析）
+		dbPath := cfg.IPLocation.DBPath
+		if dbPath == "" {
+			dbPath = "./data/ip2region.xdb"
+		}
+		
+		locator, err := iplocation.NewLocalLocator(dbPath)
+		if err != nil {
+			// 如果本地数据库加载失败，降级为 HTTP API
+			println("[WARN] Failed to load ip2region database, falling back to HTTP API:", err.Error())
+			return iplocation.NewHTTPLocator("ip-api", 3*time.Second)
+		}
+		
+		println("[INFO] IP location provider: ip2region (offline)")
+		return locator
+		
+	default:
+		// 使用 HTTP API（在线解析）
+		timeout := time.Duration(cfg.IPLocation.Timeout) * time.Second
+		if timeout == 0 {
+			timeout = 3 * time.Second
+		}
+		
+		println("[INFO] IP location provider: http-api (online)")
+		return iplocation.NewHTTPLocator("ip-api", timeout)
+	}
 }
