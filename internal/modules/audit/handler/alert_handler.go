@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"meteorx/internal/common/response"
 	"meteorx/internal/modules/audit/dto"
 	"meteorx/internal/modules/audit/service"
-	"meteorx/internal/response"
 )
 
 type AlertHandler struct {

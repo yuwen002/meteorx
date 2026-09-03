@@ -13,6 +13,7 @@ import (
 	"meteorx/internal/modules/audit/dto"
 	"meteorx/internal/modules/audit/model"
 	"meteorx/internal/modules/audit/service"
+	"meteorx/pkg/iplocation"
 )
 
 // responseRecorder 包装 ResponseWriter 以捕获响应状态码和body
@@ -46,7 +47,7 @@ func (rr *responseRecorder) Write(b []byte) (int, error) {
 
 // AuditMiddleware 审计日志中间件
 // 自动记录所有经过的请求信息
-func AuditMiddleware(auditSvc *service.AuditService) func(http.Handler) http.Handler {
+func AuditMiddleware(auditSvc *service.AuditService, ipLocator iplocation.IPLocator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -75,14 +76,14 @@ func AuditMiddleware(auditSvc *service.AuditService) func(http.Handler) http.Han
 			defer cancel()
 			
 			go func() {
-				recordAuditLog(ctx, auditSvc, r, recorder, requestBody, duration)
+				recordAuditLog(ctx, auditSvc, ipLocator, r, recorder, requestBody, duration)
 			}()
 		})
 	}
 }
 
 // recordAuditLog 记录审计日志
-func recordAuditLog(ctx context.Context, auditSvc *service.AuditService, r *http.Request, recorder *responseRecorder, requestBody string, duration int64) {
+func recordAuditLog(ctx context.Context, auditSvc *service.AuditService, ipLocator iplocation.IPLocator, r *http.Request, recorder *responseRecorder, requestBody string, duration int64) {
 	// 获取用户信息
 	userID := contextx.GetUserID(r.Context())
 	username := "anonymous"
@@ -116,7 +117,24 @@ func recordAuditLog(ctx context.Context, auditSvc *service.AuditService, r *http
 	clientIP := r.RemoteAddr
 	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
 		clientIP = strings.Split(forwarded, ",")[0]
+	} else if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		clientIP = realIP
 	}
+
+	// 解析IP地理位置
+	var ipLocation string
+	if ipLocator != nil {
+		loc, err := ipLocator.Locate(ctx, clientIP)
+		if err == nil && loc != nil {
+			ipLocation = loc.FullText
+		}
+	}
+
+	// 解析设备信息
+	deviceInfo := parseDeviceInfo(r.UserAgent())
+
+	// 评估风险等级
+	riskLevel := evaluateRiskLevel(r.URL.Path, r.Method, module, action)
 
 	req := dto.CreateAuditLogReq{
 		UserID:      userID,
@@ -131,8 +149,15 @@ func recordAuditLog(ctx context.Context, auditSvc *service.AuditService, r *http
 		StatusCode:  recorder.statusCode,
 		Result:      result,
 		ClientIP:    clientIP,
+		IPLocation:  ipLocation,
 		UserAgent:   r.UserAgent(),
+		DeviceInfo:  deviceInfo,
 		Duration:    duration,
+		SessionID:   getSessionID(r),
+		RequestID:   getRequestID(r),
+		TraceID:     getTraceID(r),
+		Referer:     r.Referer(),
+		RiskLevel:   riskLevel,
 	}
 
 	// 尝试解析错误信息
@@ -232,4 +257,125 @@ func shouldSkipAudit(path string) bool {
 		}
 	}
 	return false
+}
+
+// parseDeviceInfo 从 User-Agent 解析设备信息
+func parseDeviceInfo(userAgent string) string {
+	if userAgent == "" {
+		return "Unknown"
+	}
+
+	// 简化解析，提取主要信息
+	var deviceParts []string
+
+	// 检测操作系统
+	if strings.Contains(userAgent, "Windows") {
+		deviceParts = append(deviceParts, "Windows")
+	} else if strings.Contains(userAgent, "Macintosh") || strings.Contains(userAgent, "Mac OS X") {
+		deviceParts = append(deviceParts, "macOS")
+	} else if strings.Contains(userAgent, "Linux") {
+		deviceParts = append(deviceParts, "Linux")
+	} else if strings.Contains(userAgent, "Android") {
+		deviceParts = append(deviceParts, "Android")
+	} else if strings.Contains(userAgent, "iPhone") || strings.Contains(userAgent, "iPad") {
+		deviceParts = append(deviceParts, "iOS")
+	}
+
+	// 检测浏览器
+	if strings.Contains(userAgent, "Chrome") && !strings.Contains(userAgent, "Edg") {
+		deviceParts = append(deviceParts, "Chrome")
+	} else if strings.Contains(userAgent, "Firefox") {
+		deviceParts = append(deviceParts, "Firefox")
+	} else if strings.Contains(userAgent, "Safari") && !strings.Contains(userAgent, "Chrome") {
+		deviceParts = append(deviceParts, "Safari")
+	} else if strings.Contains(userAgent, "Edg") {
+		deviceParts = append(deviceParts, "Edge")
+	}
+
+	if len(deviceParts) == 0 {
+		return userAgent
+	}
+
+	return strings.Join(deviceParts, " / ")
+}
+
+// evaluateRiskLevel 评估操作风险等级
+func evaluateRiskLevel(path, method, module, action string) string {
+	// 严重风险：删除操作、权限变更
+	if action == model.ActionTypeDelete {
+		return model.RiskCritical
+	}
+	if strings.Contains(path, "permission") || strings.Contains(path, "role") {
+		if method == "POST" || method == "PUT" || method == "DELETE" {
+			return model.RiskCritical
+		}
+	}
+
+	// 高风险：用户管理、租户管理、登录失败
+	if module == "user" && (method == "POST" || method == "DELETE") {
+		return model.RiskHigh
+	}
+	if module == "tenant" && (method == "POST" || method == "PUT" || method == "DELETE") {
+		return model.RiskHigh
+	}
+	if action == model.ActionTypeLogin {
+		return model.RiskHigh
+	}
+
+	// 中风险：更新操作、导出操作
+	if action == model.ActionTypeUpdate {
+		return model.RiskMedium
+	}
+	if strings.Contains(path, "export") {
+		return model.RiskMedium
+	}
+
+	// 低风险：查询操作
+	if action == model.ActionTypeQuery {
+		return model.RiskLow
+	}
+
+	// 默认低风险
+	return model.RiskLow
+}
+
+// getSessionID 从请求中获取会话ID
+func getSessionID(r *http.Request) string {
+	// 优先从 header 获取
+	if sessionID := r.Header.Get("X-Session-ID"); sessionID != "" {
+		return sessionID
+	}
+
+	// 从 cookie 获取
+	if cookie, err := r.Cookie("session_id"); err == nil {
+		return cookie.Value
+	}
+
+	return ""
+}
+
+// getRequestID 从请求中获取请求ID
+func getRequestID(r *http.Request) string {
+	// 优先从 header 获取
+	if requestID := r.Header.Get("X-Request-ID"); requestID != "" {
+		return requestID
+	}
+	if requestID := r.Header.Get("X-Correlation-ID"); requestID != "" {
+		return requestID
+	}
+
+	return ""
+}
+
+// getTraceID 从请求中获取链路追踪ID
+func getTraceID(r *http.Request) string {
+	// 优先从 header 获取
+	if traceID := r.Header.Get("X-Trace-ID"); traceID != "" {
+		return traceID
+	}
+	if traceID := r.Header.Get("Traceparent"); traceID != "" {
+		return traceID
+	}
+
+	return ""
 }

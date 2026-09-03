@@ -247,6 +247,12 @@
           <el-option label="成功" value="success" />
           <el-option label="失败" value="failure" />
         </el-select>
+        <el-select v-model="search.risk_level" placeholder="风险等级" clearable style="width: 140px">
+          <el-option label="低风险" value="low" />
+          <el-option label="中风险" value="medium" />
+          <el-option label="高风险" value="high" />
+          <el-option label="严重风险" value="critical" />
+        </el-select>
         <el-date-picker
           v-model="search.dateRange"
           type="daterange"
@@ -294,6 +300,11 @@
             <el-tag size="small" :type="getActionType(row.action)">{{ getActionLabel(row.action) }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="risk_level" label="风险等级" width="100">
+          <template #default="{ row }">
+            <el-tag size="small" :type="getRiskLevelType(row.risk_level)">{{ getRiskLevelLabel(row.risk_level) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="method" label="方法" width="80">
           <template #default="{ row }">
             <el-tag size="small" :type="getMethodType(row.method)">{{ row.method }}</el-tag>
@@ -313,6 +324,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="client_ip" label="客户端IP" width="140" />
+        <el-table-column prop="device_info" label="设备" width="140" show-overflow-tooltip />
         <el-table-column prop="duration" label="耗时(ms)" width="100">
           <template #default="{ row }">
             <span :class="getDurationClass(row.duration)">{{ row.duration }}ms</span>
@@ -340,15 +352,22 @@
     </el-card>
 
     <!-- 详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="日志详情" width="700px" destroy-on-close>
+    <el-dialog v-model="detailVisible" title="日志详情" width="900px" destroy-on-close>
       <el-descriptions :column="2" border v-if="currentLog">
         <el-descriptions-item label="日志ID">{{ currentLog.id }}</el-descriptions-item>
+        <el-descriptions-item label="请求ID">{{ currentLog.request_id || '-' }}</el-descriptions-item>
         <el-descriptions-item label="操作用户">{{ currentLog.username }} ({{ currentLog.user_id }})</el-descriptions-item>
         <el-descriptions-item label="租户ID">{{ currentLog.tenant_id || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="会话ID">{{ currentLog.session_id || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="链路ID">{{ currentLog.trace_id || '-' }}</el-descriptions-item>
         <el-descriptions-item label="模块">{{ currentLog.module }}</el-descriptions-item>
         <el-descriptions-item label="操作类型">{{ getActionLabel(currentLog.action) }}</el-descriptions-item>
+        <el-descriptions-item label="风险等级">
+          <el-tag size="small" :type="getRiskLevelType(currentLog.risk_level)">{{ getRiskLevelLabel(currentLog.risk_level) }}</el-tag>
+        </el-descriptions-item>
         <el-descriptions-item label="HTTP方法">{{ currentLog.method }}</el-descriptions-item>
         <el-descriptions-item label="请求路径" :span="2">{{ currentLog.path }}</el-descriptions-item>
+        <el-descriptions-item label="来源页面" :span="2">{{ currentLog.referer || '-' }}</el-descriptions-item>
         <el-descriptions-item label="资源">{{ currentLog.resource || '-' }}</el-descriptions-item>
         <el-descriptions-item label="资源ID">{{ currentLog.resource_id || '-' }}</el-descriptions-item>
         <el-descriptions-item label="状态码">
@@ -360,9 +379,14 @@
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="客户端IP">{{ currentLog.client_ip }}</el-descriptions-item>
+        <el-descriptions-item label="IP位置">{{ currentLog.ip_location || '未知' }}</el-descriptions-item>
         <el-descriptions-item label="用户代理" :span="2">{{ currentLog.user_agent }}</el-descriptions-item>
+        <el-descriptions-item label="设备信息" :span="2">{{ currentLog.device_info || '-' }}</el-descriptions-item>
         <el-descriptions-item label="耗时">{{ currentLog.duration }}ms</el-descriptions-item>
         <el-descriptions-item label="操作时间">{{ currentLog.created_at }}</el-descriptions-item>
+        <el-descriptions-item label="标签" :span="2" v-if="currentLog.tags">
+          <el-tag v-for="tag in parseTags(currentLog.tags)" :key="tag" size="small" style="margin-right: 4px;">{{ tag }}</el-tag>
+        </el-descriptions-item>
         <el-descriptions-item label="错误信息" :span="2" v-if="currentLog.error_message">
           <span style="color: #f56c6c">{{ currentLog.error_message }}</span>
         </el-descriptions-item>
@@ -412,6 +436,7 @@ const search = reactive({
   module: '',
   action: '',
   result: '',
+  risk_level: '',
   dateRange: [] as string[]
 })
 
@@ -500,7 +525,8 @@ async function loadList() {
       keyword: search.keyword || undefined,
       module: search.module || undefined,
       action: search.action || undefined,
-      result: search.result || undefined
+      result: search.result || undefined,
+      risk_level: search.risk_level || undefined
     }
     if (search.dateRange && search.dateRange.length === 2) {
       params.start_time = search.dateRange[0] + ' 00:00:00'
@@ -530,6 +556,7 @@ function resetSearch() {
   search.module = ''
   search.action = ''
   search.result = ''
+  search.risk_level = ''
   search.dateRange = []
   page.value = 1
   loadList()
@@ -658,6 +685,35 @@ function formatJson(jsonStr: string): string {
   } catch {
     return jsonStr
   }
+}
+
+function parseTags(tagsStr: string): string[] {
+  try {
+    const tags = JSON.parse(tagsStr)
+    return Array.isArray(tags) ? tags : []
+  } catch {
+    return []
+  }
+}
+
+function getRiskLevelType(level: string): string {
+  const map: Record<string, string> = {
+    low: 'success',
+    medium: 'warning',
+    high: 'danger',
+    critical: 'danger'
+  }
+  return map[level] || 'info'
+}
+
+function getRiskLevelLabel(level: string): string {
+  const map: Record<string, string> = {
+    low: '低',
+    medium: '中',
+    high: '高',
+    critical: '严重'
+  }
+  return map[level] || level
 }
 
 function handleExport() {
@@ -1109,6 +1165,23 @@ function handleExport() {
 }
 
 .duration-slow {
+  color: #ff4d4f;
+  font-weight: bold;
+}
+
+.risk-low {
+  color: #52c41a;
+}
+
+.risk-medium {
+  color: #faad14;
+}
+
+.risk-high {
+  color: #f56c6c;
+}
+
+.risk-critical {
   color: #ff4d4f;
   font-weight: bold;
 }

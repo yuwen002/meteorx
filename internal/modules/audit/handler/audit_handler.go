@@ -81,6 +81,7 @@ func (h *AuditHandler) ListLogs(w http.ResponseWriter, r *http.Request) {
 		Action:    r.URL.Query().Get("action"),
 		Resource:  r.URL.Query().Get("resource"),
 		Result:    r.URL.Query().Get("result"),
+		RiskLevel: r.URL.Query().Get("risk_level"),
 		StartTime: r.URL.Query().Get("start_time"),
 		EndTime:   r.URL.Query().Get("end_time"),
 		Keyword:   r.URL.Query().Get("keyword"),
@@ -199,8 +200,8 @@ func (h *AuditHandler) exportCSV(w http.ResponseWriter, logs []*dto.AuditLogResp
 	defer writer.Flush()
 
 	// 写入表头
-	headers := []string{"日志ID", "用户ID", "用户名", "租户ID", "模块", "操作", "资源", "资源ID",
-		"HTTP方法", "请求路径", "状态码", "结果", "客户端IP", "用户代理", "耗时(ms)", "错误信息", "操作时间"}
+	headers := []string{"日志ID", "请求ID", "会话ID", "链路ID", "用户ID", "用户名", "租户ID", "模块", "操作", "风险等级", "资源", "资源ID",
+		"HTTP方法", "请求路径", "来源页面", "状态码", "结果", "客户端IP", "IP位置", "设备信息", "用户代理", "耗时(ms)", "标签", "错误信息", "操作时间"}
 	writer.Write(headers)
 
 	// 写入数据
@@ -210,25 +211,51 @@ func (h *AuditHandler) exportCSV(w http.ResponseWriter, logs []*dto.AuditLogResp
 			result = "失败"
 		}
 
+		riskLevel := getRiskLevelLabel(log.RiskLevel)
+
 		record := []string{
 			log.ID,
+			log.RequestID,
+			log.SessionID,
+			log.TraceID,
 			log.UserID,
 			log.Username,
 			log.TenantID,
 			log.Module,
 			log.Action,
+			riskLevel,
 			log.Resource,
 			log.ResourceID,
 			log.Method,
 			log.Path,
+			log.Referer,
 			strconv.Itoa(log.StatusCode),
 			result,
 			log.ClientIP,
+			log.IPLocation,
+			log.DeviceInfo,
 			log.UserAgent,
 			strconv.FormatInt(log.Duration, 10),
+			log.Tags,
 			log.ErrorMessage,
 			log.CreatedAt,
 		}
 		writer.Write(record)
+	}
+}
+
+// getRiskLevelLabel 获取风险等级中文标签
+func getRiskLevelLabel(level string) string {
+	switch level {
+	case "low":
+		return "低"
+	case "medium":
+		return "中"
+	case "high":
+		return "高"
+	case "critical":
+		return "严重"
+	default:
+		return level
 	}
 }

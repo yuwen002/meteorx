@@ -21,8 +21,16 @@ type CreateAuditLogReq struct {
 	Result       string `json:"result"`
 	ErrorMessage string `json:"error_message"`
 	ClientIP     string `json:"client_ip"`
+	IPLocation   string `json:"ip_location"`
 	UserAgent    string `json:"user_agent"`
+	DeviceInfo   string `json:"device_info"`
 	Duration     int64  `json:"duration"`
+	SessionID    string `json:"session_id"`
+	RequestID    string `json:"request_id"`
+	TraceID      string `json:"trace_id"`
+	Referer      string `json:"referer"`
+	RiskLevel    string `json:"risk_level"`
+	Tags         string `json:"tags"`
 }
 
 // AuditLogResp 审计日志响应
@@ -43,8 +51,16 @@ type AuditLogResp struct {
 	Result       string `json:"result"`
 	ErrorMessage string `json:"error_message,omitempty"`
 	ClientIP     string `json:"client_ip"`
+	IPLocation   string `json:"ip_location,omitempty"`
 	UserAgent    string `json:"user_agent"`
+	DeviceInfo   string `json:"device_info,omitempty"`
 	Duration     int64  `json:"duration"`
+	SessionID    string `json:"session_id,omitempty"`
+	RequestID    string `json:"request_id,omitempty"`
+	TraceID      string `json:"trace_id,omitempty"`
+	Referer      string `json:"referer,omitempty"`
+	RiskLevel    string `json:"risk_level"`
+	Tags         string `json:"tags,omitempty"`
 	CreatedAt    string `json:"created_at"`
 }
 
@@ -67,9 +83,57 @@ func ToAuditLogResp(log *model.AuditLog) *AuditLogResp {
 		Result:       log.Result,
 		ErrorMessage: log.ErrorMessage,
 		ClientIP:     log.ClientIP,
+		IPLocation:   log.IPLocation,
 		UserAgent:    log.UserAgent,
+		DeviceInfo:   log.DeviceInfo,
 		Duration:     log.Duration,
+		SessionID:    log.SessionID,
+		RequestID:    log.RequestID,
+		TraceID:      log.TraceID,
+		Referer:      log.Referer,
+		RiskLevel:    log.RiskLevel,
+		Tags:         log.Tags,
 		CreatedAt:    log.CreatedAt.Format("2006-01-02 15:04:05"),
+	}
+}
+
+// ToAlertRuleResp 将 model.AlertRule 转为 AlertRuleResp
+func ToAlertRuleResp(rule *model.AlertRule) *AlertRuleResp {
+	return &AlertRuleResp{
+		ID:              rule.ID,
+		Name:            rule.Name,
+		Description:     rule.Description,
+		Enabled:         rule.Enabled,
+		TriggerType:     rule.TriggerType,
+		TriggerValue:    rule.TriggerValue,
+		NotifyChannels:  rule.NotifyChannels,
+		NotifyTargets:   rule.NotifyTargets,
+		NotifyTemplate:  rule.NotifyTemplate,
+		CooldownMinutes: rule.CooldownMinutes,
+		CreatedAt:       rule.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:       rule.UpdatedAt.Format("2006-01-02 15:04:05"),
+	}
+}
+
+// ToAlertLogResp 将 model.AuditAlert 转为 AlertLogResp
+func ToAlertLogResp(alert *model.AuditAlert) *AlertLogResp {
+	notifyTime := ""
+	if !alert.NotifyTime.IsZero() {
+		notifyTime = alert.NotifyTime.Format("2006-01-02 15:04:05")
+	}
+	return &AlertLogResp{
+		ID:         alert.ID,
+		RuleID:     alert.RuleID,
+		RuleName:   alert.RuleName,
+		AuditLogID: alert.AuditLogID,
+		UserID:     alert.UserID,
+		Username:   alert.Username,
+		RiskLevel:  alert.RiskLevel,
+		Action:     alert.Action,
+		Message:    alert.Message,
+		Notified:   alert.Notified,
+		NotifyTime: notifyTime,
+		CreatedAt:  alert.CreatedAt.Format("2006-01-02 15:04:05"),
 	}
 }
 
@@ -84,6 +148,7 @@ type ListAuditLogsQuery struct {
 	Action    string `json:"action" form:"action"`
 	Resource  string `json:"resource" form:"resource"`
 	Result    string `json:"result" form:"result"`
+	RiskLevel string `json:"risk_level" form:"risk_level"`
 	StartTime string `json:"start_time" form:"start_time"`
 	EndTime   string `json:"end_time" form:"end_time"`
 	Keyword   string `json:"keyword" form:"keyword"`
@@ -93,6 +158,64 @@ type ListAuditLogsQuery struct {
 type AuditLogListResp struct {
 	Items []*AuditLogResp `json:"items"`
 	Total int64           `json:"total"`
+}
+
+// CreateAlertRuleReq 创建告警规则请求
+type CreateAlertRuleReq struct {
+	Name            string   `json:"name" binding:"required"`
+	Description     string   `json:"description"`
+	Enabled         bool     `json:"enabled"`
+	TriggerType     string   `json:"trigger_type" binding:"required"`
+	TriggerValue    string   `json:"trigger_value" binding:"required"`
+	NotifyChannels  []string `json:"notify_channels" binding:"required"`
+	NotifyTargets   []string `json:"notify_targets" binding:"required"`
+	NotifyTemplate  string   `json:"notify_template"`
+	CooldownMinutes int      `json:"cooldown_minutes"`
+}
+
+// UpdateAlertRuleReq 更新告警规则请求
+type UpdateAlertRuleReq struct {
+	Name            string   `json:"name"`
+	Description     string   `json:"description"`
+	Enabled         bool     `json:"enabled"`
+	TriggerType     string   `json:"trigger_type"`
+	TriggerValue    string   `json:"trigger_value"`
+	NotifyChannels  []string `json:"notify_channels"`
+	NotifyTargets   []string `json:"notify_targets"`
+	NotifyTemplate  string   `json:"notify_template"`
+	CooldownMinutes int      `json:"cooldown_minutes"`
+}
+
+// AlertRuleResp 告警规则响应
+type AlertRuleResp struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Description     string `json:"description"`
+	Enabled         bool   `json:"enabled"`
+	TriggerType     string `json:"trigger_type"`
+	TriggerValue    string `json:"trigger_value"`
+	NotifyChannels  string `json:"notify_channels"`
+	NotifyTargets   string `json:"notify_targets"`
+	NotifyTemplate  string `json:"notify_template"`
+	CooldownMinutes int    `json:"cooldown_minutes"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
+}
+
+// AlertLogResp 告警记录响应
+type AlertLogResp struct {
+	ID         string `json:"id"`
+	RuleID     string `json:"rule_id"`
+	RuleName   string `json:"rule_name"`
+	AuditLogID string `json:"audit_log_id"`
+	UserID     string `json:"user_id"`
+	Username   string `json:"username"`
+	RiskLevel  string `json:"risk_level"`
+	Action     string `json:"action"`
+	Message    string `json:"message"`
+	Notified   bool   `json:"notified"`
+	NotifyTime string `json:"notify_time"`
+	CreatedAt  string `json:"created_at"`
 }
 
 // AuditLogStatsResp 审计日志统计响应

@@ -204,7 +204,7 @@ func (s *AlertService) sendNotifications(ctx context.Context, rule *model.AlertR
 	for _, channel := range channels {
 		switch channel {
 		case model.NotifyChannelEmail:
-			s.sendEmailNotifications(targets, alert)
+			s.sendEmailNotification(targets, alert)
 		case model.NotifyChannelDingTalk:
 			s.sendDingTalkNotification(targets, alert)
 		case model.NotifyChannelWeChat:

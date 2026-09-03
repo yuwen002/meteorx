@@ -19,6 +19,25 @@ const (
 	ResultFailure = "failure" // 失败
 )
 
+// RiskLevel 风险等级
+const (
+	RiskLow      = "low"      // 低风险
+	RiskMedium   = "medium"   // 中风险
+	RiskHigh     = "high"     // 高风险
+	RiskCritical = "critical" // 严重风险
+)
+
+// SessionSummary 会话摘要
+type SessionSummary struct {
+	SessionID string
+	UserID    string
+	Username  string
+	TotalOps  int64
+	StartTime time.Time
+	EndTime   time.Time
+	Duration  int64
+}
+
 // AuditLog 审计日志领域模型
 type AuditLog struct {
 	ID           string    // 日志ID
@@ -37,8 +56,16 @@ type AuditLog struct {
 	Result       string    // 操作结果（success/failure）
 	ErrorMessage string    // 错误信息
 	ClientIP     string    // 客户端IP
+	IPLocation   string    // IP地理位置
 	UserAgent    string    // 用户代理
+	DeviceInfo   string    // 设备信息
 	Duration     int64     // 请求耗时（毫秒）
+	SessionID    string    // 会话ID
+	RequestID    string    // 请求ID
+	TraceID      string    // 链路追踪ID
+	Referer      string    // 来源页面
+	RiskLevel    string    // 风险等级（low/medium/high/critical）
+	Tags         string    // 标签（JSON数组）
 	CreatedAt    time.Time // 创建时间
 }
 

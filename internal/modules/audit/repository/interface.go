@@ -39,6 +39,12 @@ type AuditLogRepository interface {
 
 	// Cleanup 清理指定天数之前的日志
 	Cleanup(ctx context.Context, days int) (int64, error)
+
+	// ListBySessionID 根据会话ID查询日志
+	ListBySessionID(ctx context.Context, sessionID string) ([]*model.AuditLog, error)
+
+	// ListSessions 获取会话摘要列表
+	ListSessions(ctx context.Context, page, pageSize int, userID string) ([]model.SessionSummary, int64, error)
 }
 
 type AuditLogQuery struct {
@@ -51,7 +57,38 @@ type AuditLogQuery struct {
 	Action    string
 	Resource  string
 	Result    string
+	RiskLevel string
 	StartTime string
 	EndTime   string
 	Keyword   string
+}
+
+// AlertRuleRepository 告警规则数据访问接口
+type AlertRuleRepository interface {
+	// Create 创建告警规则
+	Create(ctx context.Context, rule *model.AlertRule) error
+
+	// GetByID 根据ID获取告警规则
+	GetByID(ctx context.Context, id string) (*model.AlertRule, error)
+
+	// Update 更新告警规则
+	Update(ctx context.Context, rule *model.AlertRule) error
+
+	// Delete 删除告警规则
+	Delete(ctx context.Context, id string) error
+
+	// List 获取所有告警规则
+	List(ctx context.Context) ([]*model.AlertRule, error)
+
+	// GetEnabledRules 获取所有启用的告警规则
+	GetEnabledRules(ctx context.Context) ([]*model.AlertRule, error)
+
+	// CreateAlert 创建告警记录
+	CreateAlert(ctx context.Context, alert *model.AuditAlert) error
+
+	// ListAlerts 分页查询告警记录
+	ListAlerts(ctx context.Context, page, pageSize int, ruleID, userID, riskLevel string) ([]*model.AuditAlert, int64, error)
+
+	// IsInCooldown 检查规则是否在冷却期内
+	IsInCooldown(ctx context.Context, ruleID string, cooldownMinutes int) (bool, error)
 }

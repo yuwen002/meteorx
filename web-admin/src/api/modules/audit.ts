@@ -17,8 +17,16 @@ export interface AuditLogItem {
   result: string
   error_message: string
   client_ip: string
+  ip_location: string
   user_agent: string
+  device_info: string
   duration: number
+  session_id: string
+  request_id: string
+  trace_id: string
+  referer: string
+  risk_level: string
+  tags: string
   created_at: string
 }
 

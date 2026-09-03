@@ -245,7 +245,7 @@ func InitDefaultAlertRules(db *gorm.DB) error {
 
 	defaultRules := []AlertRulePO{
 		{
-			ID:              ulid.New(),
+			ID:              ulid.Generate(),
 			Name:            "严重风险操作告警",
 			Description:     "当发生严重风险操作时立即告警",
 			Enabled:         true,
@@ -257,7 +257,7 @@ func InitDefaultAlertRules(db *gorm.DB) error {
 			CooldownMinutes: 15,
 		},
 		{
-			ID:              ulid.New(),
+			ID:              ulid.Generate(),
 			Name:            "高风险操作告警",
 			Description:     "当发生高风险操作时告警",
 			Enabled:         true,
@@ -269,7 +269,7 @@ func InitDefaultAlertRules(db *gorm.DB) error {
 			CooldownMinutes: 30,
 		},
 		{
-			ID:              ulid.New(),
+			ID:              ulid.Generate(),
 			Name:            "删除操作告警",
 			Description:     "当发生删除操作时告警",
 			Enabled:         true,

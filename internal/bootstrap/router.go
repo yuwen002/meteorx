@@ -6,6 +6,7 @@ import (
 	"meteorx/internal/modules/audit"
 	"meteorx/internal/modules/dashboard"
 	"meteorx/internal/modules/notification"
+	"meteorx/pkg/iplocation"
 	"net/http"
 	"time"
 
@@ -56,12 +57,12 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 	// 深度健康检查（检查数据库和Redis连接状态）
 	r.Get("/health/ready", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		
+
 		health := map[string]interface{}{
 			"status": "ok",
 			"checks": map[string]string{},
 		}
-		
+
 		// 检查数据库连接
 		sqlDB, err := db.DB()
 		if err != nil {
@@ -73,7 +74,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 		} else {
 			health["checks"].(map[string]string)["database"] = "ok"
 		}
-		
+
 		// 检查Redis连接
 		if rdb != nil && rdb.IsAvailable() {
 			if err := rdb.Ping(r.Context()); err != nil {
@@ -88,7 +89,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 		} else {
 			health["checks"].(map[string]string)["redis"] = "unavailable"
 		}
-		
+
 		statusCode := http.StatusOK
 		if health["status"] == "error" {
 			statusCode = http.StatusServiceUnavailable
@@ -124,12 +125,13 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 
 			// 审计日志中间件：自动记录所有请求（挂载在认证之后，确保能获取用户信息）
 			repo := auditRepo.NewAuditLogRepository(db)
+			ipLocator := iplocation.NewHTTPLocator("ip-api", 3*time.Second)
 			auditService := auditSvc.NewAuditService(repo)
 
 			// 初始化批量处理器（性能优化，使用传入的context支持优雅取消）
 			middleware.InitAuditBatchProcessor(ctx, auditService)
 
-			r.Use(middleware.AuditMiddleware(auditService))
+			r.Use(middleware.AuditMiddleware(auditService, ipLocator))
 
 			// 3. 租户私有接口（租户管理员登录后：管理本公司信息、查看套餐等）
 			tenant.InitPrivateModule(r, db)

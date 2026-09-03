@@ -26,8 +26,16 @@ type AuditLogPO struct {
 	Result       string    `gorm:"index;size:10;comment:操作结果"`
 	ErrorMessage string    `gorm:"type:text;comment:错误信息"`
 	ClientIP     string    `gorm:"size:50;comment:客户端IP"`
+	IPLocation   string    `gorm:"size:100;comment:IP地理位置"`
 	UserAgent    string    `gorm:"size:255;comment:用户代理"`
+	DeviceInfo   string    `gorm:"size:255;comment:设备信息"`
 	Duration     int64     `gorm:"comment:请求耗时(毫秒)"`
+	SessionID    string    `gorm:"index;size:50;comment:会话ID"`
+	RequestID    string    `gorm:"index;size:50;comment:请求ID"`
+	TraceID      string    `gorm:"index;size:50;comment:链路追踪ID"`
+	Referer      string    `gorm:"size:500;comment:来源页面"`
+	RiskLevel    string    `gorm:"index;size:20;comment:风险等级(low/medium/high/critical)"`
+	Tags         string    `gorm:"size:500;comment:标签(JSON数组)"`
 	CreatedAt    time.Time `gorm:"index;autoCreateTime;comment:创建时间"`
 }
 
@@ -54,8 +62,16 @@ func (po AuditLogPO) toDomain() *model.AuditLog {
 		Result:       po.Result,
 		ErrorMessage: po.ErrorMessage,
 		ClientIP:     po.ClientIP,
+		IPLocation:   po.IPLocation,
 		UserAgent:    po.UserAgent,
+		DeviceInfo:   po.DeviceInfo,
 		Duration:     po.Duration,
+		SessionID:    po.SessionID,
+		RequestID:    po.RequestID,
+		TraceID:      po.TraceID,
+		Referer:      po.Referer,
+		RiskLevel:    po.RiskLevel,
+		Tags:         po.Tags,
 		CreatedAt:    po.CreatedAt,
 	}
 }
@@ -79,8 +95,16 @@ func auditLogFromDomain(l *model.AuditLog) *AuditLogPO {
 		Result:       l.Result,
 		ErrorMessage: l.ErrorMessage,
 		ClientIP:     l.ClientIP,
+		IPLocation:   l.IPLocation,
 		UserAgent:    l.UserAgent,
+		DeviceInfo:   l.DeviceInfo,
 		Duration:     l.Duration,
+		SessionID:    l.SessionID,
+		RequestID:    l.RequestID,
+		TraceID:      l.TraceID,
+		Referer:      l.Referer,
+		RiskLevel:    l.RiskLevel,
+		Tags:         l.Tags,
 		CreatedAt:    l.CreatedAt,
 	}
 }
@@ -148,6 +172,9 @@ func (r *auditLogRepository) List(ctx context.Context, query *AuditLogQuery) ([]
 	}
 	if query.Result != "" {
 		db = db.Where("result = ?", query.Result)
+	}
+	if query.RiskLevel != "" {
+		db = db.Where("risk_level = ?", query.RiskLevel)
 	}
 	if query.StartTime != "" {
 		db = db.Where("created_at >= ?", query.StartTime)
@@ -397,4 +424,67 @@ func (r *auditLogRepository) Cleanup(ctx context.Context, days int) (int64, erro
 	cutoff := time.Now().AddDate(0, 0, -days)
 	result := r.db.WithContext(ctx).Where("created_at < ?", cutoff).Delete(&AuditLogPO{})
 	return result.RowsAffected, result.Error
+}
+
+// ListBySessionID 根据会话ID查询日志
+func (r *auditLogRepository) ListBySessionID(ctx context.Context, sessionID string) ([]*model.AuditLog, error) {
+	var pos []AuditLogPO
+	if err := r.db.WithContext(ctx).
+		Where("session_id = ?", sessionID).
+		Order("created_at ASC").
+		Find(&pos).Error; err != nil {
+		return nil, err
+	}
+
+	logs := make([]*model.AuditLog, len(pos))
+	for i, po := range pos {
+		logs[i] = po.toDomain()
+	}
+	return logs, nil
+}
+
+// ListSessions 获取会话摘要列表
+func (r *auditLogRepository) ListSessions(ctx context.Context, page, pageSize int, userID string) ([]model.SessionSummary, int64, error) {
+	type SessionRow struct {
+		SessionID string
+		UserID    string
+		Username  string
+		TotalOps  int64
+		MinTime   time.Time
+		MaxTime   time.Time
+		MaxRisk   string
+	}
+
+	db := r.db.WithContext(ctx).Table("audit_logs").
+		Select("session_id, user_id, username, COUNT(*) as total_ops, MIN(created_at) as min_time, MAX(created_at) as max_time").
+		Where("session_id != '' AND session_id IS NOT NULL").
+		Group("session_id, user_id, username")
+
+	if userID != "" {
+		db = db.Where("user_id = ?", userID)
+	}
+
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var rows []SessionRow
+	if err := db.Order("max_time DESC").Offset((page - 1) * pageSize).Limit(pageSize).Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+
+	summaries := make([]model.SessionSummary, len(rows))
+	for i, row := range rows {
+		summaries[i] = model.SessionSummary{
+			SessionID: row.SessionID,
+			UserID:    row.UserID,
+			Username:  row.Username,
+			TotalOps:  row.TotalOps,
+			StartTime: row.MinTime,
+			EndTime:   row.MaxTime,
+		}
+	}
+
+	return summaries, total, nil
 }

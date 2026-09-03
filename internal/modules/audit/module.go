@@ -1,10 +1,13 @@
 package audit
 
 import (
+	"time"
+
 	"meteorx/internal/middleware"
 	"meteorx/internal/modules/audit/handler"
 	"meteorx/internal/modules/audit/repository"
 	"meteorx/internal/modules/audit/service"
+	"meteorx/pkg/iplocation"
 	rbacrepo "meteorx/internal/modules/rbac/repository"
 	rbacsvc "meteorx/internal/modules/rbac/service"
 
@@ -16,11 +19,21 @@ import (
 // 挂载在平台管理员路由组下，需要超级管理员权限
 func InitModule(r chi.Router, db *gorm.DB) {
 	repo := repository.NewAuditLogRepository(db)
+	alertRepo := repository.NewAlertRuleRepository(db)
+	ipLocator := iplocation.NewHTTPLocator("ip-api", 3*time.Second)
+	
 	svc := service.NewAuditService(repo)
+	alertSvc := service.NewAlertService(alertRepo)
+	sessionSvc := service.NewSessionService(repo)
+	
 	h := handler.NewAuditHandler(svc)
+	alertH := handler.NewAlertHandler(alertSvc)
+	sessionH := handler.NewSessionHandler(sessionSvc)
+
+	_ = repository.InitDefaultAlertRules(db)
 
 	checker := initPermissionChecker(db)
-	RegisterRoutes(r, h, checker)
+	RegisterRoutes(r, h, alertH, sessionH, checker, ipLocator)
 }
 
 // initPermissionChecker 创建权限检查器（复用 RBACService）
