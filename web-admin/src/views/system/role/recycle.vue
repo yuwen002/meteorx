@@ -17,7 +17,7 @@
       <!-- 搜索栏 -->
       <div class="search-bar">
         <el-input
-          v-model="search.keyword"
+          v-model="query.keyword"
           placeholder="搜索角色名"
           clearable
           style="width: 220px"
@@ -94,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -107,17 +107,30 @@ import {
   type RoleItem,
   type RoleListParams
 } from '@/api/modules/role'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
 const router = useRouter()
 
-const loading = ref(false)
-const list = ref<RoleItem[]>([])
-const page = ref(1)
-const pageSize = ref(10)
-const total = ref(0)
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<RoleItem, { keyword: string }>({
+  fetchList: async (params) => {
+    const req: RoleListParams = { page: params.page, page_size: params.page_size }
+    if (params.keyword) req.keyword = params.keyword
+    return toPageResult(await getDeletedRoleList(req))
+  },
+  initialQuery: { keyword: '' }
+})
+const loadList = reload
 const selectedIds = ref<string[]>([])
-
-const search = reactive({ keyword: '' })
 
 function goBack() {
   router.push('/system/role')
@@ -129,27 +142,8 @@ function formatDate(dateStr?: string) {
   return date.toLocaleString('zh-CN')
 }
 
-async function loadList() {
-  loading.value = true
-  try {
-    const params: RoleListParams = { page: page.value, page_size: pageSize.value }
-    if (search.keyword) params.keyword = search.keyword
-    const res: any = await getDeletedRoleList(params)
-    // 适配后端分页数据结构: { data: [...], pagination: { page, page_size, total } }
-    list.value = res.data || []
-    total.value = res.pagination?.total || 0
-  } catch (e) {
-    list.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
 function resetSearch() {
-  search.keyword = ''
-  page.value = 1
-  loadList()
+  reset()
 }
 
 function handleSelectionChange(selection: RoleItem[]) {
@@ -245,9 +239,6 @@ function handleBatchPermanentDelete() {
     .catch(() => {})
 }
 
-onMounted(() => {
-  loadList()
-})
 </script>
 
 <style scoped lang="scss">

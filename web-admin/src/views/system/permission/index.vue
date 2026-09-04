@@ -2,8 +2,8 @@
   <div class="page">
     <el-card shadow="never">
       <div class="search-bar">
-        <el-input v-model="search.keyword" placeholder="搜索权限名/编码" clearable style="width: 240px" @keyup.enter="loadList" />
-        <el-input v-model="search.resource" placeholder="按资源过滤" clearable style="width: 160px" @keyup.enter="loadList" />
+        <el-input v-model="query.keyword" placeholder="搜索权限名/编码" clearable style="width: 240px" @keyup.enter="loadList" />
+        <el-input v-model="query.resource" placeholder="按资源过滤" clearable style="width: 160px" @keyup.enter="loadList" />
         <el-button type="primary" @click="loadList"><el-icon><Search /></el-icon>查询</el-button>
         <el-button @click="resetSearch">重置</el-button>
         <div class="flex-1"></div>
@@ -76,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref } from 'vue'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -91,13 +91,31 @@ import {
   batchDeletePermissions,
   type PermissionItem
 } from '@/api/modules/permission'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
-const list = ref<PermissionItem[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(10)
-const loading = ref(false)
-const search = reactive({ keyword: '', resource: '' })
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<PermissionItem, { keyword: string; resource: string }>({
+  fetchList: async (params) =>
+    toPageResult(
+      await getPermissionList({
+        page: params.page,
+        page_size: params.page_size,
+        keyword: params.keyword || undefined,
+        resource: params.resource || undefined
+      })
+    ),
+  initialQuery: { keyword: '', resource: '' }
+})
+const loadList = reload
 const selectedIds = ref<string[]>([])
 
 const dialogVisible = ref(false)
@@ -112,23 +130,6 @@ const rules: FormRules = {
   code: [{ required: true, message: '请输入编码', trigger: 'blur' }],
   resource: [{ required: true, message: '请输入资源', trigger: 'blur' }],
   action: [{ required: true, message: '请输入操作', trigger: 'blur' }]
-}
-
-async function loadList() {
-  loading.value = true
-  try {
-    const params: any = { page: page.value, page_size: pageSize.value }
-    if (search.keyword) params.keyword = search.keyword
-    if (search.resource) params.resource = search.resource
-    const res: any = await getPermissionList(params)
-    list.value = res.data || []
-    total.value = res.pagination?.total || 0
-  } catch (e) {
-    list.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
 }
 
 function openCreateDialog() {
@@ -190,10 +191,7 @@ function handleSelectionChange(selection: PermissionItem[]) {
 }
 
 function resetSearch() {
-  search.keyword = ''
-  search.resource = ''
-  page.value = 1
-  loadList()
+  reset()
 }
 
 async function handleToggleStatus(row: PermissionItem) {
@@ -245,8 +243,6 @@ function handleBatchDisable() {
     })
     .catch(() => {})
 }
-
-onMounted(loadList)
 </script>
 
 <style scoped>

@@ -83,14 +83,17 @@ meteorx/
 │       │   │   ├── user_converter.go  # Model ↔ DTO 转换
 │       │   │   └── user_dto.go   # CreateUserReq/UpdateUserReq/UserResp 等
 │       │   ├── handler/
-│       │   │   └── user_handler.go   # HTTP Handler
+│       │   │   ├── user_handler.go   # HTTP Handler（租户用户/个人资料/密码/回收站）
+│       │   │   └── master_admin_users.go # 系统管理员/租户用户管理 Handler
 │       │   ├── model/
 │       │   │   └── user.go       # User 模型（GORM 映射）
 │       │   ├── repository/
 │       │   │   ├── interface.go   # Repository 接口定义
 │       │   │   └── user_repository.go # Repository 实现
 │       │   ├── service/
-│       │   │   └── user_service.go   # 业务逻辑
+│       │   │   ├── user_service.go   # 业务逻辑（租户用户 CRUD/角色绑定/校验）
+│       │   │   ├── master_admin_users.go # 系统管理员/租户用户管理/回收站
+│       │   │   └── password.go       # 修改密码/重置密码
 │       │   ├── module.go          # 模块装配
 │       │   └── routes.go          # 路由注册：/profile/*, /users/*, /admin/users/*, /admin/tenant-users/*
 │       │

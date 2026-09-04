@@ -2,7 +2,7 @@
   <div class="page">
     <el-card shadow="never">
       <div class="search-bar">
-        <el-input v-model="search.keyword" placeholder="搜索角色名" clearable style="width: 200px" @keyup.enter="loadList" />
+        <el-input v-model="query.keyword" placeholder="搜索角色名" clearable style="width: 200px" @keyup.enter="loadList" />
         <el-button type="primary" @click="loadList"><el-icon><Search /></el-icon>查询</el-button>
         <el-button @click="resetSearch">重置</el-button>
         <div class="flex-1"></div>
@@ -183,14 +183,33 @@ import {
 import type { PermissionItem } from '@/api/modules/permission'
 import { getPermissionList } from '@/api/modules/permission'
 import { useRouter } from 'vue-router'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
-const list = ref<RoleItem[]>([])
-const total = ref(0)
 const router = useRouter()
-const page = ref(1)
-const pageSize = ref(10)
-const loading = ref(false)
-const search = reactive({ keyword: '' })
+
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<RoleItem, { keyword: string }>({
+  fetchList: async (params) =>
+    toPageResult(
+      await getRoleList({
+        page: params.page,
+        page_size: params.page_size,
+        keyword: params.keyword || undefined
+      })
+    ),
+  initialQuery: { keyword: '' },
+  immediate: false
+})
+const loadList = reload
 const selectedIds = ref<string[]>([])
 
 const dialogVisible = ref(false)
@@ -217,22 +236,6 @@ const viewPermsDialogVisible = ref(false)
 const currentRolePerms = ref<PermissionItem[]>([])
 const selectedPermIds = ref<string[]>([])
 
-async function loadList() {
-  loading.value = true
-  try {
-    const params: any = { page: page.value, page_size: pageSize.value }
-    if (search.keyword) params.keyword = search.keyword
-    const res: any = await getRoleList(params)
-    list.value = res.data || []
-    total.value = res.pagination?.total || 0
-  } catch (e) {
-    list.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
 async function loadAllPermissions() {
   const res: any = await getPermissionList({ page: 1, page_size: 500 })
   const perms = (res.data || []) as PermissionItem[]
@@ -253,9 +256,7 @@ function openRecycleBin() {
 }
 
 function resetSearch() {
-  search.keyword = ''
-  page.value = 1
-  loadList()
+  reset()
 }
 
 function openCreateDialog() {

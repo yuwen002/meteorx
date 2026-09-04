@@ -4,18 +4,18 @@
       <!-- 工具栏 -->
       <div class="toolbar">
         <el-input
-          v-model="search.keyword"
+          v-model="query.keyword"
           placeholder="搜索公告标题"
           clearable
           style="width: 220px"
           @keyup.enter="loadList"
         />
-        <el-select v-model="search.status" placeholder="状态" clearable style="width: 140px">
+        <el-select v-model="query.status" placeholder="状态" clearable style="width: 140px">
           <el-option label="草稿" :value="0" />
           <el-option label="已发布" :value="1" />
           <el-option label="已下架" :value="2" />
         </el-select>
-        <el-select v-model="search.scope" placeholder="范围" clearable style="width: 140px">
+        <el-select v-model="query.scope" placeholder="范围" clearable style="width: 140px">
           <el-option label="全平台" value="all" />
           <el-option label="指定租户" value="tenant" />
         </el-select>
@@ -174,7 +174,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -185,21 +185,36 @@ import {
   updateAnnouncement,
   updateAnnouncementStatus,
   deleteAnnouncement,
-  getAnnouncementDetail
+  getAnnouncementDetail,
+  type AnnouncementItem
 } from '@/api/modules/announcement'
-import type { AnnouncementItem } from '@/api/modules/announcement'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
-const loading = ref(false)
-const list = ref<AnnouncementItem[]>([])
-const page = ref(1)
-const pageSize = ref(20)
-const total = ref(0)
-
-const search = reactive({
-  keyword: '',
-  status: undefined as number | undefined,
-  scope: ''
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<AnnouncementItem, { keyword: string; status?: number; scope: string }>({
+  fetchList: async (params) =>
+    toPageResult(
+      await getAnnouncementList({
+        page: params.page,
+        page_size: params.page_size,
+        keyword: params.keyword || undefined,
+        status: params.status,
+        scope: params.scope || undefined
+      })
+    ),
+  initialQuery: { keyword: '', status: undefined, scope: '' },
+  defaultPageSize: 20
 })
+const loadList = reload
 
 const dialogVisible = ref(false)
 const detailVisible = ref(false)
@@ -237,36 +252,8 @@ const rules: FormRules = {
   ]
 }
 
-onMounted(() => {
-  loadList()
-})
-
-async function loadList() {
-  loading.value = true
-  try {
-    const params: any = {
-      page: page.value,
-      page_size: pageSize.value,
-      keyword: search.keyword || undefined
-    }
-    if (search.status !== undefined) params.status = search.status
-    if (search.scope) params.scope = search.scope
-    const res = await getAnnouncementList(params)
-    list.value = res.data
-    total.value = res.pagination?.total ?? 0
-  } catch (error) {
-    console.error('加载公告列表失败', error)
-  } finally {
-    loading.value = false
-  }
-}
-
 function resetSearch() {
-  search.keyword = ''
-  search.status = undefined
-  search.scope = ''
-  page.value = 1
-  loadList()
+  reset()
 }
 
 function openCreate() {

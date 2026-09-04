@@ -221,20 +221,20 @@
       <!-- 搜索栏 -->
       <div class="search-bar">
         <el-input
-          v-model="search.keyword"
+          v-model="query.keyword"
           placeholder="搜索路径/用户名"
           clearable
           style="width: 200px"
           @keyup.enter="loadList"
         />
-        <el-select v-model="search.module" placeholder="模块" clearable style="width: 140px">
+        <el-select v-model="query.module" placeholder="模块" clearable style="width: 140px">
           <el-option label="认证" value="auth" />
           <el-option label="用户" value="user" />
           <el-option label="租户" value="tenant" />
           <el-option label="权限" value="rbac" />
           <el-option label="审计" value="audit" />
         </el-select>
-        <el-select v-model="search.action" placeholder="操作类型" clearable style="width: 140px">
+        <el-select v-model="query.action" placeholder="操作类型" clearable style="width: 140px">
           <el-option label="创建" value="create" />
           <el-option label="更新" value="update" />
           <el-option label="删除" value="delete" />
@@ -243,18 +243,18 @@
           <el-option label="登出" value="logout" />
           <el-option label="其他" value="other" />
         </el-select>
-        <el-select v-model="search.result" placeholder="结果" clearable style="width: 120px">
+        <el-select v-model="query.result" placeholder="结果" clearable style="width: 120px">
           <el-option label="成功" value="success" />
           <el-option label="失败" value="failure" />
         </el-select>
-        <el-select v-model="search.risk_level" placeholder="风险等级" clearable style="width: 140px">
+        <el-select v-model="query.risk_level" placeholder="风险等级" clearable style="width: 140px">
           <el-option label="低风险" value="low" />
           <el-option label="中风险" value="medium" />
           <el-option label="高风险" value="high" />
           <el-option label="严重风险" value="critical" />
         </el-select>
         <el-date-picker
-          v-model="search.dateRange"
+          v-model="query.dateRange"
           type="daterange"
           range-separator="至"
           start-placeholder="开始日期"
@@ -271,13 +271,13 @@
         </el-button>
         <div class="flex-1"></div>
         <el-button-group>
-          <el-button :type="search.action === 'login' ? 'primary' : 'default'" @click="quickFilter('login')">
+          <el-button :type="query.action === 'login' ? 'primary' : 'default'" @click="quickFilter('login')">
             <el-icon><User /></el-icon>登录日志
           </el-button>
-          <el-button :type="search.action === 'logout' ? 'primary' : 'default'" @click="quickFilter('logout')">
+          <el-button :type="query.action === 'logout' ? 'primary' : 'default'" @click="quickFilter('logout')">
             <el-icon><SwitchButton /></el-icon>登出日志
           </el-button>
-          <el-button :type="search.action === '' ? 'primary' : 'default'" @click="quickFilter('')">
+          <el-button :type="query.action === '' ? 'primary' : 'default'" @click="quickFilter('')">
             <el-icon><Document /></el-icon>全部
           </el-button>
         </el-button-group>
@@ -424,22 +424,49 @@ import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Document, Calendar, CircleCheck, CircleClose, Search, Delete, Download, User, SwitchButton } from '@element-plus/icons-vue'
 import { getAuditLogList, getAuditDashboard, cleanupAuditLogs, exportAuditLogs } from '@/api/modules/audit'
 import type { AuditLogItem, AuditDashboardData } from '@/api/modules/audit'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
-const loading = ref(false)
-const list = ref<AuditLogItem[]>([])
-const page = ref(1)
-const pageSize = ref(20)
-const total = ref(0)
 const trendDays = ref(7)
 
-const search = reactive({
-  keyword: '',
-  module: '',
-  action: '',
-  result: '',
-  risk_level: '',
-  dateRange: [] as string[]
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<
+  AuditLogItem,
+  { keyword: string; module: string; action: string; result: string; risk_level: string; dateRange: string[] }
+>({
+  fetchList: async (params) => {
+    const res = await getAuditLogList({
+      page: params.page,
+      page_size: params.page_size,
+      keyword: params.keyword || undefined,
+      module: params.module || undefined,
+      action: params.action || undefined,
+      result: params.result || undefined,
+      risk_level: params.risk_level || undefined,
+      start_time: params.dateRange.length === 2 ? params.dateRange[0] + ' 00:00:00' : undefined,
+      end_time: params.dateRange.length === 2 ? params.dateRange[1] + ' 23:59:59' : undefined
+    })
+    return toPageResult(res)
+  },
+  initialQuery: {
+    keyword: '',
+    module: '',
+    action: '',
+    result: '',
+    risk_level: '',
+    dateRange: []
+  },
+  defaultPageSize: 20
 })
+const loadList = reload
 
 const dashboard = ref<AuditDashboardData>({
   total_count: 0,
@@ -517,32 +544,6 @@ onMounted(() => {
   loadDashboard()
 })
 
-async function loadList() {
-  loading.value = true
-  try {
-    const params: any = {
-      page: page.value,
-      page_size: pageSize.value,
-      keyword: search.keyword || undefined,
-      module: search.module || undefined,
-      action: search.action || undefined,
-      result: search.result || undefined,
-      risk_level: search.risk_level || undefined
-    }
-    if (search.dateRange && search.dateRange.length === 2) {
-      params.start_time = search.dateRange[0] + ' 00:00:00'
-      params.end_time = search.dateRange[1] + ' 23:59:59'
-    }
-    const res = await getAuditLogList(params)
-    list.value = res.items
-    total.value = res.total
-  } catch (error) {
-    console.error('加载审计日志失败', error)
-  } finally {
-    loading.value = false
-  }
-}
-
 async function loadDashboard() {
   try {
     const res = await getAuditDashboard(trendDays.value)
@@ -553,20 +554,13 @@ async function loadDashboard() {
 }
 
 function resetSearch() {
-  search.keyword = ''
-  search.module = ''
-  search.action = ''
-  search.result = ''
-  search.risk_level = ''
-  search.dateRange = []
-  page.value = 1
-  loadList()
+  reset()
 }
 
 function quickFilter(action: string) {
-  search.action = action
+  query.action = action
   page.value = 1
-  loadList()
+  void reload()
 }
 
 function openDetail(row: AuditLogItem) {
@@ -720,14 +714,14 @@ function getRiskLevelLabel(level: string): string {
 function handleExport() {
   const params: any = {
     format: 'csv',
-    module: search.module || undefined,
-    action: search.action || undefined,
-    result: search.result || undefined,
-    keyword: search.keyword || undefined
+    module: query.module || undefined,
+    action: query.action || undefined,
+    result: query.result || undefined,
+    keyword: query.keyword || undefined
   }
-  if (search.dateRange && search.dateRange.length === 2) {
-    params.start_time = search.dateRange[0] + ' 00:00:00'
-    params.end_time = search.dateRange[1] + ' 23:59:59'
+  if (query.dateRange.length === 2) {
+    params.start_time = query.dateRange[0] + ' 00:00:00'
+    params.end_time = query.dateRange[1] + ' 23:59:59'
   }
   
   const exportUrl = exportAuditLogs(params)

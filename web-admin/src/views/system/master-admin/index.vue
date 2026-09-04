@@ -5,14 +5,14 @@
       <div class="search-bar">
         <div class="search-left">
           <el-input
-            v-model="search.keyword"
+            v-model="query.keyword"
             placeholder="搜索用户名/昵称"
             clearable
             style="width: 220px"
             @keyup.enter="loadList"
           />
           <el-select
-            v-model="search.status"
+            v-model="query.status"
             placeholder="状态"
             clearable
             style="width: 120px"
@@ -201,17 +201,33 @@ import {
   type MasterAdminUpdateParams
 } from '@/api/modules/user'
 import { getSystemAdminRoles, type RoleOption } from '@/api/modules/role'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
 const router = useRouter()
 
-const loading = ref(false)
-const list = ref<UserItem[]>([])
-const page = ref(1)
-const pageSize = ref(10)
-const total = ref(0)
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<UserItem, { keyword: string; status?: number }>({
+  fetchList: async (params) => {
+    const req: any = { page: params.page, page_size: params.page_size }
+    if (params.keyword) req.keyword = params.keyword
+    if (params.status !== undefined && params.status !== null) req.status = params.status
+    const res = await getMasterAdminList(req)
+    return toPageResult(res)
+  },
+  initialQuery: { keyword: '', status: undefined },
+  immediate: false
+})
+const loadList = reload
 const selectedIds = ref<string[]>([])
-
-const search = reactive({ keyword: '', status: undefined as number | undefined })
 
 // 系统保护用户ID列表（初始管理员，不允许删除）
 const protectedUserIDs = ['admin-id-000001']
@@ -254,29 +270,8 @@ const rules: FormRules = {
   role_id: [{ required: true, message: '请选择角色', trigger: 'change' }]
 }
 
-async function loadList() {
-  loading.value = true
-  try {
-    const params: any = { page: page.value, page_size: pageSize.value }
-    if (search.keyword) params.keyword = search.keyword
-    if (search.status !== undefined && search.status !== null) params.status = search.status
-    const res: any = await getMasterAdminList(params)
-    // 适配后端分页数据结构: { data: [...], pagination: { page, page_size, total } }
-    list.value = res.data || []
-    total.value = res.pagination?.total || 0
-  } catch (e) {
-    list.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
 function resetSearch() {
-  search.keyword = ''
-  search.status = undefined
-  page.value = 1
-  loadList()
+  reset()
 }
 
 function handleSelectionChange(selection: UserItem[]) {

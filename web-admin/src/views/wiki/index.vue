@@ -3,7 +3,7 @@
     <el-card shadow="never">
       <div class="search-bar">
         <el-input
-          v-model="search.keyword"
+          v-model="query.keyword"
           placeholder="搜索空间名称"
           clearable
           style="width: 240px"
@@ -89,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -101,14 +101,25 @@ import {
   deleteSpace,
   type WikiSpace
 } from '@/api/modules/wiki'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
-const list = ref<WikiSpace[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(12)
-const loading = ref(false)
-
-const search = reactive({ keyword: '' })
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<WikiSpace, { keyword: string }>({
+  fetchList: async (params) =>
+    toPageResult(await listSpaces({ page: params.page, page_size: params.page_size })),
+  initialQuery: { keyword: '' },
+  defaultPageSize: 12
+})
+const loadList = reload
 
 const dialogVisible = ref(false)
 const formRef = ref<FormInstance>()
@@ -119,24 +130,8 @@ const formRules: FormRules = {
   name: [{ required: true, message: '请输入空间名称', trigger: 'blur' }]
 }
 
-async function loadList() {
-  loading.value = true
-  try {
-    const res = await listSpaces({ page: page.value, page_size: pageSize.value })
-    list.value = res.data || []
-    total.value = res.pagination?.total || 0
-  } catch (e) {
-    list.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
 function resetSearch() {
-  search.keyword = ''
-  page.value = 1
-  loadList()
+  reset()
 }
 
 function goDetail(id: string) {
@@ -193,7 +188,6 @@ function handleDelete(item: WikiSpace) {
     .catch(() => {})
 }
 
-onMounted(loadList)
 </script>
 
 <style scoped>

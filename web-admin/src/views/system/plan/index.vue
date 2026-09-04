@@ -2,8 +2,8 @@
   <div class="page">
     <el-card shadow="never">
       <div class="search-bar">
-        <el-input v-model="search.keyword" placeholder="搜索套餐名/编码" clearable style="width: 240px" @keyup.enter="loadList" />
-        <el-select v-model="search.status" placeholder="状态" clearable style="width: 130px">
+        <el-input v-model="query.keyword" placeholder="搜索套餐名/编码" clearable style="width: 240px" @keyup.enter="loadList" />
+        <el-select v-model="query.status" placeholder="状态" clearable style="width: 130px">
           <el-option label="启用" :value="1" />
           <el-option label="停用" :value="0" />
         </el-select>
@@ -101,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref } from 'vue'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -113,13 +113,31 @@ import {
   deletePlan,
   type PlanItem
 } from '@/api/modules/plan'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
-const list = ref<PlanItem[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(10)
-const loading = ref(false)
-const search = reactive<{ keyword: string; status?: number }>({ keyword: '', status: undefined })
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<PlanItem, { keyword: string; status?: number }>({
+  fetchList: async (params) =>
+    toPageResult(
+      await getPlanList({
+        page: params.page,
+        page_size: params.page_size,
+        keyword: params.keyword || undefined,
+        status: params.status
+      })
+    ),
+  initialQuery: { keyword: '', status: undefined }
+})
+const loadList = reload
 
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
@@ -139,23 +157,6 @@ const rules: FormRules = {
   name: [{ required: true, message: '请输入套餐名称', trigger: 'blur' }],
   code: [{ required: true, message: '请输入套餐编码', trigger: 'blur' }],
   user_limit: [{ required: true, message: '请输入用户数上限', trigger: 'blur' }]
-}
-
-async function loadList() {
-  loading.value = true
-  try {
-    const params: any = { page: page.value, page_size: pageSize.value }
-    if (search.keyword) params.keyword = search.keyword
-    if (search.status !== undefined && search.status !== null) params.status = search.status
-    const res: any = await getPlanList(params)
-    list.value = res.data || res.list || []
-    total.value = res.pagination?.total || 0
-  } catch (e) {
-    list.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
 }
 
 function openCreateDialog() {
@@ -215,10 +216,7 @@ function handleDelete(row: PlanItem) {
 }
 
 function resetSearch() {
-  search.keyword = ''
-  search.status = undefined
-  page.value = 1
-  loadList()
+  reset()
 }
 
 async function handleToggleStatus(row: PlanItem) {
@@ -234,8 +232,6 @@ async function handleToggleStatus(row: PlanItem) {
     // 用户取消或请求失败
   }
 }
-
-onMounted(loadList)
 </script>
 
 <style scoped>

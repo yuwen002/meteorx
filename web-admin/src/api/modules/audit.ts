@@ -85,6 +85,7 @@ export function getAuditLogList(params: {
   module?: string
   action?: string
   result?: string
+  risk_level?: string
   start_time?: string
   end_time?: string
   keyword?: string

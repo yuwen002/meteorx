@@ -55,15 +55,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { listTenantAnnouncements, type AnnouncementItem } from '@/api/modules/announcement'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
-const loading = ref(false)
-const list = ref<AnnouncementItem[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(10)
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  reload
+} = useTableList<AnnouncementItem>({
+  fetchList: async (params) =>
+    toPageResult(await listTenantAnnouncements({ page: params.page, page_size: params.page_size }))
+})
+const loadList = reload
 
 const detailVisible = ref(false)
 const currentItem = ref<AnnouncementItem | null>(null)
@@ -87,27 +96,11 @@ function formatDate(dateStr: string | undefined | null) {
   })
 }
 
-async function loadList() {
-  loading.value = true
-  try {
-    const res = await listTenantAnnouncements({ page: page.value, page_size: pageSize.value })
-    list.value = res.data || []
-    total.value = res.pagination?.total || 0
-  } catch (e) {
-    list.value = []
-    total.value = 0
-    ElMessage.error('加载公告列表失败')
-  } finally {
-    loading.value = false
-  }
-}
-
 function handleView(row: AnnouncementItem) {
   currentItem.value = row
   detailVisible.value = true
 }
 
-onMounted(loadList)
 </script>
 
 <style scoped>

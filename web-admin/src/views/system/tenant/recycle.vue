@@ -17,7 +17,7 @@
       <!-- 搜索栏 -->
       <div class="search-bar">
         <el-input
-          v-model="search.name"
+          v-model="query.name"
           placeholder="搜索租户名称"
           clearable
           style="width: 220px"
@@ -103,7 +103,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -114,17 +114,30 @@ import {
   type TenantItem,
   type TenantListParams
 } from '@/api/modules/tenant'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
 const router = useRouter()
 
-const loading = ref(false)
-const list = ref<TenantItem[]>([])
-const page = ref(1)
-const pageSize = ref(10)
-const total = ref(0)
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<TenantItem, { name: string }>({
+  fetchList: async (params) => {
+    const req: TenantListParams = { page: params.page, page_size: params.page_size }
+    if (params.name) req.name = params.name
+    return toPageResult(await getDeletedTenantList(req))
+  },
+  initialQuery: { name: '' }
+})
+const loadList = reload
 const selectedIds = ref<string[]>([])
-
-const search = reactive({ name: '' })
 
 function goBack() {
   router.push('/system/tenant')
@@ -145,26 +158,8 @@ function formatDate(dateStr?: string) {
   return date.toLocaleString('zh-CN')
 }
 
-async function loadList() {
-  loading.value = true
-  try {
-    const params: TenantListParams = { page: page.value, page_size: pageSize.value }
-    if (search.name) params.name = search.name
-    const res: any = await getDeletedTenantList(params)
-    list.value = res.data || []
-    total.value = res.pagination?.total || 0
-  } catch (e) {
-    list.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
 function resetSearch() {
-  search.name = ''
-  page.value = 1
-  loadList()
+  reset()
 }
 
 function handleSelectionChange(selection: TenantItem[]) {
@@ -212,9 +207,6 @@ function handleBatchRestore() {
     .catch(() => {})
 }
 
-onMounted(() => {
-  loadList()
-})
 </script>
 
 <style scoped lang="scss">

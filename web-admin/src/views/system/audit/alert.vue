@@ -126,7 +126,7 @@
 
       <!-- 搜索栏 -->
       <div class="search-bar">
-        <el-select v-model="alertSearch.rule_id" placeholder="告警规则" clearable style="width: 180px">
+        <el-select v-model="query.rule_id" placeholder="告警规则" clearable style="width: 180px">
           <el-option
             v-for="rule in rules"
             :key="rule.id"
@@ -134,13 +134,13 @@
             :value="rule.id"
           />
         </el-select>
-        <el-select v-model="alertSearch.risk_level" placeholder="风险等级" clearable style="width: 140px">
+        <el-select v-model="query.risk_level" placeholder="风险等级" clearable style="width: 140px">
           <el-option label="低风险" value="low" />
           <el-option label="中风险" value="medium" />
           <el-option label="高风险" value="high" />
           <el-option label="严重风险" value="critical" />
         </el-select>
-        <el-input v-model="alertSearch.user_id" placeholder="用户ID" clearable style="width: 200px" />
+        <el-input v-model="query.user_id" placeholder="用户ID" clearable style="width: 200px" />
         <el-button type="primary" @click="loadAlerts">
           <el-icon><Search /></el-icon>查询
         </el-button>
@@ -257,6 +257,8 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Bell, CircleCheck, Warning, Message, Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { get, post, put, del } from '@/api/request'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
 interface AlertRule {
   id: string
@@ -289,17 +291,37 @@ interface AlertRecord {
 }
 
 const rules = ref<AlertRule[]>([])
-const alerts = ref<AlertRecord[]>([])
-const alertLoading = ref(false)
-const alertPage = ref(1)
-const alertPageSize = ref(20)
-const alertTotal = ref(0)
 
-const alertSearch = reactive({
-  rule_id: '',
-  user_id: '',
-  risk_level: ''
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<AlertRecord, { rule_id: string; user_id: string; risk_level: string }>({
+  fetchList: async (params) => {
+    const res = await get('/audit/alerts', {
+      page: params.page,
+      page_size: params.page_size,
+      rule_id: params.rule_id || undefined,
+      user_id: params.user_id || undefined,
+      risk_level: params.risk_level || undefined
+    })
+    return toPageResult(res)
+  },
+  initialQuery: { rule_id: '', user_id: '', risk_level: '' },
+  defaultPageSize: 20,
+  immediate: false
 })
+const alerts = list
+const alertLoading = loading
+const alertPage = page
+const alertPageSize = pageSize
+const alertTotal = total
+const loadAlerts = reload
 
 const ruleDialogVisible = ref(false)
 const isEditRule = ref(false)
@@ -338,32 +360,8 @@ async function loadRules() {
   }
 }
 
-async function loadAlerts() {
-  alertLoading.value = true
-  try {
-    const params: any = {
-      page: alertPage.value,
-      page_size: alertPageSize.value,
-      rule_id: alertSearch.rule_id || undefined,
-      user_id: alertSearch.user_id || undefined,
-      risk_level: alertSearch.risk_level || undefined
-    }
-    const res = await get('/audit/alerts', params)
-    alerts.value = res.items || []
-    alertTotal.value = res.total || 0
-  } catch (error) {
-    console.error('加载告警记录失败', error)
-  } finally {
-    alertLoading.value = false
-  }
-}
-
 function resetAlertSearch() {
-  alertSearch.rule_id = ''
-  alertSearch.user_id = ''
-  alertSearch.risk_level = ''
-  alertPage.value = 1
-  loadAlerts()
+  reset()
 }
 
 function openCreateRule() {

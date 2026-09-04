@@ -4,14 +4,14 @@
       <!-- 搜索栏 -->
       <div class="search-bar">
         <el-input
-          v-model="search.keyword"
+          v-model="query.keyword"
           placeholder="搜索文件名"
           clearable
           style="width: 220px"
           @keyup.enter="loadList"
         />
         <el-select
-          v-model="search.file_type"
+          v-model="query.file_type"
           placeholder="文件类型"
           clearable
           style="width: 120px"
@@ -154,7 +154,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules, UploadInstance, UploadUserFile } from 'element-plus'
@@ -171,6 +171,8 @@ import {
   getDeletedFileList,
   type FileItem
 } from '@/api/modules/file'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
 const userStore = useUserStore()
 
@@ -178,14 +180,31 @@ const userStore = useUserStore()
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 与后端 config.yaml 对齐
 const MAX_UPLOAD_COUNT = 10
 
-const list = ref<FileItem[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(10)
-const loading = ref(false)
 const isRecycleBin = ref(false)
 
-const search = reactive({ keyword: '', file_type: '' })
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<FileItem, { keyword: string; file_type: string }>({
+  fetchList: async (params) => {
+    const listReq = {
+      page: params.page,
+      page_size: params.page_size,
+      keyword: params.keyword || undefined,
+      file_type: params.file_type || undefined
+    }
+    const res = isRecycleBin.value ? await getDeletedFileList(listReq) : await getFileList(listReq)
+    return toPageResult(res)
+  },
+  initialQuery: { keyword: '', file_type: '' }
+})
+const loadList = reload
 
 // 上传相关
 const uploadDialogVisible = ref(false)
@@ -209,37 +228,14 @@ const editRules: FormRules = {
   file_name: [{ required: true, message: '请输入文件名', trigger: 'blur' }]
 }
 
-async function loadList() {
-  loading.value = true
-  try {
-    const params: any = { page: page.value, page_size: pageSize.value }
-    if (search.keyword) params.keyword = search.keyword
-    if (search.file_type) params.file_type = search.file_type
-    
-    const res = isRecycleBin.value 
-      ? await getDeletedFileList(params)
-      : await getFileList(params)
-    
-    list.value = res.data || []
-    total.value = res.pagination?.total || 0
-  } catch (e) {
-    list.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
 function toggleRecycleBin() {
   isRecycleBin.value = !isRecycleBin.value
   page.value = 1
-  loadList()
+  void reload()
 }
 
 function resetSearch() {
-  search.keyword = ''
-  search.file_type = ''
-  loadList()
+  reset()
 }
 
 function openUploadDialog() {
@@ -440,7 +436,6 @@ function formatFileSize(bytes: number) {
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
 }
 
-onMounted(loadList)
 </script>
 
 <style scoped>

@@ -4,13 +4,13 @@
       <!-- 搜索栏 -->
       <div class="search-bar">
         <el-input
-          v-model="search.keyword"
+          v-model="query.keyword"
           placeholder="搜索租户名称/ID"
           clearable
           style="width: 220px"
           @keyup.enter="loadList"
         />
-        <el-select v-model="search.status" placeholder="状态" clearable style="width: 130px">
+        <el-select v-model="query.status" placeholder="状态" clearable style="width: 130px">
           <el-option label="待审批" :value="1" />
           <el-option label="已通过" :value="2" />
           <el-option label="已驳回" :value="3" />
@@ -128,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
@@ -138,16 +138,31 @@ import {
   rejectCancelRequest,
   type CancelRequestItem
 } from '@/api/modules/tenant'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
-const loading = ref(false)
-const list = ref<CancelRequestItem[]>([])
-const page = ref(1)
-const pageSize = ref(10)
-const total = ref(0)
-const search = reactive({
-  keyword: '',
-  status: undefined as number | undefined
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<CancelRequestItem, { keyword: string; status?: number }>({
+  fetchList: async (params) =>
+    toPageResult(
+      await getCancelRequestList({
+        page: params.page,
+        page_size: params.page_size,
+        keyword: params.keyword || undefined,
+        status: params.status
+      })
+    ),
+  initialQuery: { keyword: '', status: undefined }
 })
+const loadList = reload
 
 const approveVisible = ref(false)
 const rejectVisible = ref(false)
@@ -166,32 +181,8 @@ const rejectRules: FormRules = {
   review_remark: [{ required: true, message: '请输入驳回原因', trigger: 'blur' }]
 }
 
-onMounted(() => {
-  loadList()
-})
-
-async function loadList() {
-  loading.value = true
-  try {
-    const params: any = { page: page.value, page_size: pageSize.value }
-    if (search.keyword) params.keyword = search.keyword
-    if (search.status !== undefined) params.status = search.status
-    const res: any = await getCancelRequestList(params)
-    list.value = res.data || []
-    total.value = res.pagination?.total || 0
-  } catch (e) {
-    list.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
 function resetSearch() {
-  search.keyword = ''
-  search.status = undefined
-  page.value = 1
-  loadList()
+  reset()
 }
 
 function openApprove(row: CancelRequestItem) {

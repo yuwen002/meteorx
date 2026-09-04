@@ -4,13 +4,13 @@
       <!-- 搜索栏 -->
       <div class="search-bar">
         <el-input
-          v-model="search.name"
+          v-model="query.name"
           placeholder="搜索租户名称"
           clearable
           style="width: 220px"
           @keyup.enter="loadList"
         />
-        <el-select v-model="search.status" placeholder="状态" clearable style="width: 120px">
+        <el-select v-model="query.status" placeholder="状态" clearable style="width: 120px">
           <el-option label="启用" :value="1" />
           <el-option label="禁用" :value="0" />
         </el-select>
@@ -501,7 +501,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, onMounted } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -538,15 +538,32 @@ import {
 import { getAuditLogList, type AuditLogItem } from '@/api/modules/audit'
 import { getRolesForSelect, getUserRoles, removeUserRole, removeAllUserRoles, type RoleItem } from '@/api/modules/role'
 import { getPlanSelect, getTenantPlan, assignTenantPlan, type PlanItem, type CurrentPlan } from '@/api/modules/plan'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
 const router = useRouter()
 
-const list = ref<TenantItem[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(10)
-const loading = ref(false)
-const search = reactive({ name: '', status: undefined as number | undefined })
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<TenantItem, { name: string; status?: number }>({
+  fetchList: async (params) => {
+    const req: any = { page: params.page, page_size: params.page_size }
+    if (params.name) req.name = params.name
+    if (params.status !== undefined && params.status !== null) req.status = params.status
+    const res = await getTenantList(req)
+    return toPageResult(res)
+  },
+  initialQuery: { name: '', status: undefined },
+  immediate: false
+})
+const loadList = reload
 const selectedIds = ref<string[]>([])
 
 const dialogVisible = ref(false)
@@ -714,28 +731,8 @@ const rules: FormRules = {
   'admin_user.nickname': [{ required: true, message: '请输入管理员昵称', trigger: 'blur' }]
 }
 
-async function loadList() {
-  loading.value = true
-  try {
-    const params: any = { page: page.value, page_size: pageSize.value }
-    if (search.name) params.name = search.name
-    if (search.status !== undefined) params.status = search.status
-    const res: any = await getTenantList(params)
-    list.value = res.data || []
-    total.value = res.pagination?.total || 0
-  } catch (e) {
-    list.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
 function resetSearch() {
-  search.name = ''
-  search.status = undefined
-  page.value = 1
-  loadList()
+  reset()
 }
 
 function handleSelectionChange(selection: TenantItem[]) {

@@ -2,7 +2,7 @@
   <div class="page">
     <el-card shadow="never" class="search-card">
       <div class="search-bar">
-        <el-input v-model="search.user_id" placeholder="用户ID" clearable style="width: 200px" />
+        <el-input v-model="query.user_id" placeholder="用户ID" clearable style="width: 200px" />
         <el-button type="primary" @click="loadSessions">
           <el-icon><Search /></el-icon>查询
         </el-button>
@@ -123,9 +123,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref } from 'vue'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { get } from '@/api/request'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
 interface SessionSummary {
   session_id: string
@@ -144,45 +146,35 @@ interface SessionDetail extends SessionSummary {
   logs: any[]
 }
 
-const loading = ref(false)
-const sessions = ref<SessionSummary[]>([])
-const page = ref(1)
-const pageSize = ref(20)
-const total = ref(0)
-
-const search = reactive({
-  user_id: ''
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<SessionSummary, { user_id: string }>({
+  fetchList: async (params) => {
+    const res = await get('/audit/sessions', {
+      page: params.page,
+      page_size: params.page_size,
+      user_id: params.user_id || undefined
+    })
+    return toPageResult(res)
+  },
+  initialQuery: { user_id: '' },
+  defaultPageSize: 20
 })
+const loadSessions = reload
+const sessions = list
 
 const detailVisible = ref(false)
 const sessionDetail = ref<SessionDetail | null>(null)
 
-onMounted(() => {
-  loadSessions()
-})
-
-async function loadSessions() {
-  loading.value = true
-  try {
-    const params: any = {
-      page: page.value,
-      page_size: pageSize.value,
-      user_id: search.user_id || undefined
-    }
-    const res = await get('/audit/sessions', params)
-    sessions.value = res.items || []
-    total.value = res.total || 0
-  } catch (error) {
-    console.error('加载会话列表失败', error)
-  } finally {
-    loading.value = false
-  }
-}
-
 function resetSearch() {
-  search.user_id = ''
-  page.value = 1
-  loadSessions()
+  reset()
 }
 
 async function openSessionDetail(sessionId: string) {
