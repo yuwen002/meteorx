@@ -1,4 +1,4 @@
-import { get, post, put, del, type ApiResult } from '@/api/request'
+import { get, post, put, del } from '@/api/request'
 import type { PermissionItem } from './permission'
 
 export interface RoleItem {

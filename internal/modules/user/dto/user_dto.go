@@ -98,7 +98,7 @@ type UpdateUserStatusReq struct {
 // BatchUpdateUserStatusReq 批量更新用户状态请求
 type BatchUpdateUserStatusReq struct {
 	IDs    []string `json:"ids" validate:"required,min=1"` // 用户ID列表
-	Status int      `json:"status" validate:"oneof=0 1"`    // 状态: 1-启用 0-禁用
+	Status int      `json:"status" validate:"oneof=0 1"`   // 状态: 1-启用 0-禁用
 }
 
 // BatchDeleteUsersReq 批量删除用户请求

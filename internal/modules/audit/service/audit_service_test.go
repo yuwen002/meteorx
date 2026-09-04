@@ -33,18 +33,18 @@ func TestAuditServiceSuite(t *testing.T) {
 // TestCreateLog 测试创建审计日志
 func (s *AuditServiceTestSuite) TestCreateLog() {
 	req := dto.CreateAuditLogReq{
-		UserID:    "user-001",
-		Username:  "admin",
-		TenantID:  "tenant-001",
-		Module:    "user",
-		Action:    model.ActionTypeCreate,
-		Resource:  "/api/v1/users",
-		Method:    "POST",
-		Path:      "/api/v1/users",
+		UserID:     "user-001",
+		Username:   "admin",
+		TenantID:   "tenant-001",
+		Module:     "user",
+		Action:     model.ActionTypeCreate,
+		Resource:   "/api/v1/users",
+		Method:     "POST",
+		Path:       "/api/v1/users",
 		StatusCode: 200,
-		Result:    model.ResultSuccess,
-		ClientIP:  "127.0.0.1",
-		Duration:  100,
+		Result:     model.ResultSuccess,
+		ClientIP:   "127.0.0.1",
+		Duration:   100,
 	}
 
 	log, err := s.svc.CreateLog(s.ctx, req)
@@ -64,12 +64,12 @@ func (s *AuditServiceTestSuite) TestCreateLog() {
 func (s *AuditServiceTestSuite) TestGetLog() {
 	// 先创建一条日志
 	req := dto.CreateAuditLogReq{
-		UserID:    "user-001",
-		Username:  "admin",
-		Module:    "user",
-		Action:    model.ActionTypeCreate,
+		UserID:     "user-001",
+		Username:   "admin",
+		Module:     "user",
+		Action:     model.ActionTypeCreate,
 		StatusCode: 200,
-		Result:    model.ResultSuccess,
+		Result:     model.ResultSuccess,
 	}
 	created, _ := s.svc.CreateLog(s.ctx, req)
 
@@ -97,12 +97,12 @@ func (s *AuditServiceTestSuite) TestListLogs() {
 	actions := []string{model.ActionTypeCreate, model.ActionTypeUpdate, model.ActionTypeDelete}
 	for i, action := range actions {
 		req := dto.CreateAuditLogReq{
-			UserID:    "user-001",
-			Username:  "admin",
-			Module:    "user",
-			Action:    action,
+			UserID:     "user-001",
+			Username:   "admin",
+			Module:     "user",
+			Action:     action,
 			StatusCode: 200,
-			Result:    model.ResultSuccess,
+			Result:     model.ResultSuccess,
 		}
 		if i == 2 {
 			req.Result = model.ResultFailure
@@ -141,12 +141,12 @@ func (s *AuditServiceTestSuite) TestListLogsPagination() {
 	// 创建5条日志
 	for i := 0; i < 5; i++ {
 		req := dto.CreateAuditLogReq{
-			UserID:    "user-001",
-			Username:  "admin",
-			Module:    "user",
-			Action:    model.ActionTypeCreate,
+			UserID:     "user-001",
+			Username:   "admin",
+			Module:     "user",
+			Action:     model.ActionTypeCreate,
 			StatusCode: 200,
-			Result:    model.ResultSuccess,
+			Result:     model.ResultSuccess,
 		}
 		_, err := s.svc.CreateLog(s.ctx, req)
 		s.NoError(err)
@@ -189,12 +189,12 @@ func (s *AuditServiceTestSuite) TestGetStats() {
 
 	for _, tc := range testCases {
 		req := dto.CreateAuditLogReq{
-			UserID:    "user-001",
-			Username:  "admin",
-			Module:    tc.module,
-			Action:    tc.action,
+			UserID:     "user-001",
+			Username:   "admin",
+			Module:     tc.module,
+			Action:     tc.action,
 			StatusCode: 200,
-			Result:    tc.result,
+			Result:     tc.result,
 		}
 		_, err := s.svc.CreateLog(s.ctx, req)
 		s.NoError(err)
@@ -214,12 +214,12 @@ func (s *AuditServiceTestSuite) TestCleanupLogs() {
 	// 创建日志
 	for i := 0; i < 5; i++ {
 		req := dto.CreateAuditLogReq{
-			UserID:    "user-001",
-			Username:  "admin",
-			Module:    "user",
-			Action:    model.ActionTypeCreate,
+			UserID:     "user-001",
+			Username:   "admin",
+			Module:     "user",
+			Action:     model.ActionTypeCreate,
 			StatusCode: 200,
-			Result:    model.ResultSuccess,
+			Result:     model.ResultSuccess,
 		}
 		_, err := s.svc.CreateLog(s.ctx, req)
 		s.NoError(err)
@@ -276,13 +276,13 @@ func (s *AuditServiceTestSuite) TestCreateLogWithErrorMessage() {
 // TestCreateLogWithDuration 测试耗时记录
 func (s *AuditServiceTestSuite) TestCreateLogWithDuration() {
 	req := dto.CreateAuditLogReq{
-		UserID:    "user-001",
-		Username:  "admin",
-		Module:    "user",
-		Action:    model.ActionTypeQuery,
+		UserID:     "user-001",
+		Username:   "admin",
+		Module:     "user",
+		Action:     model.ActionTypeQuery,
 		StatusCode: 200,
-		Result:    model.ResultSuccess,
-		Duration:  150,
+		Result:     model.ResultSuccess,
+		Duration:   150,
 	}
 
 	log, err := s.svc.CreateLog(s.ctx, req)
@@ -298,13 +298,13 @@ func (s *AuditServiceTestSuite) TestListLogsWithKeyword() {
 	paths := []string{"/api/v1/users", "/api/v1/tenants", "/api/v1/roles"}
 	for _, path := range paths {
 		req := dto.CreateAuditLogReq{
-			UserID:    "user-001",
-			Username:  "admin",
-			Module:    "user",
-			Action:    model.ActionTypeQuery,
-			Path:      path,
+			UserID:     "user-001",
+			Username:   "admin",
+			Module:     "user",
+			Action:     model.ActionTypeQuery,
+			Path:       path,
 			StatusCode: 200,
-			Result:    model.ResultSuccess,
+			Result:     model.ResultSuccess,
 		}
 		_, err := s.svc.CreateLog(s.ctx, req)
 		s.NoError(err)
@@ -324,12 +324,12 @@ func BenchmarkCreateLog(b *testing.B) {
 	ctx := context.Background()
 
 	req := dto.CreateAuditLogReq{
-		UserID:    "user-001",
-		Username:  "admin",
-		Module:    "user",
-		Action:    model.ActionTypeCreate,
+		UserID:     "user-001",
+		Username:   "admin",
+		Module:     "user",
+		Action:     model.ActionTypeCreate,
 		StatusCode: 200,
-		Result:    model.ResultSuccess,
+		Result:     model.ResultSuccess,
 	}
 
 	b.ResetTimer()

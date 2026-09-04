@@ -1,4 +1,6 @@
-import { get, post, put, del, type ApiResult } from '@/api/request'
+import { get, post, put, del } from '@/api/request'
+import type { PageResult } from '@/types/pagination'
+export type { PageResult }
 
 export interface UserRoleInfo {
   id: string
@@ -62,13 +64,6 @@ export interface UserListParams {
   page_size?: number
   keyword?: string
   status?: number
-}
-
-export interface PageResult<T> {
-  list: T[]
-  total: number
-  page: number
-  page_size: number
 }
 
 // ==================== 普通用户接口 ====================

@@ -4,14 +4,14 @@
       <!-- 搜索栏 -->
       <div class="search-bar">
         <el-input
-          v-model="search.keyword"
+          v-model="query.keyword"
           placeholder="搜索用户名/昵称"
           clearable
           style="width: 220px"
           @keyup.enter="loadList"
         />
         <el-select
-          v-model="search.status"
+          v-model="query.status"
           placeholder="状态"
           clearable
           style="width: 120px"
@@ -27,13 +27,13 @@
         <el-button type="info" @click="toggleRecycleBin">
           <el-icon><Delete /></el-icon>{{ isRecycleBin ? '返回列表' : '回收站' }}
         </el-button>
-        <el-button type="success" v-if="userStore.hasPermission('user:create') && !isRecycleBin" @click="openCreateDialog">
+        <el-button v-if="userStore.hasPermission('user:create') && !isRecycleBin" type="success" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>新增用户
         </el-button>
       </div>
 
       <!-- 列表 -->
-      <el-table :data="list" border stripe v-loading="loading" style="width: 100%">
+      <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="60" :index="(i: number) => (page - 1) * pageSize + i + 1" />
         <el-table-column prop="username" label="用户名" min-width="140" />
         <el-table-column prop="nickname" label="昵称" min-width="120" />
@@ -66,23 +66,23 @@
                 @click="handleRestore(row)"
               >恢复</el-button>
               <el-button
+                v-if="!row.is_master"
                 link
                 type="danger"
-                v-if="!row.is_master"
                 @click="handlePermanentDelete(row)"
               >永久删除</el-button>
             </template>
             <template v-else>
               <el-button
+                v-if="userStore.hasPermission('user:update')"
                 link
                 type="primary"
-                v-if="userStore.hasPermission('user:update')"
                 @click="openEditDialog(row)"
               >编辑</el-button>
               <el-button
+                v-if="userStore.hasPermission('user:reset_password')"
                 link
                 type="warning"
-                v-if="userStore.hasPermission('user:reset_password')"
                 @click="openResetPasswordDialog(row)"
               >重置密码</el-button>
               <el-button
@@ -96,21 +96,21 @@
                 @click="openLoginLogs(row)"
               >登录日志</el-button>
               <el-button
+                v-if="userStore.hasPermission('rbac:user_role:assign') || userStore.isAdmin"
                 link
                 type="success"
-                v-if="userStore.hasPermission('rbac:user_role:assign') || userStore.isAdmin"
                 @click="openAssignRoles(row)"
               >分配角色</el-button>
               <el-button
+                v-if="userStore.hasPermission('user:update')"
                 link
                 type="warning"
-                v-if="userStore.hasPermission('user:update')"
                 @click="toggleStatus(row)"
               >{{ row.status === 1 ? '禁用' : '启用' }}</el-button>
               <el-button
+                v-if="userStore.hasPermission('user:delete') && !row.is_master"
                 link
                 type="danger"
-                v-if="userStore.hasPermission('user:delete') && !row.is_master"
                 @click="handleDelete(row)"
               >删除</el-button>
             </template>
@@ -282,7 +282,7 @@
       width="900px"
       :close-on-click-modal="false"
     >
-      <el-table :data="loginLogsList" border stripe v-loading="loginLogsLoading" style="width: 100%">
+      <el-table v-loading="loginLogsLoading" :data="loginLogsList" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="60" :index="(i: number) => (loginLogsPage - 1) * loginLogsPageSize + i + 1" />
         <el-table-column prop="action" label="操作" width="100">
           <template #default="{ row }">
@@ -318,8 +318,10 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { reactive, ref } from 'vue'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import type { FormInstance, FormRules } from 'element-plus'
 import { Search, Plus, Delete } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import {
@@ -339,22 +341,46 @@ import {
   permanentDeleteUser,
   type UserItem,
   type UserCreateParams,
-  type UserUpdateParams
+  type UserUpdateParams,
+  type UserListParams
 } from '@/api/modules/user'
 import { getUserRoles, getRolePermissions, type RoleItem, getRoleListForSelect, assignUserRoles, removeAllUserRoles } from '@/api/modules/role'
 import { type PermissionItem } from '@/api/modules/permission'
 import { getAuditLogList, type AuditLogItem } from '@/api/modules/audit'
+import { useTableList } from '@/composables/useTableList'
+import { toPageResult } from '@/types/pagination'
 
 const userStore = useUserStore()
 
-const list = ref<UserItem[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(10)
-const loading = ref(false)
 const isRecycleBin = ref(false)
 
-const search = reactive({ keyword: '', status: undefined as number | undefined })
+const {
+  list,
+  total,
+  page,
+  pageSize,
+  loading,
+  query,
+  reset,
+  reload
+} = useTableList<UserItem, { keyword: string; status?: number }>({
+  fetchList: async (params) => {
+    const req: UserListParams = { page: params.page, page_size: params.page_size }
+    if (params.keyword) req.keyword = params.keyword
+    // 系统管理员查看所有租户用户，普通租户管理员只看当前租户用户
+    let res: unknown
+    if (isRecycleBin.value) {
+      // 回收站模式：系统管理员看所有，普通租户管理员只看当前租户
+      res = userStore.isAdmin ? await getAllDeletedTenantUsers(req) : await getDeletedUserList(req)
+    } else {
+      if (params.status !== undefined && params.status !== null) req.status = params.status
+      res = userStore.isAdmin ? await getAllTenantUsers(req) : await getUserList(req)
+    }
+    return toPageResult<UserItem>(res)
+  },
+  initialQuery: { keyword: '', status: undefined }
+})
+const loadList = reload
 
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
@@ -404,7 +430,7 @@ const resetPwdRules: FormRules = {
   confirm_password: [
     { required: true, message: '请确认密码', trigger: 'blur' },
     {
-      validator: (rule: any, value: string, callback: Function) => {
+      validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
         if (value !== resetPwdForm.new_password) {
           callback(new Error('两次输入的密码不一致'))
         } else {
@@ -425,40 +451,14 @@ const loginLogsPage = ref(1)
 const loginLogsPageSize = ref(10)
 const loginLogsTotal = ref(0)
 
-async function loadList() {
-  loading.value = true
-  try {
-    const params: any = { page: page.value, page_size: pageSize.value }
-    if (search.keyword) params.keyword = search.keyword
-    // 系统管理员查看所有租户用户，普通租户管理员只看当前租户用户
-    let res: any
-    if (isRecycleBin.value) {
-      // 回收站模式：系统管理员看所有，普通租户管理员只看当前租户
-      res = userStore.isAdmin ? await getAllDeletedTenantUsers(params) : await getDeletedUserList(params)
-    } else {
-      if (search.status !== undefined && search.status !== null) params.status = search.status
-      res = userStore.isAdmin ? await getAllTenantUsers(params) : await getUserList(params)
-    }
-    list.value = res.data || []
-    total.value = res.pagination?.total || 0
-  } catch (e) {
-    list.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
 function toggleRecycleBin() {
   isRecycleBin.value = !isRecycleBin.value
   page.value = 1
-  loadList()
+  void reload()
 }
 
 function resetSearch() {
-  search.keyword = ''
-  search.status = undefined
-  loadList()
+  reset()
 }
 
 function openCreateDialog() {
@@ -767,7 +767,6 @@ async function loadLoginLogs() {
   }
 }
 
-onMounted(loadList)
 </script>
 
 <style scoped>

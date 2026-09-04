@@ -670,11 +670,15 @@ go test ./...
 # 运行特定模块测试
 go test ./internal/modules/audit/service/... -v
 go test ./internal/modules/plan/service/... -v
+go test ./internal/modules/wiki/service/... -v
 go test ./pkg/security/... -v
 
 # 运行基准测试
 go test -bench=. ./pkg/security/...
 ```
+
+> 单元测试策略：Service 层通过仓库层提供的内存 Mock（如 `wiki/repository/mock_repository.go`）隔离 DB 依赖，
+> 覆盖权限校验、业务校验（节点移动/回收站/搜索摘要等）与错误路径；`sqlmock` 仅用于验证事务边界（Begin/Commit）。
 
 ---
 
@@ -684,17 +688,17 @@ go test -bench=. ./pkg/security/...
 
 | 文档 | 说明 |
 |------|------|
-| [auth-api.md](docs/auth-api.md) | 认证模块接口（注册/登录/登出/忘记密码/重置密码） |
-| [user-api.md](docs/user-api.md) | 用户管理接口（个人中心/租户用户/管理员） |
-| [tenant-api.md](docs/tenant-api.md) | 租户管理接口（注册/后台管理/注销审批） |
-| [rbac-api.md](docs/rbac-api.md) | RBAC 权限接口（角色/权限/绑定） |
-| [file-module-api.md](docs/file-module-api.md) | 文件管理接口（上传/下载/回收站） |
-| [plan-api.md](docs/plan-api.md) | 套餐管理接口（CRUD/分配/用量） |
-| [audit-api.md](docs/audit-api.md) | 审计日志接口（查询/导出/清理/仪表盘/告警管理/会话分析） |
-| [wiki-api.md](docs/wiki-api.md) | ⭐ Wiki 知识库接口（空间/节点/文档/版本/成员） |
-| [dashboard-api.md](docs/dashboard-api.md) | 运营看板接口（平台数据总览） |
-| [announcement-api.md](docs/announcement-api.md) | 通知公告接口（CRUD/发布/定向推送） |
-| [FEATURE_UPGRADE.md](docs/FEATURE_UPGRADE.md) | 功能升级说明（看板/公告/注销审批） |
+| [认证 API](docs/api/auth-api.md) | 认证模块接口（注册/登录/登出/忘记密码/重置密码） |
+| [用户 API](docs/api/user-api.md) | 用户管理接口（个人中心/租户用户/管理员） |
+| [租户 API](docs/api/tenant-api.md) | 租户管理接口（注册/后台管理/注销审批） |
+| [RBAC API](docs/api/rbac-api.md) | RBAC 权限接口（角色/权限/绑定） |
+| [文件 API](docs/api/file-module-api.md) | 文件管理接口（上传/下载/回收站） |
+| [套餐 API](docs/api/plan-api.md) | 套餐管理接口（CRUD/分配/用量） |
+| [审计 API](docs/api/audit-api.md) | 审计日志接口（查询/导出/清理/仪表盘/告警管理/会话分析） |
+| [Wiki API](docs/api/wiki-api.md) | ⭐ Wiki 知识库接口（空间/节点/文档/版本/成员） |
+| [运营看板 API](docs/api/dashboard-api.md) | 运营看板接口（平台数据总览） |
+| [公告 API](docs/api/announcement-api.md) | 通知公告接口（CRUD/发布/定向推送） |
+| [功能升级记录](docs/FEATURE_UPGRADE.md) | 功能升级说明（看板/公告/注销审批） |
 
 **架构设计文档**（`docs/architecture/`）：
 

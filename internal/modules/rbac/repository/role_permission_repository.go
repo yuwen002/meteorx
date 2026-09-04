@@ -68,11 +68,11 @@ func (r *rolePermissionRepository) GetPermissionsByRoleIDWithResource(ctx contex
 	query := r.db.WithContext(ctx).
 		Joins("JOIN role_permissions ON role_permissions.permission_id = permissions.id").
 		Where("role_permissions.role_id = ?", roleID)
-	
+
 	if resource != "" {
 		query = query.Where("permissions.resource = ?", resource)
 	}
-	
+
 	if err := query.Find(&records).Error; err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (r *rolePermissionRepository) BatchBindPermissions(ctx context.Context, rol
 				if existing > 0 {
 					continue
 				}
-				
+
 				record := RolePermissionPO{
 					RoleID:       roleID,
 					PermissionID: permissionID,
@@ -143,15 +143,15 @@ func (r *rolePermissionRepository) BatchUnbindPermissions(ctx context.Context, r
 
 func (r *rolePermissionRepository) List(ctx context.Context, page, pageSize int, roleID, permissionID string) ([]*model.RolePermission, int64, error) {
 	type row struct {
-		RoleID        string    `gorm:"column:role_id"`
-		PermissionID  string    `gorm:"column:permission_id"`
-		CreatedAt     time.Time `gorm:"column:created_at"`
-		RoleName      string    `gorm:"column:role_name"`
-		RoleCode      string    `gorm:"column:role_code"`
-		PermissionName string   `gorm:"column:permission_name"`
-		PermissionCode string   `gorm:"column:permission_code"`
-		PermissionResource string `gorm:"column:permission_resource"`
-		PermissionAction string   `gorm:"column:permission_action"`
+		RoleID             string    `gorm:"column:role_id"`
+		PermissionID       string    `gorm:"column:permission_id"`
+		CreatedAt          time.Time `gorm:"column:created_at"`
+		RoleName           string    `gorm:"column:role_name"`
+		RoleCode           string    `gorm:"column:role_code"`
+		PermissionName     string    `gorm:"column:permission_name"`
+		PermissionCode     string    `gorm:"column:permission_code"`
+		PermissionResource string    `gorm:"column:permission_resource"`
+		PermissionAction   string    `gorm:"column:permission_action"`
 	}
 
 	var total int64

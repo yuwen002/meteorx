@@ -281,13 +281,13 @@
             <el-icon><Document /></el-icon>全部
           </el-button>
         </el-button-group>
-        <el-button type="danger" @click="handleCleanup" style="margin-left: 10px;">
+        <el-button type="danger" style="margin-left: 10px;" @click="handleCleanup">
           <el-icon><Delete /></el-icon>清理日志
         </el-button>
       </div>
 
       <!-- 列表 -->
-      <el-table :data="list" border stripe v-loading="loading" style="width: 100%">
+      <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="60" :index="(i: number) => (page - 1) * pageSize + i + 1" />
         <el-table-column prop="username" label="操作用户" width="120" />
         <el-table-column prop="module" label="模块" width="100">
@@ -353,7 +353,7 @@
 
     <!-- 详情弹窗 -->
     <el-dialog v-model="detailVisible" title="日志详情" width="900px" destroy-on-close>
-      <el-descriptions :column="2" border v-if="currentLog">
+      <el-descriptions v-if="currentLog" :column="2" border>
         <el-descriptions-item label="日志ID">{{ currentLog.id }}</el-descriptions-item>
         <el-descriptions-item label="请求ID">{{ currentLog.request_id || '-' }}</el-descriptions-item>
         <el-descriptions-item label="操作用户">{{ currentLog.username }} ({{ currentLog.user_id }})</el-descriptions-item>
@@ -384,16 +384,16 @@
         <el-descriptions-item label="设备信息" :span="2">{{ currentLog.device_info || '-' }}</el-descriptions-item>
         <el-descriptions-item label="耗时">{{ currentLog.duration }}ms</el-descriptions-item>
         <el-descriptions-item label="操作时间">{{ currentLog.created_at }}</el-descriptions-item>
-        <el-descriptions-item label="标签" :span="2" v-if="currentLog.tags">
+        <el-descriptions-item v-if="currentLog.tags" label="标签" :span="2">
           <el-tag v-for="tag in parseTags(currentLog.tags)" :key="tag" size="small" style="margin-right: 4px;">{{ tag }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="错误信息" :span="2" v-if="currentLog.error_message">
+        <el-descriptions-item v-if="currentLog.error_message" label="错误信息" :span="2">
           <span style="color: #f56c6c">{{ currentLog.error_message }}</span>
         </el-descriptions-item>
-        <el-descriptions-item label="请求参数" :span="2" v-if="currentLog.request_body">
+        <el-descriptions-item v-if="currentLog.request_body" label="请求参数" :span="2">
           <pre class="json-pre">{{ formatJson(currentLog.request_body) }}</pre>
         </el-descriptions-item>
-        <el-descriptions-item label="响应结果" :span="2" v-if="currentLog.response_body">
+        <el-descriptions-item v-if="currentLog.response_body" label="响应结果" :span="2">
           <pre class="json-pre">{{ formatJson(currentLog.response_body) }}</pre>
         </el-descriptions-item>
       </el-descriptions>
@@ -419,7 +419,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Document, Calendar, CircleCheck, CircleClose, Search, Delete, Download, User, SwitchButton } from '@element-plus/icons-vue'
 import { getAuditLogList, getAuditDashboard, cleanupAuditLogs, exportAuditLogs } from '@/api/modules/audit'
 import type { AuditLogItem, AuditDashboardData } from '@/api/modules/audit'

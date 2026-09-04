@@ -4,16 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	rbacModel "meteorx/internal/modules/rbac/model"
-	rbacRepo "meteorx/internal/modules/rbac/repository"
 	planRepo "meteorx/internal/modules/plan/repository"
 	planService "meteorx/internal/modules/plan/service"
+	rbacModel "meteorx/internal/modules/rbac/model"
+	rbacRepo "meteorx/internal/modules/rbac/repository"
 	tenantRepository "meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/user/dto"
 	"meteorx/internal/modules/user/model"
 	"meteorx/internal/modules/user/repository"
 	"meteorx/pkg/crypto"
 	"meteorx/pkg/idgen"
+)
+
+// 业务层哨兵错误：Handler 层通过 errors.Is 精确判定错误类型，
+// 避免使用错误消息字符串比对（消息变更即失效）。
+var (
+	ErrUsernameExists     = errors.New("用户名已被使用")
+	ErrUserNotSystemAdmin = errors.New("用户不是系统管理员")
+	ErrUserNotInTenant    = errors.New("用户不属于指定租户")
+	ErrWrongOldPassword   = errors.New("原密码错误")
 )
 
 type UserService struct {
@@ -253,7 +262,7 @@ func (s *UserService) Create(ctx context.Context, tenantID string, req dto.Creat
 		return nil, err
 	}
 	if exists {
-		return nil, fmt.Errorf("用户名已被使用")
+		return nil, ErrUsernameExists
 	}
 
 	// 校验套餐配额
@@ -389,7 +398,7 @@ func (s *UserService) GetMasterAdmin(ctx context.Context, userID string) (*dto.U
 		return nil, err
 	}
 	if !user.IsMaster {
-		return nil, fmt.Errorf("用户不是系统管理员")
+		return nil, ErrUserNotSystemAdmin
 	}
 	return s.buildUserResp(ctx, user)
 }
@@ -400,7 +409,7 @@ func (s *UserService) CreateMasterAdmin(ctx context.Context, req dto.CreateMaste
 		return nil, err
 	}
 	if exists {
-		return nil, fmt.Errorf("用户名已被使用")
+		return nil, ErrUsernameExists
 	}
 
 	hashedPassword, err := crypto.HashPassword(req.Password)
@@ -457,7 +466,7 @@ func (s *UserService) UpdateMasterAdmin(ctx context.Context, userID string, req 
 		return nil, err
 	}
 	if !user.IsMaster {
-		return nil, fmt.Errorf("用户不是系统管理员")
+		return nil, ErrUserNotSystemAdmin
 	}
 
 	if req.Nickname != "" {
@@ -494,7 +503,7 @@ func (s *UserService) DeleteMasterAdmin(ctx context.Context, userID string) erro
 		return err
 	}
 	if !user.IsMaster {
-		return fmt.Errorf("用户不是系统管理员")
+		return ErrUserNotSystemAdmin
 	}
 
 	// 检查是否为系统保护用户（初始管理员，不允许删除）
@@ -516,7 +525,7 @@ func (s *UserService) UpdateMasterAdminStatus(ctx context.Context, userID string
 		return err
 	}
 	if !user.IsMaster {
-		return fmt.Errorf("用户不是系统管理员")
+		return ErrUserNotSystemAdmin
 	}
 	return s.repo.UpdateStatus(ctx, userID, status)
 }
@@ -601,7 +610,7 @@ func (s *UserService) AdminCreateTenantUser(ctx context.Context, req dto.AdminCr
 		return nil, err
 	}
 	if exists {
-		return nil, fmt.Errorf("用户名已被使用")
+		return nil, ErrUsernameExists
 	}
 
 	// 校验套餐配额
@@ -672,7 +681,7 @@ func (s *UserService) AdminUpdateTenantUser(ctx context.Context, tenantID, userI
 	}
 
 	if user.TenantID != tenantID {
-		return nil, fmt.Errorf("用户不属于指定租户")
+		return nil, ErrUserNotInTenant
 	}
 
 	if req.Nickname != "" {
@@ -708,7 +717,7 @@ func (s *UserService) AdminDeleteTenantUser(ctx context.Context, tenantID, userI
 	}
 
 	if user.TenantID != tenantID {
-		return fmt.Errorf("用户不属于指定租户")
+		return ErrUserNotInTenant
 	}
 
 	// 删除用户前先解除所有角色绑定
@@ -727,7 +736,7 @@ func (s *UserService) AdminResetTenantUserPassword(ctx context.Context, tenantID
 	}
 
 	if user.TenantID != tenantID {
-		return fmt.Errorf("用户不属于指定租户")
+		return ErrUserNotInTenant
 	}
 
 	hashedPassword, err := crypto.HashPassword(newPassword)
@@ -803,7 +812,7 @@ func (s *UserService) AdminUpdateTenantUserStatus(ctx context.Context, tenantID,
 	}
 
 	if user.TenantID != tenantID {
-		return fmt.Errorf("用户不属于指定租户")
+		return ErrUserNotInTenant
 	}
 
 	return s.repo.UpdateStatus(ctx, userID, status)
@@ -849,7 +858,7 @@ func (s *UserService) ChangePassword(ctx context.Context, userID, oldPassword, n
 	}
 
 	if !crypto.CheckPassword(oldPassword, user.Password) {
-		return fmt.Errorf("原密码错误")
+		return ErrWrongOldPassword
 	}
 
 	hashedPassword, err := crypto.HashPassword(newPassword)

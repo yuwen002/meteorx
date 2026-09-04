@@ -14,9 +14,9 @@ import (
 // ---------- mock: FileRepository ----------
 
 type mockFileRepo struct {
-	files    map[string]*model.File
-	deleted  map[string]*model.File
-	byMD5    map[string]*model.File
+	files     map[string]*model.File
+	deleted   map[string]*model.File
+	byMD5     map[string]*model.File
 	deleteErr error
 }
 

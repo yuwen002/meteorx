@@ -46,10 +46,10 @@
 
       <!-- 列表 -->
       <el-table
-        :data="list"
         v-loading="loading"
-        @selection-change="handleSelectionChange"
+        :data="list"
         row-key="id"
+        @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" />
         <el-table-column label="角色名" prop="name" min-width="140" />
@@ -96,7 +96,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { ArrowLeft, Search, RefreshLeft, Delete } from '@element-plus/icons-vue'
 import {
   getDeletedRoleList,

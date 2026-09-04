@@ -13,7 +13,7 @@
         <el-button type="success" @click="openCreateDialog"><el-icon><Plus /></el-icon>新增套餐</el-button>
       </div>
 
-      <el-table :data="list" border stripe v-loading="loading" style="width: 100%">
+      <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
         <el-table-column prop="name" label="套餐名称" min-width="130" />
         <el-table-column prop="code" label="编码" min-width="140">
           <template #default="{ row }">
@@ -102,7 +102,10 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { Search, Plus } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import type { FormInstance, FormRules } from 'element-plus'
 import {
   getPlanList,
   createPlan,

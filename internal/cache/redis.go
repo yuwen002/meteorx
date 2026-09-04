@@ -3,8 +3,9 @@ package cache
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
+
+	"meteorx/pkg/logger"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -33,7 +34,7 @@ func NewRedis(addr, password string, db int) (*Redis, error) {
 		return &Redis{}, err
 	}
 
-	log.Println("Redis connected successfully")
+	logger.Info("Redis connected successfully")
 	return &Redis{Client: rdb}, nil
 }
 

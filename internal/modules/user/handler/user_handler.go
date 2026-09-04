@@ -1,9 +1,8 @@
-﻿// Package handler 提供用户管理 HTTP 处理器
+// Package handler 提供用户管理 HTTP 处理器
 package handler
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -13,6 +12,7 @@ import (
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
+	"meteorx/pkg/logger"
 	"meteorx/pkg/pagination"
 
 	"github.com/go-chi/chi/v5"
@@ -112,7 +112,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.svc.Create(r.Context(), tenantID, req)
 	if err != nil {
-		if errors.Is(err, errors.New("用户名已被使用")) {
+		if errors.Is(err, service.ErrUsernameExists) {
 			response.Fail(w, http.StatusConflict, "用户名已被使用")
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "创建用户失败")
@@ -245,7 +245,7 @@ func (h *UserHandler) GetMasterAdmin(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.svc.GetMasterAdmin(r.Context(), userID)
 	if err != nil {
-		if err.Error() == "用户不是系统管理员" {
+		if errors.Is(err, service.ErrUserNotSystemAdmin) {
 			response.Fail(w, http.StatusNotFound, "系统管理员不存在")
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "获取系统管理员详情失败")
@@ -265,7 +265,7 @@ func (h *UserHandler) CreateMasterAdmin(w http.ResponseWriter, r *http.Request) 
 
 	user, err := h.svc.CreateMasterAdmin(r.Context(), req)
 	if err != nil {
-		if err.Error() == "用户名已被使用" {
+		if errors.Is(err, service.ErrUsernameExists) {
 			response.Fail(w, http.StatusConflict, "用户名已被使用")
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "创建系统管理员失败")
@@ -291,7 +291,7 @@ func (h *UserHandler) UpdateMasterAdmin(w http.ResponseWriter, r *http.Request) 
 
 	user, err := h.svc.UpdateMasterAdmin(r.Context(), userID, req)
 	if err != nil {
-		if err.Error() == "用户不是系统管理员" {
+		if errors.Is(err, service.ErrUserNotSystemAdmin) {
 			response.Fail(w, http.StatusNotFound, "系统管理员不存在")
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "更新系统管理员失败")
@@ -312,7 +312,7 @@ func (h *UserHandler) DeleteMasterAdmin(w http.ResponseWriter, r *http.Request) 
 
 	err := h.svc.DeleteMasterAdmin(r.Context(), userID)
 	if err != nil {
-		if err.Error() == "用户不是系统管理员" {
+		if errors.Is(err, service.ErrUserNotSystemAdmin) {
 			response.Fail(w, http.StatusNotFound, "系统管理员不存在")
 		} else {
 			response.Fail(w, http.StatusBadRequest, err.Error())
@@ -338,7 +338,7 @@ func (h *UserHandler) UpdateMasterAdminStatus(w http.ResponseWriter, r *http.Req
 
 	err := h.svc.UpdateMasterAdminStatus(r.Context(), userID, req.Status)
 	if err != nil {
-		if err.Error() == "用户不是系统管理员" {
+		if errors.Is(err, service.ErrUserNotSystemAdmin) {
 			response.Fail(w, http.StatusNotFound, "系统管理员不存在")
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "更新系统管理员状态失败")
@@ -451,7 +451,7 @@ func (h *UserHandler) AdminCreateTenantUser(w http.ResponseWriter, r *http.Reque
 
 	user, err := h.svc.AdminCreateTenantUser(r.Context(), req)
 	if err != nil {
-		if err.Error() == "用户名已被使用" {
+		if errors.Is(err, service.ErrUsernameExists) {
 			response.Fail(w, http.StatusConflict, "用户名已被使用")
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "创建用户失败")
@@ -482,7 +482,7 @@ func (h *UserHandler) AdminListTenantUsers(w http.ResponseWriter, r *http.Reques
 	// 调用服务层查询
 	users, total, err := h.svc.AdminListTenantUsers(r.Context(), tenantID, pg.Page, pg.PageSize, keyword)
 	if err != nil {
-		log.Printf("[UserHandler] AdminListTenantUsers failed: %v", err)
+		logger.Errorf("[UserHandler] AdminListTenantUsers failed: %v", err)
 		response.Fail(w, http.StatusInternalServerError, "获取用户列表失败")
 		return
 	}
@@ -532,7 +532,7 @@ func (h *UserHandler) AdminUpdateTenantUser(w http.ResponseWriter, r *http.Reque
 
 	user, err := h.svc.AdminUpdateTenantUser(r.Context(), tenantID, userID, req)
 	if err != nil {
-		if err.Error() == "用户不属于指定租户" {
+		if errors.Is(err, service.ErrUserNotInTenant) {
 			response.Fail(w, http.StatusBadRequest, "用户不属于指定租户")
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "更新用户失败")
@@ -552,7 +552,7 @@ func (h *UserHandler) AdminDeleteTenantUser(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := h.svc.AdminDeleteTenantUser(r.Context(), tenantID, userID); err != nil {
-		if err.Error() == "用户不属于指定租户" {
+		if errors.Is(err, service.ErrUserNotInTenant) {
 			response.Fail(w, http.StatusBadRequest, "用户不属于指定租户")
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "删除用户失败")
@@ -666,7 +666,7 @@ func (h *UserHandler) AdminUpdateTenantUserStatus(w http.ResponseWriter, r *http
 
 	err := h.svc.AdminUpdateTenantUserStatus(r.Context(), tenantID, userID, req.Status)
 	if err != nil {
-		if err.Error() == "用户不属于指定租户" {
+		if errors.Is(err, service.ErrUserNotInTenant) {
 			response.Fail(w, http.StatusBadRequest, "用户不属于指定租户")
 		} else if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(w, http.StatusNotFound, "用户不存在")
@@ -780,7 +780,7 @@ func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.ChangePassword(r.Context(), userID, req.OldPassword, req.NewPassword); err != nil {
-		if err.Error() == "原密码错误" {
+		if errors.Is(err, service.ErrWrongOldPassword) {
 			response.Fail(w, http.StatusBadRequest, "原密码错误")
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "修改密码失败")
@@ -826,6 +826,7 @@ func (h *UserHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	response.Success(w, nil)
 }
+
 // ListDeletedUsers GET /api/v1/users/deleted
 func (h *UserHandler) ListDeletedUsers(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
@@ -924,7 +925,7 @@ func (h *UserHandler) AdminResetTenantUserPassword(w http.ResponseWriter, r *htt
 	}
 
 	if err := h.svc.AdminResetTenantUserPassword(r.Context(), tenantID, userID, req.NewPassword); err != nil {
-		if err.Error() == "用户不属于指定租户" {
+		if errors.Is(err, service.ErrUserNotInTenant) {
 			response.Fail(w, http.StatusBadRequest, "用户不属于指定租户")
 		} else if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(w, http.StatusNotFound, "用户不存在")

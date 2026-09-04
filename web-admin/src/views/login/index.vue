@@ -56,7 +56,7 @@
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :loading="loading" @click="handleLogin" size="large" style="width: 100%">
+          <el-button type="primary" :loading="loading" size="large" style="width: 100%" @click="handleLogin">
             登 录
           </el-button>
         </el-form-item>
@@ -88,7 +88,7 @@
 import { reactive, ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { InfoFilled, Warning, Avatar, OfficeBuilding } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import type { LoginParams, LoginErrorData } from '@/api/auth'

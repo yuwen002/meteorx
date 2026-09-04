@@ -31,29 +31,29 @@ func (s *LocalStorage) Upload(ctx context.Context, reader io.Reader, originalNam
 	// 生成唯一文件名
 	ext := filepath.Ext(originalName)
 	fileName := idgen.New() + ext
-	
+
 	// 构建完整路径
 	fullPath := filepath.Join(s.basePath, fileName)
-	
+
 	// 确保目录存在
 	if err := os.MkdirAll(s.basePath, 0755); err != nil {
 		return "", fmt.Errorf("failed to create directory: %w", err)
 	}
-	
+
 	// 创建文件
 	file, err := os.Create(fullPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
 	}
 	defer file.Close()
-	
+
 	// 复制数据
 	if _, err := io.Copy(file, reader); err != nil {
 		// 如果复制失败，删除已创建的文件
 		os.Remove(fullPath)
 		return "", fmt.Errorf("failed to write file: %w", err)
 	}
-	
+
 	return fileName, nil
 }
 

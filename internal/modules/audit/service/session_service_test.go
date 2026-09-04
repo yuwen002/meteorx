@@ -57,10 +57,9 @@ func (s *SessionServiceTestSuite) TestGetSessionLogs() {
 	s.Equal(sessionID, result.SessionID)
 	s.Equal("user-001", result.UserID)
 	s.Equal("admin", result.Username)
-	s.Equal(5, result.TotalRequests)
+	s.Equal(int64(5), result.TotalOps)
 	s.Equal(5, len(result.Logs))
-	s.Equal(5, result.SuccessCount)
-	s.Equal(0, result.FailureCount)
+	s.Equal(int64(600), result.Duration)
 }
 
 // TestGetSessionLogsEmpty 测试获取空会话日志
@@ -69,7 +68,7 @@ func (s *SessionServiceTestSuite) TestGetSessionLogsEmpty() {
 
 	s.NoError(err)
 	s.NotNil(result)
-	s.Equal(0, result.TotalRequests)
+	s.Equal(int64(0), result.TotalOps)
 	s.Equal(0, len(result.Logs))
 }
 
@@ -80,14 +79,14 @@ func (s *SessionServiceTestSuite) TestListSessions() {
 	for _, sessionID := range sessions {
 		for i := 0; i < 3; i++ {
 			log := &model.AuditLog{
-				UserID:    "user-001",
-				Username:  "admin",
-				SessionID: sessionID,
-				Module:    "user",
-				Action:    model.ActionTypeCreate,
+				UserID:     "user-001",
+				Username:   "admin",
+				SessionID:  sessionID,
+				Module:     "user",
+				Action:     model.ActionTypeCreate,
 				StatusCode: 200,
-				Result:    model.ResultSuccess,
-				Duration:  int64(100 + i*10),
+				Result:     model.ResultSuccess,
+				Duration:   int64(100 + i*10),
 			}
 			s.repo.Create(s.ctx, log)
 		}
@@ -104,48 +103,35 @@ func (s *SessionServiceTestSuite) TestListSessions() {
 func (s *SessionServiceTestSuite) TestListSessionsByUser() {
 	// 创建不同用户的会话
 	log1 := &model.AuditLog{
-		UserID:    "user-001",
-		Username:  "admin",
-		SessionID: "session-001",
-		Module:    "user",
-		Action:    model.ActionTypeCreate,
+		UserID:     "user-001",
+		Username:   "admin",
+		SessionID:  "session-001",
+		Module:     "user",
+		Action:     model.ActionTypeCreate,
 		StatusCode: 200,
-		Result:    model.ResultSuccess,
-		Duration:  100,
+		Result:     model.ResultSuccess,
+		Duration:   100,
 	}
 	s.repo.Create(s.ctx, log1)
 
 	log2 := &model.AuditLog{
-		UserID:    "user-002",
-		Username:  "editor",
-		SessionID: "session-002",
-		Module:    "wiki",
-		Action:    model.ActionTypeUpdate,
+		UserID:     "user-002",
+		Username:   "editor",
+		SessionID:  "session-002",
+		Module:     "wiki",
+		Action:     model.ActionTypeUpdate,
 		StatusCode: 200,
-		Result:    model.ResultSuccess,
-		Duration:  150,
+		Result:     model.ResultSuccess,
+		Duration:   150,
 	}
 	s.repo.Create(s.ctx, log2)
 
 	// 按用户筛选
-	result, total, err := s.svc.ListSessions(s.ctx, 1, 20, "user-001")
+	result, _, err := s.svc.ListSessions(s.ctx, 1, 20, "user-001")
 
 	s.NoError(err)
 	s.NotNil(result)
 	// 应该只返回 user-001 的会话
-}
-
-// TestCalculateAvgDuration 测试平均耗时计算
-func (s *SessionServiceTestSuite) TestCalculateAvgDuration() {
-	durations := []int64{100, 200, 300}
-	avg := calculateAvgDuration(durations)
-
-	s.Equal(int64(200), avg)
-}
-
-// TestCalculateAvgDurationEmpty 测试空数组平均耗时计算
-func (s *SessionServiceTestSuite) TestCalculateAvgDurationEmpty() {
-	avg := calculateAvgDuration([]int64{})
-
-	s.Equal(int64(0), avg)
+	s.Len(result, 1)
+	s.Equal("session-001", result[0].SessionID)
 }

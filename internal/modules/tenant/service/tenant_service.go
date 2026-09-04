@@ -34,13 +34,13 @@ type TenantPlanProvider interface {
 }
 
 type TenantService struct {
-	repo              repository.TenantRepository
-	userRepo          userRepo.UserRepository
-	roleRepo          rbacRepo.RoleRepository
-	userRoleRepo      rbacRepo.UserRoleRepository
-	planProvider      TenantPlanProvider
+	repo               repository.TenantRepository
+	userRepo           userRepo.UserRepository
+	roleRepo           rbacRepo.RoleRepository
+	userRoleRepo       rbacRepo.UserRoleRepository
+	planProvider       TenantPlanProvider
 	planAssignProvider TenantPlanAssignProvider
-	subRepo           planRepo.SubscriptionRepository
+	subRepo            planRepo.SubscriptionRepository
 }
 
 func NewTenantService(

@@ -44,6 +44,8 @@
     </div>
 
     <el-dialog v-model="detailVisible" :title="currentItem?.title" width="600px">
+      <!-- 公告内容为后台管理员编辑的富文本，属可信内容，允许 v-html 渲染 -->
+      <!-- eslint-disable-next-line vue/no-v-html -->
       <div class="announcement-content" v-html="currentItem?.content"></div>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
@@ -54,7 +56,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { listTenantAnnouncements, type AnnouncementItem } from '@/api/modules/announcement'
 
 const loading = ref(false)

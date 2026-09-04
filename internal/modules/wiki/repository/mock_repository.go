@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"meteorx/internal/modules/wiki/model"
 )
@@ -15,6 +16,8 @@ type MockWikiRepository struct {
 	AddMemberErr error
 	// UpdateDocumentErr 若非 nil，UpdateDocument 返回该错误
 	UpdateDocumentErr error
+	// GetMemberFn 可选注入，覆盖默认 GetMember 行为（用于模拟非成员/非 Owner 等权限场景）
+	GetMemberFn func(ctx context.Context, spaceID, userID string) (*model.WikiSpaceMember, error)
 
 	spaces  map[string]*model.WikiSpace
 	members map[string][]*model.WikiSpaceMember
@@ -150,6 +153,9 @@ func (m *MockWikiRepository) ListMembers(ctx context.Context, spaceID string) ([
 }
 
 func (m *MockWikiRepository) GetMember(ctx context.Context, spaceID, userID string) (*model.WikiSpaceMember, error) {
+	if m.GetMemberFn != nil {
+		return m.GetMemberFn(ctx, spaceID, userID)
+	}
 	return &model.WikiSpaceMember{
 		SpaceID: spaceID,
 		UserID:  userID,
@@ -198,7 +204,7 @@ func (m *MockWikiRepository) ListTrashItems(ctx context.Context, tenantID string
 }
 
 func (m *MockWikiRepository) GetTrashItem(ctx context.Context, id string) (*model.TrashItem, error) {
-	return nil, nil
+	return nil, errors.New("trash item not found")
 }
 
 func (m *MockWikiRepository) DeleteTrashItem(ctx context.Context, id string) error {
@@ -226,7 +232,7 @@ func (m *MockWikiRepository) ListAttachmentsByDocument(ctx context.Context, docu
 }
 
 func (m *MockWikiRepository) GetAttachment(ctx context.Context, id string) (*model.Attachment, error) {
-	return nil, nil
+	return nil, errors.New("attachment not found")
 }
 
 func (m *MockWikiRepository) DeleteAttachment(ctx context.Context, id string) error {

@@ -20,7 +20,7 @@
         </div>
       </template>
 
-      <el-table :data="sessions" border stripe v-loading="loading" style="width: 100%">
+      <el-table v-loading="loading" :data="sessions" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="60" />
         <el-table-column prop="session_id" label="会话ID" width="280" show-overflow-tooltip />
         <el-table-column prop="user_id" label="用户ID" width="150" />
@@ -109,7 +109,7 @@
                     <span v-if="log.ip_location">位置: {{ log.ip_location }}</span>
                     <span>耗时: {{ log.duration }}ms</span>
                   </div>
-                  <div class="timeline-result" v-if="log.error_message">
+                  <div v-if="log.error_message" class="timeline-result">
                     <span style="color: #f56c6c">错误: {{ log.error_message }}</span>
                   </div>
                 </div>

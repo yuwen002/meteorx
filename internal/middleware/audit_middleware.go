@@ -74,7 +74,7 @@ func AuditMiddleware(auditSvc *service.AuditService, ipLocator iplocation.IPLoca
 			// 使用带超时的 context，避免服务器关闭时 goroutine 泄漏
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			
+
 			go func() {
 				recordAuditLog(ctx, auditSvc, ipLocator, r, recorder, requestBody, duration)
 			}()

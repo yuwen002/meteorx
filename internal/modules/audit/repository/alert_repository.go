@@ -264,7 +264,7 @@ func (r *alertRuleRepository) GetAlertStats(ctx context.Context, days int) (*mod
 		Select("risk_level, COUNT(*) as count").
 		Group("risk_level").
 		Scan(&riskLevelStats)
-	
+
 	for _, item := range riskLevelStats {
 		stats.RiskLevelStats[item.RiskLevel] = item.Count
 	}
@@ -281,7 +281,7 @@ func (r *alertRuleRepository) GetAlertStats(ctx context.Context, days int) (*mod
 		Order("count DESC").
 		Limit(10).
 		Scan(&ruleStats)
-	
+
 	for _, item := range ruleStats {
 		stats.RuleStats[item.RuleID] = item.Count
 		stats.TopRules = append(stats.TopRules, model.RuleCount{
@@ -295,16 +295,16 @@ func (r *alertRuleRepository) GetAlertStats(ctx context.Context, days int) (*mod
 	if days <= 0 {
 		days = 7
 	}
-	
+
 	startDate := time.Now().AddDate(0, 0, -days+1).Truncate(24 * time.Hour)
-	
+
 	var trendStats []struct {
 		Date    string
 		Count   int64
 		Success int64
 		Failure int64
 	}
-	
+
 	r.db.WithContext(ctx).Model(&AuditAlertPO{}).
 		Select(`DATE(created_at) as date, 
 				COUNT(*) as count,
@@ -314,7 +314,7 @@ func (r *alertRuleRepository) GetAlertStats(ctx context.Context, days int) (*mod
 		Group("DATE(created_at)").
 		Order("date ASC").
 		Scan(&trendStats)
-	
+
 	for _, item := range trendStats {
 		stats.Trend = append(stats.Trend, model.TrendPoint{
 			Date:    item.Date,

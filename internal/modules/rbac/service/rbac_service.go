@@ -632,6 +632,7 @@ func (s *RBACService) BatchAssignUserRoles(ctx context.Context, req dto.BatchAss
 	}
 	return count, nil
 }
+
 // --- Dashboard Statistics ---
 
 // CountRoles 统计角色总数（按租户）

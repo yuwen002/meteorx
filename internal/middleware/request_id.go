@@ -51,8 +51,8 @@ func GlobalErrorHandler(next http.Handler) http.Handler {
 				}
 				_ = rec
 				response.WriteJSON(w, http.StatusInternalServerError, map[string]any{
-					"code":      appErr.Code,
-					"message":   appErr.Message,
+					"code":       appErr.Code,
+					"message":    appErr.Message,
 					"request_id": requestID,
 				})
 			}

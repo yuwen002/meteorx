@@ -1,4 +1,4 @@
-import { get, post, del } from '../request'
+import { get, del } from '../request'
 
 export interface AuditLogItem {
   id: string

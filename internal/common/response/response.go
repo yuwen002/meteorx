@@ -8,9 +8,9 @@ import (
 )
 
 type Response struct {
-	Data       any        `json:"data,omitempty"`
+	Data       any         `json:"data,omitempty"`
 	Pagination *Pagination `json:"pagination,omitempty"`
-	RequestID  string     `json:"request_id,omitempty"`
+	RequestID  string      `json:"request_id,omitempty"`
 }
 
 type ErrorResponse struct {

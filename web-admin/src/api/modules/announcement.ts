@@ -1,4 +1,5 @@
 import request from '../request'
+import type { PaginatedResult } from '@/types/pagination'
 
 export interface AnnouncementItem {
   id: string
@@ -13,18 +14,6 @@ export interface AnnouncementItem {
   expire_at: string | null
   created_at: string
   updated_at: string
-}
-
-export interface PaginationMeta {
-  page: number
-  page_size: number
-  total: number
-  total_pages: number
-}
-
-export interface PaginatedResult<T> {
-  data: T[]
-  pagination: PaginationMeta
 }
 
 export function getAnnouncementList(params?: {

@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log"
 	"mime/multipart"
 	"path/filepath"
 	"strings"
@@ -15,18 +14,19 @@ import (
 	"meteorx/internal/modules/file/model"
 	"meteorx/internal/modules/file/repository"
 	"meteorx/internal/modules/file/storage"
+	"meteorx/pkg/logger"
 )
 
 // FileService 文件服务
 type FileService struct {
-	repo   repository.FileRepository
+	repo    repository.FileRepository
 	storage storage.Storage
 }
 
 // NewFileService 创建文件服务实例
 func NewFileService(repo repository.FileRepository, storage storage.Storage) *FileService {
 	return &FileService{
-		repo:   repo,
+		repo:    repo,
 		storage: storage,
 	}
 }
@@ -193,7 +193,7 @@ func (s *FileService) Delete(ctx context.Context, id, tenantID string) error {
 	// 同步删除物理文件；失败只记日志，不回滚软删除（软删除已符合业务语义）
 	if file != nil && file.FilePath != "" {
 		if err := s.storage.Delete(ctx, file.FilePath); err != nil {
-			log.Printf("[FileService] warning: physical file delete failed for %s: %v\n", file.FilePath, err)
+			logger.Warnf("[FileService] warning: physical file delete failed for %s: %v", file.FilePath, err)
 		}
 	}
 	return nil
@@ -272,7 +272,7 @@ func (s *FileService) PermanentDelete(ctx context.Context, id, tenantID string) 
 	// 同步删除物理文件
 	if file.FilePath != "" {
 		if err := s.storage.Delete(ctx, file.FilePath); err != nil {
-			fmt.Printf("[FileService] warning: physical file delete failed for %s: %v\n", file.FilePath, err)
+			logger.Warnf("[FileService] warning: physical file delete failed for %s: %v", file.FilePath, err)
 		}
 	}
 	return nil
@@ -308,7 +308,7 @@ func (s *FileService) calculateMD5(file multipart.File) (string, error) {
 // detectFileType 检测文件类型
 func (s *FileService) detectFileType(filename, mimeType string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
-	
+
 	// 根据扩展名判断
 	imageExts := []string{".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg"}
 	documentExts := []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt"}
@@ -320,19 +320,19 @@ func (s *FileService) detectFileType(filename, mimeType string) string {
 			return "image"
 		}
 	}
-	
+
 	for _, docExt := range documentExts {
 		if ext == docExt {
 			return "document"
 		}
 	}
-	
+
 	for _, vidExt := range videoExts {
 		if ext == vidExt {
 			return "video"
 		}
 	}
-	
+
 	for _, audExt := range audioExts {
 		if ext == audExt {
 			return "audio"

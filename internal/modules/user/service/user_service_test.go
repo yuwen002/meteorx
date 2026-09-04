@@ -7,8 +7,8 @@ import (
 
 	rbacModel "meteorx/internal/modules/rbac/model"
 	tenantModel "meteorx/internal/modules/tenant/model"
-	userModel "meteorx/internal/modules/user/model"
 	"meteorx/internal/modules/user/dto"
+	userModel "meteorx/internal/modules/user/model"
 	"meteorx/pkg/crypto"
 )
 

@@ -4,8 +4,8 @@ import "time"
 
 // 订阅状态
 const (
-	SubscriptionActive  = 1 // 生效中
-	SubscriptionExpired = 2 // 已到期
+	SubscriptionActive    = 1 // 生效中
+	SubscriptionExpired   = 2 // 已到期
 	SubscriptionCancelled = 3 // 已取消
 )
 

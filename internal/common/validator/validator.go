@@ -76,11 +76,11 @@ func getFieldLabel(s interface{}, fieldName string) string {
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	
+
 	if t.Kind() != reflect.Struct {
 		return fieldName
 	}
-	
+
 	// 首先尝试直接查找字段名（处理大小写）
 	field, found := t.FieldByName(fieldName)
 	if !found {
@@ -102,16 +102,16 @@ func getFieldLabel(s interface{}, fieldName string) string {
 			}
 		}
 	}
-	
+
 	if !found {
 		return fieldName
 	}
-	
+
 	label := field.Tag.Get("label")
 	if label == "" {
 		return fieldName
 	}
-	
+
 	return label
 }
 

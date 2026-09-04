@@ -19,8 +19,8 @@
         </el-button>
       </div>
 
-      <el-row :gutter="16" v-loading="loading">
-        <el-col :span="8" v-for="item in list" :key="item.id" style="margin-bottom: 16px">
+      <el-row v-loading="loading" :gutter="16">
+        <el-col v-for="item in list" :key="item.id" :span="8" style="margin-bottom: 16px">
           <el-card shadow="hover" class="space-card" @click="goDetail(item.id)">
             <div class="space-header">
               <el-icon :size="28"><Reading /></el-icon>
@@ -33,8 +33,8 @@
                 {{ item.visibility === 1 ? '公开' : '私有' }}
               </el-tag>
             </div>
-            <div class="space-desc" v-if="item.description">{{ item.description }}</div>
-            <div class="space-desc empty" v-else>暂无描述</div>
+            <div v-if="item.description" class="space-desc">{{ item.description }}</div>
+            <div v-else class="space-desc empty">暂无描述</div>
             <div class="space-footer">
               <span>成员 {{ item.member_count || 0 }}</span>
               <span>节点 {{ item.node_count || 0 }}</span>
@@ -50,7 +50,7 @@
 
       <el-empty v-if="!loading && list.length === 0" description="暂无知识空间" />
 
-      <div class="pagination" v-if="total > 0">
+      <div v-if="total > 0" class="pagination">
         <el-pagination
           v-model:current-page="page"
           v-model:page-size="pageSize"
@@ -90,7 +90,9 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import type { FormInstance, FormRules } from 'element-plus'
 import { Search, Plus, Reading } from '@element-plus/icons-vue'
 import {
   listSpaces,

@@ -139,7 +139,7 @@ func (h *AlertHandler) ListAlerts(w http.ResponseWriter, r *http.Request) {
 func (h *AlertHandler) GetAlertStats(w http.ResponseWriter, r *http.Request) {
 	daysStr := r.URL.Query().Get("days")
 	days, _ := strconv.Atoi(daysStr)
-	
+
 	if days <= 0 {
 		days = 7
 	}

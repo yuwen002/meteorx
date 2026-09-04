@@ -43,21 +43,21 @@ type AssignPlanReq struct {
 
 // CurrentPlanResp 当前租户套餐与用量响应
 type CurrentPlanResp struct {
-	TenantID       string     `json:"tenant_id"`
-	PlanID         string     `json:"plan_id"`
-	PlanName       string     `json:"plan_name"`
-	PlanCode       string     `json:"plan_code"`
-	UserLimit      int        `json:"user_limit"`
-	CurrentUsers   int64      `json:"current_users"`
-	StartedAt      string     `json:"started_at"`
-	ExpiresAt      *string    `json:"expires_at"`
-	Status         int        `json:"status"`
-	EffectiveDays  int        `json:"effective_days"` // 剩余有效天数
+	TenantID      string  `json:"tenant_id"`
+	PlanID        string  `json:"plan_id"`
+	PlanName      string  `json:"plan_name"`
+	PlanCode      string  `json:"plan_code"`
+	UserLimit     int     `json:"user_limit"`
+	CurrentUsers  int64   `json:"current_users"`
+	StartedAt     string  `json:"started_at"`
+	ExpiresAt     *string `json:"expires_at"`
+	Status        int     `json:"status"`
+	EffectiveDays int     `json:"effective_days"` // 剩余有效天数
 }
 
 // TenantPlanBrief 租户套餐摘要（用于租户列表展示）
 type TenantPlanBrief struct {
-	TenantID  string `json:"tenant_id"`
-	PlanName  string `json:"plan_name"`
-	Expired   bool   `json:"expired"`
+	TenantID string `json:"tenant_id"`
+	PlanName string `json:"plan_name"`
+	Expired  bool   `json:"expired"`
 }

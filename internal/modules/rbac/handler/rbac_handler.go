@@ -731,7 +731,7 @@ func (h *RBACHandler) ListUserRoles(w http.ResponseWriter, r *http.Request) {
 
 	resp := make([]*dto.UserRoleResp, len(list))
 	for i, ur := range list {
-	resp[i] = dto.ToUserRoleResp(ur)
+		resp[i] = dto.ToUserRoleResp(ur)
 	}
 
 	result := pagination.NewPaginatedResult(resp, pg.Page, pg.PageSize, int(total))

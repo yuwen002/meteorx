@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"meteorx/internal/config"
-
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	gormlogger "gorm.io/gorm/logger"
+
+	"meteorx/internal/config"
+	"meteorx/pkg/logger"
 )
 
 // InitDB 返回一个 *gorm.DB 实例，而不是存放在全局变量
@@ -23,14 +24,14 @@ func InitDB(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	)
 
 	// 根据配置决定是否开启 SQL 日志
-	gormLogger := logger.Default.LogMode(logger.Silent)
+	gormLog := gormlogger.Default.LogMode(gormlogger.Silent)
 	if cfg.Debug {
-		gormLogger = logger.Default.LogMode(logger.Info)
-		fmt.Println("GORM SQL debug mode enabled")
+		gormLog = gormlogger.Default.LogMode(gormlogger.Info)
+		logger.Info("GORM SQL debug mode enabled")
 	}
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger:                                  gormLogger,
+		Logger:                                   gormLog,
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
@@ -45,6 +46,6 @@ func InitDB(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	fmt.Printf("Database [%s] connected successfully\n", cfg.Name)
+	logger.Infof("Database [%s] connected successfully", cfg.Name)
 	return db, nil
 }

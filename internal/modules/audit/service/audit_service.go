@@ -62,7 +62,7 @@ func (s *AuditService) BatchCreateLogs(ctx context.Context, reqs []dto.CreateAud
 	if len(reqs) == 0 {
 		return nil
 	}
-	
+
 	logs := make([]*model.AuditLog, len(reqs))
 	for i, req := range reqs {
 		logs[i] = &model.AuditLog{

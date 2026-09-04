@@ -12,7 +12,7 @@
               </el-button>
             </div>
           </template>
-          <div class="profile-info" v-loading="loading">
+          <div v-loading="loading" class="profile-info">
             <div class="info-item">
               <label>用户ID：</label>
               <span>{{ userInfo.id }}</span>
@@ -152,11 +152,12 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import type { FormInstance, FormRules } from 'element-plus'
 import { Edit } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import { getProfile, updateProfile, changePassword, type UserItem } from '@/api/modules/user'
-import { getUserRoles, type RoleItem } from '@/api/modules/role'
+import { getProfile, updateProfile, changePassword } from '@/api/modules/user'
+import { getUserRoles } from '@/api/modules/role'
 
 const userStore = useUserStore()
 
@@ -198,7 +199,7 @@ const pwdForm = reactive({
   confirm_password: ''
 })
 
-const validateConfirmPassword = (_rule: any, value: string, callback: Function) => {
+const validateConfirmPassword = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
   if (value !== pwdForm.new_password) {
     callback(new Error('两次输入的密码不一致'))
   } else {

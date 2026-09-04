@@ -45,10 +45,10 @@
 
       <!-- 列表 -->
       <el-table
-        :data="list"
         v-loading="loading"
-        @selection-change="handleSelectionChange"
+        :data="list"
         row-key="id"
+        @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" />
         <el-table-column prop="id" label="租户ID" min-width="260" show-overflow-tooltip>
@@ -60,8 +60,8 @@
                 type="primary"
                 size="small"
                 :icon="CopyDocument"
-                @click="copyId(row.id)"
                 title="复制"
+                @click="copyId(row.id)"
               />
             </div>
           </template>
@@ -105,7 +105,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { ArrowLeft, Search, RefreshLeft, CopyDocument } from '@element-plus/icons-vue'
 import {
   getDeletedTenantList,

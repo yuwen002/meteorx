@@ -23,7 +23,7 @@
       </div>
 
       <!-- 列表 -->
-      <el-table :data="list" border stripe v-loading="loading" style="width: 100%">
+      <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
         <el-table-column prop="tenant_name" label="租户名称" min-width="140" />
         <el-table-column prop="tenant_id" label="租户ID" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">
@@ -129,7 +129,8 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import type { FormInstance, FormRules } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import {
   getCancelRequestList,

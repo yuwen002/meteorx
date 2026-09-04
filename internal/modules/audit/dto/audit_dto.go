@@ -251,14 +251,14 @@ type DashboardResp struct {
 
 // AlertStatsResp 告警统计响应
 type AlertStatsResp struct {
-	TotalAlerts     int64            `json:"total_alerts"`      // 总告警数
-	TodayAlerts     int64            `json:"today_alerts"`      // 今日告警数
-	NotifiedCount   int64            `json:"notified_count"`    // 已通知数
-	PendingCount    int64            `json:"pending_count"`     // 未通知数
-	RiskLevelStats  map[string]int64 `json:"risk_level_stats"`  // 按风险等级统计
-	RuleStats       map[string]int64 `json:"rule_stats"`        // 按规则统计
-	Trend           []TrendPoint     `json:"trend"`             // 告警趋势
-	TopRules        []RuleCount      `json:"top_rules"`         // 触发最多的规则
+	TotalAlerts    int64            `json:"total_alerts"`     // 总告警数
+	TodayAlerts    int64            `json:"today_alerts"`     // 今日告警数
+	NotifiedCount  int64            `json:"notified_count"`   // 已通知数
+	PendingCount   int64            `json:"pending_count"`    // 未通知数
+	RiskLevelStats map[string]int64 `json:"risk_level_stats"` // 按风险等级统计
+	RuleStats      map[string]int64 `json:"rule_stats"`       // 按规则统计
+	Trend          []TrendPoint     `json:"trend"`            // 告警趋势
+	TopRules       []RuleCount      `json:"top_rules"`        // 触发最多的规则
 }
 
 // RuleCount 规则计数

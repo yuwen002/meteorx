@@ -2,6 +2,9 @@ package repository
 
 import (
 	"context"
+	"sort"
+	"time"
+
 	"meteorx/internal/modules/audit/model"
 )
 
@@ -135,6 +138,75 @@ func (m *MockAuditLogRepository) ListBySessionID(ctx context.Context, sessionID 
 		}
 	}
 	return result, nil
+}
+
+// ListSessions 获取会话摘要列表（模拟真实实现的按会话分组聚合）
+func (m *MockAuditLogRepository) ListSessions(ctx context.Context, page, pageSize int, userID string) ([]model.SessionSummary, int64, error) {
+	// 按 session_id 分组聚合
+	type agg struct {
+		sessionID, userID, username string
+		totalOps                    int64
+		minTime, maxTime            time.Time
+	}
+	aggMap := make(map[string]*agg)
+	for _, log := range m.logs {
+		if log.SessionID == "" {
+			continue
+		}
+		if userID != "" && log.UserID != userID {
+			continue
+		}
+		a, ok := aggMap[log.SessionID]
+		if !ok {
+			a = &agg{
+				sessionID: log.SessionID,
+				userID:    log.UserID,
+				username:  log.Username,
+				minTime:   log.CreatedAt,
+				maxTime:   log.CreatedAt,
+			}
+			aggMap[log.SessionID] = a
+		}
+		a.totalOps++
+		if log.CreatedAt.Before(a.minTime) {
+			a.minTime = log.CreatedAt
+		}
+		if log.CreatedAt.After(a.maxTime) {
+			a.maxTime = log.CreatedAt
+		}
+	}
+
+	// 组装并按最后活跃时间倒序
+	all := make([]*agg, 0, len(aggMap))
+	for _, a := range aggMap {
+		all = append(all, a)
+	}
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].maxTime.After(all[j].maxTime)
+	})
+
+	total := int64(len(all))
+	start := (page - 1) * pageSize
+	if start > len(all) {
+		start = len(all)
+	}
+	end := start + pageSize
+	if end > len(all) {
+		end = len(all)
+	}
+
+	summaries := make([]model.SessionSummary, 0, end-start)
+	for _, a := range all[start:end] {
+		summaries = append(summaries, model.SessionSummary{
+			SessionID: a.sessionID,
+			UserID:    a.userID,
+			Username:  a.username,
+			TotalOps:  a.totalOps,
+			StartTime: a.minTime,
+			EndTime:   a.maxTime,
+		})
+	}
+	return summaries, total, nil
 }
 
 // MockAlertRuleRepository 告警规则仓库的内存实现（用于测试）

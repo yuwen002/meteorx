@@ -39,11 +39,11 @@ const (
 	ErrWikiNodeTypeInvalid ErrorCode = "WIKI_NODE_TYPE_INVALID"
 
 	// Generic errors (9xxxx)
-	ErrInvalidParam  ErrorCode = "INVALID_PARAM"
+	ErrInvalidParam     ErrorCode = "INVALID_PARAM"
 	ErrResourceNotFound ErrorCode = "RESOURCE_NOT_FOUND"
-	ErrConflict     ErrorCode = "CONFLICT"
-	ErrInternal     ErrorCode = "INTERNAL_ERROR"
-	ErrRateLimited   ErrorCode = "RATE_LIMITED"
+	ErrConflict         ErrorCode = "CONFLICT"
+	ErrInternal         ErrorCode = "INTERNAL_ERROR"
+	ErrRateLimited      ErrorCode = "RATE_LIMITED"
 )
 
 func MapToHTTPStatus(code ErrorCode) int {

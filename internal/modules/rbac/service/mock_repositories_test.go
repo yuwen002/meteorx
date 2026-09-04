@@ -20,17 +20,17 @@ func codeKey(tenantID, code string) string {
 // ---------- mock: RoleRepository ----------
 
 type mockRoleRepo struct {
-	roles   map[string]*model.Role
-	byCode  map[string]*model.Role
-	countBy map[string]int64
+	roles       map[string]*model.Role
+	byCode      map[string]*model.Role
+	countBy     map[string]int64
 	permCountBy map[string]int64
 }
 
 func newMockRoleRepo() *mockRoleRepo {
 	return &mockRoleRepo{
-		roles:   make(map[string]*model.Role),
-		byCode:  make(map[string]*model.Role),
-		countBy: make(map[string]int64),
+		roles:       make(map[string]*model.Role),
+		byCode:      make(map[string]*model.Role),
+		countBy:     make(map[string]int64),
 		permCountBy: make(map[string]int64),
 	}
 }
@@ -204,7 +204,7 @@ var _ repository.PermissionRepository = (*mockPermissionRepo)(nil)
 // ---------- mock: RolePermissionRepository ----------
 
 type mockRolePermRepo struct {
-	rolePerms map[string][]string
+	rolePerms   map[string][]string
 	codesByRole map[string][]string
 	countByRole map[string]int64
 	countByPerm map[string]int64
@@ -212,7 +212,7 @@ type mockRolePermRepo struct {
 
 func newMockRolePermRepo() *mockRolePermRepo {
 	return &mockRolePermRepo{
-		rolePerms: make(map[string][]string),
+		rolePerms:   make(map[string][]string),
 		codesByRole: make(map[string][]string),
 		countByRole: make(map[string]int64),
 		countByPerm: make(map[string]int64),
@@ -265,15 +265,15 @@ var _ repository.RolePermissionRepository = (*mockRolePermRepo)(nil)
 // ---------- mock: UserRoleRepository ----------
 
 type mockUserRoleRepo struct {
-	userRoles map[string][]string
-	roleUsers map[string][]string
+	userRoles  map[string][]string
+	roleUsers  map[string][]string
 	userExists map[string]bool
 }
 
 func newMockUserRoleRepo() *mockUserRoleRepo {
 	return &mockUserRoleRepo{
-		userRoles: make(map[string][]string),
-		roleUsers: make(map[string][]string),
+		userRoles:  make(map[string][]string),
+		roleUsers:  make(map[string][]string),
 		userExists: make(map[string]bool),
 	}
 }

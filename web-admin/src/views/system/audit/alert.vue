@@ -147,7 +147,7 @@
         <el-button @click="resetAlertSearch">重置</el-button>
       </div>
 
-      <el-table :data="alerts" border stripe v-loading="alertLoading" style="width: 100%">
+      <el-table v-loading="alertLoading" :data="alerts" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="60" />
         <el-table-column prop="rule_name" label="规则名称" width="180" />
         <el-table-column prop="username" label="触发用户" width="120" />
@@ -253,7 +253,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Bell, CircleCheck, Warning, Message, Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { get, post, put, del } from '@/api/request'
 

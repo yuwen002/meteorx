@@ -1,4 +1,5 @@
-import { get, post, put, del, type ApiResult } from '@/api/request'
+import { get, post, put, del } from '@/api/request'
+import type { PaginatedResult } from '@/types/pagination'
 
 export interface TenantItem {
   id: string
@@ -63,7 +64,7 @@ export interface BatchDeleteParams {
 
 // 获取租户列表
 export function getTenantList(params: TenantListParams) {
-  return get<PageResult<TenantItem>>('/admin/tenants', params)
+  return get<PaginatedResult<TenantItem>>('/admin/tenants', params)
 }
 
 // 创建租户
@@ -105,7 +106,7 @@ export function batchDeleteTenants(data: BatchDeleteParams) {
 
 // 获取已删除的租户列表
 export function getDeletedTenantList(params: TenantListParams) {
-  return get<PageResult<TenantItem>>('/admin/tenants/deleted', params)
+  return get<PaginatedResult<TenantItem>>('/admin/tenants/deleted', params)
 }
 
 // 恢复已删除的租户
@@ -141,7 +142,7 @@ export interface CancelRequestListParams {
 
 // 获取注销申请列表
 export function getCancelRequestList(params: CancelRequestListParams) {
-  return get<PageResult<CancelRequestItem>>('/admin/cancel-requests', params)
+  return get<PaginatedResult<CancelRequestItem>>('/admin/cancel-requests', params)
 }
 
 // 通过注销申请（effective_days 为生效天数，0 表示立即执行）
@@ -214,12 +215,3 @@ export function updateTenantSettings(data: UpdateTenantSettingsReq) {
   return put<TenantSettings>('/tenant-settings', data)
 }
 
-// 类型定义辅助
-interface PageResult<T> {
-  data: T[]
-  pagination: {
-    page: number
-    page_size: number
-    total: number
-  }
-}

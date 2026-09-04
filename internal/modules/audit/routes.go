@@ -25,33 +25,33 @@ func RegisterRoutes(r chi.Router, h *handler.AuditHandler, alertH *handler.Alert
 		// 需要细粒度权限校验的路由组
 		r.Route("/logs", func(r chi.Router) {
 			r.Use(middleware.AutoRequirePermission(checker))
-			r.Get("/", h.ListLogs)               // audit:log:list
-			r.Get("/export", h.ExportLogs)       // audit:log:export
-			r.Post("/", h.CreateLog)             // audit:log:create
-			r.Get("/{id}", h.GetLog)             // audit:log:read
-			r.Delete("/cleanup", h.CleanupLogs)  // audit:log:cleanup
+			r.Get("/", h.ListLogs)              // audit:log:list
+			r.Get("/export", h.ExportLogs)      // audit:log:export
+			r.Post("/", h.CreateLog)            // audit:log:create
+			r.Get("/{id}", h.GetLog)            // audit:log:read
+			r.Delete("/cleanup", h.CleanupLogs) // audit:log:cleanup
 		})
 
 		// 告警规则管理（需要权限）
 		r.Route("/alert-rules", func(r chi.Router) {
 			r.Use(middleware.AutoRequirePermission(checker))
-			r.Get("/", alertH.ListRules)           // audit:alert-rule:list
-			r.Post("/", alertH.CreateRule)         // audit:alert-rule:create
-			r.Put("/{id}", alertH.UpdateRule)      // audit:alert-rule:update
-			r.Delete("/{id}", alertH.DeleteRule)   // audit:alert-rule:delete
+			r.Get("/", alertH.ListRules)         // audit:alert-rule:list
+			r.Post("/", alertH.CreateRule)       // audit:alert-rule:create
+			r.Put("/{id}", alertH.UpdateRule)    // audit:alert-rule:update
+			r.Delete("/{id}", alertH.DeleteRule) // audit:alert-rule:delete
 		})
 
 		// 告警记录查询（需要权限）
 		r.Route("/alerts", func(r chi.Router) {
 			r.Use(middleware.AutoRequirePermission(checker))
-			r.Get("/", alertH.ListAlerts)          // audit:alert:list
-			r.Get("/stats", alertH.GetAlertStats)  // audit:alert:stats
+			r.Get("/", alertH.ListAlerts)         // audit:alert:list
+			r.Get("/stats", alertH.GetAlertStats) // audit:alert:stats
 		})
 
 		// 会话分析（需要权限）
 		r.Route("/sessions", func(r chi.Router) {
 			r.Use(middleware.AutoRequirePermission(checker))
-			r.Get("/", sessionH.ListSessions)           // audit:session:list
+			r.Get("/", sessionH.ListSessions)            // audit:session:list
 			r.Get("/{id}/logs", sessionH.GetSessionLogs) // audit:session:read
 		})
 	})

@@ -33,17 +33,17 @@
             <el-icon><Setting /></el-icon>
             <template #title>租户设置</template>
           </el-menu-item>
-          <el-menu-item index="/wiki" v-if="userStore.hasPermission('wiki:list') || userStore.isAdmin">
+          <el-menu-item v-if="userStore.hasPermission('wiki:list') || userStore.isAdmin" index="/wiki">
             <el-icon><Reading /></el-icon>
             <template #title>知识库</template>
           </el-menu-item>
-          <el-menu-item index="/system/file" v-if="userStore.hasPermission('file:list') || userStore.isAdmin">
+          <el-menu-item v-if="userStore.hasPermission('file:list') || userStore.isAdmin" index="/system/file">
             <el-icon><Folder /></el-icon>
             <template #title>文件管理</template>
           </el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu index="/platform" v-if="userStore.isAdmin">
+        <el-sub-menu v-if="userStore.isAdmin" index="/platform">
           <template #title>
             <el-icon><Platform /></el-icon>
             <span>平台管理</span>
@@ -66,7 +66,7 @@
           </el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu index="/tenant-mgmt" v-if="userStore.isAdmin">
+        <el-sub-menu v-if="userStore.isAdmin" index="/tenant-mgmt">
           <template #title>
             <el-icon><OfficeBuilding /></el-icon>
             <span>租户运营</span>
@@ -85,7 +85,7 @@
           </el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu index="/system" v-if="userStore.isAdmin">
+        <el-sub-menu v-if="userStore.isAdmin" index="/system">
           <template #title>
             <el-icon><Setting /></el-icon>
             <span>系统</span>
@@ -176,7 +176,8 @@ import {
   UserFilled
 } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 

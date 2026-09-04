@@ -78,10 +78,10 @@ type AuditLogStats struct {
 }
 
 type AuditTrendPoint struct {
-	Date      string `json:"date"`
-	Count     int64  `json:"count"`
-	Success   int64  `json:"success"`
-	Failure   int64  `json:"failure"`
+	Date    string `json:"date"`
+	Count   int64  `json:"count"`
+	Success int64  `json:"success"`
+	Failure int64  `json:"failure"`
 }
 
 type AuditDashboardData struct {
@@ -100,18 +100,18 @@ type ModuleCount struct {
 }
 
 type AuditLogQuery struct {
-	UserID   string `form:"user_id"`
-	Username string `form:"username"`
-	TenantID string `form:"tenant_id"`
-	Module   string `form:"module"`
-	Action   string `form:"action"`
-	Resource string `form:"resource"`
-	Result   string `form:"result"`
-	Keyword  string `form:"keyword"`
+	UserID    string `form:"user_id"`
+	Username  string `form:"username"`
+	TenantID  string `form:"tenant_id"`
+	Module    string `form:"module"`
+	Action    string `form:"action"`
+	Resource  string `form:"resource"`
+	Result    string `form:"result"`
+	Keyword   string `form:"keyword"`
 	StartTime string `form:"start_time"`
 	EndTime   string `form:"end_time"`
-	Page     int    `form:"page"`
-	PageSize int    `form:"page_size"`
+	Page      int    `form:"page"`
+	PageSize  int    `form:"page_size"`
 }
 
 type TrendQuery struct {

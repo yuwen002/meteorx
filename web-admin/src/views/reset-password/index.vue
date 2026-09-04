@@ -39,9 +39,9 @@
         <el-button
           type="primary"
           :loading="loading"
-          @click="handleSubmit"
           size="large"
           style="width: 100%"
+          @click="handleSubmit"
         >
           确认重置
         </el-button>
@@ -58,7 +58,7 @@
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { resetPassword } from '@/api/auth'
 
 const router = useRouter()

@@ -164,6 +164,7 @@ func (r *permissionRepository) BatchDelete(ctx context.Context, ids []string) (i
 	}
 	return result.RowsAffected, nil
 }
+
 // Count 统计权限总数
 func (r *permissionRepository) Count(ctx context.Context) (int64, error) {
 	var total int64

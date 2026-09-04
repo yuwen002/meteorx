@@ -1,4 +1,5 @@
 import { get, post, put, del } from '@/api/request'
+import type { PaginatedResult } from '@/types/pagination'
 
 export interface PlanItem {
   id: string
@@ -57,7 +58,7 @@ export function getPlanList(params?: {
   keyword?: string
   status?: number
 }) {
-  return get<PageResult<PlanItem>>('/admin/plans', params)
+  return get<PaginatedResult<PlanItem>>('/admin/plans', params)
 }
 
 // 获取启用套餐下拉列表
@@ -95,12 +96,3 @@ export function getMyPlan() {
   return get<CurrentPlan>('/tenant/current/plan')
 }
 
-interface PageResult<T> {
-  data?: T[]
-  list?: T[]
-  pagination: {
-    page: number
-    page_size: number
-    total: number
-  }
-}

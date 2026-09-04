@@ -7,13 +7,13 @@ type UploadFileReq struct {
 
 // UploadFileResp 文件上传响应
 type UploadFileResp struct {
-	ID          string `json:"id"`
-	FileName    string `json:"file_name"`
+	ID           string `json:"id"`
+	FileName     string `json:"file_name"`
 	OriginalName string `json:"original_name"`
-	FileSize    int64  `json:"file_size"`
-	MimeType    string `json:"mime_type"`
-	FileType    string `json:"file_type"`
-	URL         string `json:"url"`
+	FileSize     int64  `json:"file_size"`
+	MimeType     string `json:"mime_type"`
+	FileType     string `json:"file_type"`
+	URL          string `json:"url"`
 }
 
 // FileListReq 文件列表请求

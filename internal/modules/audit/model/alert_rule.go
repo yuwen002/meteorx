@@ -20,18 +20,18 @@ type AlertRule struct {
 
 // AuditAlert 审计告警记录
 type AuditAlert struct {
-	ID          string    // 告警ID
-	RuleID      string    // 触发规则ID
-	RuleName    string    // 规则名称
-	AuditLogID  string    // 关联审计日志ID
-	UserID      string    // 触发用户ID
-	Username    string    // 触发用户名
-	RiskLevel   string    // 风险等级
-	Action      string    // 操作类型
-	Message     string    // 告警消息
-	Notified    bool      // 是否已通知
-	NotifyTime  time.Time // 通知时间
-	CreatedAt   time.Time // 创建时间
+	ID         string    // 告警ID
+	RuleID     string    // 触发规则ID
+	RuleName   string    // 规则名称
+	AuditLogID string    // 关联审计日志ID
+	UserID     string    // 触发用户ID
+	Username   string    // 触发用户名
+	RiskLevel  string    // 风险等级
+	Action     string    // 操作类型
+	Message    string    // 告警消息
+	Notified   bool      // 是否已通知
+	NotifyTime time.Time // 通知时间
+	CreatedAt  time.Time // 创建时间
 }
 
 // TriggerType 触发类型

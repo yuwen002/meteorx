@@ -13,18 +13,18 @@ func RegisterAdminRoutes(r chi.Router, h *handler.PlanHandler, checker middlewar
 	// 套餐 CRUD
 	r.Route("/admin/plans", func(r chi.Router) {
 		r.Use(middleware.AutoRequirePermission(checker))
-		r.Get("/", h.ListPlans)                    // 套餐列表
-		r.Get("/select", h.ListAllEnabledPlans)    // 启用套餐下拉列表
-		r.Post("/", h.CreatePlan)                  // 创建套餐
-		r.Put("/{id}/update", h.UpdatePlan)        // 更新套餐
-		r.Delete("/{id}/delete", h.DeletePlan)     // 删除套餐
+		r.Get("/", h.ListPlans)                 // 套餐列表
+		r.Get("/select", h.ListAllEnabledPlans) // 启用套餐下拉列表
+		r.Post("/", h.CreatePlan)               // 创建套餐
+		r.Put("/{id}/update", h.UpdatePlan)     // 更新套餐
+		r.Delete("/{id}/delete", h.DeletePlan)  // 删除套餐
 	})
 
 	// 租户套餐查询与分配
 	r.Route("/admin/tenants-plan", func(r chi.Router) {
 		r.Use(middleware.AutoRequirePermission(checker))
-		r.Get("/{id}", h.CheckTenantPlan)    // 查询租户套餐
-		r.Put("/{id}", h.AssignPlan)         // 分配套餐
+		r.Get("/{id}", h.CheckTenantPlan) // 查询租户套餐
+		r.Put("/{id}", h.AssignPlan)      // 分配套餐
 	})
 }
 

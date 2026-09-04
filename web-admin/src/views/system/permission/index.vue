@@ -10,14 +10,14 @@
         <el-button type="success" @click="openCreateDialog"><el-icon><Plus /></el-icon>新增权限</el-button>
       </div>
 
-      <div class="batch-bar" v-if="selectedIds.length > 0">
+      <div v-if="selectedIds.length > 0" class="batch-bar">
         <el-button type="danger" @click="handleBatchDelete">批量删除</el-button>
         <el-button type="warning" @click="handleBatchDisable">批量禁用</el-button>
         <el-button type="success" @click="handleBatchEnable">批量启用</el-button>
         <span style="margin-left: 8px; color: #666;">已选择 {{ selectedIds.length }} 项</span>
       </div>
 
-      <el-table :data="list" border stripe v-loading="loading" style="width: 100%" @selection-change="handleSelectionChange">
+      <el-table v-loading="loading" :data="list" border stripe style="width: 100%" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" />
         <el-table-column prop="name" label="权限名" min-width="140" />
         <el-table-column prop="code" label="编码" min-width="180">
@@ -77,7 +77,10 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { Search, Plus } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import type { FormInstance, FormRules } from 'element-plus'
 import {
   getPermissionList,
   createPermission,

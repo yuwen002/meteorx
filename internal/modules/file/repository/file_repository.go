@@ -58,19 +58,19 @@ func (r *FileRepositoryImpl) GetByMD5(ctx context.Context, tenantID, md5 string)
 func (r *FileRepositoryImpl) ListByTenant(ctx context.Context, tenantID string, page, pageSize int) ([]*model.File, int64, error) {
 	var files []*model.File
 	var total int64
-	
+
 	offset := (page - 1) * pageSize
-	
+
 	query := r.db.WithContext(ctx).Model(&model.File{}).Where("tenant_id = ? AND deleted_at IS NULL", tenantID)
-	
+
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	
+
 	if err := query.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&files).Error; err != nil {
 		return nil, 0, err
 	}
-	
+
 	return files, total, nil
 }
 
@@ -78,20 +78,20 @@ func (r *FileRepositoryImpl) ListByTenant(ctx context.Context, tenantID string, 
 func (r *FileRepositoryImpl) ListByUser(ctx context.Context, tenantID, userID string, page, pageSize int) ([]*model.File, int64, error) {
 	var files []*model.File
 	var total int64
-	
+
 	offset := (page - 1) * pageSize
-	
+
 	query := r.db.WithContext(ctx).Model(&model.File{}).
 		Where("tenant_id = ? AND user_id = ? AND deleted_at IS NULL", tenantID, userID)
-	
+
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	
+
 	if err := query.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&files).Error; err != nil {
 		return nil, 0, err
 	}
-	
+
 	return files, total, nil
 }
 
@@ -114,19 +114,19 @@ func (r *FileRepositoryImpl) PermanentDelete(ctx context.Context, id string) err
 func (r *FileRepositoryImpl) GetDeletedList(ctx context.Context, tenantID string, page, pageSize int) ([]*model.File, int64, error) {
 	var files []*model.File
 	var total int64
-	
+
 	offset := (page - 1) * pageSize
-	
+
 	query := r.db.WithContext(ctx).Model(&model.File{}).Where("tenant_id = ? AND deleted_at IS NOT NULL", tenantID)
-	
+
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	
+
 	if err := query.Order("deleted_at DESC").Offset(offset).Limit(pageSize).Find(&files).Error; err != nil {
 		return nil, 0, err
 	}
-	
+
 	return files, total, nil
 }
 

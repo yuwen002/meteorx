@@ -31,6 +31,7 @@ import (
 	userRepo "meteorx/internal/modules/user/repository"
 	"meteorx/internal/modules/wiki"
 	dbpkg "meteorx/internal/pkg/db"
+	"meteorx/pkg/logger"
 	"meteorx/pkg/security"
 )
 
@@ -231,25 +232,25 @@ func initIPLocator(cfg *config.Config) iplocation.IPLocator {
 		if dbPath == "" {
 			dbPath = "./data/ip2region.xdb"
 		}
-		
+
 		locator, err := iplocation.NewLocalLocator(dbPath)
 		if err != nil {
 			// 如果本地数据库加载失败，降级为 HTTP API
-			println("[WARN] Failed to load ip2region database, falling back to HTTP API:", err.Error())
+			logger.Warnf("Failed to load ip2region database, falling back to HTTP API: %v", err)
 			return iplocation.NewHTTPLocator("ip-api", 3*time.Second)
 		}
-		
-		println("[INFO] IP location provider: ip2region (offline)")
+
+		logger.Info("IP location provider: ip2region (offline)")
 		return locator
-		
+
 	default:
 		// 使用 HTTP API（在线解析）
 		timeout := time.Duration(cfg.IPLocation.Timeout) * time.Second
 		if timeout == 0 {
 			timeout = 3 * time.Second
 		}
-		
-		println("[INFO] IP location provider: http-api (online)")
+
+		logger.Info("IP location provider: http-api (online)")
 		return iplocation.NewHTTPLocator("ip-api", timeout)
 	}
 }

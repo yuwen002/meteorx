@@ -15,6 +15,7 @@ import (
 	"meteorx/internal/modules/audit/repository"
 	"meteorx/internal/pkg/emailer"
 	"meteorx/pkg/idgen"
+	"meteorx/pkg/logger"
 )
 
 type AlertService struct {
@@ -228,12 +229,12 @@ func (s *AlertService) sendEmailNotification(targets []string, alert *model.Audi
 	if s.emailer == nil {
 		return
 	}
-	
+
 	for _, target := range targets {
 		if !strings.Contains(target, "@") {
 			continue
 		}
-		
+
 		subject := "【审计告警】" + alert.RuleName
 		body := fmt.Sprintf(`
 			<div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;">
@@ -285,9 +286,9 @@ func (s *AlertService) sendEmailNotification(targets []string, alert *model.Audi
 		)
 
 		if err := s.emailer.Send(target, subject, body); err != nil {
-			fmt.Printf("[Email Alert Error] Failed to send to %s: %v\n", target, err)
+			logger.Errorf("[Email Alert] Failed to send to %s: %v", target, err)
 		} else {
-			fmt.Printf("[Email Alert] Sent to %s successfully\n", target)
+			logger.Infof("[Email Alert] Sent to %s successfully", target)
 		}
 	}
 }
@@ -327,7 +328,7 @@ func (s *AlertService) sendDingTalkNotification(targets []string, alert *model.A
 		if !strings.HasPrefix(target, "http") {
 			continue
 		}
-		
+
 		payload := map[string]interface{}{
 			"msgtype": "markdown",
 			"markdown": map[string]string{
@@ -352,11 +353,11 @@ func (s *AlertService) sendDingTalkNotification(targets []string, alert *model.A
 				),
 			},
 		}
-		
+
 		if err := s.sendWebhookRequest(target, payload); err != nil {
-			fmt.Printf("[DingTalk Alert Error] Failed to send to %s: %v\n", target, err)
+			logger.Errorf("[DingTalk Alert] Failed to send to %s: %v", target, err)
 		} else {
-			fmt.Printf("[DingTalk Alert] Sent to %s successfully\n", target)
+			logger.Infof("[DingTalk Alert] Sent to %s successfully", target)
 		}
 	}
 }
@@ -366,7 +367,7 @@ func (s *AlertService) sendWeChatNotification(targets []string, alert *model.Aud
 		if !strings.HasPrefix(target, "http") {
 			continue
 		}
-		
+
 		payload := map[string]interface{}{
 			"msgtype": "markdown",
 			"markdown": map[string]string{
@@ -388,11 +389,11 @@ func (s *AlertService) sendWeChatNotification(targets []string, alert *model.Aud
 				),
 			},
 		}
-		
+
 		if err := s.sendWebhookRequest(target, payload); err != nil {
-			fmt.Printf("[WeChat Alert Error] Failed to send to %s: %v\n", target, err)
+			logger.Errorf("[WeChat Alert] Failed to send to %s: %v", target, err)
 		} else {
-			fmt.Printf("[WeChat Alert] Sent to %s successfully\n", target)
+			logger.Infof("[WeChat Alert] Sent to %s successfully", target)
 		}
 	}
 }
@@ -402,23 +403,23 @@ func (s *AlertService) sendWebhookNotification(targets []string, alert *model.Au
 		if !strings.HasPrefix(target, "http") {
 			continue
 		}
-		
+
 		payload := map[string]interface{}{
-			"rule_name":   alert.RuleName,
-			"username":    alert.Username,
-			"action":      alert.Action,
-			"risk_level":  alert.RiskLevel,
-			"message":     alert.Message,
-			"created_at":  alert.CreatedAt.Format("2006-01-02 15:04:05"),
-			"alert_id":    alert.ID,
-			"rule_id":     alert.RuleID,
+			"rule_name":    alert.RuleName,
+			"username":     alert.Username,
+			"action":       alert.Action,
+			"risk_level":   alert.RiskLevel,
+			"message":      alert.Message,
+			"created_at":   alert.CreatedAt.Format("2006-01-02 15:04:05"),
+			"alert_id":     alert.ID,
+			"rule_id":      alert.RuleID,
 			"audit_log_id": alert.AuditLogID,
 		}
-		
+
 		if err := s.sendWebhookRequest(target, payload); err != nil {
-			fmt.Printf("[Webhook Alert Error] Failed to send to %s: %v\n", target, err)
+			logger.Errorf("[Webhook Alert] Failed to send to %s: %v", target, err)
 		} else {
-			fmt.Printf("[Webhook Alert] Sent to %s successfully\n", target)
+			logger.Infof("[Webhook Alert] Sent to %s successfully", target)
 		}
 	}
 }
@@ -428,17 +429,17 @@ func (s *AlertService) sendWebhookRequest(url string, payload interface{}) error
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
-	
+
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to send webhook: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("webhook returned status %d", resp.StatusCode)
 	}
-	
+
 	return nil
 }
 
@@ -447,6 +448,6 @@ func (s *AlertService) GetAlertStats(ctx context.Context, days int) (*model.Aler
 	if days <= 0 {
 		days = 7 // 默认查看最近7天
 	}
-	
+
 	return s.alertRepo.GetAlertStats(ctx, days)
 }

@@ -28,9 +28,9 @@
         <el-button
           type="primary"
           :loading="loading"
-          @click="handleSubmit"
           size="large"
           style="width: 100%"
+          @click="handleSubmit"
         >
           发送重置链接
         </el-button>
@@ -52,7 +52,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { SuccessFilled } from '@element-plus/icons-vue'
 import { forgotPassword } from '@/api/auth'
 

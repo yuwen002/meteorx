@@ -28,6 +28,13 @@ const (
 	tokenBlacklistPrefix = "token:blacklist:"
 )
 
+// 哨兵错误：Handler 层通过 errors.Is 精确判定，避免字符串比对
+var (
+	ErrEmailNotConfigured = errors.New("email service not configured")
+	ErrInvalidResetToken  = errors.New("invalid or expired token")
+	ErrUserNotFound       = errors.New("user not found")
+)
+
 // LoginError 登录错误（包含安全信息）
 type LoginError struct {
 	Message           string
@@ -123,14 +130,14 @@ func (s *AuthService) Register(ctx context.Context, req dto.RegisterUserReq) (*m
 
 // LoginResult 登录结果（包含安全信息）
 type LoginResult struct {
-	User             *model.User
-	Roles            []string
-	Permissions      []string
-	Token            string
+	User              *model.User
+	Roles             []string
+	Permissions       []string
+	Token             string
 	RemainingAttempts int
-	Locked           bool
-	LockoutDuration  int64
-	Error            error
+	Locked            bool
+	LockoutDuration   int64
+	Error             error
 }
 
 func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User, []string, []string, string, error) {
@@ -274,7 +281,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 	}
 
 	if !s.emailEnabled {
-		return errors.New("email service not configured")
+		return ErrEmailNotConfigured
 	}
 
 	if s.redis == nil || !s.redis.IsAvailable() {
@@ -307,16 +314,16 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 		return errors.New("reset token storage unavailable")
 	}
 	if err != nil || userID == "" {
-		return errors.New("invalid or expired token")
+		return ErrInvalidResetToken
 	}
 
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return errors.New("user not found")
+		return ErrUserNotFound
 	}
 
 	if user == nil {
-		return errors.New("user not found")
+		return ErrUserNotFound
 	}
 
 	if err := security.ValidatePassword(newPassword, s.securityCfg.PasswordPolicy); err != nil {

@@ -33,16 +33,16 @@ func RegisterRoutes(r chi.Router, db *gorm.DB, cfg *config.Config) {
 	r.Route("/files", func(r chi.Router) {
 		r.Use(middleware.AutoRequirePermission(checker))
 
-		r.Post("/upload", fileHandler.Upload)           // 上传文件
-		r.Get("/", fileHandler.ListByTenant)            // 租户文件列表
-		r.Get("/my", fileHandler.ListByUser)            // 我的文件列表
-		r.Get("/{id}", fileHandler.GetByID)             // 文件详情
-		r.Get("/{id}/download", fileHandler.Download)   // 下载文件
-		r.Put("/{id}", fileHandler.Update)              // 更新文件信息
-		r.Delete("/{id}", fileHandler.Delete)           // 删除文件
-		r.Post("/batch/delete", fileHandler.BatchDelete) // 批量删除文件
-		r.Get("/deleted", fileHandler.GetDeletedList)   // 回收站列表
-		r.Put("/{id}/restore", fileHandler.Restore)     // 从回收站恢复
+		r.Post("/upload", fileHandler.Upload)                    // 上传文件
+		r.Get("/", fileHandler.ListByTenant)                     // 租户文件列表
+		r.Get("/my", fileHandler.ListByUser)                     // 我的文件列表
+		r.Get("/{id}", fileHandler.GetByID)                      // 文件详情
+		r.Get("/{id}/download", fileHandler.Download)            // 下载文件
+		r.Put("/{id}", fileHandler.Update)                       // 更新文件信息
+		r.Delete("/{id}", fileHandler.Delete)                    // 删除文件
+		r.Post("/batch/delete", fileHandler.BatchDelete)         // 批量删除文件
+		r.Get("/deleted", fileHandler.GetDeletedList)            // 回收站列表
+		r.Put("/{id}/restore", fileHandler.Restore)              // 从回收站恢复
 		r.Delete("/{id}/permanent", fileHandler.PermanentDelete) // 永久删除
 	})
 }

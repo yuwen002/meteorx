@@ -28,7 +28,7 @@
       </div>
 
       <!-- 批量操作 -->
-      <div class="batch-bar" v-if="selectedIds.length > 0">
+      <div v-if="selectedIds.length > 0" class="batch-bar">
         <el-button type="danger" @click="handleBatchDelete">批量删除</el-button>
         <el-button type="warning" @click="handleBatchDisable">批量禁用</el-button>
         <el-button type="success" @click="handleBatchEnable">批量启用</el-button>
@@ -37,10 +37,10 @@
 
       <!-- 列表 -->
       <el-table
+        v-loading="loading"
         :data="list"
         border
         stripe
-        v-loading="loading"
         style="width: 100%"
         @selection-change="handleSelectionChange"
       >
@@ -54,8 +54,8 @@
                 type="primary"
                 size="small"
                 :icon="CopyDocument"
-                @click="copyId(row.id)"
                 title="复制"
+                @click="copyId(row.id)"
               />
             </div>
           </template>
@@ -140,7 +140,7 @@
         <el-button type="info" @click="toggleUserRecycleBin">
           <el-icon><Delete /></el-icon>{{ isUserRecycleBin ? '返回列表' : '回收站' }}
         </el-button>
-        <el-button type="success" v-if="!isUserRecycleBin" @click="openCreateUserDialog">
+        <el-button v-if="!isUserRecycleBin" type="success" @click="openCreateUserDialog">
           <el-icon><Plus /></el-icon>新增用户
         </el-button>
       </div>
@@ -155,8 +155,8 @@
 
       <!-- 用户列表 -->
       <el-table
-        :data="userList"
         v-loading="userLoading"
+        :data="userList"
         border
         stripe
         @selection-change="handleUserSelectionChange"
@@ -277,7 +277,7 @@
       width="900px"
       :close-on-click-modal="false"
     >
-      <el-table :data="loginLogsList" border stripe v-loading="loginLogsLoading" style="width: 100%">
+      <el-table v-loading="loginLogsLoading" :data="loginLogsList" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="60" :index="(i: number) => (loginLogsPage - 1) * loginLogsPageSize + i + 1" />
         <el-table-column prop="action" label="操作" width="100">
           <template #default="{ row }">
@@ -346,7 +346,7 @@
         <el-form-item label="用户名" prop="username">
           <el-input v-model="userForm.username" placeholder="请输入用户名" :disabled="userDialogMode === 'edit'" />
         </el-form-item>
-        <el-form-item label="密码" prop="password" v-if="userDialogMode === 'create'">
+        <el-form-item v-if="userDialogMode === 'create'" label="密码" prop="password">
           <el-input v-model="userForm.password" type="password" show-password placeholder="请输入密码" />
         </el-form-item>
         <el-form-item label="昵称" prop="nickname">
@@ -406,7 +406,7 @@
         <el-form-item label="Logo" prop="logo">
           <el-input v-model="form.logo" placeholder="请输入Logo URL" />
         </el-form-item>
-        <el-form-item label="状态" prop="status" v-if="dialogMode === 'create'">
+        <el-form-item v-if="dialogMode === 'create'" label="状态" prop="status">
           <el-radio-group v-model="form.status">
             <el-radio :value="1">启用</el-radio>
             <el-radio :value="0">禁用</el-radio>
@@ -459,11 +459,11 @@
             <span class="label">生效时间</span>
             <span>{{ currentPlan.started_at || '-' }}</span>
           </div>
-          <div class="plan-info-item" v-if="currentPlan.expires_at">
+          <div v-if="currentPlan.expires_at" class="plan-info-item">
             <span class="label">到期时间</span>
             <span>{{ currentPlan.expires_at }}（剩余 {{ currentPlan.effective_days ?? 0 }} 天）</span>
           </div>
-          <div class="plan-info-item" v-else>
+          <div v-else class="plan-info-item">
             <span class="label">到期时间</span>
             <span>长期有效</span>
           </div>
@@ -503,7 +503,9 @@
 <script setup lang="ts">
 import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import type { FormInstance, FormRules } from 'element-plus'
 import { Search, Plus, Delete, CopyDocument } from '@element-plus/icons-vue'
 import {
   getTenantList,
@@ -534,7 +536,7 @@ import {
   type UserUpdateParams
 } from '@/api/modules/user'
 import { getAuditLogList, type AuditLogItem } from '@/api/modules/audit'
-import { getRoleList, getRolesForSelect, getUserRoles, removeUserRole, removeAllUserRoles, type RoleItem } from '@/api/modules/role'
+import { getRolesForSelect, getUserRoles, removeUserRole, removeAllUserRoles, type RoleItem } from '@/api/modules/role'
 import { getPlanSelect, getTenantPlan, assignTenantPlan, type PlanItem, type CurrentPlan } from '@/api/modules/plan'
 
 const router = useRouter()

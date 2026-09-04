@@ -14,14 +14,14 @@
         </el-button>
       </div>
 
-      <div class="batch-bar" v-if="selectedIds.length > 0">
+      <div v-if="selectedIds.length > 0" class="batch-bar">
         <el-button type="danger" @click="handleBatchDelete">批量删除</el-button>
         <el-button type="warning" @click="handleBatchDisable">批量停用</el-button>
         <el-button type="success" @click="handleBatchEnable">批量启用</el-button>
         <span style="margin-left: 8px; color: #666;">已选择 {{ selectedIds.length }} 项</span>
       </div>
 
-      <el-table :data="list" border stripe v-loading="loading" style="width: 100%" @selection-change="handleSelectionChange">
+      <el-table v-loading="loading" :data="list" border stripe style="width: 100%" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" :selectable="(row: RoleItem) => !row.is_system" />
         <el-table-column prop="name" label="角色名" min-width="140" />
         <el-table-column prop="code" label="编码" min-width="140" />
@@ -42,11 +42,11 @@
           <template #default="{ row }">
             <el-button link type="primary" @click="openViewPerms(row)">查看权限</el-button>
             <el-button link type="success" @click="openBindPerm(row)">绑定权限</el-button>
-            <el-button link :type="row.status === 1 ? 'warning' : 'success'" @click="handleToggleStatus(row)" v-if="!row.is_system">
+            <el-button v-if="!row.is_system" link :type="row.status === 1 ? 'warning' : 'success'" @click="handleToggleStatus(row)">
               {{ row.status === 1 ? '停用' : '启用' }}
             </el-button>
-            <el-button link type="primary" @click="openEditDialog(row)" v-if="!row.is_system">编辑</el-button>
-            <el-button link type="danger" @click="handleDelete(row)" v-if="!row.is_system">删除</el-button>
+            <el-button v-if="!row.is_system" link type="primary" @click="openEditDialog(row)">编辑</el-button>
+            <el-button v-if="!row.is_system" link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -144,7 +144,7 @@
         :props="{ label: 'name', children: 'children' }"
         style="max-height: 400px; overflow: auto"
       >
-        <template #default="{ node, data }">
+        <template #default="{ data }">
           <span style="display: inline-flex; align-items: center; gap: 6px">
             <span>{{ data.name }}</span>
             <el-tag size="small" type="info" style="font-size: 11px">{{ data.code }}</el-tag>
@@ -161,7 +161,10 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { Search, Delete, Plus } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import type { FormInstance, FormRules } from 'element-plus'
 import type { ElTree } from 'element-plus'
 import {
   getRoleList,

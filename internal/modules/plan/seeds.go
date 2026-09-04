@@ -2,10 +2,10 @@ package plan
 
 import (
 	"context"
-	"log"
 
 	"meteorx/internal/modules/plan/dto"
 	"meteorx/internal/modules/plan/service"
+	"meteorx/pkg/logger"
 )
 
 // SeedPlans 初始化默认套餐（幂等：已存在则跳过）
@@ -43,9 +43,9 @@ func SeedPlans(ctx context.Context, svc *service.PlanService) {
 		if _, err := svc.CreatePlan(ctx, p); err != nil {
 			// 忽略 code 冲突（已存在）；记录其他错误
 			if err != service.ErrPlanCodeConflict {
-				log.Printf("[Plan] 初始化套餐 %d 失败: %v", i+1, err)
+				logger.Errorf("[Plan] 初始化套餐 %d 失败: %v", i+1, err)
 			}
 		}
 	}
-	log.Printf("[Plan] 默认套餐初始化完成 (%d)", len(defaults))
+	logger.Infof("[Plan] 默认套餐初始化完成 (%d)", len(defaults))
 }

@@ -65,7 +65,7 @@ type BatchAssignUserRolesReq struct {
 
 // UserRoleAssignment 单个用户角色分配
 type UserRoleAssignment struct {
-	UserID  string   `json:"user_id" validate:"required"`      // 用户ID
+	UserID  string   `json:"user_id" validate:"required"`        // 用户ID
 	RoleIDs []string `json:"role_ids" validate:"required,min=1"` // 角色ID列表
 }
 

@@ -1,4 +1,5 @@
 import request from '../request'
+import type { PaginatedResult } from '@/types/pagination'
 
 export interface WikiSpace {
   id: string
@@ -75,17 +76,6 @@ export interface WikiStats {
   total_nodes: number
   total_documents: number
   total_views: number
-}
-
-export interface PaginationMeta {
-  page: number
-  page_size: number
-  total: number
-}
-
-export interface PaginatedResult<T> {
-  data: T[]
-  pagination: PaginationMeta
 }
 
 export interface CreateSpaceReq {

@@ -1,4 +1,5 @@
 import request from '../request'
+import type { PaginatedResult } from '@/types/pagination'
 
 // ============================================================
 // 类型定义（与后端 dto 对齐）
@@ -60,19 +61,6 @@ export interface BatchDeleteResp {
   success_count: number
   failed_count: number
   failed_ids?: string[]
-}
-
-/** 分页元数据 */
-export interface PaginationMeta {
-  page: number
-  page_size: number
-  total: number
-}
-
-/** 分页响应结构 */
-export interface PaginatedResult<T> {
-  data: T[]
-  pagination: PaginationMeta
 }
 
 // ============================================================

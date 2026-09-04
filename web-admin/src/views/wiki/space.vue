@@ -2,7 +2,7 @@
   <div class="wiki-space">
     <div class="sidebar">
       <div class="sidebar-header">
-        <el-button link @click="goBack" :icon="ArrowLeft" />
+        <el-button link :icon="ArrowLeft" @click="goBack" />
         <span class="space-title">{{ spaceInfo?.name || '加载中...' }}</span>
       </div>
       <div class="sidebar-actions">
@@ -18,16 +18,16 @@
         default-expand-all
         @node-click="handleNodeClick"
       >
-        <template #default="{ node, data }">
+        <template #default="{ data }">
           <span class="tree-node">
             <el-icon v-if="data.type === 'folder'"><Folder /></el-icon>
             <el-icon v-else><Document /></el-icon>
             <span class="node-title">{{ data.title }}</span>
             <span class="node-actions" @click.stop>
-              <el-icon v-if="data.type === 'folder'" class="action-icon" @click="createNode(data.id)" title="新建子文件夹"><FolderAdd /></el-icon>
-              <el-icon v-if="data.type === 'folder'" class="action-icon" @click="createDocument(data.id)" title="新建文档"><DocumentAdd /></el-icon>
-              <el-icon class="action-icon" @click="editNode(data)" title="编辑"><Edit /></el-icon>
-              <el-icon class="action-icon danger" @click="deleteNode(data)" title="删除"><Delete /></el-icon>
+              <el-icon v-if="data.type === 'folder'" class="action-icon" title="新建子文件夹" @click="createNode(data.id)"><FolderAdd /></el-icon>
+              <el-icon v-if="data.type === 'folder'" class="action-icon" title="新建文档" @click="createDocument(data.id)"><DocumentAdd /></el-icon>
+              <el-icon class="action-icon" title="编辑" @click="editNode(data)"><Edit /></el-icon>
+              <el-icon class="action-icon danger" title="删除" @click="deleteNode(data)"><Delete /></el-icon>
             </span>
           </span>
         </template>
@@ -40,7 +40,7 @@
           <h2>{{ currentNode.title }}</h2>
           <div class="header-actions">
             <el-button size="small" @click="showRevisions = !showRevisions">历史版本</el-button>
-            <el-button type="primary" size="small" @click="saveDocument" :loading="saving">保存</el-button>
+            <el-button type="primary" size="small" :loading="saving" @click="saveDocument">保存</el-button>
           </div>
         </div>
         <div class="content-meta">
@@ -98,9 +98,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import type { FormInstance, FormRules } from 'element-plus'
 import {
   ArrowLeft, FolderAdd, DocumentAdd, Folder, Document, Edit, Delete
 } from '@element-plus/icons-vue'
@@ -207,7 +209,7 @@ async function saveDocument() {
 
 async function createNode(parentId: string | null) {
   try {
-    const res = await createNodeApi(spaceId.value, {
+    await createNodeApi(spaceId.value, {
       parent_id: parentId || undefined,
       type: 'folder',
       title: '新建文件夹',

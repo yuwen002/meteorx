@@ -30,7 +30,7 @@
       </div>
 
       <!-- 列表 -->
-      <el-table :data="list" border stripe v-loading="loading" style="width: 100%">
+      <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="55" :index="(i: number) => (page - 1) * pageSize + i + 1" />
         <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
@@ -153,7 +153,7 @@
 
     <!-- 详情弹窗 -->
     <el-dialog v-model="detailVisible" title="公告详情" width="680px" destroy-on-close>
-      <el-descriptions :column="2" border v-if="current">
+      <el-descriptions v-if="current" :column="2" border>
         <el-descriptions-item label="标题" :span="2">{{ current.title }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag size="small" :type="getStatusType(current.status)">{{ current.status_text }}</el-tag>
@@ -175,7 +175,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import {

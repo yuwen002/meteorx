@@ -47,6 +47,9 @@ coverage/
 # Frontend build output
 /web-admin/node_modules/
 /web-admin/dist/
+# unplugin 按需引入自动生成的类型声明
+/web-admin/src/auto-imports.d.ts
+/web-admin/src/components.d.ts
 qodana.yaml
 
 # IP database file (large binary, should be downloaded separately)

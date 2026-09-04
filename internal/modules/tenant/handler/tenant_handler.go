@@ -3,7 +3,6 @@ package handler
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -16,6 +15,7 @@ import (
 	planDto "meteorx/internal/modules/plan/dto"
 	"meteorx/internal/modules/tenant/dto"
 	"meteorx/internal/modules/tenant/service"
+	"meteorx/pkg/logger"
 	"meteorx/pkg/pagination"
 )
 
@@ -74,7 +74,7 @@ func (h *TenantHandler) AdminCreate(w http.ResponseWriter, r *http.Request) {
 	// 2. 调用服务层逻辑
 	tenant, err := h.svc.AdminCreate(r.Context(), req)
 	if err != nil {
-		log.Printf("[TenantHandler] AdminCreate failed: %v", err)
+		logger.Errorf("[TenantHandler] AdminCreate failed: %v", err)
 		switch {
 		case errors.Is(err, service.ErrDomainConflict):
 			response.Fail(w, http.StatusConflict, "该租户域名已被占用")
@@ -379,7 +379,7 @@ func (h *TenantHandler) AdminBatchUpdateStatus(w http.ResponseWriter, r *http.Re
 	// 2. 调用服务层批量更新
 	affected, failedIDs, err := h.svc.BatchUpdateStatus(r.Context(), req.IDs, *req.Status)
 	if err != nil {
-		log.Printf("[TenantHandler] BatchUpdateStatus failed: %v", err)
+		logger.Errorf("[TenantHandler] BatchUpdateStatus failed: %v", err)
 		response.Fail(w, http.StatusInternalServerError, "批量更新租户状态失败")
 		return
 	}

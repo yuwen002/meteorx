@@ -1,18 +1,19 @@
 package middleware
 
 import (
-	"log"
 	"net/http"
 	"time"
+
+	"meteorx/pkg/logger"
 )
 
 func Logger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		
+
 		next.ServeHTTP(w, r)
-		
-		log.Printf(
+
+		logger.Infof(
 			"%s %s %s %v",
 			r.Method,
 			r.RequestURI,

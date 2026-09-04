@@ -124,7 +124,7 @@ type WikiSpaceMemberResp struct {
 }
 
 type SetNodePermissionReq struct {
-	UserID    string `json:"user_id" validate:"required"`
+	UserID     string `json:"user_id" validate:"required"`
 	Permission string `json:"permission" validate:"required,oneof=view edit delete"`
 }
 
@@ -171,15 +171,15 @@ type TrashRestoreReq struct {
 // Search DTOs
 
 type SearchResultResp struct {
-	ID          string    `json:"id"`
-	Type        string    `json:"type"`
-	Title       string    `json:"title"`
-	SpaceID     string    `json:"space_id"`
-	NodeID      string    `json:"node_id"`
-	Snippet     string    `json:"snippet"`
-	Highlight   string    `json:"highlight"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	Score       float64   `json:"score"`
+	ID        string    `json:"id"`
+	Type      string    `json:"type"`
+	Title     string    `json:"title"`
+	SpaceID   string    `json:"space_id"`
+	NodeID    string    `json:"node_id"`
+	Snippet   string    `json:"snippet"`
+	Highlight string    `json:"highlight"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Score     float64   `json:"score"`
 }
 
 // Attachment DTOs

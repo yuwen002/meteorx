@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -111,7 +112,7 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 
 	err := h.svc.ForgotPassword(r.Context(), req.Email)
 	if err != nil {
-		if err.Error() == "email service not configured" {
+		if errors.Is(err, service.ErrEmailNotConfigured) {
 			response.Fail(w, http.StatusInternalServerError, "邮件服务未配置")
 			return
 		}
@@ -134,11 +135,11 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 
 	err := h.svc.ResetPassword(r.Context(), req.Token, req.NewPassword)
 	if err != nil {
-		if err.Error() == "invalid or expired token" {
+		if errors.Is(err, service.ErrInvalidResetToken) {
 			response.Fail(w, http.StatusBadRequest, "重置链接已失效，请重新请求")
 			return
 		}
-		if err.Error() == "user not found" {
+		if errors.Is(err, service.ErrUserNotFound) {
 			response.Fail(w, http.StatusNotFound, "用户不存在")
 			return
 		}

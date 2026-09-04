@@ -210,7 +210,20 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import {
+  OfficeBuilding,
+  UserFilled,
+  Goods,
+  Document,
+  TrendCharts,
+  Coin,
+  Odometer,
+  DataAnalysis,
+  User,
+  Lock,
+  InfoFilled
+} from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { useUserStore } from '@/stores/user'
 import { getUserStats } from '@/api/modules/user'
 import { getRBACStats } from '@/api/modules/role'

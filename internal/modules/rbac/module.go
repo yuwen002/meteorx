@@ -2,7 +2,6 @@ package rbac
 
 import (
 	"context"
-	"log"
 	"meteorx/internal/modules/rbac/handler"
 	"meteorx/internal/modules/rbac/repository"
 	"meteorx/internal/modules/rbac/service"
@@ -10,6 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"gorm.io/gorm"
+
+	"meteorx/pkg/logger"
 )
 
 // InitModule 初始化 RBAC 模块，按顺序做以下 3 步：
@@ -29,25 +30,25 @@ func InitModule(r chi.Router, db *gorm.DB) {
 	// ====== Step 1: 注册预定义权限（基于 code 做幂等） ======
 	permInserted, permTotal, err := SeedPermissions(context.Background(), svc)
 	if err != nil {
-		log.Printf("[RBAC] 步骤1-权限初始化失败: %v", err)
+		logger.Errorf("[RBAC] 步骤1-权限初始化失败: %v", err)
 	} else {
-		log.Printf("[RBAC] 步骤1-权限初始化完成: 新增 %d / 共 %d 个权限", permInserted, permTotal)
+		logger.Infof("[RBAC] 步骤1-权限初始化完成: 新增 %d / 共 %d 个权限", permInserted, permTotal)
 	}
 
 	// ====== Step 2: 给 superadmin 角色绑定所有权限（幂等） ======
 	permBound, err := SeedRolePermissions(context.Background(), db)
 	if err != nil {
-		log.Printf("[RBAC] 步骤2-角色权限绑定失败: %v", err)
+		logger.Errorf("[RBAC] 步骤2-角色权限绑定失败: %v", err)
 	} else if permBound > 0 {
-		log.Printf("[RBAC] 步骤2-角色权限绑定完成: 为 superadmin 新增 %d 个权限绑定", permBound)
+		logger.Infof("[RBAC] 步骤2-角色权限绑定完成: 为 superadmin 新增 %d 个权限绑定", permBound)
 	}
 
 	// ====== Step 3: 给 admin 用户绑定 superadmin 角色（幂等） ======
 	roleBound, err := SeedUserRoles(context.Background(), db)
 	if err != nil {
-		log.Printf("[RBAC] 步骤3-用户角色绑定失败: %v", err)
+		logger.Errorf("[RBAC] 步骤3-用户角色绑定失败: %v", err)
 	} else if roleBound > 0 {
-		log.Printf("[RBAC] 步骤3-用户角色绑定完成: 为 admin 新增 %d 个角色绑定", roleBound)
+		logger.Infof("[RBAC] 步骤3-用户角色绑定完成: 为 admin 新增 %d 个角色绑定", roleBound)
 	}
 
 	// ====== Step 4: 注册路由 ======
@@ -73,7 +74,7 @@ func SeedRolePermissions(ctx context.Context, db *gorm.DB) (int, error) {
 	}
 	if roleID == "" {
 		// roles 表中还没有 superadmin 角色，跳过（seed.sql 可能还没跑）
-		log.Printf("[RBAC] 步骤2-跳过：roles 表中不存在 code='superadmin' 的角色（seed.sql 可能还未执行）")
+		logger.Warnf("[RBAC] 步骤2-跳过：roles 表中不存在 code='superadmin' 的角色（seed.sql 可能还未执行）")
 		return 0, nil
 	}
 
@@ -144,7 +145,7 @@ func SeedUserRoles(ctx context.Context, db *gorm.DB) (int, error) {
 		return 0, err
 	}
 	if userID == "" {
-		log.Printf("[RBAC] 步骤3-跳过：users 表中不存在 username='admin' 且 is_master=1 的用户（seed.sql 可能还未执行）")
+		logger.Warnf("[RBAC] 步骤3-跳过：users 表中不存在 username='admin' 且 is_master=1 的用户（seed.sql 可能还未执行）")
 		return 0, nil
 	}
 
@@ -158,7 +159,7 @@ func SeedUserRoles(ctx context.Context, db *gorm.DB) (int, error) {
 		return 0, err
 	}
 	if roleID == "" {
-		log.Printf("[RBAC] 步骤3-跳过：roles 表中不存在 code='superadmin' 的角色（seed.sql 可能还未执行）")
+		logger.Warnf("[RBAC] 步骤3-跳过：roles 表中不存在 code='superadmin' 的角色（seed.sql 可能还未执行）")
 		return 0, nil
 	}
 

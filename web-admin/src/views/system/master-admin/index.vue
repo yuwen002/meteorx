@@ -53,10 +53,10 @@
 
       <!-- 列表 -->
       <el-table
-        :data="list"
         v-loading="loading"
-        @selection-change="handleSelectionChange"
+        :data="list"
         row-key="id"
+        @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" />
         <el-table-column label="用户名" prop="username" min-width="120" />
@@ -139,7 +139,7 @@
             :disabled="dialogMode === 'edit'"
           />
         </el-form-item>
-        <el-form-item label="密码" prop="password" v-if="dialogMode === 'create'">
+        <el-form-item v-if="dialogMode === 'create'" label="密码" prop="password">
           <el-input
             v-model="form.password"
             type="password"
@@ -147,7 +147,7 @@
             show-password
           />
         </el-form-item>
-        <el-form-item label="密码" prop="password" v-else>
+        <el-form-item v-else label="密码" prop="password">
           <el-input
             v-model="form.password"
             type="password"
@@ -183,7 +183,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Search, Plus, DeleteFilled } from '@element-plus/icons-vue'
 import {
@@ -196,7 +197,6 @@ import {
   batchDeleteMasterAdmins,
   unbindUserRole,
   type UserItem,
-  type UserListParams,
   type MasterAdminCreateParams,
   type MasterAdminUpdateParams
 } from '@/api/modules/user'

@@ -101,7 +101,7 @@ func (p *AuditBatchProcessor) flush() {
 	for i, log := range logs {
 		reqs[i] = *log
 	}
-	
+
 	// 使用处理器持有的 context（支持优雅取消）
 	if err := p.svc.BatchCreateLogs(p.ctx, reqs); err != nil {
 		// 记录错误但不阻塞（生产环境可接入日志系统）

@@ -127,10 +127,10 @@ const (
 	AdminTenantStatus      = "admin:tenant:status"       // 启用/禁用租户
 	AdminTenantListDeleted = "admin:tenant:list_deleted" // 查询已删除租户（回收站）
 	AdminTenantRestore     = "admin:tenant:restore"      // 恢复已删除租户
-	AdminTenantBatchStatus  = "admin:tenant:batch_status"  // 批量启用/禁用租户
-	AdminTenantBatchDelete  = "admin:tenant:batch_delete"  // 批量删除租户
-	AdminTenantHardDelete   = "admin:tenant:hard_delete"   // 物理删除租户（彻底销毁）
-	AdminTenantUpdatePlan   = "admin:tenant:update_plan"   // 为租户分配/变更套餐
+	AdminTenantBatchStatus = "admin:tenant:batch_status" // 批量启用/禁用租户
+	AdminTenantBatchDelete = "admin:tenant:batch_delete" // 批量删除租户
+	AdminTenantHardDelete  = "admin:tenant:hard_delete"  // 物理删除租户（彻底销毁）
+	AdminTenantUpdatePlan  = "admin:tenant:update_plan"  // 为租户分配/变更套餐
 )
 
 // ============================================================
@@ -225,29 +225,29 @@ const (
 // Wiki 模块权限码（/api/v1/wiki 相关，租户内知识库管理）
 // ============================================================
 const (
-	WikiSpaceList        = "wiki:space:list"         // 查询 Wiki 空间列表
-	WikiSpaceCreate      = "wiki:space:create"       // 创建 Wiki 空间
-	WikiSpaceRead        = "wiki:space:read"         // 查询 Wiki 空间详情
-	WikiSpaceUpdate      = "wiki:space:update"       // 更新 Wiki 空间
-	WikiSpaceDelete      = "wiki:space:delete"       // 删除 Wiki 空间
-	WikiSpaceMemberList  = "wiki:space_member:list"  // 查询空间成员列表
-	WikiSpaceMemberAdd   = "wiki:space_member:add"   // 添加空间成员
+	WikiSpaceList         = "wiki:space:list"          // 查询 Wiki 空间列表
+	WikiSpaceCreate       = "wiki:space:create"        // 创建 Wiki 空间
+	WikiSpaceRead         = "wiki:space:read"          // 查询 Wiki 空间详情
+	WikiSpaceUpdate       = "wiki:space:update"        // 更新 Wiki 空间
+	WikiSpaceDelete       = "wiki:space:delete"        // 删除 Wiki 空间
+	WikiSpaceMemberList   = "wiki:space_member:list"   // 查询空间成员列表
+	WikiSpaceMemberAdd    = "wiki:space_member:add"    // 添加空间成员
 	WikiSpaceMemberRemove = "wiki:space_member:remove" // 移除空间成员
-	WikiNodeList         = "wiki:node:list"          // 查询节点列表
-	WikiNodeCreate       = "wiki:node:create"        // 创建节点（目录/文档壳）
-	WikiNodeRead         = "wiki:node:read"          // 查询节点详情
-	WikiNodeUpdate       = "wiki:node:update"        // 更新节点（标题/排序/移动）
-	WikiNodeDelete       = "wiki:node:delete"        // 删除节点
-	WikiNodeMove         = "wiki:node:move"          // 移动节点
-	WikiNodeSort         = "wiki:node:sort"          // 排序节点
-	WikiDocumentCreate   = "wiki:document:create"    // 创建文档
-	WikiDocumentRead     = "wiki:document:read"      // 查询文档内容
-	WikiDocumentUpdate   = "wiki:document:update"    // 编辑文档
-	WikiDocumentDelete   = "wiki:document:delete"    // 删除文档
-	WikiRevisionList     = "wiki:revision:list"      // 查询文档修订历史
-	WikiRevisionRead     = "wiki:revision:read"      // 查询修订详情
-	WikiRevisionRestore  = "wiki:revision:restore"   // 恢复文档修订
-	WikiStatsRead        = "wiki:stats:read"         // 查询 Wiki 统计
+	WikiNodeList          = "wiki:node:list"           // 查询节点列表
+	WikiNodeCreate        = "wiki:node:create"         // 创建节点（目录/文档壳）
+	WikiNodeRead          = "wiki:node:read"           // 查询节点详情
+	WikiNodeUpdate        = "wiki:node:update"         // 更新节点（标题/排序/移动）
+	WikiNodeDelete        = "wiki:node:delete"         // 删除节点
+	WikiNodeMove          = "wiki:node:move"           // 移动节点
+	WikiNodeSort          = "wiki:node:sort"           // 排序节点
+	WikiDocumentCreate    = "wiki:document:create"     // 创建文档
+	WikiDocumentRead      = "wiki:document:read"       // 查询文档内容
+	WikiDocumentUpdate    = "wiki:document:update"     // 编辑文档
+	WikiDocumentDelete    = "wiki:document:delete"     // 删除文档
+	WikiRevisionList      = "wiki:revision:list"       // 查询文档修订历史
+	WikiRevisionRead      = "wiki:revision:read"       // 查询修订详情
+	WikiRevisionRestore   = "wiki:revision:restore"    // 恢复文档修订
+	WikiStatsRead         = "wiki:stats:read"          // 查询 Wiki 统计
 )
 
 // ============================================================

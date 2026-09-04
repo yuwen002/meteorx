@@ -16,8 +16,8 @@ import (
 // ---------- 内存 mock：UserRepository ----------
 
 type mockUserRepo struct {
-	users    map[string]*userModel.User
-	byName   map[string]*userModel.User
+	users     map[string]*userModel.User
+	byName    map[string]*userModel.User
 	createErr error
 }
 

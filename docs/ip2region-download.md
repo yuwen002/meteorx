@@ -1,57 +1,57 @@
-# IP2Region Database Download Guide
+# IP2Region 数据库下载指南
 
-## Overview
+## 概述
 
-The ip2region.xdb file is required for offline IP geolocation parsing. This file is approximately 10MB and contains IP address to location mapping data.
+ip2region.xdb 文件用于离线 IP 地理位置解析。该文件约 10MB，包含 IP 地址到地理位置的映射数据。
 
-## Download Methods
+## 下载方式
 
-### Method 1: Using Download Script (Recommended)
+### 方式一：使用下载脚本（推荐）
 
-**Windows:**
+**Windows：**
 ```bash
 cd scripts
 .\download_ip2region.bat
 ```
 
-**Linux/Mac:**
+**Linux/Mac：**
 ```bash
 cd scripts
 chmod +x download_ip2region.sh
 ./download_ip2region.sh
 ```
 
-### Method 2: Manual Download
+### 方式二：手动下载
 
-1. Visit the official release page:
+1. 访问官方发布页面：
    - https://github.com/lionsoul2014/ip2region/releases
-   - Or: https://github.com/lionsoul2014/ip2region/tree/master/data
+   - 或：https://github.com/lionsoul2014/ip2region/tree/master/data
 
-2. Download the `ip2region.xdb` file
+2. 下载 `ip2region.xdb` 文件
 
-3. Place it in the project's `data/` directory:
+3. 将文件放置到项目的 `data/` 目录：
    ```
    meteorx/
    └── data/
        └── ip2region.xdb
    ```
 
-### Method 3: Using curl (Command Line)
+### 方式三：使用 curl 命令行
 
 ```bash
-# Create data directory
+# 创建 data 目录
 mkdir -p data
 
-# Download from GitHub
+# 从 GitHub 下载
 curl -L -o data/ip2region.xdb \
   "https://github.com/lionsoul2014/ip2region/raw/master/data/ip2region.xdb"
 
-# Or use CDN mirror
+# 或使用 CDN 镜像
 curl -L -o data/ip2region.xdb \
   "https://cdn.jsdelivr.net/gh/lionsoul2014/ip2region/data/ip2region.xdb"
 ```
 
-### Method 4: Using wget
+### 方式四：使用 wget
 
 ```bash
 mkdir -p data
@@ -59,59 +59,59 @@ wget -O data/ip2region.xdb \
   "https://github.com/lionsoul2014/ip2region/raw/master/data/ip2region.xdb"
 ```
 
-## Configuration
+## 配置说明
 
-After downloading, configure your `.env` file:
+下载完成后，在 `.env` 文件中配置：
 
-### Use Offline Mode (ip2region)
+### 使用离线模式（ip2region）
 ```env
 METEORX_IP_LOCATION_PROVIDER=ip2region
 METEORX_IP_LOCATION_DB_PATH=./data/ip2region.xdb
 ```
 
-### Use Online Mode (HTTP API)
+### 使用在线模式（HTTP API）
 ```env
 METEORX_IP_LOCATION_PROVIDER=http-api
 METEORX_IP_LOCATION_TIMEOUT=3
 ```
 
-## Verification
+## 验证文件
 
-Verify the downloaded file:
+验证下载的文件：
 
 ```bash
-# Check file exists
+# 检查文件是否存在
 ls -lh data/ip2region.xdb
 
-# Expected size: ~10MB
-# If file is too small (< 5MB), download may be incomplete
+# 预期大小：约 10MB
+# 如果文件太小（< 5MB），可能下载不完整
 ```
 
-## Troubleshooting
+## 常见问题
 
-### Download Failed
+### 下载失败
 
-If all download sources fail:
-1. Try using a VPN or proxy
-2. Download from a different network
-3. Use the manual download method
-4. Or use HTTP API mode instead
+如果所有下载源都失败：
+1. 尝试使用 VPN 或代理
+2. 更换网络环境下载
+3. 使用手动下载方式
+4. 或改用 HTTP API 模式
 
-### File Size Check
+### 文件大小检查
 
-The ip2region.xdb file should be approximately 10MB. If it's smaller than 5MB, the download is incomplete.
+ip2region.xdb 文件应该约 10MB。如果小于 5MB，说明下载不完整。
 
-### Permission Issues
+### 权限问题
 
-Ensure the application has read access to the file:
+确保应用程序有文件读取权限：
 ```bash
 chmod 644 data/ip2region.xdb
 ```
 
-## Notes
+## 注意事项
 
-- The ip2region.xdb file is NOT committed to Git (it's in .gitignore)
-- Each developer needs to download it separately
-- The file can be updated periodically for latest IP data
-- Offline mode is faster and doesn't require internet access
-- HTTP API mode requires internet but doesn't need the database file
+- ip2region.xdb 文件不会提交到 Git（已在 .gitignore 中忽略）
+- 每个开发者需要单独下载该文件
+- 可以定期更新文件以获取最新的 IP 数据
+- 离线模式速度更快，不需要网络访问
+- HTTP API 模式需要网络，但不需要数据库文件

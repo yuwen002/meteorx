@@ -139,19 +139,19 @@
                 <p>{{ form.description || '租户描述将显示在此处' }}</p>
               </div>
               <div class="preview-info">
-                <div class="info-item" v-if="form.contact_name">
+                <div v-if="form.contact_name" class="info-item">
                   <span class="info-label">联系人:</span>
                   <span class="info-value">{{ form.contact_name }}</span>
                 </div>
-                <div class="info-item" v-if="form.contact_email">
+                <div v-if="form.contact_email" class="info-item">
                   <span class="info-label">邮箱:</span>
                   <span class="info-value">{{ form.contact_email }}</span>
                 </div>
-                <div class="info-item" v-if="form.contact_phone">
+                <div v-if="form.contact_phone" class="info-item">
                   <span class="info-label">电话:</span>
                   <span class="info-value">{{ form.contact_phone }}</span>
                 </div>
-                <div class="info-item" v-if="form.address">
+                <div v-if="form.address" class="info-item">
                   <span class="info-label">地址:</span>
                   <span class="info-value">{{ form.address }}</span>
                 </div>
@@ -175,7 +175,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { getTenantSettings, updateTenantSettings } from '@/api/modules/tenant'
 import type { TenantSettings, UpdateTenantSettingsReq } from '@/api/modules/tenant'
 

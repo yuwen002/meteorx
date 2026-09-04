@@ -30,13 +30,13 @@
         <el-button type="info" @click="toggleRecycleBin">
           <el-icon><Delete /></el-icon>{{ isRecycleBin ? '返回列表' : '回收站' }}
         </el-button>
-        <el-button type="success" v-if="userStore.hasPermission('file:upload') && !isRecycleBin" @click="openUploadDialog">
+        <el-button v-if="userStore.hasPermission('file:upload') && !isRecycleBin" type="success" @click="openUploadDialog">
           <el-icon><Upload /></el-icon>上传文件
         </el-button>
       </div>
 
       <!-- 列表 -->
-      <el-table :data="list" border stripe v-loading="loading" style="width: 100%">
+      <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="60" :index="(i: number) => (page - 1) * pageSize + i + 1" />
         <el-table-column prop="original_name" label="文件名" min-width="180" show-overflow-tooltip />
         <el-table-column label="类型" width="100">
@@ -62,8 +62,8 @@
             </template>
             <template v-else>
               <el-button link type="primary" @click="handleDownload(row)">下载</el-button>
-              <el-button link type="warning" v-if="userStore.hasPermission('file:update')" @click="openEditDialog(row)">重命名</el-button>
-              <el-button link type="danger" v-if="userStore.hasPermission('file:delete')" @click="handleDelete(row)">删除</el-button>
+              <el-button v-if="userStore.hasPermission('file:update')" link type="warning" @click="openEditDialog(row)">重命名</el-button>
+              <el-button v-if="userStore.hasPermission('file:delete')" link type="danger" @click="handleDelete(row)">删除</el-button>
             </template>
           </template>
         </el-table-column>
@@ -121,8 +121,8 @@
       </div>
 
       <template #footer>
-        <el-button @click="uploadDialogVisible = false" :disabled="uploading">取消</el-button>
-        <el-button type="primary" :loading="uploading" @click="submitUpload" :disabled="fileList.length === 0">
+        <el-button :disabled="uploading" @click="uploadDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="uploading" :disabled="fileList.length === 0" @click="submitUpload">
           {{ uploading ? '上传中...' : '确定上传' }}
         </el-button>
       </template>
@@ -155,7 +155,9 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadInstance, type UploadUserFile } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import type { FormInstance, FormRules, UploadInstance, UploadUserFile } from 'element-plus'
 import { Search, Delete, Upload, UploadFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import {

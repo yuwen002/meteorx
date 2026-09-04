@@ -3,15 +3,15 @@ package config
 import "time"
 
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Redis    RedisConfig    `mapstructure:"redis"`
-	JWT      JWTConfig      `mapstructure:"jwt"`
-	Log      LogConfig      `mapstructure:"log"`
-	Security SecurityConfig `mapstructure:"security"`
-	File     FileConfig     `mapstructure:"file"`
-	Email    EmailConfig    `mapstructure:"email"`
-	Client   ClientConfig   `mapstructure:"client"`
+	Server     ServerConfig     `mapstructure:"server"`
+	Database   DatabaseConfig   `mapstructure:"database"`
+	Redis      RedisConfig      `mapstructure:"redis"`
+	JWT        JWTConfig        `mapstructure:"jwt"`
+	Log        LogConfig        `mapstructure:"log"`
+	Security   SecurityConfig   `mapstructure:"security"`
+	File       FileConfig       `mapstructure:"file"`
+	Email      EmailConfig      `mapstructure:"email"`
+	Client     ClientConfig     `mapstructure:"client"`
 	IPLocation IPLocationConfig `mapstructure:"ip_location"`
 }
 
@@ -79,16 +79,16 @@ type LogConfig struct {
 }
 
 type SecurityConfig struct {
-	LoginLockout     LoginLockoutConfig     `mapstructure:"login_lockout"`
-	PasswordPolicy   PasswordPolicyConfig   `mapstructure:"password_policy"`
-	RateLimit        RateLimitConfig        `mapstructure:"rate_limit"`
+	LoginLockout   LoginLockoutConfig   `mapstructure:"login_lockout"`
+	PasswordPolicy PasswordPolicyConfig `mapstructure:"password_policy"`
+	RateLimit      RateLimitConfig      `mapstructure:"rate_limit"`
 }
 
 type LoginLockoutConfig struct {
-	Enabled          bool          `mapstructure:"enabled"`
-	MaxAttempts      int           `mapstructure:"max_attempts"`
-	LockoutDuration  time.Duration `mapstructure:"lockout_duration"`
-	ResetAfter       time.Duration `mapstructure:"reset_after"`
+	Enabled         bool          `mapstructure:"enabled"`
+	MaxAttempts     int           `mapstructure:"max_attempts"`
+	LockoutDuration time.Duration `mapstructure:"lockout_duration"`
+	ResetAfter      time.Duration `mapstructure:"reset_after"`
 }
 
 type PasswordPolicyConfig struct {
@@ -102,11 +102,12 @@ type PasswordPolicyConfig struct {
 }
 
 type RateLimitConfig struct {
-	Enabled    bool          `mapstructure:"enabled"`
-	Requests   int           `mapstructure:"requests"`
-	Window     time.Duration `mapstructure:"window"`
-	BurstSize  int           `mapstructure:"burst_size"`
+	Enabled   bool          `mapstructure:"enabled"`
+	Requests  int           `mapstructure:"requests"`
+	Window    time.Duration `mapstructure:"window"`
+	BurstSize int           `mapstructure:"burst_size"`
 }
+
 // FileConfig 文件上传配置
 type FileConfig struct {
 	UploadPath   string   `mapstructure:"upload_path"`   // 文件上传存储路径

@@ -35,7 +35,7 @@ type AdminTenantResp struct {
 	Region       string    `json:"region"`
 	Logo         string    `json:"logo"`
 	Extra        string    `json:"extra"`
-	PlanName     string    `json:"plan_name,omitempty"`  // 当前套餐名称
+	PlanName     string    `json:"plan_name,omitempty"`    // 当前套餐名称
 	PlanExpired  bool      `json:"plan_expired,omitempty"` // 套餐是否已过期
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
