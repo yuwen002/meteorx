@@ -22,6 +22,11 @@ func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, cfg *config.Con
 	}
 	h := handler.NewWikiHandler(svc)
 
+	// 初始化扩展服务
+	extRepo := repository.NewWikiRepositoryExtended(gormDB)
+	extSvc := service.NewWikiServiceExtended(extRepo, tx)
+	extH := handler.NewWikiHandlerExtended(extSvc)
+
 	r.Route("/wiki", func(r chi.Router) {
 		r.Get("/stats", h.GetStats) // Wiki 统计数据
 		r.Get("/search", h.Search)  // Wiki 搜索（标题+内容）
@@ -82,4 +87,7 @@ func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, cfg *config.Con
 			r.Delete("/attachments/{id}", h.DeleteAttachment)     // 删除附件
 		})
 	})
+
+	// 注册扩展路由
+	extH.RegisterExtendedRoutes(r)
 }

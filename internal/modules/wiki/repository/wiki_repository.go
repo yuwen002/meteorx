@@ -112,6 +112,15 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.WikiNodePermission{},
 		&model.TrashItem{},
 		&model.Attachment{},
+		&model.Tag{},
+		&model.DocumentTag{},
+		&model.Comment{},
+		&model.ShareLink{},
+		&model.DocumentTemplate{},
+		&model.DocumentAccessLog{},
+		&model.DocumentSubscription{},
+		&model.Notification{},
+		&model.EditLock{},
 	)
 }
 

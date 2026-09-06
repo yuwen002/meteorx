@@ -174,3 +174,182 @@ type Attachment struct {
 func (Attachment) TableName() string {
 	return "wiki_attachments"
 }
+
+type Tag struct {
+	ID        string    `gorm:"primaryKey"`
+	TenantID  string    `gorm:"index;size:26;not null"`
+	Name      string    `gorm:"index;size:100;not null"`
+	Color     string    `gorm:"size:20"`
+	CreatedBy string    `gorm:"index;size:26"`
+	CreatedAt time.Time `gorm:"index"`
+}
+
+func (Tag) TableName() string {
+	return "wiki_tags"
+}
+
+type DocumentTag struct {
+	ID         string `gorm:"primaryKey"`
+	TenantID   string `gorm:"index;size:26;not null"`
+	DocumentID string `gorm:"index;size:26;not null"`
+	TagID      string `gorm:"index;size:26;not null"`
+	CreatedAt  time.Time
+	
+	// 关联字段
+	Tag *Tag `gorm:"foreignKey:TagID;references:ID"`
+}
+
+func (DocumentTag) TableName() string {
+	return "wiki_document_tags"
+}
+
+type Comment struct {
+	ID         string    `gorm:"primaryKey"`
+	TenantID   string    `gorm:"index;size:26;not null"`
+	DocumentID string    `gorm:"index;size:26;not null"`
+	NodeID     string    `gorm:"index;size:26;not null"`
+	ParentID   string    `gorm:"index;size:26;default:''"`
+	Content    string    `gorm:"type:text;not null"`
+	CreatedBy  string    `gorm:"index;size:26;not null"`
+	MentionIDs string    `gorm:"type:text"`
+	Status     int       `gorm:"default:1"`
+	CreatedAt  time.Time `gorm:"index"`
+	UpdatedAt  time.Time
+	DeletedAt  *time.Time `gorm:"index"`
+}
+
+const (
+	CommentStatusActive   = 1
+	CommentStatusResolved = 2
+	CommentStatusDeleted  = 3
+)
+
+func (Comment) TableName() string {
+	return "wiki_comments"
+}
+
+type ShareLink struct {
+	ID           string     `gorm:"primaryKey"`
+	TenantID     string     `gorm:"index;size:26;not null"`
+	DocumentID   string     `gorm:"index;size:26;not null"`
+	NodeID       string     `gorm:"index;size:26;not null"`
+	Token        string     `gorm:"uniqueIndex;size:64;not null"`
+	Password     string     `gorm:"size:100"`
+	ExpireAt     *time.Time `gorm:"index"`
+	MaxViews     int        `gorm:"default:0"`
+	ViewCount    int        `gorm:"default:0"`
+	AllowDownload bool      `gorm:"default:false"`
+	CreatedBy    string     `gorm:"index;size:26;not null"`
+	CreatedAt    time.Time  `gorm:"index"`
+}
+
+func (ShareLink) TableName() string {
+	return "wiki_share_links"
+}
+
+type DocumentTemplate struct {
+	ID          string    `gorm:"primaryKey"`
+	TenantID    string    `gorm:"index;size:26;not null"`
+	Name        string    `gorm:"size:200;not null"`
+	Description string    `gorm:"size:500"`
+	Content     string    `gorm:"type:mediumtext"`
+	Format      string    `gorm:"size:50;default:markdown"`
+	Category    string    `gorm:"size:100"`
+	IsPublic    bool      `gorm:"default:false"`
+	CreatedBy   string    `gorm:"index;size:26;not null"`
+	CreatedAt   time.Time `gorm:"index"`
+	UpdatedAt   time.Time
+}
+
+func (DocumentTemplate) TableName() string {
+	return "wiki_templates"
+}
+
+type DocumentAccessLog struct {
+	ID        string    `gorm:"primaryKey"`
+	TenantID  string    `gorm:"index;size:26;not null"`
+	DocumentID string   `gorm:"index;size:26;not null"`
+	NodeID    string    `gorm:"index;size:26;not null"`
+	UserID    string    `gorm:"index;size:26"`
+	Action    string    `gorm:"size:50;not null"`
+	IPAddress string    `gorm:"size:50"`
+	UserAgent string    `gorm:"size:500"`
+	CreatedAt time.Time `gorm:"index"`
+}
+
+const (
+	ActionView    = "view"
+	ActionEdit    = "edit"
+	ActionDownload = "download"
+	ActionShare   = "share"
+)
+
+func (DocumentAccessLog) TableName() string {
+	return "wiki_access_logs"
+}
+
+type DocumentSubscription struct {
+	ID         string    `gorm:"primaryKey"`
+	TenantID   string    `gorm:"index;size:26;not null"`
+	DocumentID string    `gorm:"index;size:26;not null"`
+	NodeID     string    `gorm:"index;size:26;not null"`
+	UserID     string    `gorm:"index;size:26;not null"`
+	NotifyType string    `gorm:"size:50;default:all"`
+	CreatedAt  time.Time `gorm:"index"`
+}
+
+const (
+	NotifyTypeAll     = "all"
+	NotifyTypeEdit    = "edit"
+	NotifyTypeComment = "comment"
+)
+
+func (DocumentSubscription) TableName() string {
+	return "wiki_subscriptions"
+}
+
+type Notification struct {
+	ID         string    `gorm:"primaryKey"`
+	TenantID   string    `gorm:"index;size:26;not null"`
+	UserID     string    `gorm:"index;size:26;not null"`
+	Type       string    `gorm:"size:50;not null"`
+	Title      string    `gorm:"size:500;not null"`
+	Content    string    `gorm:"type:text"`
+	RelatedID  string    `gorm:"size:26"`
+	RelatedType string   `gorm:"size:50"`
+	IsRead     bool      `gorm:"default:false"`
+	CreatedAt  time.Time `gorm:"index"`
+}
+
+const (
+	NotificationTypeEdit    = "document_edit"
+	NotificationTypeComment = "comment"
+	NotificationTypeMention = "mention"
+	NotificationTypeShare   = "share"
+)
+
+func (Notification) TableName() string {
+	return "wiki_notifications"
+}
+
+type EditLock struct {
+	ID         string    `gorm:"primaryKey"`
+	TenantID   string    `gorm:"index;size:26;not null"`
+	DocumentID string    `gorm:"uniqueIndex;size:26;not null"`
+	UserID     string    `gorm:"size:26;not null"`
+	LockedAt   time.Time `gorm:"index"`
+	ExpiresAt  time.Time `gorm:"index"`
+}
+
+func (EditLock) TableName() string {
+	return "wiki_edit_locks"
+}
+
+type DocumentStats struct {
+	TotalViews     int64     `json:"total_views"`
+	TotalEdits     int64     `json:"total_edits"`
+	TotalDownloads int64     `json:"total_downloads"`
+	TotalShares    int64     `json:"total_shares"`
+	UniqueViewers  int64     `json:"unique_viewers"`
+	LastViewedAt   time.Time `json:"last_viewed_at"`
+}

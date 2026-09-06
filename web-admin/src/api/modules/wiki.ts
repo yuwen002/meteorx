@@ -356,3 +356,324 @@ export function deleteAttachment(id: string) {
 export function getWikiStats() {
   return request.get<any, WikiStats>('/wiki/stats')
 }
+
+// ============================================================
+// 扩展功能 API
+// ============================================================
+
+// 标签系统
+export interface Tag {
+  id: string
+  tenant_id: string
+  name: string
+  color: string
+  created_by: string
+  created_at: string
+}
+
+export interface DocumentTag {
+  id: string
+  document_id: string
+  tag_id: string
+  tag?: Tag
+  created_at: string
+}
+
+export interface CreateTagReq {
+  name: string
+  color: string
+}
+
+export function createTag(req: CreateTagReq) {
+  return request.post<any, Tag>('/wiki/spaces/tags', req)
+}
+
+export function listTags() {
+  return request.get<any, Tag[]>('/wiki/spaces/tags')
+}
+
+export function deleteTag(id: string) {
+  return request.delete<any, void>(`/wiki/spaces/tags/${id}`)
+}
+
+export function addDocumentTag(documentId: string, tagId: string) {
+  return request.post<any, void>(`/wiki/documents/${documentId}/tags/${tagId}`)
+}
+
+export function removeDocumentTag(documentId: string, tagId: string) {
+  return request.delete<any, void>(`/wiki/documents/${documentId}/tags/${tagId}`)
+}
+
+export function listDocumentTags(documentId: string) {
+  return request.get<any, DocumentTag[]>(`/wiki/documents/${documentId}/tags`)
+}
+
+// 评论系统
+export interface Comment {
+  id: string
+  document_id: string
+  parent_id?: string
+  content: string
+  created_by: string
+  user_name?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateCommentReq {
+  document_id: string
+  parent_id?: string
+  content: string
+}
+
+export function createComment(req: CreateCommentReq) {
+  return request.post<any, Comment>('/wiki/documents/comments', req)
+}
+
+export function listComments(documentId: string) {
+  return request.get<any, Comment[]>(`/wiki/documents/${documentId}/comments`)
+}
+
+export function updateComment(id: string, content: string) {
+  return request.put<any, void>(`/wiki/documents/comments/${id}`, { content })
+}
+
+export function deleteComment(id: string) {
+  return request.delete<any, void>(`/wiki/documents/comments/${id}`)
+}
+
+// 分享链接
+export interface ShareLink {
+  id: string
+  document_id: string
+  node_id: string
+  token: string
+  password?: string
+  expires_at?: string
+  max_views?: number
+  view_count: number
+  is_active: boolean
+  created_by: string
+  created_at: string
+}
+
+export interface CreateShareLinkReq {
+  document_id: string
+  password?: string
+  expires_at?: string
+  max_views?: number
+}
+
+export function createShareLink(req: CreateShareLinkReq) {
+  return request.post<any, ShareLink>('/wiki/documents/shares', req)
+}
+
+export function listShareLinks(documentId: string) {
+  return request.get<any, ShareLink[]>(`/wiki/documents/${documentId}/shares`)
+}
+
+export function deleteShareLink(id: string) {
+  return request.delete<any, void>(`/wiki/documents/shares/${id}`)
+}
+
+export function getShareLink(token: string, password?: string) {
+  return request.get<any, ShareLink>(`/wiki/share/${token}`, { params: { password } })
+}
+
+// 文档模板
+export interface DocumentTemplate {
+  id: string
+  tenant_id: string
+  name: string
+  description: string
+  category: string
+  content: string
+  is_public: boolean
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateTemplateReq {
+  name: string
+  description?: string
+  category: string
+  content: string
+  is_public?: boolean
+}
+
+export function createTemplate(req: CreateTemplateReq) {
+  return request.post<any, DocumentTemplate>('/wiki/templates', req)
+}
+
+export function listTemplates(category?: string) {
+  return request.get<any, DocumentTemplate[]>('/wiki/templates', { params: { category } })
+}
+
+export function getTemplate(id: string) {
+  return request.get<any, DocumentTemplate>(`/wiki/templates/${id}`)
+}
+
+export function updateTemplate(id: string, req: Partial<CreateTemplateReq>) {
+  return request.put<any, DocumentTemplate>(`/wiki/templates/${id}`, req)
+}
+
+export function deleteTemplate(id: string) {
+  return request.delete<any, void>(`/wiki/templates/${id}`)
+}
+
+// 访问统计
+export interface DocumentStats {
+  document_id: string
+  total_views: number
+  total_edits: number
+  total_downloads: number
+  total_shares: number
+  unique_viewers: number
+  last_viewed_at: string
+}
+
+export interface DocumentAccessLog {
+  id: string
+  document_id: string
+  user_id: string
+  user_name?: string
+  action: string
+  ip_address: string
+  created_at: string
+}
+
+export function getDocumentStats(documentId: string) {
+  return request.get<any, DocumentStats>(`/wiki/documents/${documentId}/stats`)
+}
+
+export function listAccessLogs(documentId: string, page = 1, pageSize = 20) {
+  return request.get<any, { logs: DocumentAccessLog[]; total: number }>(
+    `/wiki/documents/${documentId}/access-logs`,
+    { params: { page, page_size: pageSize } }
+  )
+}
+
+// 订阅管理
+export interface DocumentSubscription {
+  id: string
+  document_id: string
+  user_id: string
+  user_name?: string
+  notify_on_edit: boolean
+  notify_on_comment: boolean
+  created_at: string
+}
+
+export function subscribeDocument(documentId: string) {
+  return request.post<any, void>(`/wiki/documents/${documentId}/subscribe`)
+}
+
+export function unsubscribeDocument(documentId: string) {
+  return request.delete<any, void>(`/wiki/documents/${documentId}/subscribe`)
+}
+
+export function listSubscriptions(documentId: string) {
+  return request.get<any, DocumentSubscription[]>(`/wiki/documents/${documentId}/subscriptions`)
+}
+
+// 通知系统
+export interface Notification {
+  id: string
+  user_id: string
+  title: string
+  content: string
+  type: string
+  is_read: boolean
+  related_id?: string
+  related_type?: string
+  created_at: string
+}
+
+export function listNotifications(page = 1, pageSize = 20) {
+  return request.get<any, { notifications: Notification[]; total: number; unread_count: number }>(
+    '/wiki/notifications',
+    { params: { page, page_size: pageSize } }
+  )
+}
+
+export function markNotificationAsRead(id: string) {
+  return request.put<any, void>(`/wiki/notifications/${id}/read`)
+}
+
+export function markAllNotificationsAsRead() {
+  return request.put<any, void>('/wiki/notifications/read-all')
+}
+
+export function getUnreadNotificationCount() {
+  return request.get<any, { count: number }>('/wiki/notifications/unread-count')
+}
+
+// 编辑锁
+export interface EditLock {
+  document_id: string
+  user_id: string
+  user_name?: string
+  locked_at: string
+  expires_at: string
+  can_edit: boolean
+}
+
+export function acquireEditLock(documentId: string) {
+  return request.post<any, EditLock>(`/wiki/documents/${documentId}/lock`)
+}
+
+export function releaseEditLock(documentId: string) {
+  return request.delete<any, void>(`/wiki/documents/${documentId}/lock`)
+}
+
+export function refreshEditLock(documentId: string) {
+  return request.put<any, void>(`/wiki/documents/${documentId}/lock/refresh`)
+}
+
+export function getEditLock(documentId: string) {
+  return request.get<any, EditLock>(`/wiki/documents/${documentId}/lock`)
+}
+
+// 批量操作
+export interface BatchDeleteReq {
+  node_ids: string[]
+}
+
+export interface BatchMoveReq {
+  node_ids: string[]
+  new_parent_id: string
+}
+
+export function batchDeleteNodes(req: BatchDeleteReq) {
+  return request.post<any, void>('/wiki/batch/delete', req)
+}
+
+export function batchMoveNodes(req: BatchMoveReq) {
+  return request.post<any, void>('/wiki/batch/move', req)
+}
+
+// 版本对比
+export function compareRevisions(documentId: string, version1: number, version2: number) {
+  return request.get<any, { diff: string }>(
+    `/wiki/documents/${documentId}/diff`,
+    { params: { v1: version1, v2: version2 } }
+  )
+}
+
+// 导入导出
+export function exportDocument(documentId: string, format = 'markdown') {
+  return request.get<any, { content: string; filename: string }>(
+    `/wiki/documents/${documentId}/export`,
+    { params: { format } }
+  )
+}
+
+export function importDocument(spaceId: string, file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('space_id', spaceId)
+  return request.post<any, { document_id: string }>('/wiki/documents/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}

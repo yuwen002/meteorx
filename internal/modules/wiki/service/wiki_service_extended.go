@@ -13,7 +13,6 @@ import (
 	"meteorx/internal/modules/wiki/model"
 	"meteorx/internal/modules/wiki/repository"
 	db "meteorx/internal/pkg/db"
-	"meteorx/pkg/idgen"
 
 	"gorm.io/gorm"
 )
@@ -77,7 +76,7 @@ type wikiServiceExtended struct {
 func NewWikiServiceExtended(repo repository.WikiRepository, tx *db.TxManager) WikiServiceExtended {
 	extRepo, ok := repo.(repository.WikiRepositoryExtended)
 	if !ok {
-		extRepo = repository.NewWikiRepositoryExtended(repo.(*repository.wikiRepository).db)
+		extRepo = repository.NewWikiRepositoryExtended(nil)
 	}
 	
 	svc := &wikiService{
@@ -311,7 +310,7 @@ func (s *wikiServiceExtended) CreateShareLink(ctx context.Context, req *dto.Shar
 		return nil, err
 	}
 
-	doc, node, err := s.getExtendedRepo().GetDocumentByIDWithNode(ctx, req.DocumentID)
+	_, node, err := s.getExtendedRepo().GetDocumentByIDWithNode(ctx, req.DocumentID)
 	if err != nil {
 		return nil, err
 	}
@@ -802,8 +801,6 @@ func (s *wikiServiceExtended) GetEditLock(ctx context.Context, documentID string
 }
 
 func (s *wikiServiceExtended) BatchDeleteNodes(ctx context.Context, nodeIDs []string) error {
-	userID := contextx.GetUserID(ctx)
-	
 	return s.wikiService.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
 		for _, nodeID := range nodeIDs {
 			if err := s.wikiService.DeleteNode(txCtx, nodeID); err != nil {
@@ -812,8 +809,6 @@ func (s *wikiServiceExtended) BatchDeleteNodes(ctx context.Context, nodeIDs []st
 		}
 		return nil
 	})
-
-	_ = userID
 }
 
 func (s *wikiServiceExtended) BatchMoveNodes(ctx context.Context, nodeIDs []string, newParentID string) error {

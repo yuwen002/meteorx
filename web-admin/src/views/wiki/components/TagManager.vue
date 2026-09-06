@@ -6,10 +6,10 @@
           v-model="newTagName"
           placeholder="输入标签名称"
           style="width: 200px"
-          @keyup.enter="createTag"
+          @keyup.enter="handleCreateTag"
         />
         <el-color-picker v-model="newTagColor" />
-        <el-button type="primary" @click="createTag">创建标签</el-button>
+        <el-button type="primary" @click="handleCreateTag">创建标签</el-button>
       </div>
 
       <el-divider />
@@ -34,7 +34,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listTags, createTag, deleteTag, type Tag } from '@/api/modules/wiki'
+import { listTags, createTag as apiCreateTag, deleteTag as apiDeleteTag, type Tag } from '@/api/modules/wiki'
 
 const visible = ref(false)
 const tags = ref<Tag[]>([])
@@ -55,14 +55,14 @@ async function loadTags() {
   }
 }
 
-async function createTag() {
+async function handleCreateTag() {
   if (!newTagName.value.trim()) {
     ElMessage.warning('请输入标签名称')
     return
   }
 
   try {
-    await createTag({
+    await apiCreateTag({
       name: newTagName.value,
       color: newTagColor.value
     })
@@ -79,7 +79,7 @@ function handleDeleteTag(id: string) {
     type: 'warning'
   })
     .then(async () => {
-      await deleteTag(id)
+      await apiDeleteTag(id)
       ElMessage.success('删除成功')
       await loadTags()
     })

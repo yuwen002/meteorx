@@ -11,6 +11,8 @@
         <span v-if="spaceInfo?.description" class="space-desc">{{ spaceInfo.description }}</span>
       </div>
       <div class="flex-1"></div>
+      <!-- 通知中心 -->
+      <NotificationCenter />
       <el-button
         v-if="canManage"
         :icon="User"
@@ -92,16 +94,46 @@
       <main class="doc-area">
         <!-- 阅读态 -->
         <template v-if="!editing && currentDocument">
+          <!-- 编辑锁指示器 -->
+          <EditLockIndicator 
+            v-if="canEdit"
+            :document-id="currentDocument.id" 
+            :current-user-id="myUserId"
+            @locked="handleEditLocked"
+            @unlocked="handleEditUnlocked"
+          />
+          
           <div class="doc-toolbar">
             <span class="doc-title">{{ currentNode?.title }}</span>
             <div class="flex-1"></div>
+            <!-- 标签显示 -->
+            <div v-if="documentTags.length > 0" class="doc-tags">
+              <el-tag 
+                v-for="tag in documentTags" 
+                :key="tag.id" 
+                :color="tag.tag?.color || '#409EFF'"
+                size="small"
+                style="margin-right: 4px"
+              >
+                {{ tag.tag?.name }}
+              </el-tag>
+            </div>
             <el-tag v-if="canEdit" type="warning" size="small" class="unsaved-tip">
               最后编辑 {{ currentDocument.last_edited_at?.replace('T', ' ').substring(0, 16) }}
             </el-tag>
+            <el-button v-if="canEdit" :icon="PriceTag" @click="tagManagerRef?.open()">标签</el-button>
+            <el-button v-if="canEdit" :icon="Share" @click="shareManagerRef?.open()">分享</el-button>
+            <el-button :icon="DataAnalysis" @click="showStats = !showStats">统计</el-button>
             <el-button v-if="canEdit" type="primary" :icon="EditPen" @click="startEditing">编辑</el-button>
             <el-button v-if="canEdit" :icon="FolderAdd" @click="membersDialogVisible = true">成员</el-button>
           </div>
           <div class="doc-body article" v-html="currentDocument.content_html"></div>
+          
+          <!-- 评论区 -->
+          <CommentSection v-if="canEdit" :document-id="currentDocument.id" />
+          
+          <!-- 统计面板 -->
+          <StatsPanel v-if="showStats" :document-id="currentDocument.id" />
         </template>
 
         <!-- 编辑态 -->
@@ -134,6 +166,7 @@
               </el-button>
             </div>
             <div class="md-tools">
+              <el-tooltip content="使用模板"><el-button size="small" :icon="Files" @click="templateSelectorRef?.open()" /></el-tooltip>
               <el-tooltip content="标题"><el-button size="small" :icon="Menu" @click="mdHeading" /></el-tooltip>
               <el-tooltip content="加粗">
                 <el-button size="small" @click="mdBold"><b>B</b></el-button>
@@ -185,7 +218,7 @@
           </div>
         </template>
 
-        <!-- 附件 / 版本 / 空态 -->
+        <!-- 附件 / 版本 / 扩展功能面板 -->
         <template v-else>
           <el-empty
             :description="currentNode ? '该目录下暂无打开文档' : '从左侧选择一个文档开始阅读'"
@@ -193,7 +226,7 @@
           />
         </template>
 
-        <!-- 附件与版本切换 -->
+        <!-- 附件、版本与扩展功能面板 -->
         <div v-if="currentDocument" class="sub-panels">
           <div class="panel-tabs">
             <span
@@ -209,6 +242,20 @@
               @click="activePanel = 'history'"
             >
               历史版本 ({{ revisions.length }})
+            </span>
+            <span
+              class="tab"
+              :class="{ active: activePanel === 'tags' }"
+              @click="activePanel = 'tags'"
+            >
+              标签 ({{ documentTags.length }})
+            </span>
+            <span
+              class="tab"
+              :class="{ active: activePanel === 'shares' }"
+              @click="activePanel = 'shares'; shareManagerRef?.open()"
+            >
+              分享
             </span>
           </div>
 
@@ -246,7 +293,7 @@
             <el-empty v-else description="暂无附件" :image-size="50" />
           </div>
 
-          <div v-else class="panel-body">
+          <div v-else-if="activePanel === 'history'" class="panel-body">
             <el-table v-loading="loadingRevisions" :data="revisions" size="small">
               <el-table-column label="版本" width="70">
                 <template #default="{ row }">v{{ row.version }}</template>
@@ -265,6 +312,31 @@
               </el-table-column>
             </el-table>
             <el-empty v-if="!loadingRevisions && revisions.length === 0" description="暂无历史版本" :image-size="50" />
+          </div>
+
+          <!-- 标签面板 -->
+          <div v-else-if="activePanel === 'tags'" class="panel-body">
+            <div v-if="canEdit" class="tag-ops" style="margin-bottom: 12px">
+              <el-button type="primary" size="small" @click="tagManagerRef?.open()">管理标签</el-button>
+            </div>
+            <div v-if="documentTags.length" class="tag-grid">
+              <el-tag
+                v-for="dt in documentTags"
+                :key="dt.id"
+                :color="dt.tag?.color || '#409EFF'"
+                closable
+                @close="handleRemoveTag(dt.tag_id)"
+                style="margin: 4px"
+              >
+                {{ dt.tag?.name }}
+              </el-tag>
+            </div>
+            <el-empty v-else description="暂无标签，点击「管理标签」添加" :image-size="50" />
+          </div>
+
+          <!-- 分享面板 -->
+          <div v-else-if="activePanel === 'shares'" class="panel-body">
+            <ShareLinkManager v-if="currentDocument" :document-id="currentDocument.id" />
           </div>
         </div>
       </main>
@@ -319,6 +391,11 @@
       :node-id="permNodeId"
       :title="permNodeTitle"
     />
+    
+    <!-- 扩展功能对话框 -->
+    <TagManager ref="tagManagerRef" />
+    <ShareLinkManager ref="shareManagerRef" :document-id="currentDocument?.id || ''" />
+    <TemplateSelector ref="templateSelectorRef" @select="handleTemplateSelect" />
   </div>
 </template>
 
@@ -349,7 +426,11 @@ import {
   Check,
   Close,
   Operation,
-  View
+  View,
+  PriceTag,
+  Share,
+  DataAnalysis,
+  Files
 } from '@element-plus/icons-vue'
 import {
   getSpace,
@@ -377,6 +458,13 @@ import { uploadFile, downloadFile } from '@/api/modules/file'
 import { useUserStore } from '@/stores/user'
 import MembersDialog from './components/MembersDialog.vue'
 import NodePermissionDialog from './components/NodePermissionDialog.vue'
+import TagManager from './components/TagManager.vue'
+import ShareLinkManager from './components/ShareLinkManager.vue'
+import CommentSection from './components/CommentSection.vue'
+import StatsPanel from './components/StatsPanel.vue'
+import TemplateSelector from './components/TemplateSelector.vue'
+import NotificationCenter from './components/NotificationCenter.vue'
+import EditLockIndicator from './components/EditLockIndicator.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -490,10 +578,14 @@ async function loadDocument(nodeId: string) {
   try {
     currentDocument.value = await getDocument(nodeId)
     activePanel.value = 'attachments'
-    await loadAttachments()
-    await loadRevisions()
+    await Promise.all([
+      loadAttachments(),
+      loadRevisions(),
+      loadDocumentTags()
+    ])
   } catch {
     currentDocument.value = null
+    documentTags.value = []
   }
 }
 
@@ -804,8 +896,58 @@ function openNodePermission(node: WikiNode) {
   nodePermVisible.value = true
 }
 
+// ============ 扩展功能 ============
+const tagManagerRef = ref<InstanceType<typeof TagManager>>()
+const shareManagerRef = ref<InstanceType<typeof ShareLinkManager>>()
+const templateSelectorRef = ref<InstanceType<typeof TemplateSelector>>()
+const showStats = ref(false)
+const documentTags = ref<any[]>([])
+const editLocked = ref(false)
+
+// 加载文档标签
+async function loadDocumentTags() {
+  if (!currentDocument.value) return
+  try {
+    const { listDocumentTags } = await import('@/api/modules/wiki')
+    documentTags.value = await listDocumentTags(currentDocument.value.id)
+  } catch (error) {
+    console.error('加载标签失败:', error)
+  }
+}
+
+// 移除文档标签
+async function handleRemoveTag(tagId: string) {
+  if (!currentDocument.value) return
+  try {
+    const { removeDocumentTag } = await import('@/api/modules/wiki')
+    await removeDocumentTag(currentDocument.value.id, tagId)
+    ElMessage.success('标签已移除')
+    await loadDocumentTags()
+  } catch (error) {
+    ElMessage.error('移除标签失败')
+  }
+}
+
+// 处理模板选择
+function handleTemplateSelect(template: any) {
+  if (!editing.value) {
+    startEditing()
+  }
+  editingContent.value = template.content
+  ElMessage.success(`已使用模板: ${template.name}`)
+}
+
+// 编辑锁状态变化
+function handleEditLocked() {
+  editLocked.value = true
+}
+
+function handleEditUnlocked() {
+  editLocked.value = false
+}
+
 // ============ 附件 ============
-const activePanel = ref<'attachments' | 'history'>('attachments')
+const activePanel = ref<'attachments' | 'history' | 'tags' | 'shares'>('attachments')
 const attachments = ref<WikiAttachment[]>([])
 
 async function loadAttachments() {
@@ -1070,6 +1212,11 @@ onMounted(async () => {
 .doc-title {
   font-size: 20px;
   font-weight: 700;
+}
+.doc-tags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 .unsaved-tip {
   margin-right: auto;

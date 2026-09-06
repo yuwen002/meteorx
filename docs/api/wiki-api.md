@@ -347,6 +347,36 @@ Space
 
 ---
 
+### 3.5 Markdown 实时预览
+
+`POST /api/v1/wiki/documents/preview`
+
+**权限码**：登录用户即可（供编辑器分栏预览，不落库、不做空间级权限校验）
+
+**描述**：将 Markdown 内容离线渲染为 HTML 并做安全净化（移除 script/事件属性/危险协议等）。渲染后的内嵌 `/uploads/*` 图片地址会被改写为带时效签名（默认 30 分钟）的完整 URL，用于文档阅读与预览时的防盗链。
+
+**请求体**：
+```json
+{
+  "content": "# 标题\n\n![架构图](/uploads/xxx.png)\n\n- 列表项",
+  "format": "markdown"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| content | string | 是 | Markdown 原文 |
+| format | string | 否 | 源格式，默认 `markdown` |
+
+**响应**：
+```json
+{
+  "content_html": "<h1>标题</h1>\n\n<p><img src=\"http://host:8081/uploads/xxx.png?e=1788520110&s=75ec...\" alt=\"架构图\"></p>\n\n<ul>\n<li>列表项</li>\n</ul>\n"
+}
+```
+
+---
+
 ## 4. 版本历史 (Revision)
 
 ### 4.1 列出版本历史
@@ -454,8 +484,8 @@ Space
 |------|------|
 | viewer | 仅查看 |
 | editor | 可编辑文档 |
-| manager | 可管理成员和节点 |
-| owner | 空间所有者（全部权限） |
+| admin | 可管理成员和节点 |
+| owner | 空间所有者（全部权限；每空间至少保留一名 owner，且 owner 不可被移除/降级） |
 
 ---
 

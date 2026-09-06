@@ -23,7 +23,7 @@
 | **审计日志** | 自动记录所有请求；`auditctx` Service 层丰富（before/after）；批量异步写入；多维度筛选查询；可视化仪表盘 |
 | **告警管理** | 基于审计日志的实时告警；支持风险等级/操作类型/特定用户触发；邮件/钉钉/企业微信/Webhook 通知；冷却机制防告警风暴 |
 | **会话分析** | 用户会话追踪；操作时间线分析；会话统计（请求数/成功率/平均耗时）；IP 地理位置自动解析 |
-| **Wiki 知识库** | 空间/节点/文档/版本/成员 五层模型；Markdown 编辑；版本历史与回滚；完整租户隔离 |
+| **Wiki 知识库** | 空间/节点/文档/版本/成员 五层模型；分栏 Markdown 编辑 + 实时预览；版本历史与回滚；附件与内嵌图片（带签名 URL 防盗链）；节点移动/排序/节点权限；成员协作；回收站与全局搜索；完整租户隔离 |
 | **运营看板** | 平台运营数据总览：租户/用户/订阅/审计多维统计，实时掌握平台健康状况 |
 | **通知公告** | 平台公告 CRUD + 发布/下架；支持全平台或指定租户范围定向推送 |
 | **注销审批** | 租户注销申请 → 平台审批（通过/驳回）→ 到期自动执行注销的完整闭环 |
@@ -316,6 +316,8 @@ meteorx/
 | `PUT` | `/admin/tenants/{id}/restore` | 恢复 |
 | `PUT` | `/admin/tenants/batch/status` | 批量更新状态 |
 | `DELETE` | `/admin/tenants/batch` | 批量删除 |
+| `DELETE` | `/admin/tenants/{id}/hard` | ☠️ 物理删除租户（彻底销毁，同步取消生效订阅） |
+| `PUT` | `/admin/tenants/{id}/plan` | 为租户分配/变更套餐（等价于第 9 节 `/admin/tenants-plan/{id}`） |
 
 **注销审批接口（需超级管理员）**
 
@@ -325,7 +327,7 @@ meteorx/
 | `PUT` | `/admin/cancel-requests/{id}/approve` | 审批通过（可指定生效时间） |
 | `PUT` | `/admin/cancel-requests/{id}/reject` | 审批驳回 |
 
-### 7. RBAC 角色与权限
+### 7. RBAC 角色与权限（需超级管理员）
 
 **角色管理**
 
@@ -404,7 +406,7 @@ meteorx/
 | `PUT` | `/admin/tenants-plan/{id}` | 为租户分配/变更套餐 |
 | `GET` | `/tenant/current/plan` | 当前租户套餐与用量（租户侧） |
 
-### 10. 审计日志
+### 10. 审计日志（需超级管理员）
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -440,26 +442,39 @@ meteorx/
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/wiki/stats` | Wiki 统计（空间数/文档数/节点数） |
-| `GET` | `/wiki/spaces` | 空间列表（分页） |
+| `GET` | `/wiki/spaces` | 空间列表（分页，支持 keyword） |
 | `POST` | `/wiki/spaces` | 创建空间 |
 | `GET` | `/wiki/spaces/{id}` | 空间详情 |
 | `PUT` | `/wiki/spaces/{id}` | 更新空间 |
-| `DELETE` | `/wiki/spaces/{id}` | 删除空间 |
-| `GET` | `/wiki/spaces/{spaceId}/nodes/tree` | 节点树（完整层级） |
+| `DELETE` | `/wiki/spaces/{id}` | 删除空间（进回收站） |
 | `POST` | `/wiki/spaces/{spaceId}/nodes` | 创建节点（文件夹/文档节点） |
+| `GET` | `/wiki/spaces/{spaceId}/nodes/tree` | 节点树（完整层级） |
 | `GET` | `/wiki/spaces/{spaceId}/nodes/{id}` | 节点详情 |
 | `PUT` | `/wiki/spaces/{spaceId}/nodes/{id}` | 更新节点 |
-| `DELETE` | `/wiki/spaces/{spaceId}/nodes/{id}` | 删除节点 |
+| `DELETE` | `/wiki/spaces/{spaceId}/nodes/{id}` | 删除节点（进回收站） |
+| `POST` | `/wiki/spaces/{spaceId}/nodes/{id}/move` | 移动节点（可跨文件夹） |
+| `PUT` | `/wiki/spaces/{spaceId}/nodes/{id}/sort` | 同级节点排序 |
+| `GET` | `/wiki/spaces/{spaceId}/nodes/{id}/permissions` | 节点权限列表 |
+| `POST` | `/wiki/spaces/{spaceId}/nodes/{id}/permissions` | 设置节点权限（view/edit/delete） |
+| `DELETE` | `/wiki/spaces/{spaceId}/nodes/{id}/permissions/{userId}/{permission}` | 移除节点权限 |
 | `POST` | `/wiki/documents/nodes/{nodeId}` | 创建文档（Markdown） |
 | `GET` | `/wiki/documents/nodes/{nodeId}` | 获取文档内容 |
 | `PUT` | `/wiki/documents/{id}` | 更新文档（自动创建新版本） |
 | `DELETE` | `/wiki/documents/{id}` | 删除文档 |
+| `POST` | `/wiki/documents/preview` | Markdown 实时预览（离线渲染+净化，返回 HTML） |
 | `GET` | `/wiki/documents/{documentId}/revisions` | 版本历史列表 |
 | `GET` | `/wiki/documents/{documentId}/revisions/{version}` | 指定版本详情 |
 | `POST` | `/wiki/documents/{documentId}/revisions/{version}/restore` | 恢复到指定版本 |
+| `POST` | `/wiki/documents/attachments` | 上传文档附件（登记 file_id） |
+| `GET` | `/wiki/documents/{documentId}/attachments` | 文档附件列表 |
+| `DELETE` | `/wiki/documents/attachments/{id}` | 删除文档附件 |
 | `GET` | `/wiki/spaces/{spaceId}/members` | 空间成员列表 |
-| `POST` | `/wiki/spaces/{spaceId}/members` | 添加成员 |
+| `POST` | `/wiki/spaces/{spaceId}/members` | 添加成员（角色：owner/admin/editor/viewer） |
 | `DELETE` | `/wiki/spaces/{spaceId}/members/{userId}` | 移除成员 |
+| `GET` | `/wiki/search` | Wiki 全局搜索（标题+内容，返回高亮摘要） |
+| `GET` | `/wiki/trash` | 回收站列表（按 space_id/item_type 过滤） |
+| `POST` | `/wiki/trash/{id}/restore` | 从回收站恢复 |
+| `DELETE` | `/wiki/trash/{id}` | 永久删除回收站项目 |
 
 ### 12. 运营看板（管理员）
 
@@ -746,10 +761,10 @@ OpenAPI 规范文件位于 `docs/apifox/`：
 | 审计日志 | `/system/audit` | 日志查询/导出/可视化仪表盘 |
 | 告警管理 | `/system/audit/alert` | 告警规则管理/告警记录查询/通知配置 |
 | 会话分析 | `/system/audit/session` | 会话追踪/操作时间线/会话统计 |
-| Wiki 空间 | `/wiki/spaces` | Wiki 空间列表/创建/管理 |
-| Wiki 节点树 | `/wiki/spaces/:id/tree` | 节点树浏览/创建文件夹/创建文档 |
-| Wiki 文档编辑 | `/wiki/documents/:id` | Markdown 文档编辑/版本历史/版本恢复 |
-| Wiki 成员 | `/wiki/spaces/:id/members` | 空间成员管理 |
+| Wiki 知识库 | `/wiki` | Wiki 空间列表/创建/管理（含搜索与回收站入口） |
+| Wiki 空间 | `/wiki/spaces/:id` | 节点树 + 分栏 Markdown 编辑/实时预览 + 版本历史恢复 + 附件 + 成员/节点权限弹窗 |
+| Wiki 搜索 | `/wiki/search` | Wiki 全局搜索（标题/正文，高亮摘要） |
+| Wiki 回收站 | `/wiki/trash` | 已删除空间/节点/文档 恢复与永久删除 |
 | 租户设置 | `/tenant-settings` | 租户独立配置（Logo/主题色/语言等） |
 | 通知公告 | `/system/announcement` | 公告 CRUD / 发布 / 下架 |
 | 注销审批 | `/system/cancel-request` | 租户注销申请审批（通过/驳回） |

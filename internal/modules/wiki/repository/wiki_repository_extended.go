@@ -22,9 +22,12 @@ type WikiRepositoryExtended interface {
 	AddDocumentTag(ctx context.Context, documentID, tagID string) error
 	RemoveDocumentTag(ctx context.Context, documentID, tagID string) error
 	ListDocumentTags(ctx context.Context, documentID string) ([]*model.DocumentTag, error)
+	ListDocumentTagsWithDetails(ctx context.Context, documentID string) ([]*model.DocumentTag, error)
 
 	CreateComment(ctx context.Context, comment *model.Comment) error
 	ListComments(ctx context.Context, documentID string) ([]*model.Comment, error)
+	ListCommentsByDocument(ctx context.Context, documentID string) ([]*model.Comment, error)
+	ListRepliesByParentID(ctx context.Context, parentID string) ([]*model.Comment, error)
 	UpdateComment(ctx context.Context, comment *model.Comment) error
 	DeleteComment(ctx context.Context, id string) error
 	GetComment(ctx context.Context, id string) (*model.Comment, error)
@@ -45,6 +48,7 @@ type WikiRepositoryExtended interface {
 	CreateAccessLog(ctx context.Context, log *model.DocumentAccessLog) error
 	ListAccessLogs(ctx context.Context, documentID string, page, pageSize int) ([]*model.DocumentAccessLog, int64, error)
 	GetDocumentStats(ctx context.Context, documentID string) (*model.DocumentStats, error)
+	GetDocumentStatsExtended(ctx context.Context, documentID string) (*model.DocumentStats, error)
 
 	CreateSubscription(ctx context.Context, sub *model.DocumentSubscription) error
 	ListSubscriptions(ctx context.Context, documentID string) ([]*model.DocumentSubscription, error)
@@ -67,6 +71,11 @@ type WikiRepositoryExtended interface {
 	BatchMoveNodes(ctx context.Context, nodeIDs []string, newParentID string) error
 
 	CompareRevisions(ctx context.Context, documentID string, version1, version2 int) (string, string, error)
+	
+	GetDocumentByIDWithNode(ctx context.Context, id string) (*model.Document, *model.WikiNode, error)
+	GetUserSubscriptions(ctx context.Context, userID string) ([]*model.DocumentSubscription, error)
+	ListNodesByIDs(ctx context.Context, nodeIDs []string) ([]*model.WikiNode, error)
+	GenerateDiff(ctx context.Context, oldContent, newContent string) string
 }
 
 type wikiRepositoryExtended struct {
@@ -84,9 +93,9 @@ func (r *wikiRepositoryExtended) getDB(ctx context.Context) *gorm.DB {
 }
 
 func (r *wikiRepositoryExtended) CreateTag(ctx context.Context, tag *model.Tag) error {
-	tag.ID = idgen.GenerateULID()
+	tag.ID = idgen.NewULID()
 	if tag.TenantID == "" {
-		tag.TenantID = tenantctx.GetTenantID(ctx)
+		tag.TenantID = tenantctx.TenantID(ctx)
 	}
 	return r.getDB(ctx).Create(tag).Error
 }
@@ -104,10 +113,10 @@ func (r *wikiRepositoryExtended) DeleteTag(ctx context.Context, id string) error
 
 func (r *wikiRepositoryExtended) AddDocumentTag(ctx context.Context, documentID, tagID string) error {
 	dt := &model.DocumentTag{
-		ID:         idgen.GenerateULID(),
+		ID:         idgen.NewULID(),
 		DocumentID: documentID,
 		TagID:      tagID,
-		TenantID:   tenantctx.GetTenantID(ctx),
+		TenantID:   tenantctx.TenantID(ctx),
 	}
 	return r.getDB(ctx).Create(dt).Error
 }
@@ -123,9 +132,9 @@ func (r *wikiRepositoryExtended) ListDocumentTags(ctx context.Context, documentI
 }
 
 func (r *wikiRepositoryExtended) CreateComment(ctx context.Context, comment *model.Comment) error {
-	comment.ID = idgen.GenerateULID()
+	comment.ID = idgen.NewULID()
 	if comment.TenantID == "" {
-		comment.TenantID = tenantctx.GetTenantID(ctx)
+		comment.TenantID = tenantctx.TenantID(ctx)
 	}
 	return r.getDB(ctx).Create(comment).Error
 }
@@ -155,9 +164,9 @@ func (r *wikiRepositoryExtended) GetComment(ctx context.Context, id string) (*mo
 }
 
 func (r *wikiRepositoryExtended) CreateShareLink(ctx context.Context, link *model.ShareLink) error {
-	link.ID = idgen.GenerateULID()
+	link.ID = idgen.NewULID()
 	if link.TenantID == "" {
-		link.TenantID = tenantctx.GetTenantID(ctx)
+		link.TenantID = tenantctx.TenantID(ctx)
 	}
 	return r.getDB(ctx).Create(link).Error
 }
@@ -191,9 +200,9 @@ func (r *wikiRepositoryExtended) IncrementShareViewCount(ctx context.Context, id
 }
 
 func (r *wikiRepositoryExtended) CreateTemplate(ctx context.Context, template *model.DocumentTemplate) error {
-	template.ID = idgen.GenerateULID()
+	template.ID = idgen.NewULID()
 	if template.TenantID == "" {
-		template.TenantID = tenantctx.GetTenantID(ctx)
+		template.TenantID = tenantctx.TenantID(ctx)
 	}
 	return r.getDB(ctx).Create(template).Error
 }
@@ -229,9 +238,9 @@ func (r *wikiRepositoryExtended) DeleteTemplate(ctx context.Context, id string) 
 }
 
 func (r *wikiRepositoryExtended) CreateAccessLog(ctx context.Context, log *model.DocumentAccessLog) error {
-	log.ID = idgen.GenerateULID()
+	log.ID = idgen.NewULID()
 	if log.TenantID == "" {
-		log.TenantID = tenantctx.GetTenantID(ctx)
+		log.TenantID = tenantctx.TenantID(ctx)
 	}
 	return r.getDB(ctx).Create(log).Error
 }
@@ -271,9 +280,9 @@ func (r *wikiRepositoryExtended) GetDocumentStats(ctx context.Context, documentI
 }
 
 func (r *wikiRepositoryExtended) CreateSubscription(ctx context.Context, sub *model.DocumentSubscription) error {
-	sub.ID = idgen.GenerateULID()
+	sub.ID = idgen.NewULID()
 	if sub.TenantID == "" {
-		sub.TenantID = tenantctx.GetTenantID(ctx)
+		sub.TenantID = tenantctx.TenantID(ctx)
 	}
 	return r.getDB(ctx).Create(sub).Error
 }
@@ -299,9 +308,9 @@ func (r *wikiRepositoryExtended) GetSubscription(ctx context.Context, documentID
 }
 
 func (r *wikiRepositoryExtended) CreateNotification(ctx context.Context, notification *model.Notification) error {
-	notification.ID = idgen.GenerateULID()
+	notification.ID = idgen.NewULID()
 	if notification.TenantID == "" {
-		notification.TenantID = tenantctx.GetTenantID(ctx)
+		notification.TenantID = tenantctx.TenantID(ctx)
 	}
 	return r.getDB(ctx).Create(notification).Error
 }
@@ -336,9 +345,9 @@ func (r *wikiRepositoryExtended) GetUnreadNotificationCount(ctx context.Context,
 }
 
 func (r *wikiRepositoryExtended) AcquireEditLock(ctx context.Context, lock *model.EditLock) error {
-	lock.ID = idgen.GenerateULID()
+	lock.ID = idgen.NewULID()
 	if lock.TenantID == "" {
-		lock.TenantID = tenantctx.GetTenantID(ctx)
+		lock.TenantID = tenantctx.TenantID(ctx)
 	}
 	if lock.ExpiresAt.IsZero() {
 		lock.ExpiresAt = time.Now().Add(30 * time.Minute)
@@ -532,19 +541,19 @@ func (r *wikiRepositoryExtended) GetDocumentByIDWithNode(ctx context.Context, id
 
 func (r *wikiRepositoryExtended) GetDocumentStatsExtended(ctx context.Context, documentID string) (*model.DocumentStats, error) {
 	stats := &model.DocumentStats{}
-	
+
 	r.getDB(ctx).Model(&model.DocumentAccessLog{}).
 		Where("document_id = ? AND action = ?", documentID, model.ActionView).
 		Count(&stats.TotalViews)
-	
+
 	r.getDB(ctx).Model(&model.DocumentAccessLog{}).
 		Where("document_id = ? AND action = ?", documentID, model.ActionEdit).
 		Count(&stats.TotalEdits)
-	
+
 	r.getDB(ctx).Model(&model.DocumentAccessLog{}).
 		Where("document_id = ? AND action = ?", documentID, model.ActionDownload).
 		Count(&stats.TotalDownloads)
-	
+
 	r.getDB(ctx).Model(&model.DocumentAccessLog{}).
 		Where("document_id = ? AND action = ?", documentID, model.ActionShare).
 		Count(&stats.TotalShares)
@@ -564,12 +573,12 @@ func (r *wikiRepositoryExtended) GetDocumentStatsExtended(ctx context.Context, d
 func (r *wikiRepositoryExtended) GenerateDiff(ctx context.Context, oldContent, newContent string) string {
 	oldLines := strings.Split(oldContent, "\n")
 	newLines := strings.Split(newContent, "\n")
-	
+
 	maxLen := len(oldLines)
 	if len(newLines) > maxLen {
 		maxLen = len(newLines)
 	}
-	
+
 	var diff strings.Builder
 	for i := 0; i < maxLen; i++ {
 		oldLine := ""
@@ -580,7 +589,7 @@ func (r *wikiRepositoryExtended) GenerateDiff(ctx context.Context, oldContent, n
 		if i < len(newLines) {
 			newLine = newLines[i]
 		}
-		
+
 		if oldLine == newLine {
 			diff.WriteString("  " + oldLine + "\n")
 		} else {
@@ -592,6 +601,6 @@ func (r *wikiRepositoryExtended) GenerateDiff(ctx context.Context, oldContent, n
 			}
 		}
 	}
-	
+
 	return diff.String()
 }

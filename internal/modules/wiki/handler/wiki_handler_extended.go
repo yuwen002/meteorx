@@ -2,7 +2,6 @@ package handler
 
 import (
 	"io"
-	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
 	"meteorx/internal/modules/wiki/dto"
@@ -10,7 +9,6 @@ import (
 	"meteorx/pkg/pagination"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -487,9 +485,9 @@ func (h *WikiHandlerExtended) ImportDocument(w http.ResponseWriter, r *http.Requ
 	_ = header.Filename
 
 	response.Success(w, map[string]interface{}{
-		"message": "import functionality to be implemented",
+		"message":  "import functionality to be implemented",
 		"filename": header.Filename,
-		"size": header.Size,
+		"size":     header.Size,
 	})
 }
 

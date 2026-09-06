@@ -204,3 +204,188 @@ type AttachmentResp struct {
 	UploadedBy string    `json:"uploaded_by"`
 	CreatedAt  time.Time `json:"created_at"`
 }
+
+type TagResp struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Color     string    `json:"color"`
+	CreatedBy string    `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type CreateTagReq struct {
+	Name  string `json:"name" validate:"required,max=100"`
+	Color string `json:"color" validate:"max=20"`
+}
+
+type DocumentTagResp struct {
+	ID         string    `json:"id"`
+	DocumentID string    `json:"document_id"`
+	Tag        TagResp   `json:"tag"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type CommentResp struct {
+	ID         string      `json:"id"`
+	DocumentID string      `json:"document_id"`
+	NodeID     string      `json:"node_id"`
+	ParentID   string      `json:"parent_id"`
+	Content    string      `json:"content"`
+	CreatedBy  string      `json:"created_by"`
+	UserName   string      `json:"user_name"`
+	MentionIDs string      `json:"mention_ids"`
+	Status     int         `json:"status"`
+	Replies    []CommentResp `json:"replies,omitempty"`
+	CreatedAt  time.Time   `json:"created_at"`
+	UpdatedAt  time.Time   `json:"updated_at"`
+}
+
+type CreateCommentReq struct {
+	DocumentID string `json:"document_id" validate:"required"`
+	NodeID     string `json:"node_id" validate:"required"`
+	ParentID   string `json:"parent_id"`
+	Content    string `json:"content" validate:"required"`
+	MentionIDs string `json:"mention_ids"`
+}
+
+type UpdateCommentReq struct {
+	Content string `json:"content" validate:"required"`
+}
+
+type ShareLinkReq struct {
+	DocumentID    string     `json:"document_id" validate:"required"`
+	Password      string     `json:"password"`
+	ExpireAt      *time.Time `json:"expire_at"`
+	MaxViews      int        `json:"max_views"`
+	AllowDownload bool       `json:"allow_download"`
+}
+
+type ShareLinkResp struct {
+	ID            string     `json:"id"`
+	DocumentID    string     `json:"document_id"`
+	NodeID        string     `json:"node_id"`
+	Token         string     `json:"token"`
+	Password      string     `json:"password,omitempty"`
+	ExpireAt      *time.Time `json:"expire_at,omitempty"`
+	MaxViews      int        `json:"max_views"`
+	ViewCount     int        `json:"view_count"`
+	AllowDownload bool       `json:"allow_download"`
+	CreatedBy     string     `json:"created_by"`
+	CreatedAt     time.Time  `json:"created_at"`
+	ShareURL      string     `json:"share_url"`
+}
+
+type DocumentTemplateResp struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Content     string    `json:"content"`
+	Format      string    `json:"format"`
+	Category    string    `json:"category"`
+	IsPublic    bool      `json:"is_public"`
+	CreatedBy   string    `json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type CreateTemplateReq struct {
+	Name        string `json:"name" validate:"required,max=200"`
+	Description string `json:"description" validate:"max=500"`
+	Content     string `json:"content" validate:"required"`
+	Format      string `json:"format"`
+	Category    string `json:"category" validate:"max=100"`
+	IsPublic    bool   `json:"is_public"`
+}
+
+type UpdateTemplateReq struct {
+	Name        string `json:"name" validate:"omitempty,max=200"`
+	Description string `json:"description" validate:"omitempty,max=500"`
+	Content     string `json:"content"`
+	Category    string `json:"category" validate:"omitempty,max=100"`
+	IsPublic    bool   `json:"is_public"`
+}
+
+type DocumentAccessLogResp struct {
+	ID         string    `json:"id"`
+	DocumentID string    `json:"document_id"`
+	UserID     string    `json:"user_id"`
+	UserName   string    `json:"user_name"`
+	Action     string    `json:"action"`
+	IPAddress  string    `json:"ip_address"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type DocumentStatsResp struct {
+	TotalViews     int64     `json:"total_views"`
+	TotalEdits     int64     `json:"total_edits"`
+	TotalDownloads int64     `json:"total_downloads"`
+	TotalShares    int64     `json:"total_shares"`
+	UniqueViewers  int64     `json:"unique_viewers"`
+	LastViewedAt   time.Time `json:"last_viewed_at"`
+}
+
+type SubscriptionResp struct {
+	ID         string    `json:"id"`
+	DocumentID string    `json:"document_id"`
+	NodeID     string    `json:"node_id"`
+	UserID     string    `json:"user_id"`
+	NotifyType string    `json:"notify_type"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type NotificationResp struct {
+	ID          string    `json:"id"`
+	Type        string    `json:"type"`
+	Title       string    `json:"title"`
+	Content     string    `json:"content"`
+	RelatedID   string    `json:"related_id"`
+	RelatedType string    `json:"related_type"`
+	IsRead      bool      `json:"is_read"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type DiffResult struct {
+	OldVersion int        `json:"old_version"`
+	NewVersion int        `json:"new_version"`
+	Diffs      []DiffLine `json:"diffs"`
+}
+
+type DiffLine struct {
+	Type     string `json:"type"` // added, removed, unchanged
+	LineNum  int    `json:"line_num"`
+	Content  string `json:"content"`
+	OldLine  int    `json:"old_line,omitempty"`
+	NewLine  int    `json:"new_line,omitempty"`
+}
+
+type BatchOperationReq struct {
+	NodeIDs []string `json:"node_ids" validate:"required"`
+	Action  string   `json:"action" validate:"required,oneof=move delete"`
+	Target  string   `json:"target,omitempty"`
+}
+
+type ExportDocumentReq struct {
+	Format string `json:"format" validate:"required,oneof=markdown pdf html"`
+}
+
+type ImportDocumentReq struct {
+	ParentID string `json:"parent_id"`
+	Format   string `json:"format" validate:"required,oneof=markdown html"`
+}
+
+type EditLockResp struct {
+	DocumentID string    `json:"document_id"`
+	UserID     string    `json:"user_id"`
+	UserName   string    `json:"user_name"`
+	LockedAt   time.Time `json:"locked_at"`
+	ExpiresAt  time.Time `json:"expires_at"`
+	CanEdit    bool      `json:"can_edit"`
+}
+
+type AcquireEditLockReq struct {
+	DocumentID string `json:"document_id" validate:"required"`
+}
+
+type ReleaseEditLockReq struct {
+	DocumentID string `json:"document_id" validate:"required"`
+}
