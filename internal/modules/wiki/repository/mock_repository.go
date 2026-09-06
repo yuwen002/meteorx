@@ -219,6 +219,30 @@ func (m *MockWikiRepository) ExpireTrashItems(ctx context.Context) error {
 	return nil
 }
 
+func (m *MockWikiRepository) RestoreDocument(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockWikiRepository) RestoreSpace(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockWikiRepository) RestoreNodeTree(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockWikiRepository) PurgeDocument(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockWikiRepository) PurgeNodeTree(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockWikiRepository) PurgeSpaceTree(ctx context.Context, id string) error {
+	return nil
+}
+
 func (m *MockWikiRepository) SearchNodesByTitle(ctx context.Context, tenantID string, spaceID string, query string) ([]*model.WikiNode, error) {
 	return nil, nil
 }

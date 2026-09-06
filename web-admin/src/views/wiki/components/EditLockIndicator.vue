@@ -78,10 +78,11 @@ const lockInfo = ref<EditLock>({
   user_id: '',
   locked_at: '',
   expires_at: '',
-  can_edit: false
+  can_edit: true
 })
 
-const isLocked = ref(false)
+// user_id 非空表示有有效锁占用（后端空闲响应 user_id 为空、can_edit=true）
+const isLocked = computed(() => !!lockInfo.value.user_id)
 let refreshTimer: number | null = null
 
 const isMyLock = computed(() => lockInfo.value.user_id === props.currentUserId)
@@ -100,19 +101,22 @@ onUnmounted(() => {
 
 async function checkLockStatus() {
   try {
-    const lock = await getEditLock(props.documentId)
-    lockInfo.value = lock
-    isLocked.value = true
+    lockInfo.value = await getEditLock(props.documentId)
   } catch (error) {
-    // 404 表示未锁定
-    isLocked.value = false
+    // 查询失败视为空闲
+    lockInfo.value = {
+      document_id: props.documentId,
+      user_id: '',
+      locked_at: '',
+      expires_at: '',
+      can_edit: true
+    }
   }
 }
 
 async function handleAcquire() {
   try {
     lockInfo.value = await acquireEditLock(props.documentId)
-    isLocked.value = true
     ElMessage.success('已获取编辑权')
     emit('locked')
   } catch (error: any) {
@@ -127,7 +131,13 @@ async function handleAcquire() {
 async function handleRelease() {
   try {
     await releaseEditLock(props.documentId)
-    isLocked.value = false
+    lockInfo.value = {
+      document_id: props.documentId,
+      user_id: '',
+      locked_at: '',
+      expires_at: '',
+      can_edit: true
+    }
     ElMessage.success('已释放编辑权')
     emit('unlocked')
   } catch (error) {
@@ -155,7 +165,6 @@ async function handleForceLock() {
       }
     )
     lockInfo.value = await acquireEditLock(props.documentId)
-    isLocked.value = true
     ElMessage.success('已强制获取编辑权')
     emit('locked')
   } catch (error) {

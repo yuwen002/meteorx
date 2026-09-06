@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 
 	"meteorx/internal/modules/wiki/model"
 	apperrors "meteorx/internal/pkg/apperrors"
@@ -80,8 +81,8 @@ func (s *wikiService) CheckSpacePermission(ctx context.Context, spaceID, userID 
 		if space.Visibility != model.VisibilityTenant && space.Visibility != model.VisibilityPublic {
 			return apperrors.ErrForbidden("您不是该空间的成员")
 		}
-		// 对非私有空间，只允许 read 操作
-		if action != "read" {
+		// 对非私有空间，只允许只读类操作（space:read / node:read / document:read / revision:read 或裸 read）
+		if !isReadAction(action) {
 			return apperrors.ErrForbidden("您没有执行此操作的权限")
 		}
 		return nil
@@ -209,4 +210,9 @@ func (s *wikiService) GetEffectivePermissions(ctx context.Context, spaceID, user
 	}
 
 	return result
+}
+
+// isReadAction 判断 action 是否为只读类权限动作（space:read / node:read / document:read / revision:read 等）
+func isReadAction(action string) bool {
+	return action == "read" || strings.HasSuffix(action, ":read")
 }

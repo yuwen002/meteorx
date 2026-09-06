@@ -162,8 +162,8 @@ async function loadStats() {
 async function loadAccessLogs() {
   try {
     const res = await listAccessLogs(props.documentId, logPage.value, logPageSize)
-    accessLogs.value = res.logs
-    totalLogs.value = res.total
+    accessLogs.value = res.data ?? []
+    totalLogs.value = res.pagination?.total ?? 0
   } catch (error) {
     ElMessage.error('加载访问日志失败')
   }

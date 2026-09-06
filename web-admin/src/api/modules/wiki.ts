@@ -374,8 +374,8 @@ export interface Tag {
 export interface DocumentTag {
   id: string
   document_id: string
-  tag_id: string
-  tag?: Tag
+  /** 后端以嵌套 tag 对象返回，无 tag_id 顶层字段 */
+  tag: Tag
   created_at: string
 }
 
@@ -412,10 +412,13 @@ export function listDocumentTags(documentId: string) {
 export interface Comment {
   id: string
   document_id: string
+  node_id?: string
   parent_id?: string
   content: string
   created_by: string
   user_name?: string
+  mention_ids?: string
+  replies?: Comment[]
   created_at: string
   updated_at: string
 }
@@ -424,10 +427,16 @@ export interface CreateCommentReq {
   document_id: string
   parent_id?: string
   content: string
+  mention_ids?: string
 }
 
 export function createComment(req: CreateCommentReq) {
-  return request.post<any, Comment>('/wiki/documents/comments', req)
+  return request.post<any, Comment>(`/wiki/documents/${req.document_id}/comments`, {
+    document_id: req.document_id,
+    parent_id: req.parent_id,
+    content: req.content,
+    mention_ids: req.mention_ids
+  })
 }
 
 export function listComments(documentId: string) {
@@ -446,26 +455,42 @@ export function deleteComment(id: string) {
 export interface ShareLink {
   id: string
   document_id: string
-  node_id: string
+  node_id?: string
   token: string
   password?: string
-  expires_at?: string
+  /** 过期时间（后端 DTO 字段为 expire_at） */
+  expire_at?: string
   max_views?: number
   view_count: number
-  is_active: boolean
-  created_by: string
+  allow_download?: boolean
+  created_by?: string
   created_at: string
+  /** 相对分享地址，例如 /wiki/share/{token} */
+  share_url?: string
 }
 
 export interface CreateShareLinkReq {
   document_id: string
   password?: string
+  /** 过期时间，支持任意可被 Date 解析的格式（如 "2026-01-01 12:00:00" 或 RFC3339） */
   expires_at?: string
   max_views?: number
+  allow_download?: boolean
 }
 
 export function createShareLink(req: CreateShareLinkReq) {
-  return request.post<any, ShareLink>('/wiki/documents/shares', req)
+  const body: Record<string, unknown> = {
+    document_id: req.document_id,
+    password: req.password ?? '',
+    max_views: req.max_views ?? 0,
+    allow_download: req.allow_download ?? false
+  }
+  // 后端 DTO 字段为 expire_at，且期望可解析的时间值（RFC3339 / 时间戳）
+  if (req.expires_at) {
+    const ts = Date.parse(req.expires_at)
+    body.expire_at = isNaN(ts) ? req.expires_at : new Date(ts).toISOString()
+  }
+  return request.post<any, ShareLink>(`/wiki/documents/${req.document_id}/share`, body)
 }
 
 export function listShareLinks(documentId: string) {
@@ -480,12 +505,13 @@ export function getShareLink(token: string, password?: string) {
   return request.get<any, ShareLink>(`/wiki/share/${token}`, { params: { password } })
 }
 
-// 文档模板
+// 文档模板（挂在 /wiki/spaces/templates 下）
 export interface DocumentTemplate {
   id: string
   tenant_id: string
   name: string
   description: string
+  format: string
   category: string
   content: string
   is_public: boolean
@@ -497,34 +523,35 @@ export interface DocumentTemplate {
 export interface CreateTemplateReq {
   name: string
   description?: string
+  format?: string
   category: string
   content: string
   is_public?: boolean
 }
 
 export function createTemplate(req: CreateTemplateReq) {
-  return request.post<any, DocumentTemplate>('/wiki/templates', req)
+  return request.post<any, DocumentTemplate>('/wiki/spaces/templates', req)
 }
 
 export function listTemplates(category?: string) {
-  return request.get<any, DocumentTemplate[]>('/wiki/templates', { params: { category } })
+  return request.get<any, DocumentTemplate[]>('/wiki/spaces/templates', { params: { category } })
 }
 
 export function getTemplate(id: string) {
-  return request.get<any, DocumentTemplate>(`/wiki/templates/${id}`)
+  return request.get<any, DocumentTemplate>(`/wiki/spaces/templates/${id}`)
 }
 
 export function updateTemplate(id: string, req: Partial<CreateTemplateReq>) {
-  return request.put<any, DocumentTemplate>(`/wiki/templates/${id}`, req)
+  return request.put<any, DocumentTemplate>(`/wiki/spaces/templates/${id}`, req)
 }
 
 export function deleteTemplate(id: string) {
-  return request.delete<any, void>(`/wiki/templates/${id}`)
+  return request.delete<any, void>(`/wiki/spaces/templates/${id}`)
 }
 
 // 访问统计
 export interface DocumentStats {
-  document_id: string
+  document_id?: string
   total_views: number
   total_edits: number
   total_downloads: number
@@ -548,7 +575,7 @@ export function getDocumentStats(documentId: string) {
 }
 
 export function listAccessLogs(documentId: string, page = 1, pageSize = 20) {
-  return request.get<any, { logs: DocumentAccessLog[]; total: number }>(
+  return request.get<any, PaginatedResult<DocumentAccessLog>>(
     `/wiki/documents/${documentId}/access-logs`,
     { params: { page, page_size: pageSize } }
   )
@@ -558,10 +585,10 @@ export function listAccessLogs(documentId: string, page = 1, pageSize = 20) {
 export interface DocumentSubscription {
   id: string
   document_id: string
+  node_id: string
   user_id: string
   user_name?: string
-  notify_on_edit: boolean
-  notify_on_comment: boolean
+  notify_type: string
   created_at: string
 }
 
@@ -573,11 +600,12 @@ export function unsubscribeDocument(documentId: string) {
   return request.delete<any, void>(`/wiki/documents/${documentId}/subscribe`)
 }
 
-export function listSubscriptions(documentId: string) {
-  return request.get<any, DocumentSubscription[]>(`/wiki/documents/${documentId}/subscriptions`)
+/** 当前用户在空间内订阅的全部文档（后端 GET /wiki/spaces/subscriptions） */
+export function listUserSubscriptions() {
+  return request.get<any, DocumentSubscription[]>('/wiki/spaces/subscriptions')
 }
 
-// 通知系统
+// 通知系统（挂在 /wiki/spaces/notifications 下）
 export interface Notification {
   id: string
   user_id: string
@@ -591,25 +619,24 @@ export interface Notification {
 }
 
 export function listNotifications(page = 1, pageSize = 20) {
-  return request.get<any, { notifications: Notification[]; total: number; unread_count: number }>(
-    '/wiki/notifications',
-    { params: { page, page_size: pageSize } }
-  )
+  return request.get<any, PaginatedResult<Notification>>('/wiki/spaces/notifications', {
+    params: { page, page_size: pageSize }
+  })
 }
 
 export function markNotificationAsRead(id: string) {
-  return request.put<any, void>(`/wiki/notifications/${id}/read`)
+  return request.put<any, void>(`/wiki/spaces/notifications/${id}/read`)
 }
 
 export function markAllNotificationsAsRead() {
-  return request.put<any, void>('/wiki/notifications/read-all')
+  return request.put<any, void>('/wiki/spaces/notifications/read-all')
 }
 
 export function getUnreadNotificationCount() {
-  return request.get<any, { count: number }>('/wiki/notifications/unread-count')
+  return request.get<any, { count: number }>('/wiki/spaces/notifications/unread-count')
 }
 
-// 编辑锁
+// 编辑锁（挂在 /wiki/documents/{id}/edit-lock 下）
 export interface EditLock {
   document_id: string
   user_id: string
@@ -620,22 +647,22 @@ export interface EditLock {
 }
 
 export function acquireEditLock(documentId: string) {
-  return request.post<any, EditLock>(`/wiki/documents/${documentId}/lock`)
+  return request.post<any, EditLock>(`/wiki/documents/${documentId}/edit-lock`)
 }
 
 export function releaseEditLock(documentId: string) {
-  return request.delete<any, void>(`/wiki/documents/${documentId}/lock`)
+  return request.delete<any, void>(`/wiki/documents/${documentId}/edit-lock`)
 }
 
 export function refreshEditLock(documentId: string) {
-  return request.put<any, void>(`/wiki/documents/${documentId}/lock/refresh`)
+  return request.put<any, void>(`/wiki/documents/${documentId}/edit-lock`)
 }
 
 export function getEditLock(documentId: string) {
-  return request.get<any, EditLock>(`/wiki/documents/${documentId}/lock`)
+  return request.get<any, EditLock>(`/wiki/documents/${documentId}/edit-lock`)
 }
 
-// 批量操作
+// 批量操作（统一 POST /wiki/spaces/nodes/batch，通过 action 区分）
 export interface BatchDeleteReq {
   node_ids: string[]
 }
@@ -646,34 +673,53 @@ export interface BatchMoveReq {
 }
 
 export function batchDeleteNodes(req: BatchDeleteReq) {
-  return request.post<any, void>('/wiki/batch/delete', req)
+  return request.post<any, void>('/wiki/spaces/nodes/batch', {
+    action: 'delete',
+    node_ids: req.node_ids
+  })
 }
 
 export function batchMoveNodes(req: BatchMoveReq) {
-  return request.post<any, void>('/wiki/batch/move', req)
+  return request.post<any, void>('/wiki/spaces/nodes/batch', {
+    action: 'move',
+    node_ids: req.node_ids,
+    target: req.new_parent_id
+  })
 }
 
 // 版本对比
+export interface RevisionDiffLine {
+  type: 'added' | 'removed' | 'unchanged'
+  line_num: number
+  content: string
+  old_line?: number
+  new_line?: number
+}
+
+export interface RevisionDiff {
+  old_version: number
+  new_version: number
+  diffs: RevisionDiffLine[]
+}
+
 export function compareRevisions(documentId: string, version1: number, version2: number) {
-  return request.get<any, { diff: string }>(
-    `/wiki/documents/${documentId}/diff`,
-    { params: { v1: version1, v2: version2 } }
+  return request.get<any, RevisionDiff>(
+    `/wiki/documents/${documentId}/revisions/compare`,
+    { params: { version1, version2 } }
   )
 }
 
 // 导入导出
 export function exportDocument(documentId: string, format = 'markdown') {
-  return request.get<any, { content: string; filename: string }>(
-    `/wiki/documents/${documentId}/export`,
-    { params: { format } }
-  )
+  // 后端直接回写文件流，调用方需自行触发浏览器下载
+  return request.post<Blob>(`/wiki/documents/${documentId}/export`, { format }, { responseType: 'blob' })
 }
 
-export function importDocument(spaceId: string, file: File) {
+export function importDocument(documentId: string, file: File) {
   const formData = new FormData()
   formData.append('file', file)
-  formData.append('space_id', spaceId)
-  return request.post<any, { document_id: string }>('/wiki/documents/import', formData, {
+  formData.append('format', 'markdown')
+  return request.post<any, any>(`/wiki/documents/${documentId}/import`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
 }

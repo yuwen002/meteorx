@@ -325,7 +325,7 @@
                 :key="dt.id"
                 :color="dt.tag?.color || '#409EFF'"
                 closable
-                @close="handleRemoveTag(dt.tag_id)"
+                @close="handleRemoveTag(dt.tag?.id || '')"
                 style="margin: 4px"
               >
                 {{ dt.tag?.name }}

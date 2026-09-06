@@ -170,6 +170,19 @@ func (h *WikiHandlerExtended) GetShareLink(w http.ResponseWriter, r *http.Reques
 	response.Success(w, resp)
 }
 
+// AccessSharedDocument 免登录公开分享落地：GET /wiki/share/{token}?password=xxx
+func (h *WikiHandlerExtended) AccessSharedDocument(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	password := r.URL.Query().Get("password")
+
+	resp, err := h.svc.AccessSharedDocument(r.Context(), token, password)
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, resp)
+}
+
 func (h *WikiHandlerExtended) ListShareLinks(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 
@@ -477,24 +490,31 @@ func (h *WikiHandlerExtended) ImportDocument(w http.ResponseWriter, r *http.Requ
 		format = "markdown"
 	}
 
-	parentID := r.FormValue("parent_id")
+	documentID := chi.URLParam(r, "id")
+	if documentID == "" {
+		response.BadRequest(w, "document id is required")
+		return
+	}
 
-	_ = content
-	_ = format
-	_ = parentID
-	_ = header.Filename
+	resp, err := h.svc.ImportDocument(r.Context(), documentID, content, format)
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
 
 	response.Success(w, map[string]interface{}{
-		"message":  "import functionality to be implemented",
-		"filename": header.Filename,
-		"size":     header.Size,
+		"document_id": resp.ID,
+		"node_id":     resp.NodeID,
+		"filename":    header.Filename,
+		"size":        header.Size,
+		"format":      format,
 	})
 }
 
 func (h *WikiHandlerExtended) RegisterExtendedRoutes(r chi.Router) {
 	r.Route("/wiki", func(r chi.Router) {
-		r.Get("/share/{token}", h.GetShareLink)
-
+		// 注意：免登录分享 GET /wiki/share/{token} 已在公开分组注册（见 public_routes.go），
+		// 此处不再重复注册，避免与公共路由冲突。
 		r.Route("/spaces", func(r chi.Router) {
 			r.Post("/tags", h.CreateTag)
 			r.Get("/tags", h.ListTags)

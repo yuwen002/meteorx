@@ -85,8 +85,8 @@ onMounted(async () => {
 async function loadNotifications() {
   try {
     const res = await listNotifications(page.value, pageSize)
-    notifications.value = res.notifications
-    total.value = res.total
+    notifications.value = res.data ?? []
+    total.value = res.pagination?.total ?? 0
   } catch (error) {
     ElMessage.error('加载通知失败')
   }

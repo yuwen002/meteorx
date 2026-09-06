@@ -12,6 +12,7 @@ import (
 	"meteorx/internal/modules/wiki/dto"
 	"meteorx/internal/modules/wiki/model"
 	"meteorx/internal/modules/wiki/repository"
+	apperrors "meteorx/internal/pkg/apperrors"
 	db "meteorx/internal/pkg/db"
 
 	"gorm.io/gorm"
@@ -35,6 +36,8 @@ type WikiServiceExtended interface {
 
 	CreateShareLink(ctx context.Context, req *dto.ShareLinkReq) (*dto.ShareLinkResp, error)
 	GetShareLink(ctx context.Context, token, password string) (*dto.ShareLinkResp, error)
+	// AccessSharedDocument 供免登录公开分享落地页读取文档内容（含密码/过期/次数校验）
+	AccessSharedDocument(ctx context.Context, token, password string) (*dto.SharedDocumentResp, error)
 	ListShareLinks(ctx context.Context, documentID string) ([]*dto.ShareLinkResp, error)
 	DeleteShareLink(ctx context.Context, id string) error
 
@@ -67,6 +70,8 @@ type WikiServiceExtended interface {
 	CompareRevisions(ctx context.Context, documentID string, version1, version2 int) (*dto.DiffResult, error)
 
 	ExportDocument(ctx context.Context, documentID, format string) ([]byte, string, error)
+
+	ImportDocument(ctx context.Context, documentID string, content []byte, format string) (*dto.DocumentResp, error)
 }
 
 type wikiServiceExtended struct {
@@ -136,6 +141,18 @@ func (s *wikiServiceExtended) ListTags(ctx context.Context) ([]*dto.TagResp, err
 }
 
 func (s *wikiServiceExtended) DeleteTag(ctx context.Context, id string) error {
+	userID := contextx.GetUserID(ctx)
+
+	tag, err := s.getExtendedRepo().GetTagByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// 标签是租户级共享资源，仅创建者可删除，防止他人越权删除
+	if tag.CreatedBy != userID {
+		return apperrors.ErrForbidden("仅标签创建者可以删除")
+	}
+
 	return s.getExtendedRepo().DeleteTag(ctx, id)
 }
 
@@ -156,6 +173,11 @@ func (s *wikiServiceExtended) RemoveDocumentTag(ctx context.Context, documentID,
 }
 
 func (s *wikiServiceExtended) ListDocumentTags(ctx context.Context, documentID string) ([]*dto.DocumentTagResp, error) {
+	userID := contextx.GetUserID(ctx)
+	if err := s.CheckDocumentPermission(ctx, documentID, userID, "read"); err != nil {
+		return nil, err
+	}
+
 	tags, err := s.getExtendedRepo().ListDocumentTagsWithDetails(ctx, documentID)
 	if err != nil {
 		return nil, err
@@ -181,7 +203,16 @@ func (s *wikiServiceExtended) ListDocumentTags(ctx context.Context, documentID s
 
 func (s *wikiServiceExtended) CreateComment(ctx context.Context, req *dto.CreateCommentReq) (*dto.CommentResp, error) {
 	userID := contextx.GetUserID(ctx)
-	
+
+	// 前端仅传 document_id，NodeID 为空时按文档自动解析所属节点
+	if req.NodeID == "" {
+		_, node, err := s.getExtendedRepo().GetDocumentByIDWithNode(ctx, req.DocumentID)
+		if err != nil {
+			return nil, err
+		}
+		req.NodeID = node.ID
+	}
+
 	if err := s.CheckNodePermission(ctx, req.NodeID, userID, "read"); err != nil {
 		return nil, err
 	}
@@ -264,7 +295,7 @@ func (s *wikiServiceExtended) UpdateComment(ctx context.Context, id string, req 
 	}
 
 	if comment.CreatedBy != userID {
-		return fmt.Errorf("permission denied")
+		return apperrors.ErrForbidden("仅评论作者可以修改")
 	}
 
 	comment.Content = req.Content
@@ -273,7 +304,7 @@ func (s *wikiServiceExtended) UpdateComment(ctx context.Context, id string, req 
 
 func (s *wikiServiceExtended) DeleteComment(ctx context.Context, id string) error {
 	userID := contextx.GetUserID(ctx)
-	
+
 	comment, err := s.getExtendedRepo().GetComment(ctx, id)
 	if err != nil {
 		return err
@@ -285,7 +316,24 @@ func (s *wikiServiceExtended) DeleteComment(ctx context.Context, id string) erro
 		}
 	}
 
-	return s.getExtendedRepo().DeleteComment(ctx, id)
+	if err := s.getExtendedRepo().DeleteComment(ctx, id); err != nil {
+		return err
+	}
+
+	// 删除父评论时级联软删其子回复，避免出现不可见且无法管理的孤儿数据
+	if comment.ParentID == "" {
+		replies, err := s.getExtendedRepo().ListRepliesByParentID(ctx, id)
+		if err != nil {
+			return err
+		}
+		for _, reply := range replies {
+			if err := s.getExtendedRepo().DeleteComment(ctx, reply.ID); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func (s *wikiServiceExtended) buildCommentResp(ctx context.Context, comment *model.Comment) (*dto.CommentResp, error) {
@@ -351,17 +399,86 @@ func (s *wikiServiceExtended) GetShareLink(ctx context.Context, token, password 
 		return nil, fmt.Errorf("分享链接已过期")
 	}
 
-	if link.MaxViews > 0 && link.ViewCount >= link.MaxViews {
-		return nil, fmt.Errorf("分享链接已达到最大访问次数")
-	}
-
 	if link.Password != "" && link.Password != password {
 		return nil, fmt.Errorf("密码错误")
 	}
 
-	_ = s.getExtendedRepo().IncrementShareViewCount(ctx, link.ID)
+	// 原子条件自增并判定访问上限，避免并发绕过 max_views
+	ok, err := s.getExtendedRepo().IncrementShareViewCount(ctx, link.ID, link.MaxViews)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, fmt.Errorf("分享链接已达到最大访问次数")
+	}
 
-	return s.buildShareLinkResp(ctx, link), nil
+	resp := s.buildShareLinkResp(ctx, link)
+	resp.ViewCount = link.ViewCount + 1
+	return resp, nil
+}
+
+// AccessSharedDocument 免登录公开分享读取：校验有效期/密码/访问上限后返回文档只读内容。
+// 校验不通过返回 4xx（含明确的“需要密码”提示），方便落地页引导输入密码。
+func (s *wikiServiceExtended) AccessSharedDocument(ctx context.Context, token, password string) (*dto.SharedDocumentResp, error) {
+	link, err := s.getExtendedRepo().GetShareLinkByToken(ctx, token)
+	if err != nil {
+		return nil, apperrors.ErrNotFound("分享链接不存在或已被删除")
+	}
+	if link.ExpireAt != nil && time.Now().After(*link.ExpireAt) {
+		return nil, apperrors.ErrForbidden("分享链接已过期")
+	}
+	if link.Password != "" {
+		if password == "" {
+			return nil, apperrors.ErrForbidden("该分享链接需要密码访问")
+		}
+		if link.Password != password {
+			return nil, apperrors.ErrForbidden("访问密码错误")
+		}
+	}
+
+	// 原子条件自增并判定访问上限，避免并发绕过 max_views（密码通过后才计数）
+	ok, err := s.getExtendedRepo().IncrementShareViewCount(ctx, link.ID, link.MaxViews)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, apperrors.ErrForbidden("分享链接已达到最大访问次数")
+	}
+
+	doc, err := s.getExtendedRepo().GetSharedDocument(ctx, link.DocumentID, link.TenantID)
+	if err != nil {
+		return nil, apperrors.ErrForbidden("分享的文档不存在或已被删除")
+	}
+
+	title := ""
+	if node, err := s.getExtendedRepo().GetSharedNode(ctx, link.NodeID, link.TenantID); err == nil {
+		title = node.Title
+	}
+	if title == "" && doc.NodeID != "" && doc.NodeID != link.NodeID {
+		// 兼容历史分享链接：节点已变更但文档仍在
+		if node, err := s.getExtendedRepo().GetSharedNode(ctx, doc.NodeID, link.TenantID); err == nil {
+			title = node.Title
+		}
+	}
+	if title == "" {
+		title = "分享文档"
+	}
+
+	return &dto.SharedDocumentResp{
+		DocumentID:    doc.ID,
+		NodeID:        doc.NodeID,
+		Title:         title,
+		Content:       doc.Content,
+		ContentHTML:   s.rewriteImageSrc(doc.ContentHTML),
+		Format:        doc.Format,
+		LastEditedBy:  doc.LastEditedBy,
+		UpdatedAt:     doc.UpdatedAt,
+		AllowDownload: link.AllowDownload,
+		ViewCount:     link.ViewCount + 1,
+		MaxViews:      link.MaxViews,
+		ExpireAt:      link.ExpireAt,
+		NeedPassword:  link.Password != "",
+	}, nil
 }
 
 func (s *wikiServiceExtended) ListShareLinks(ctx context.Context, documentID string) ([]*dto.ShareLinkResp, error) {
@@ -384,8 +501,9 @@ func (s *wikiServiceExtended) ListShareLinks(ctx context.Context, documentID str
 
 func (s *wikiServiceExtended) DeleteShareLink(ctx context.Context, id string) error {
 	userID := contextx.GetUserID(ctx)
-	
-	link, err := s.getExtendedRepo().GetShareLinkByToken(ctx, id)
+
+	// id 为分享链接记录主键（前端的 row.id），此前误当作 token 查询导致删除必然失败
+	link, err := s.getExtendedRepo().GetShareLinkByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -394,7 +512,7 @@ func (s *wikiServiceExtended) DeleteShareLink(ctx context.Context, id string) er
 		return err
 	}
 
-	return s.getExtendedRepo().DeleteShareLink(ctx, id)
+	return s.getExtendedRepo().DeleteShareLink(ctx, link.ID)
 }
 
 func (s *wikiServiceExtended) buildShareLinkResp(ctx context.Context, link *model.ShareLink) *dto.ShareLinkResp {
@@ -699,7 +817,8 @@ func (s *wikiServiceExtended) ListNotifications(ctx context.Context, page, pageS
 }
 
 func (s *wikiServiceExtended) MarkNotificationAsRead(ctx context.Context, id string) error {
-	return s.getExtendedRepo().MarkNotificationAsRead(ctx, id)
+	userID := contextx.GetUserID(ctx)
+	return s.getExtendedRepo().MarkNotificationAsRead(ctx, id, userID)
 }
 
 func (s *wikiServiceExtended) MarkAllNotificationsAsRead(ctx context.Context) error {
@@ -714,43 +833,45 @@ func (s *wikiServiceExtended) GetUnreadNotificationCount(ctx context.Context) (i
 
 func (s *wikiServiceExtended) AcquireEditLock(ctx context.Context, documentID string) (*dto.EditLockResp, error) {
 	userID := contextx.GetUserID(ctx)
-	
-	locked, err := s.getExtendedRepo().IsDocumentLocked(ctx, documentID)
+
+	existing, err := s.getExtendedRepo().GetEditLock(ctx, documentID)
 	if err != nil {
 		return nil, err
 	}
 
-	if locked {
-		existingLock, err := s.getExtendedRepo().GetEditLock(ctx, documentID)
-		if err != nil {
-			return nil, err
-		}
-
-		if existingLock.UserID == userID {
+	now := time.Now()
+	// 存在他人持有的有效锁：拒绝并返回锁占用信息
+	if existing != nil && existing.ExpiresAt.After(now) {
+		if existing.UserID == userID {
 			_ = s.getExtendedRepo().RefreshEditLock(ctx, documentID)
 			return &dto.EditLockResp{
 				DocumentID: documentID,
-				UserID:     existingLock.UserID,
-				LockedAt:   existingLock.LockedAt,
-				ExpiresAt:  existingLock.ExpiresAt,
+				UserID:     existing.UserID,
+				LockedAt:   existing.LockedAt,
+				ExpiresAt:  now.Add(30 * time.Minute),
 				CanEdit:    true,
 			}, nil
 		}
 
 		return &dto.EditLockResp{
 			DocumentID: documentID,
-			UserID:     existingLock.UserID,
-			LockedAt:   existingLock.LockedAt,
-			ExpiresAt:  existingLock.ExpiresAt,
+			UserID:     existing.UserID,
+			LockedAt:   existing.LockedAt,
+			ExpiresAt:  existing.ExpiresAt,
 			CanEdit:    false,
 		}, nil
+	}
+
+	// 无锁或旧锁已过期：先清理过期锁再新建，避免产生重复锁记录
+	if existing != nil {
+		_ = s.getExtendedRepo().ReleaseEditLock(ctx, documentID)
 	}
 
 	lock := &model.EditLock{
 		DocumentID: documentID,
 		UserID:     userID,
-		LockedAt:   time.Now(),
-		ExpiresAt:  time.Now().Add(30 * time.Minute),
+		LockedAt:   now,
+		ExpiresAt:  now.Add(30 * time.Minute),
 	}
 
 	if err := s.getExtendedRepo().AcquireEditLock(ctx, lock); err != nil {
@@ -768,10 +889,14 @@ func (s *wikiServiceExtended) AcquireEditLock(ctx context.Context, documentID st
 
 func (s *wikiServiceExtended) ReleaseEditLock(ctx context.Context, documentID string) error {
 	userID := contextx.GetUserID(ctx)
-	
+
 	lock, err := s.getExtendedRepo().GetEditLock(ctx, documentID)
 	if err != nil {
 		return err
+	}
+	// 无有效锁视为已释放，幂等返回
+	if lock == nil {
+		return nil
 	}
 
 	if lock.UserID != userID {
@@ -782,13 +907,38 @@ func (s *wikiServiceExtended) ReleaseEditLock(ctx context.Context, documentID st
 }
 
 func (s *wikiServiceExtended) RefreshEditLock(ctx context.Context, documentID string) error {
+	userID := contextx.GetUserID(ctx)
+
+	lock, err := s.getExtendedRepo().GetEditLock(ctx, documentID)
+	if err != nil {
+		return err
+	}
+	if lock == nil {
+		return fmt.Errorf("编辑锁不存在，请先获取")
+	}
+	if lock.UserID != userID {
+		return fmt.Errorf("permission denied")
+	}
+	if lock.ExpiresAt.Before(time.Now()) {
+		return fmt.Errorf("编辑锁已过期，请重新获取")
+	}
+
 	return s.getExtendedRepo().RefreshEditLock(ctx, documentID)
 }
 
 func (s *wikiServiceExtended) GetEditLock(ctx context.Context, documentID string) (*dto.EditLockResp, error) {
+	userID := contextx.GetUserID(ctx)
+
 	lock, err := s.getExtendedRepo().GetEditLock(ctx, documentID)
 	if err != nil {
 		return nil, err
+	}
+	// 无锁或已过期：视为空闲可编辑
+	if lock == nil || lock.ExpiresAt.Before(time.Now()) {
+		return &dto.EditLockResp{
+			DocumentID: documentID,
+			CanEdit:    true,
+		}, nil
 	}
 
 	return &dto.EditLockResp{
@@ -796,7 +946,7 @@ func (s *wikiServiceExtended) GetEditLock(ctx context.Context, documentID string
 		UserID:     lock.UserID,
 		LockedAt:   lock.LockedAt,
 		ExpiresAt:  lock.ExpiresAt,
-		CanEdit:    true,
+		CanEdit:    lock.UserID == userID,
 	}, nil
 }
 
@@ -936,4 +1086,24 @@ func (s *wikiServiceExtended) ExportDocument(ctx context.Context, documentID, fo
 	})
 
 	return content, filename, nil
+}
+
+// ImportDocument 将上传文件内容作为新修订写入目标文档。
+// 复用 UpdateDocument 的权限校验、修订版本记录与 markdown 渲染逻辑，空内容文件直接拒绝。
+func (s *wikiServiceExtended) ImportDocument(ctx context.Context, documentID string, content []byte, format string) (*dto.DocumentResp, error) {
+	if format == "" {
+		format = "markdown"
+	}
+	// 导入仅支持 markdown 文本：pdf/html 等会被当文本写入并清空渲染结果，明确拒绝
+	if format != "markdown" {
+		return nil, fmt.Errorf("导入暂不支持 %s 格式，请使用 markdown 文件", format)
+	}
+	if len(content) == 0 {
+		return nil, fmt.Errorf("file content is empty")
+	}
+
+	return s.UpdateDocument(ctx, documentID, contextx.GetUserID(ctx), &dto.UpdateDocumentReq{
+		Content: string(content),
+		Format:  format,
+	})
 }

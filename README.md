@@ -725,6 +725,7 @@ go test -bench=. ./pkg/security/...
 | [database.md](docs/architecture/database.md) | 数据库/事务架构（TxManager/ULID） |
 | [audit.md](docs/architecture/audit.md) | 审计架构（自动/手动/批量异步） |
 | [audit-enhanced.md](docs/architecture/audit-enhanced.md) | ⭐ 审计增强功能（IP地理位置/告警管理/会话分析） |
+| [wiki.md](docs/architecture/wiki.md) | ⭐ Wiki 知识库架构（五层模型/节点树/版本/权限/XSS/回收站） |
 | [pagination.md](docs/architecture/pagination.md) | 分页/排序/过滤架构（Sort Whitelist 防注入） |
 | [config.md](docs/architecture/config.md) | 配置/启动架构（Viper/优雅关闭） |
 | [idgen.md](docs/architecture/idgen.md) | ID/ULID 统一架构（pkg/idgen） |

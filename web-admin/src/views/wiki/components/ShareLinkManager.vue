@@ -24,13 +24,13 @@
         </el-table-column>
         <el-table-column label="过期时间" width="180">
           <template #default="{ row }">
-            {{ row.expires_at ? formatTime(row.expires_at) : '永久' }}
+            {{ row.expire_at ? formatTime(row.expire_at) : '永久' }}
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="80">
+        <el-table-column label="状态" width="90">
           <template #default="{ row }">
-            <el-tag :type="row.is_active ? 'success' : 'danger'">
-              {{ row.is_active ? '有效' : '已失效' }}
+            <el-tag :type="isShareActive(row) ? 'success' : 'info'">
+              {{ isShareActive(row) ? '有效' : '已失效' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -158,9 +158,21 @@ function handleDelete(id: string) {
 }
 
 function copyLink(token: string) {
-  const link = `${window.location.origin}/wiki/share/${token}`
+  // 项目使用 hash 路由，落地页地址需带上 #/wiki/share/{token}
+  const base = window.location.href.split('#')[0]
+  const link = `${base}#/wiki/share/${token}`
   navigator.clipboard.writeText(link)
   ElMessage.success('链接已复制到剪贴板')
+}
+
+/** 分享是否仍有效：按次数上限与过期时间推断（后端不返回 is_active 字段） */
+function isShareActive(row: ShareLink): boolean {
+  if (row.max_views && row.view_count >= row.max_views) return false
+  if (row.expire_at) {
+    const t = new Date(row.expire_at).getTime()
+    if (!Number.isNaN(t) && t < Date.now()) return false
+  }
+  return true
 }
 
 function formatTime(time: string) {

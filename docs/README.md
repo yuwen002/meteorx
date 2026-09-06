@@ -21,12 +21,10 @@
 - [数据库/事务架构](architecture/database.md)
 - [审计架构](architecture/audit.md)
 - [审计增强功能](architecture/audit-enhanced.md)
+- [Wiki 架构](architecture/wiki.md)
 - [分页/排序/过滤架构](architecture/pagination.md)
 - [配置/启动架构](architecture/config.md)
 - [ID/ULID 统一架构](architecture/idgen.md)
-
-### 开发文档
-- [功能完成记录](development/features-complete.md)
 
 ### 其他文档
 - [项目结构说明](project-structure.md)
@@ -57,11 +55,10 @@ docs/
 │   ├── database.md
 │   ├── audit.md
 │   ├── audit-enhanced.md
+│   ├── wiki.md
 │   ├── pagination.md
 │   ├── config.md
 │   └── idgen.md
-├── development/                 # 开发相关文档
-│   └── features-complete.md
 ├── apifox/                      # Apifox API 配置
 │   ├── MeteorX-backend.apifox.json
 │   └── MeteorX-backend.openapi.json

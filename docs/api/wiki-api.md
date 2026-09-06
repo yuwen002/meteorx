@@ -846,6 +846,134 @@ Space
 
 ---
 
+## 12. 扩展功能（标签 / 评论 / 分享 / 模板 / 统计 / 订阅 / 通知 / 编辑锁 / 批量 / 对比 / 导入导出）
+
+> 扩展功能独立注册于 `internal/modules/wiki/handler/wiki_handler_extended.go`。所有端点均在 `/api/v1/wiki` 前缀之下；
+> 权限复用空间/节点/文档的 action 级校验（read / update / delete 等），**未新增权限码**。
+
+### 12.1 空间级标签
+
+作用于当前租户内（端点不携带 spaceId）：
+
+| 方法 | 路径 | 说明 | 校验动作 |
+|------|------|------|----------|
+| POST | `/api/v1/wiki/spaces/tags` | 创建标签，body：`{name, color}` | 租户内空间权限 |
+| GET | `/api/v1/wiki/spaces/tags` | 标签列表 | - |
+| DELETE | `/api/v1/wiki/spaces/tags/{id}` | 删除标签 | 文档 update 权限 |
+
+### 12.2 文档标签绑定
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/wiki/documents/{id}/tags/{tagId}` | 为文档绑定标签（需文档 update 权限） |
+| DELETE | `/api/v1/wiki/documents/{id}/tags/{tagId}` | 移除标签（需文档 update 权限） |
+| GET | `/api/v1/wiki/documents/{id}/tags` | 文档标签列表（含标签详情） |
+
+### 12.3 评论系统
+
+支持多级回复与 @提及：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/wiki/documents/{id}/comments` | 创建评论；body：`{document_id, parent_id?, content, mention_ids?}`；`node_id` 可省略，服务端按文档自动解析 |
+| GET | `/api/v1/wiki/documents/{id}/comments` | 评论树（父评论含 `replies`） |
+| PUT | `/api/v1/wiki/documents/comments/{id}` | 更新评论，body：`{content}`；仅作者可改 |
+| DELETE | `/api/v1/wiki/documents/comments/{id}` | 删除评论；作者本人或具备节点 delete 权限者 |
+
+- `mention_ids` 逗号分隔的用户 ID，被提及者会收到类型为 `mention` 的通知。
+- 权限：查看/发表评论要求对应节点 `read` 权限。
+
+### 12.4 分享链接
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/wiki/documents/{id}/share` | 创建分享；body：`{document_id, password?, expire_at?, max_views?, allow_download?}` |
+| GET | `/api/v1/wiki/documents/{id}/shares` | 文档分享列表 |
+| DELETE | `/api/v1/wiki/documents/shares/{id}` | 删除分享（`id` 为分享记录主键，需文档 update 权限） |
+| GET | `/api/v1/wiki/share/{token}?password=` | 公开访问分享文档（校验 token、过期时间、最大次数、密码；成功后自增浏览计数） |
+
+分享地址格式：`/wiki/share/{token}`。访问/创建分享都会写入访问日志（action=`share`）。
+
+### 12.5 文档模板
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/wiki/spaces/templates` | 创建模板，body：`{name, description?, format?, category?, content, is_public?}` |
+| GET | `/api/v1/wiki/spaces/templates?category=` | 模板列表（含当前租户 + 公开模板） |
+| GET | `/api/v1/wiki/spaces/templates/{id}` | 模板详情 |
+| PUT | `/api/v1/wiki/spaces/templates/{id}` | 更新模板 |
+| DELETE | `/api/v1/wiki/spaces/templates/{id}` | 删除模板 |
+
+### 12.6 访问统计与日志
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/wiki/documents/{id}/stats` | 文档统计：`total_views / total_edits / total_downloads / total_shares / unique_viewers / last_viewed_at` |
+| GET | `/api/v1/wiki/documents/{id}/access-logs?page=&page_size=` | 访问日志（分页响应 `{ data, pagination }`） |
+
+### 12.7 订阅与通知
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/wiki/documents/{id}/subscribe` | 订阅文档（`?notify_type=all` 默认） |
+| DELETE | `/api/v1/wiki/documents/{id}/subscribe` | 取消订阅 |
+| GET | `/api/v1/wiki/spaces/subscriptions` | 当前用户在空间内的订阅列表 |
+| GET | `/api/v1/wiki/spaces/notifications?page=&page_size=` | 通知列表（分页） |
+| PUT | `/api/v1/wiki/spaces/notifications/{id}/read` | 标记单条已读 |
+| PUT | `/api/v1/wiki/spaces/notifications/read-all` | 全部标记已读 |
+| GET | `/api/v1/wiki/spaces/notifications/unread-count` | 未读数：`{count}` |
+
+### 12.8 编辑锁
+
+防止多人同时编辑冲突：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/wiki/documents/{id}/edit-lock` | 获取编辑锁（被占用时返回冲突信息） |
+| PUT | `/api/v1/wiki/documents/{id}/edit-lock` | 刷新编辑锁（延长持有时间） |
+| DELETE | `/api/v1/wiki/documents/{id}/edit-lock` | 释放编辑锁 |
+| GET | `/api/v1/wiki/documents/{id}/edit-lock` | 查询锁状态（`{document_id, user_id, user_name, locked_at, expires_at, can_edit}`） |
+
+锁默认 30 分钟自动过期，持锁期间可刷新。
+
+### 12.9 批量操作
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/wiki/spaces/nodes/batch` | 批量操作；body：`{action: "delete" \| "move", node_ids: string[], target?: string}` |
+
+- `action=move` 时 `target` 为目标父节点 ID（移动到空间根则传空）；
+- 批量操作在事务中执行，逐一校验节点归属与权限。
+
+### 12.10 版本对比
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/wiki/documents/{id}/revisions/compare?version1=&version2=` | 版本行级对比；返回 `{old_version, new_version, diffs[]}`，其中 `diffs` 每项含 `type(added/removed/unchanged)`、`line_num`、`content`、`old_line/new_line` |
+
+### 12.11 导入导出
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/wiki/documents/{id}/export` | 导出；body：`{format: "markdown" \| "pdf" \| "html"}`；响应直接回写文件流（`Content-Disposition: attachment`） |
+| POST | `/api/v1/wiki/documents/{id}/import` | 导入；`multipart/form-data` 字段：`file`、`format`（默认 markdown）；将文件内容作为**新修订**写入目标文档（复用乐观锁与版本历史），返回 `{document_id, node_id, filename, size, format}` |
+
+### 12.12 扩展数据模型
+
+| 模型 | 主要字段 |
+|------|----------|
+| `Tag` | id, tenant_id, name, color, created_by, created_at |
+| `DocumentTag` | id, document_id, tag_id, created_at（多对多关联） |
+| `Comment` | id, tenant_id, document_id, node_id, parent_id, content, created_by, mention_ids, status, created_at, updated_at |
+| `ShareLink` | id, tenant_id, document_id, node_id, token, password, expire_at, max_views, view_count, allow_download, created_by, created_at |
+| `DocumentTemplate` | id, tenant_id, name, description, content, format, category, is_public, created_by, created_at, updated_at |
+| `DocumentAccessLog` | id, tenant_id, document_id, node_id, user_id, action, ip_address, user_agent, created_at |
+| `DocumentSubscription` | id, tenant_id, document_id, node_id, user_id, notify_type, created_at |
+| `Notification` | id, tenant_id, user_id, type, title, content, related_id, related_type, is_read, created_at |
+| `EditLock` | id, tenant_id, document_id, user_id, locked_at, expires_at |
+
+---
+
 ## 权限码汇总
 
 | 权限码 | 说明 | 推导自 |

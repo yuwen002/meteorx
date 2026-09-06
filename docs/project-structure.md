@@ -290,6 +290,8 @@ meteorx/
 │   │   ├── error.md              # 错误/响应规范
 │   │   ├── database.md           # 数据库/事务架构
 │   │   ├── audit.md              # 审计架构
+│   │   ├── audit-enhanced.md     # 审计增强（IP定位/告警/会话）
+│   │   ├── wiki.md               # Wiki 知识库架构
 │   │   ├── pagination.md         # 分页/排序/过滤架构
 │   │   ├── config.md             # 配置/启动架构
 │   │   └── idgen.md              # ID/ULID 统一架构
@@ -304,8 +306,6 @@ meteorx/
 │   │   ├── wiki-api.md
 │   │   ├── dashboard-api.md
 │   │   └── announcement-api.md
-│   ├── development/               # 开发相关文档
-│   │   └── features-complete.md # 功能完成记录
 │   ├── DESIGN.md
 │   ├── FEATURE_UPGRADE.md
 │   ├── project-structure.md       # 项目结构说明

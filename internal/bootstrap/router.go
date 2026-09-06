@@ -115,6 +115,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 
 			// 2. 租户公开接口（仅限注册）
 			tenant.InitPublicModule(r, db)
+
+			// 3. Wiki 文档公开分享（免登录，凭 token/密码访问）
+			wiki.RegisterPublicShareRoute(r, db, txManager, cfg)
 		})
 
 		// --- 分组二：受保护接口 (Protected) ---

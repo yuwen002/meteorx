@@ -1,6 +1,6 @@
 <template>
   <div class="comment-section">
-    <h3>评论 ({{ comments.length }})</h3>
+    <h3>评论 ({{ rootComments.length }})</h3>
 
     <div class="comment-input">
       <el-input
@@ -28,8 +28,8 @@
           <el-button link type="danger" @click="handleDelete(comment.id)">删除</el-button>
         </div>
 
-        <!-- 回复列表 -->
-        <div v-for="reply in getReplies(comment.id)" :key="reply.id" class="reply-item">
+        <!-- 回复列表：后端以 replies 嵌套返回 -->
+        <div v-for="reply in comment.replies || []" :key="reply.id" class="reply-item">
           <div class="comment-header">
             <span class="user-name">{{ reply.user_name || '匿名用户' }}</span>
             <span class="comment-time">{{ formatTime(reply.created_at) }}</span>
@@ -55,7 +55,7 @@
         </div>
       </div>
 
-      <el-empty v-if="comments.length === 0" description="暂无评论" />
+      <el-empty v-if="rootComments.length === 0" description="暂无评论" />
     </div>
   </div>
 </template>
@@ -88,13 +88,10 @@ watch(
   { immediate: true }
 )
 
+// 后端 ListComments 仅返回顶层评论，回复嵌套在顶层评论的 replies 中
 const rootComments = computed(() =>
   comments.value.filter((c) => !c.parent_id)
 )
-
-function getReplies(parentId: string) {
-  return comments.value.filter((c) => c.parent_id === parentId)
-}
 
 async function loadComments() {
   try {

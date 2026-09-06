@@ -287,6 +287,32 @@ ipLocator := iplocation.NewHTTPLocator("ip-api", 3*time.Second)
 ipLocator := iplocation.NewHTTPLocator("ipinfo", 3*time.Second)
 ```
 
+通过环境变量切换在线 / 离线解析：
+
+```env
+# 在线 HTTP API 方式
+METEORX_IP_LOCATION_PROVIDER=http-api
+METEORX_IP_LOCATION_TIMEOUT=3
+
+# 离线 ip2region 方式（生产推荐）
+METEORX_IP_LOCATION_PROVIDER=ip2region
+METEORX_IP_LOCATION_DB_PATH=./data/ip2region.xdb
+```
+
+**ip2region.xdb 下载**：文件约 10MB，未提交到 Git（已加入 `.gitignore`）：
+
+1. 访问 https://github.com/lionsoul2014/ip2region/releases 下载 `ip2region.xdb`
+2. 放置到 `data/ip2region.xdb`
+
+或运行脚本自动下载（需网络畅通）：
+
+```bash
+# Windows
+cd scripts && .\download_ip2region.bat
+# Linux/Mac
+cd scripts && chmod +x download_ip2region.sh && ./download_ip2region.sh
+```
+
 ### 6.2 邮件通知
 
 在 `config.yaml` 中配置 SMTP：
@@ -341,6 +367,14 @@ https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx
 - 所有管理接口都需要相应权限码
 - 需要超级管理员权限才能访问
 - 支持 RBAC 细粒度权限控制
+
+相关权限码：
+
+| 权限码 | 说明 |
+|--------|------|
+| `audit:alert:stats` | 查看告警统计 |
+| `audit:alert:list` | 查看告警记录 |
+| `audit:session:list` | 查看会话列表 |
 
 ### 8.2 数据脱敏
 

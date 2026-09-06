@@ -97,8 +97,8 @@ func (h *WikiHandler) UpdateSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenantID := contextx.GetTenantID(r.Context())
-	space, err := h.svc.UpdateSpace(r.Context(), id, tenantID, &req)
+	userID := contextx.GetUserID(r.Context())
+	space, err := h.svc.UpdateSpace(r.Context(), id, userID, &req)
 	if err != nil {
 		response.FailError(w, err)
 		return

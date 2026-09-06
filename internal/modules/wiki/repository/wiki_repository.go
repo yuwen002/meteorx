@@ -73,6 +73,16 @@ type WikiRepository interface {
 	DeleteTrashItem(ctx context.Context, id string) error
 	ExpireTrashItems(ctx context.Context) error
 
+	// 回收站实体恢复：将软删数据（deleted_at 置空）真实还原
+	RestoreDocument(ctx context.Context, id string) error
+	RestoreSpace(ctx context.Context, id string) error
+	RestoreNodeTree(ctx context.Context, id string) error
+
+	// 回收站实体物理清除：连同关联数据与 trash 记录一并删除
+	PurgeDocument(ctx context.Context, id string) error
+	PurgeNodeTree(ctx context.Context, id string) error
+	PurgeSpaceTree(ctx context.Context, id string) error
+
 	// Search
 	SearchNodesByTitle(ctx context.Context, tenantID string, spaceID string, query string) ([]*model.WikiNode, error)
 	SearchDocumentsByContent(ctx context.Context, tenantID string, spaceID string, query string) ([]*model.Document, error)
@@ -549,9 +559,248 @@ func (r *wikiRepository) DeleteTrashItem(ctx context.Context, id string) error {
 }
 
 // ExpireTrashItems 清理过期的回收站项目
+// ExpireTrashItems 清理已过期的回收站项目：同时物理清除对应软删实体，避免数据永久残留。
 func (r *wikiRepository) ExpireTrashItems(ctx context.Context) error {
-	now := time.Now()
-	return r.getDB(ctx).Where("expires_at < ?", now).Delete(&model.TrashItem{}).Error
+	db := r.getDB(ctx)
+	var items []model.TrashItem
+	if err := db.Where("expires_at < ?", time.Now()).Find(&items).Error; err != nil {
+		return err
+	}
+	for _, item := range items {
+		switch item.ItemType {
+		case model.TrashTypeDocument:
+			if err := r.PurgeDocument(ctx, item.ItemID); err != nil && !errors.Is(err, ErrDocumentNotFound) {
+				return err
+			}
+		case model.TrashTypeNode:
+			if err := r.PurgeNodeTree(ctx, item.ItemID); err != nil && !errors.Is(err, ErrWikiNodeNotFound) {
+				return err
+			}
+		case model.TrashTypeSpace:
+			if err := r.PurgeSpaceTree(ctx, item.ItemID); err != nil && !errors.Is(err, ErrWikiSpaceNotFound) {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// ===================== 回收站实体恢复 =====================
+
+// RestoreDocument 恢复被软删的文档（deleted_at 置空）
+func (r *wikiRepository) RestoreDocument(ctx context.Context, id string) error {
+	res := r.getDB(ctx).Unscoped().Model(&model.Document{}).Where("id = ?", id).Update("deleted_at", nil)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrDocumentNotFound
+	}
+	return nil
+}
+
+// RestoreSpace 恢复被软删的空间
+func (r *wikiRepository) RestoreSpace(ctx context.Context, id string) error {
+	res := r.getDB(ctx).Unscoped().Model(&model.WikiSpace{}).Where("id = ?", id).Update("deleted_at", nil)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrWikiSpaceNotFound
+	}
+	return nil
+}
+
+// RestoreNodeTree 恢复节点及其当前软删子树（含文档类节点的文档内容），
+// 使“删除目录后整体恢复”能够还原原有树结构。
+func (r *wikiRepository) RestoreNodeTree(ctx context.Context, id string) error {
+	var children []model.WikiNode
+	if err := r.getDB(ctx).Unscoped().Where("parent_id = ?", id).Find(&children).Error; err != nil {
+		return err
+	}
+	for _, child := range children {
+		if err := r.RestoreNodeTree(ctx, child.ID); err != nil {
+			return err
+		}
+	}
+
+	var node model.WikiNode
+	if err := r.getDB(ctx).Unscoped().Where("id = ?", id).First(&node).Error; err != nil {
+		return err
+	}
+	// 文档类节点连带恢复其文档内容
+	if node.Type == model.NodeTypeDocument {
+		if err := r.restoreDocumentByNode(ctx, node.ID); err != nil && !errors.Is(err, ErrDocumentNotFound) {
+			return err
+		}
+	}
+
+	res := r.getDB(ctx).Unscoped().Model(&model.WikiNode{}).Where("id = ?", id).Update("deleted_at", nil)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrWikiNodeNotFound
+	}
+	return nil
+}
+
+// restoreDocumentByNode 按 node_id 恢复文档（deleted_at 置空）
+func (r *wikiRepository) restoreDocumentByNode(ctx context.Context, nodeID string) error {
+	res := r.getDB(ctx).Unscoped().Model(&model.Document{}).Where("node_id = ?", nodeID).Update("deleted_at", nil)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrDocumentNotFound
+	}
+	return nil
+}
+
+// ===================== 回收站实体物理清除 =====================
+
+// purgeDocumentCascade 物理删除文档及其全部关联数据（版本、附件、标签、分享、评论、编辑锁）
+func (r *wikiRepository) purgeDocumentCascade(ctx context.Context, documentID string) error {
+	db := r.getDB(ctx)
+	steps := []struct {
+		target any
+		cond   string
+	}{
+		{&model.DocumentRevision{}, "document_id = ?"},
+		{&model.Attachment{}, "document_id = ?"},
+		{&model.DocumentTag{}, "document_id = ?"},
+		{&model.ShareLink{}, "document_id = ?"},
+		{&model.Comment{}, "document_id = ?"},
+		{&model.EditLock{}, "document_id = ?"},
+	}
+	for _, step := range steps {
+		if err := db.Unscoped().Where(step.cond, documentID).Delete(step.target).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PurgeDocument 永久删除文档及其关联数据与回收站记录
+func (r *wikiRepository) PurgeDocument(ctx context.Context, id string) error {
+	db := r.getDB(ctx)
+	if err := r.purgeDocumentCascade(ctx, id); err != nil {
+		return err
+	}
+	res := db.Unscoped().Where("id = ?", id).Delete(&model.Document{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrDocumentNotFound
+	}
+	return db.Where("item_id = ? AND item_type = ?", id, model.TrashTypeDocument).Delete(&model.TrashItem{}).Error
+}
+
+// collectNodeIDs 收集节点及其全部后代的 ID（含软删），用于整体物理清除
+func (r *wikiRepository) collectNodeIDs(ctx context.Context, id string, ids *[]string) error {
+	var children []model.WikiNode
+	if err := r.getDB(ctx).Unscoped().Where("parent_id = ?", id).Find(&children).Error; err != nil {
+		return err
+	}
+	for _, child := range children {
+		if err := r.collectNodeIDs(ctx, child.ID, ids); err != nil {
+			return err
+		}
+	}
+	*ids = append(*ids, id)
+	return nil
+}
+
+// deleteTrashFor 删除属于指定节点/文档集合的回收站记录（ID 集合可能为空）
+func (r *wikiRepository) deleteTrashFor(ctx context.Context, nodeIDs, docIDs []string) error {
+	db := r.getDB(ctx)
+	if len(nodeIDs) > 0 {
+		if err := db.Where("item_id IN ? AND item_type = ?", nodeIDs, model.TrashTypeNode).Delete(&model.TrashItem{}).Error; err != nil {
+			return err
+		}
+	}
+	if len(docIDs) > 0 {
+		if err := db.Where("item_id IN ? AND item_type = ?", docIDs, model.TrashTypeDocument).Delete(&model.TrashItem{}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PurgeNodeTree 永久删除节点及其子树（文档/节点/关联数据/回收站记录）
+func (r *wikiRepository) PurgeNodeTree(ctx context.Context, id string) error {
+	db := r.getDB(ctx)
+	var nodeIDs []string
+	if err := r.collectNodeIDs(ctx, id, &nodeIDs); err != nil {
+		return err
+	}
+	var docIDs []string
+	for _, nodeID := range nodeIDs {
+		var doc model.Document
+		if err := db.Unscoped().Where("node_id = ?", nodeID).First(&doc).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+			return err
+		}
+		if err := r.purgeDocumentCascade(ctx, doc.ID); err != nil {
+			return err
+		}
+		if err := db.Unscoped().Where("id = ?", doc.ID).Delete(&model.Document{}).Error; err != nil {
+			return err
+		}
+		docIDs = append(docIDs, doc.ID)
+	}
+	if err := r.deleteTrashFor(ctx, nodeIDs, docIDs); err != nil {
+		return err
+	}
+	return db.Unscoped().Where("id IN ?", nodeIDs).Delete(&model.WikiNode{}).Error
+}
+
+// PurgeSpaceTree 永久删除空间及其下全部节点与文档（含各自的回收站记录）
+func (r *wikiRepository) PurgeSpaceTree(ctx context.Context, id string) error {
+	db := r.getDB(ctx)
+	var nodes []model.WikiNode
+	if err := db.Unscoped().Where("space_id = ?", id).Find(&nodes).Error; err != nil {
+		return err
+	}
+	nodeIDs := make([]string, 0, len(nodes))
+	var docIDs []string
+	for _, n := range nodes {
+		nodeIDs = append(nodeIDs, n.ID)
+		var doc model.Document
+		if err := db.Unscoped().Where("node_id = ?", n.ID).First(&doc).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+			return err
+		}
+		if err := r.purgeDocumentCascade(ctx, doc.ID); err != nil {
+			return err
+		}
+		if err := db.Unscoped().Where("id = ?", doc.ID).Delete(&model.Document{}).Error; err != nil {
+			return err
+		}
+		docIDs = append(docIDs, doc.ID)
+	}
+	if len(nodeIDs) > 0 {
+		if err := db.Unscoped().Where("id IN ?", nodeIDs).Delete(&model.WikiNode{}).Error; err != nil {
+			return err
+		}
+	}
+	if err := r.deleteTrashFor(ctx, nodeIDs, docIDs); err != nil {
+		return err
+	}
+	res := db.Unscoped().Where("id = ?", id).Delete(&model.WikiSpace{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrWikiSpaceNotFound
+	}
+	// 空间自身的回收站记录
+	return db.Where("item_id = ? AND item_type = ?", id, model.TrashTypeSpace).Delete(&model.TrashItem{}).Error
 }
 
 // SearchNodesByTitle 按标题搜索节点

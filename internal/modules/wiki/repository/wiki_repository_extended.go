@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ type WikiRepositoryExtended interface {
 
 	CreateTag(ctx context.Context, tag *model.Tag) error
 	ListTags(ctx context.Context, tenantID string) ([]*model.Tag, error)
+	GetTagByID(ctx context.Context, id string) (*model.Tag, error)
 	DeleteTag(ctx context.Context, id string) error
 
 	AddDocumentTag(ctx context.Context, documentID, tagID string) error
@@ -34,10 +36,15 @@ type WikiRepositoryExtended interface {
 
 	CreateShareLink(ctx context.Context, link *model.ShareLink) error
 	GetShareLinkByToken(ctx context.Context, token string) (*model.ShareLink, error)
+	GetShareLinkByID(ctx context.Context, id string) (*model.ShareLink, error)
 	ListShareLinks(ctx context.Context, documentID string) ([]*model.ShareLink, error)
 	UpdateShareLink(ctx context.Context, link *model.ShareLink) error
 	DeleteShareLink(ctx context.Context, id string) error
-	IncrementShareViewCount(ctx context.Context, id string) error
+	IncrementShareViewCount(ctx context.Context, id string, maxViews int) (bool, error)
+	// GetSharedDocument 按文档 ID+租户读取（供免登录分享场景显式传租户，不依赖请求上下文）
+	GetSharedDocument(ctx context.Context, documentID, tenantID string) (*model.Document, error)
+	// GetSharedNode 按节点 ID+租户读取（分享文档标题来自节点）
+	GetSharedNode(ctx context.Context, nodeID, tenantID string) (*model.WikiNode, error)
 
 	CreateTemplate(ctx context.Context, template *model.DocumentTemplate) error
 	ListTemplates(ctx context.Context, tenantID string, category string, isPublic bool) ([]*model.DocumentTemplate, error)
@@ -57,7 +64,7 @@ type WikiRepositoryExtended interface {
 
 	CreateNotification(ctx context.Context, notification *model.Notification) error
 	ListNotifications(ctx context.Context, userID string, page, pageSize int) ([]*model.Notification, int64, error)
-	MarkNotificationAsRead(ctx context.Context, id string) error
+	MarkNotificationAsRead(ctx context.Context, id, userID string) error
 	MarkAllNotificationsAsRead(ctx context.Context, userID string) error
 	GetUnreadNotificationCount(ctx context.Context, userID string) (int64, error)
 
@@ -107,6 +114,16 @@ func (r *wikiRepositoryExtended) ListTags(ctx context.Context, tenantID string) 
 	return tags, err
 }
 
+func (r *wikiRepositoryExtended) GetTagByID(ctx context.Context, id string) (*model.Tag, error) {
+	var tag model.Tag
+	query := tenantctx.FilterQuery(ctx, r.getDB(ctx), "tenant_id")
+	err := query.Where("id = ?", id).First(&tag).Error
+	if err != nil {
+		return nil, err
+	}
+	return &tag, nil
+}
+
 func (r *wikiRepositoryExtended) DeleteTag(ctx context.Context, id string) error {
 	return r.getDB(ctx).Where("id = ?", id).Delete(&model.Tag{}).Error
 }
@@ -150,8 +167,14 @@ func (r *wikiRepositoryExtended) UpdateComment(ctx context.Context, comment *mod
 	return r.getDB(ctx).Save(comment).Error
 }
 
+// DeleteComment 软删除评论（保留数据，避免父评论删除后子回复成为孤儿）
 func (r *wikiRepositoryExtended) DeleteComment(ctx context.Context, id string) error {
-	return r.getDB(ctx).Where("id = ?", id).Delete(&model.Comment{}).Error
+	now := time.Now()
+	return r.getDB(ctx).Model(&model.Comment{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":     model.CommentStatusDeleted,
+			"deleted_at": now,
+		}).Error
 }
 
 func (r *wikiRepositoryExtended) GetComment(ctx context.Context, id string) (*model.Comment, error) {
@@ -180,6 +203,15 @@ func (r *wikiRepositoryExtended) GetShareLinkByToken(ctx context.Context, token 
 	return &link, nil
 }
 
+func (r *wikiRepositoryExtended) GetShareLinkByID(ctx context.Context, id string) (*model.ShareLink, error) {
+	var link model.ShareLink
+	err := r.getDB(ctx).Where("id = ?", id).First(&link).Error
+	if err != nil {
+		return nil, err
+	}
+	return &link, nil
+}
+
 func (r *wikiRepositoryExtended) ListShareLinks(ctx context.Context, documentID string) ([]*model.ShareLink, error) {
 	var links []*model.ShareLink
 	err := r.getDB(ctx).Where("document_id = ?", documentID).Order("created_at DESC").Find(&links).Error
@@ -194,9 +226,35 @@ func (r *wikiRepositoryExtended) DeleteShareLink(ctx context.Context, id string)
 	return r.getDB(ctx).Where("id = ?", id).Delete(&model.ShareLink{}).Error
 }
 
-func (r *wikiRepositoryExtended) IncrementShareViewCount(ctx context.Context, id string) error {
-	return r.getDB(ctx).Model(&model.ShareLink{}).Where("id = ?", id).
-		UpdateColumn("view_count", gorm.Expr("view_count + ?", 1)).Error
+// GetSharedDocument 按文档 ID+租户读取文档（免登录分享场景显式传租户，不依赖请求上下文）。
+// 文档软删后查询自然返回未命中，分享随即失效。
+func (r *wikiRepositoryExtended) GetSharedDocument(ctx context.Context, documentID, tenantID string) (*model.Document, error) {
+	var doc model.Document
+	if err := r.getDB(ctx).Where("id = ? AND tenant_id = ?", documentID, tenantID).First(&doc).Error; err != nil {
+		return nil, err
+	}
+	return &doc, nil
+}
+
+// GetSharedNode 按节点 ID+租户读取节点（分享标题来源；节点软删后分享标题回退为空）
+func (r *wikiRepositoryExtended) GetSharedNode(ctx context.Context, nodeID, tenantID string) (*model.WikiNode, error) {
+	var node model.WikiNode
+	if err := r.getDB(ctx).Where("id = ? AND tenant_id = ?", nodeID, tenantID).First(&node).Error; err != nil {
+		return nil, err
+	}
+	return &node, nil
+}
+
+// IncrementShareViewCount 原子条件自增：仅当未超过 max_views（max_views=0 表示不限次数）时 +1，
+// 通过单条 UPDATE + RowsAffected 避免并发请求绕过次数上限
+func (r *wikiRepositoryExtended) IncrementShareViewCount(ctx context.Context, id string, maxViews int) (bool, error) {
+	res := r.getDB(ctx).Model(&model.ShareLink{}).
+		Where("id = ? AND (max_views = 0 OR view_count < ?)", id, maxViews).
+		UpdateColumn("view_count", gorm.Expr("view_count + 1"))
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
 }
 
 func (r *wikiRepositoryExtended) CreateTemplate(ctx context.Context, template *model.DocumentTemplate) error {
@@ -329,8 +387,10 @@ func (r *wikiRepositoryExtended) ListNotifications(ctx context.Context, userID s
 	return notifications, total, err
 }
 
-func (r *wikiRepositoryExtended) MarkNotificationAsRead(ctx context.Context, id string) error {
-	return r.getDB(ctx).Model(&model.Notification{}).Where("id = ?", id).Update("is_read", true).Error
+func (r *wikiRepositoryExtended) MarkNotificationAsRead(ctx context.Context, id, userID string) error {
+	// 同时匹配 user_id，防止越权把他人通知标记为已读
+	return r.getDB(ctx).Model(&model.Notification{}).Where("id = ? AND user_id = ?", id, userID).
+		Update("is_read", true).Error
 }
 
 func (r *wikiRepositoryExtended) MarkAllNotificationsAsRead(ctx context.Context, userID string) error {
@@ -359,10 +419,14 @@ func (r *wikiRepositoryExtended) ReleaseEditLock(ctx context.Context, documentID
 	return r.getDB(ctx).Where("document_id = ?", documentID).Delete(&model.EditLock{}).Error
 }
 
+// GetEditLock 无锁时返回 (nil, nil)，调用方将“无锁”视为可编辑
 func (r *wikiRepositoryExtended) GetEditLock(ctx context.Context, documentID string) (*model.EditLock, error) {
 	var lock model.EditLock
 	err := r.getDB(ctx).Where("document_id = ?", documentID).First(&lock).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &lock, nil

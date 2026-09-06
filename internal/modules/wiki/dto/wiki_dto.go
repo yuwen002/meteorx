@@ -242,7 +242,8 @@ type CommentResp struct {
 
 type CreateCommentReq struct {
 	DocumentID string `json:"document_id" validate:"required"`
-	NodeID     string `json:"node_id" validate:"required"`
+	// NodeID 允许省略：为空时由服务端根据 DocumentID 自动解析节点，避免前端重复传参
+	NodeID     string `json:"node_id"`
 	ParentID   string `json:"parent_id"`
 	Content    string `json:"content" validate:"required"`
 	MentionIDs string `json:"mention_ids"`
@@ -273,6 +274,23 @@ type ShareLinkResp struct {
 	CreatedBy     string     `json:"created_by"`
 	CreatedAt     time.Time  `json:"created_at"`
 	ShareURL      string     `json:"share_url"`
+}
+
+// SharedDocumentResp 公开分享落地数据：包含分享元信息与文档只读内容
+type SharedDocumentResp struct {
+	DocumentID    string     `json:"document_id"`
+	NodeID        string     `json:"node_id"`
+	Title         string     `json:"title"`
+	Content       string     `json:"content"`
+	ContentHTML   string     `json:"content_html"`
+	Format        string     `json:"format"`
+	LastEditedBy  string     `json:"last_edited_by"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	AllowDownload bool       `json:"allow_download"`
+	ViewCount     int        `json:"view_count"`
+	MaxViews      int        `json:"max_views"`
+	ExpireAt      *time.Time `json:"expire_at,omitempty"`
+	NeedPassword  bool       `json:"need_password"`
 }
 
 type DocumentTemplateResp struct {

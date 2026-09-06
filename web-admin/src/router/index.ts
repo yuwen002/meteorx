@@ -21,6 +21,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '重置密码', public: true }
   },
   {
+    path: '/wiki/share/:token',
+    name: 'WikiShareView',
+    component: () => import('@/views/wiki/ShareView.vue'),
+    meta: { title: '知识分享', public: true }
+  },
+  {
     path: '/',
     component: () => import('@/layouts/DefaultLayout.vue'),
     redirect: '/dashboard',
