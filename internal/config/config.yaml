@@ -50,7 +50,9 @@ security:
 
 file:
   upload_path: "./uploads"   # 文件上传存储路径
-  upload_url: "http://localhost:8081/uploads"  # 文件访问URL前缀
+  # 文件访问URL前缀：接口返回的 url 会附带短时效 HMAC 签名（默认 30 分钟），
+  # 由 jwt.secret 派生签名密钥；/uploads 静态服务会校验签名后才提供文件
+  upload_url: "http://localhost:8081/uploads"
   max_file_size: 10485760    # 最大文件大小 10MB (10 * 1024 * 1024)
   allowed_types:             # 允许的文件类型
     - "image/jpeg"
@@ -75,6 +77,8 @@ email:
 
 client:
   base_url: "http://localhost:5173"
+  # allowed_origins:           # 可选：额外的 CORS 跨域来源白名单（含协议与端口，用于多前端场景）
+  #   - "http://localhost:5173"
 
 # IP 地理位置解析配置
 ip_location:

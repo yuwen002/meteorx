@@ -26,7 +26,7 @@ var (
 type WikiRepository interface {
 	CreateSpace(ctx context.Context, space *model.WikiSpace) error
 	GetSpaceByID(ctx context.Context, id string) (*model.WikiSpace, error)
-	ListSpaces(ctx context.Context, tenantID string, userID string, page, pageSize int) ([]*model.WikiSpace, int64, error)
+	ListSpaces(ctx context.Context, tenantID string, userID string, keyword string, page, pageSize int) ([]*model.WikiSpace, int64, error)
 	UpdateSpace(ctx context.Context, space *model.WikiSpace) error
 	DeleteSpace(ctx context.Context, id string) error
 
@@ -55,6 +55,7 @@ type WikiRepository interface {
 	RemoveMember(ctx context.Context, spaceID, userID string) error
 	ListMembers(ctx context.Context, spaceID string) ([]*model.WikiSpaceMember, error)
 	GetMember(ctx context.Context, spaceID, userID string) (*model.WikiSpaceMember, error)
+	UpdateMemberRole(ctx context.Context, member *model.WikiSpaceMember) error
 
 	// Node Permission
 	CreateNodePermission(ctx context.Context, perm *model.WikiNodePermission) error
@@ -136,7 +137,7 @@ func (r *wikiRepository) GetSpaceByID(ctx context.Context, id string) (*model.Wi
 	return &space, err
 }
 
-func (r *wikiRepository) ListSpaces(ctx context.Context, tenantID string, userID string, page, pageSize int) ([]*model.WikiSpace, int64, error) {
+func (r *wikiRepository) ListSpaces(ctx context.Context, tenantID string, userID string, keyword string, page, pageSize int) ([]*model.WikiSpace, int64, error) {
 	var spaces []*model.WikiSpace
 	var total int64
 
@@ -144,7 +145,11 @@ func (r *wikiRepository) ListSpaces(ctx context.Context, tenantID string, userID
 
 	if userID != "" {
 		query = query.Joins("LEFT JOIN wiki_space_members wsm ON wsm.space_id = wiki_spaces.id AND wsm.user_id = ?", userID).
-			Where("wiki_spaces.visibility = ? OR wsm.user_id IS NOT NULL", model.VisibilityTenant)
+			Where("(wiki_spaces.visibility = ? OR wsm.user_id IS NOT NULL)", model.VisibilityTenant)
+	}
+
+	if keyword != "" {
+		query = query.Where("wiki_spaces.name LIKE ?", "%"+keyword+"%")
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -395,6 +400,17 @@ func (r *wikiRepository) GetMember(ctx context.Context, spaceID, userID string) 
 	return &member, err
 }
 
+func (r *wikiRepository) UpdateMemberRole(ctx context.Context, member *model.WikiSpaceMember) error {
+	if member == nil || member.ID == "" {
+		return errors.New("member id is required")
+	}
+	member.UpdatedAt = time.Now()
+	return tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
+		Model(&model.WikiSpaceMember{}).
+		Where("id = ?", member.ID).
+		Update("role", member.Role).Error
+}
+
 func (r *wikiRepository) GetWikiStats(ctx context.Context, tenantID string) (*model.WikiStats, error) {
 	var stats model.WikiStats
 
@@ -541,13 +557,23 @@ func (r *wikiRepository) SearchNodesByTitle(ctx context.Context, tenantID string
 	return nodes, err
 }
 
-// SearchDocumentsByContent 按内容搜索文档
+// SearchDocumentsByContent 按内容搜索文档（强制租户隔离；指定 space 时限定空间范围）
 func (r *wikiRepository) SearchDocumentsByContent(ctx context.Context, tenantID string, spaceID string, query string) ([]*model.Document, error) {
 	var docs []*model.Document
+	pattern := "%" + query + "%"
 	db := r.getDB(ctx).Model(&model.Document{})
 
-	pattern := "%" + query + "%"
-	err := db.Where("content LIKE ?", pattern).Find(&docs).Error
+	if spaceID != "" {
+		// 指定空间：join 节点表以空间过滤（文档表自身不含 space_id）
+		err := db.
+			Joins("JOIN wiki_nodes ON wiki_nodes.id = wiki_documents.node_id").
+			Where("wiki_documents.tenant_id = ? AND wiki_nodes.space_id = ? AND wiki_documents.content LIKE ?",
+				tenantID, spaceID, pattern).
+			Find(&docs).Error
+		return docs, err
+	}
+
+	err := db.Where("tenant_id = ? AND content LIKE ?", tenantID, pattern).Find(&docs).Error
 	return docs, err
 }
 

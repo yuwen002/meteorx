@@ -52,7 +52,7 @@ func (m *MockWikiRepository) GetSpaceByID(ctx context.Context, id string) (*mode
 	return nil, ErrWikiSpaceNotFound
 }
 
-func (m *MockWikiRepository) ListSpaces(ctx context.Context, tenantID string, userID string, page, pageSize int) ([]*model.WikiSpace, int64, error) {
+func (m *MockWikiRepository) ListSpaces(ctx context.Context, tenantID string, userID string, keyword string, page, pageSize int) ([]*model.WikiSpace, int64, error) {
 	return nil, 0, nil
 }
 
@@ -145,6 +145,10 @@ func (m *MockWikiRepository) AddMember(ctx context.Context, member *model.WikiSp
 }
 
 func (m *MockWikiRepository) RemoveMember(ctx context.Context, spaceID, userID string) error {
+	return nil
+}
+
+func (m *MockWikiRepository) UpdateMemberRole(ctx context.Context, member *model.WikiSpaceMember) error {
 	return nil
 }
 

@@ -186,6 +186,7 @@ type SearchResultResp struct {
 
 type CreateAttachmentReq struct {
 	DocumentID string `json:"document_id" validate:"required"`
+	FileID     string `json:"file_id,omitempty"`
 	FileName   string `json:"file_name" validate:"required"`
 	FileSize   int64  `json:"file_size"`
 	MimeType   string `json:"mime_type"`
@@ -195,6 +196,7 @@ type CreateAttachmentReq struct {
 type AttachmentResp struct {
 	ID         string    `json:"id"`
 	DocumentID string    `json:"document_id"`
+	FileID     string    `json:"file_id,omitempty"`
 	FileName   string    `json:"file_name"`
 	FileSize   int64     `json:"file_size"`
 	MimeType   string    `json:"mime_type"`

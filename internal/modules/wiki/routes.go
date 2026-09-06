@@ -1,6 +1,7 @@
 package wiki
 
 import (
+	"meteorx/internal/config"
 	"meteorx/internal/modules/wiki/handler"
 	"meteorx/internal/modules/wiki/repository"
 	"meteorx/internal/modules/wiki/service"
@@ -12,9 +13,13 @@ import (
 )
 
 // InitModule 初始化 Wiki 模块，注册路由与依赖
-func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager) {
+func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config) {
 	repo := repository.NewWikiRepository(gormDB)
 	svc := service.NewWikiService(repo, tx)
+	// 文档内嵌 /uploads 图片签名支持（与文件模块共用访问基址与签名密钥）
+	if cfg != nil {
+		svc.SetUploadSigner(cfg.File.UploadURL, cfg.JWT.Secret)
+	}
 	h := handler.NewWikiHandler(svc)
 
 	r.Route("/wiki", func(r chi.Router) {
@@ -60,6 +65,7 @@ func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager) {
 
 		// Documents 文档管理
 		r.Route("/documents", func(r chi.Router) {
+			r.Post("/preview", h.PreviewMarkdown)        // Markdown 实时预览
 			r.Post("/nodes/{nodeId}", h.CreateDocument) // 创建文档
 			r.Get("/nodes/{nodeId}", h.GetDocument)     // 获取文档
 			r.Put("/{id}", h.UpdateDocument)            // 更新文档

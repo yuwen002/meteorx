@@ -33,8 +33,9 @@ type Storage interface {
 }
 
 // NewStorage 根据配置创建对应的存储实例
+// signKey 用于本地文件访问 URL 签名（通常取 JWT Secret）；为空则不签名（仅限调试场景）
 // 当前默认实现 local；后续扩展 oss / s3 时在此处增加分支
-func NewStorage(cfg config.FileConfig) Storage {
+func NewStorage(cfg config.FileConfig, signKey string) Storage {
 	storageType := cfg.StorageType
 	if storageType == "" {
 		storageType = "local"
@@ -42,9 +43,9 @@ func NewStorage(cfg config.FileConfig) Storage {
 
 	switch storageType {
 	case "local", "":
-		return NewLocalStorage(cfg.UploadPath, cfg.UploadURL)
+		return NewLocalStorage(cfg.UploadPath, cfg.UploadURL, signKey)
 	default:
 		// 未知类型时降级为本地存储，避免启动失败
-		return NewLocalStorage(cfg.UploadPath, cfg.UploadURL)
+		return NewLocalStorage(cfg.UploadPath, cfg.UploadURL, signKey)
 	}
 }

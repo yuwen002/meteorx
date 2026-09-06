@@ -355,8 +355,11 @@ Content-Type: application/octet-stream
 ### 6.1 本地存储（当前实现）
 
 - 存储路径：`config.yaml` → `file.upload_path`（默认 `./uploads`）
-- 访问 URL：`/uploads/*`，由 `router.go` 中的静态文件服务提供
-- 文件组织结构：`{upload_path}/{tenant_id}/{year}/{month}/{day}/{ulid}_{filename}`
+- 访问 URL：`/uploads/*`（`router.go` 中 `middleware.SignedUploadsHandler` 提供）
+  - **签名保护**：接口返回的 `url` 字段已附带短时效 HMAC 签名（默认 30 分钟，密钥派生自 `jwt.secret`）；
+    `/uploads` 静态服务会校验签名与过期时间，并拒绝目录列举、子路径与路径穿越请求
+  - 推荐走 `GET /files/{id}/download`（携带 Bearer Token，无有效期问题）获取文件内容
+- 文件组织结构：上传文件名为 `{ulid}.{ext}`（平铺于 `upload_path` 单层目录）
 
 ### 6.2 云存储（预留）
 

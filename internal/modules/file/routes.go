@@ -18,7 +18,7 @@ import (
 func RegisterRoutes(r chi.Router, db *gorm.DB, cfg *config.Config) {
 	// 初始化依赖
 	fileRepo := filerepo.NewFileRepository(db)
-	fileStorage := storage.NewStorage(cfg.File)
+	fileStorage := storage.NewStorage(cfg.File, cfg.JWT.Secret)
 	fileSvc := service.NewFileService(fileRepo, fileStorage)
 	fileHandler := handler.NewFileHandler(fileSvc, cfg.File)
 

@@ -22,13 +22,13 @@ func (s *wikiService) CreateAttachment(ctx context.Context, userID string, req *
 	attachment := &model.Attachment{
 		TenantID:   contextx.GetTenantID(ctx),
 		DocumentID: req.DocumentID,
+		FileID:     req.FileID,
 		FileName:   req.FileName,
 		FileSize:   req.FileSize,
 		MimeType:   req.MimeType,
 		FileURL:    req.FileURL,
 		UploadedBy: userID,
 	}
-
 	if err := s.repo.CreateAttachment(ctx, attachment); err != nil {
 		return nil, err
 	}
@@ -36,6 +36,7 @@ func (s *wikiService) CreateAttachment(ctx context.Context, userID string, req *
 	return &dto.AttachmentResp{
 		ID:         attachment.ID,
 		DocumentID: attachment.DocumentID,
+		FileID:     attachment.FileID,
 		FileName:   attachment.FileName,
 		FileSize:   attachment.FileSize,
 		MimeType:   attachment.MimeType,
@@ -61,6 +62,7 @@ func (s *wikiService) ListAttachments(ctx context.Context, documentID string, us
 		resps = append(resps, &dto.AttachmentResp{
 			ID:         a.ID,
 			DocumentID: a.DocumentID,
+			FileID:     a.FileID,
 			FileName:   a.FileName,
 			FileSize:   a.FileSize,
 			MimeType:   a.MimeType,

@@ -15,8 +15,8 @@ type WikiService interface {
 	CreateSpace(ctx context.Context, tenantID string, userID string, req *dto.CreateWikiSpaceReq) (*dto.WikiSpaceResp, error)
 	// GetSpace 获取 Space 详情
 	GetSpace(ctx context.Context, id string, userID string) (*dto.WikiSpaceResp, error)
-	// ListSpaces 列出用户可访问的 Spaces（分页）
-	ListSpaces(ctx context.Context, tenantID string, userID string, page, pageSize int) ([]*dto.WikiSpaceResp, int64, error)
+	// ListSpaces 列出用户可访问的 Spaces（分页，keyword 按名称模糊过滤）
+	ListSpaces(ctx context.Context, tenantID string, userID string, keyword string, page, pageSize int) ([]*dto.WikiSpaceResp, int64, error)
 	// UpdateSpace 更新 Space 信息
 	UpdateSpace(ctx context.Context, id string, tenantID string, req *dto.UpdateWikiSpaceReq) (*dto.WikiSpaceResp, error)
 	// DeleteSpace 删除 Space（进入回收站）
@@ -102,6 +102,12 @@ type WikiService interface {
 	// DeleteAttachment 删除附件
 	DeleteAttachment(ctx context.Context, id string, userID string) error
 
+	// ========== Rendering / Uploads ==========
+	// SetUploadSigner 注入 /uploads 静态资源签名参数（文档内嵌图片动态签发，仅模块初始化时调用）
+	SetUploadSigner(uploadBaseURL, signKey string)
+	// RenderPreview 将 Markdown 渲染为安全 HTML（编辑器实时预览，上传图片地址自动重签）
+	RenderPreview(ctx context.Context, content, format string) (string, error)
+
 	// ========== Stats ==========
 	// GetStats 获取 Wiki 统计数据
 	GetStats(ctx context.Context, tenantID string) (*dto.WikiStatsResp, error)
@@ -112,6 +118,11 @@ type wikiService struct {
 	repo        repository.WikiRepository
 	tx          *db.TxManager
 	markdownSvc MarkdownService
+
+	// uploadBaseURL 对外访问 /uploads 的基础地址（如 http://host:8081/uploads）；
+	// uploadSignKey 与文件存储一致的上传签名密钥。两者为空时禁用文档图片动态重签。
+	uploadBaseURL string
+	uploadSignKey string
 }
 
 // NewWikiService 创建 Wiki Service 实例

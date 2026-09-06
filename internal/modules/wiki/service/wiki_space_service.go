@@ -6,6 +6,7 @@ import (
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/modules/wiki/dto"
 	"meteorx/internal/modules/wiki/model"
+	apperrors "meteorx/internal/pkg/apperrors"
 
 	"gorm.io/gorm"
 )
@@ -64,8 +65,8 @@ func (s *wikiService) GetSpace(ctx context.Context, id string, userID string) (*
 }
 
 // ListSpaces 列出用户可访问的所有 Spaces（分页）
-func (s *wikiService) ListSpaces(ctx context.Context, tenantID string, userID string, page, pageSize int) ([]*dto.WikiSpaceResp, int64, error) {
-	spaces, total, err := s.repo.ListSpaces(ctx, tenantID, userID, page, pageSize)
+func (s *wikiService) ListSpaces(ctx context.Context, tenantID string, userID string, keyword string, page, pageSize int) ([]*dto.WikiSpaceResp, int64, error) {
+	spaces, total, err := s.repo.ListSpaces(ctx, tenantID, userID, keyword, page, pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -158,11 +159,45 @@ func (s *wikiService) buildSpaceResp(ctx context.Context, space *model.WikiSpace
 	return resp, nil
 }
 
-// AddMember 添加 Space 成员
+// AddMember 添加或更新 Space 成员（幂等：已存在则更新角色，避免重复成员记录）
 func (s *wikiService) AddMember(ctx context.Context, spaceID string, req *dto.WikiSpaceMemberReq) (*dto.WikiSpaceMemberResp, error) {
 	userID := contextx.GetUserID(ctx)
 	if err := s.CheckSpacePermission(ctx, spaceID, userID, "member:manage"); err != nil {
 		return nil, err
+	}
+
+	// 已存在：仅更新角色，保证操作幂等
+	existing, err := s.repo.GetMember(ctx, spaceID, req.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		// 唯一 owner 不可被降级（避免知识库失去所有者）
+		if existing.Role == model.SpaceRoleOwner && req.Role != model.SpaceRoleOwner {
+			members, err := s.repo.ListMembers(ctx, spaceID)
+			if err != nil {
+				return nil, err
+			}
+			ownerCount := 0
+			for _, m := range members {
+				if m.Role == model.SpaceRoleOwner {
+					ownerCount++
+				}
+			}
+			if ownerCount <= 1 {
+				return nil, apperrors.ErrBadRequest("知识库至少需要保留一名所有者")
+			}
+		}
+		existing.Role = req.Role
+		if err := s.repo.UpdateMemberRole(ctx, existing); err != nil {
+			return nil, err
+		}
+		return &dto.WikiSpaceMemberResp{
+			ID:      existing.ID,
+			SpaceID: existing.SpaceID,
+			UserID:  existing.UserID,
+			Role:    existing.Role,
+		}, nil
 	}
 
 	member := &model.WikiSpaceMember{
@@ -182,11 +217,34 @@ func (s *wikiService) AddMember(ctx context.Context, spaceID string, req *dto.Wi
 	}, nil
 }
 
-// RemoveMember 移除 Space 成员
+// RemoveMember 移除 Space 成员（知识库至少保留一名 owner）
 func (s *wikiService) RemoveMember(ctx context.Context, spaceID, userID string) error {
 	currentUserID := contextx.GetUserID(ctx)
 	if err := s.CheckSpacePermission(ctx, spaceID, currentUserID, "member:manage"); err != nil {
 		return err
+	}
+
+	target, err := s.repo.GetMember(ctx, spaceID, userID)
+	if err != nil {
+		return err
+	}
+	if target == nil {
+		return apperrors.ErrNotFound("成员不存在")
+	}
+	if target.Role == model.SpaceRoleOwner {
+		members, err := s.repo.ListMembers(ctx, spaceID)
+		if err != nil {
+			return err
+		}
+		ownerCount := 0
+		for _, m := range members {
+			if m.Role == model.SpaceRoleOwner {
+				ownerCount++
+			}
+		}
+		if ownerCount <= 1 {
+			return apperrors.ErrBadRequest("知识库至少需要保留一名所有者")
+		}
 	}
 
 	return s.repo.RemoveMember(ctx, spaceID, userID)

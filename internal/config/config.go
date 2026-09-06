@@ -33,6 +33,8 @@ type EmailConfig struct {
 
 type ClientConfig struct {
 	BaseURL string `mapstructure:"base_url"`
+	// AllowedOrigins 额外允许跨域访问的前端来源列表；为空时仅允许 BaseURL
+	AllowedOrigins []string `mapstructure:"allowed_origins"`
 }
 
 type ServerConfig struct {

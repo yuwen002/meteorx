@@ -1,446 +1,1292 @@
 <template>
-  <div class="wiki-space">
-    <div class="sidebar">
-      <div class="sidebar-header">
-        <el-button link :icon="ArrowLeft" @click="goBack" />
-        <span class="space-title">{{ spaceInfo?.name || '加载中...' }}</span>
+  <div class="space-page" v-loading="loadingSpace">
+    <!-- 顶部导航 -->
+    <div class="topbar">
+      <el-button :icon="Back" circle @click="router.push('/wiki')" />
+      <div class="space-info">
+        <span class="space-title">{{ spaceInfo?.name || '知识空间' }}</span>
+        <el-tag v-if="spaceInfo" :type="visibilityTagType(spaceInfo.visibility)" size="small">
+          {{ visibilityText(spaceInfo.visibility) }}
+        </el-tag>
+        <span v-if="spaceInfo?.description" class="space-desc">{{ spaceInfo.description }}</span>
       </div>
-      <div class="sidebar-actions">
-        <el-button size="small" @click="createNode(null)">新建文件夹</el-button>
-        <el-button size="small" type="primary" @click="createDocument(null)">新建文档</el-button>
-      </div>
-      <el-tree
-        ref="treeRef"
-        :data="treeData"
-        node-key="id"
-        :props="{ label: 'title', children: 'children' }"
-        highlight-current
-        default-expand-all
-        @node-click="handleNodeClick"
+      <div class="flex-1"></div>
+      <el-button
+        v-if="canManage"
+        :icon="User"
+        :disabled="!spaceInfo"
+        @click="membersDialogVisible = true"
       >
-        <template #default="{ data }">
-          <span class="tree-node">
-            <el-icon v-if="data.type === 'folder'"><Folder /></el-icon>
-            <el-icon v-else><Document /></el-icon>
-            <span class="node-title">{{ data.title }}</span>
-            <span class="node-actions" @click.stop>
-              <el-icon v-if="data.type === 'folder'" class="action-icon" title="新建子文件夹" @click="createNode(data.id)"><FolderAdd /></el-icon>
-              <el-icon v-if="data.type === 'folder'" class="action-icon" title="新建文档" @click="createDocument(data.id)"><DocumentAdd /></el-icon>
-              <el-icon class="action-icon" title="编辑" @click="editNode(data)"><Edit /></el-icon>
-              <el-icon class="action-icon danger" title="删除" @click="deleteNode(data)"><Delete /></el-icon>
-            </span>
-          </span>
-        </template>
-      </el-tree>
+        成员
+      </el-button>
+      <el-button
+        v-if="canManage"
+        type="danger"
+        plain
+        :disabled="!spaceInfo"
+        @click="handleDeleteSpace"
+      >
+        删除空间
+      </el-button>
     </div>
 
-    <div class="content">
-      <template v-if="currentNode">
-        <div class="content-header">
-          <h2>{{ currentNode.title }}</h2>
-          <div class="header-actions">
-            <el-button size="small" @click="showRevisions = !showRevisions">历史版本</el-button>
-            <el-button type="primary" size="small" :loading="saving" @click="saveDocument">保存</el-button>
+    <div class="workspace">
+      <!-- 左侧：目录树 -->
+      <aside class="sidebar" v-loading="loadingTree">
+        <div class="sidebar-head">
+          <span class="title">目录</span>
+          <div v-if="canEdit" class="tree-actions">
+            <el-tooltip content="新建文档">
+              <el-button circle size="small" :icon="Plus" @click="openCreateNode('document')" />
+            </el-tooltip>
+            <el-tooltip content="新建目录">
+              <el-button circle size="small" :icon="FolderAdd" @click="openCreateNode('folder')" />
+            </el-tooltip>
           </div>
         </div>
-        <div class="content-meta">
-          <span v-if="document?.view_count">浏览 {{ document.view_count }}</span>
-          <span v-if="document?.updated_at">更新于 {{ document.updated_at?.substring(0, 19).replace('T', ' ') }}</span>
-        </div>
-        <div class="editor-area">
-          <el-input
-            v-model="editableContent"
-            type="textarea"
-            :rows="20"
-            placeholder="开始编写文档内容..."
-            resize="vertical"
-            class="doc-editor"
-          />
-        </div>
+        <el-tree
+          v-if="tree.length"
+          ref="treeRef"
+          :data="tree"
+          node-key="id"
+          :props="{ label: 'title', children: 'children' }"
+          :current-node-key="selectedNodeId"
+          :expand-on-click-node="false"
+          :default-expanded-keys="expandedKeys"
+          highlight-current
+          @node-click="selectNode"
+        >
+          <template #default="{ data }">
+            <div class="tree-node">
+              <el-icon class="node-icon" :class="{ active: data.id === selectedNodeId }">
+                <FolderOpened v-if="data.type === 'folder'" />
+                <Document v-else />
+              </el-icon>
+              <span class="node-label">{{ data.title }}</span>
+              <span v-if="canEdit" class="node-ops" @click.stop>
+                <el-button
+                  v-if="data.type === 'folder'"
+                  link
+                  size="small"
+                  :icon="Plus"
+                  title="在该目录下新建"
+                  @click="openCreateNode(data.type === 'folder' ? 'folder' : 'document', data)"
+                />
+                <el-button link size="small" :icon="EditPen" title="重命名" @click="openRename(data)" />
+                <el-button
+                  link
+                  size="small"
+                  :icon="Lock"
+                  title="节点权限"
+                  @click="openNodePermission(data)"
+                />
+                <el-button link size="small" type="danger" :icon="Delete" title="删除" @click="removeNode(data)" />
+              </span>
+            </div>
+          </template>
+        </el-tree>
+        <el-empty v-if="!loadingTree && tree.length === 0" description="空间是空的" :image-size="60" />
+      </aside>
 
-        <el-table v-if="showRevisions && revisions.length > 0" :data="revisions" border size="small" style="margin-top: 16px">
-          <el-table-column prop="version" label="版本" width="80" />
-          <el-table-column prop="summary" label="修改说明" />
-          <el-table-column prop="created_at" label="修改时间" width="170" />
-          <el-table-column label="操作" width="120">
-            <template #default="{ row }">
-              <el-button link type="primary" size="small" @click="restoreRevision(row)">恢复</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </template>
-      <div v-else class="empty">
-        <el-icon :size="64" color="#d1d5db"><Document /></el-icon>
-        <p>从左侧选择一个文档开始编辑</p>
-        <p class="hint">或点击"新建文档"创建新文档</p>
-      </div>
+      <!-- 右侧：文档区 -->
+      <main class="doc-area">
+        <!-- 阅读态 -->
+        <template v-if="!editing && currentDocument">
+          <div class="doc-toolbar">
+            <span class="doc-title">{{ currentNode?.title }}</span>
+            <div class="flex-1"></div>
+            <el-tag v-if="canEdit" type="warning" size="small" class="unsaved-tip">
+              最后编辑 {{ currentDocument.last_edited_at?.replace('T', ' ').substring(0, 16) }}
+            </el-tag>
+            <el-button v-if="canEdit" type="primary" :icon="EditPen" @click="startEditing">编辑</el-button>
+            <el-button v-if="canEdit" :icon="FolderAdd" @click="membersDialogVisible = true">成员</el-button>
+          </div>
+          <div class="doc-body article" v-html="currentDocument.content_html"></div>
+        </template>
+
+        <!-- 编辑态 -->
+        <template v-else-if="editing && currentDocument">
+          <div class="editor-toolbar">
+            <div class="mode-switch">
+              <el-button
+                size="small"
+                :type="editorMode === 'editor' ? 'primary' : ''"
+                :icon="Document"
+                @click="editorMode = 'editor'"
+              >
+                仅编辑
+              </el-button>
+              <el-button
+                size="small"
+                :type="editorMode === 'split' ? 'primary' : ''"
+                :icon="Operation"
+                @click="editorMode = 'split'"
+              >
+                分栏
+              </el-button>
+              <el-button
+                size="small"
+                :type="editorMode === 'preview' ? 'primary' : ''"
+                :icon="View"
+                @click="editorMode = 'preview'"
+              >
+                仅预览
+              </el-button>
+            </div>
+            <div class="md-tools">
+              <el-tooltip content="标题"><el-button size="small" :icon="Menu" @click="mdHeading" /></el-tooltip>
+              <el-tooltip content="加粗">
+                <el-button size="small" @click="mdBold"><b>B</b></el-button>
+              </el-tooltip>
+              <el-tooltip content="斜体">
+                <el-button size="small" @click="mdItalic"><i>I</i></el-button>
+              </el-tooltip>
+              <el-tooltip content="行内代码"><el-button size="small" :icon="Cpu" @click="mdCode" /></el-tooltip>
+              <el-tooltip content="代码块"><el-button size="small" :icon="Box" @click="mdCodeBlock" /></el-tooltip>
+              <el-tooltip content="链接"><el-button size="small" :icon="Link" @click="mdLink" /></el-tooltip>
+              <el-tooltip content="列表"><el-button size="small" :icon="List" @click="mdList" /></el-tooltip>
+              <el-tooltip content="引用"><el-button size="small" :icon="ChatDotRound" @click="mdQuote" /></el-tooltip>
+              <el-tooltip content="插入图片">
+                <el-button size="small" :icon="Picture" :loading="uploading" @click="imageInput?.click()" />
+              </el-tooltip>
+              <input
+                ref="imageInput"
+                type="file"
+                accept="image/*"
+                class="hidden-input"
+                @change="handleImageUpload"
+              />
+            </div>
+            <div class="flex-1"></div>
+            <el-tooltip v-if="dirty" content="内容有未保存修改">
+              <span class="dirty-dot">● 未保存</span>
+            </el-tooltip>
+            <el-button :icon="Close" @click="exitEditing">退出编辑</el-button>
+            <el-button type="primary" :icon="Check" :loading="saving" @click="saveDoc">保存</el-button>
+          </div>
+
+          <div class="editor-body">
+            <textarea
+              v-if="editorMode !== 'preview'"
+              ref="editorRef"
+              v-model="editingContent"
+              class="md-input"
+              spellcheck="false"
+              @input="schedulePreview"
+            ></textarea>
+            <div
+              v-if="editorMode !== 'editor'"
+              class="md-preview article"
+              v-loading="previewLoading"
+            >
+              <div v-if="previewHtml" v-html="previewHtml"></div>
+              <el-empty v-else description="输入内容后将自动渲染预览" :image-size="60" />
+            </div>
+          </div>
+        </template>
+
+        <!-- 附件 / 版本 / 空态 -->
+        <template v-else>
+          <el-empty
+            :description="currentNode ? '该目录下暂无打开文档' : '从左侧选择一个文档开始阅读'"
+            :image-size="90"
+          />
+        </template>
+
+        <!-- 附件与版本切换 -->
+        <div v-if="currentDocument" class="sub-panels">
+          <div class="panel-tabs">
+            <span
+              class="tab"
+              :class="{ active: activePanel === 'attachments' }"
+              @click="activePanel = 'attachments'"
+            >
+              附件 ({{ attachments.length }})
+            </span>
+            <span
+              class="tab"
+              :class="{ active: activePanel === 'history' }"
+              @click="activePanel = 'history'"
+            >
+              历史版本 ({{ revisions.length }})
+            </span>
+          </div>
+
+          <div v-if="activePanel === 'attachments'" class="panel-body">
+            <div v-if="canEdit" class="attach-ops">
+              <el-upload
+                :auto-upload="false"
+                :show-file-list="false"
+                multiple
+                accept="*/*"
+                :on-change="(f: UploadFile) => handleAttachmentAdd(f.raw as File)"
+              >
+                <el-button :icon="Upload" :loading="uploading">上传附件</el-button>
+              </el-upload>
+            </div>
+            <div v-if="attachments.length" class="attach-grid">
+              <div v-for="a in attachments" :key="a.id" class="attach-item">
+                <el-icon class="attach-icon"><Document /></el-icon>
+                <span class="attach-name" :title="a.file_name">{{ a.file_name }}</span>
+                <span class="attach-size">{{ formatSize(a.file_size) }}</span>
+                <div class="attach-ops">
+                  <el-button link type="primary" size="small" @click="previewAttachment(a)">预览/下载</el-button>
+                  <el-button
+                    v-if="canEdit"
+                    link
+                    type="danger"
+                    size="small"
+                    @click="removeAttachment(a)"
+                  >
+                    删除
+                  </el-button>
+                </div>
+              </div>
+            </div>
+            <el-empty v-else description="暂无附件" :image-size="50" />
+          </div>
+
+          <div v-else class="panel-body">
+            <el-table v-loading="loadingRevisions" :data="revisions" size="small">
+              <el-table-column label="版本" width="70">
+                <template #default="{ row }">v{{ row.version }}</template>
+              </el-table-column>
+              <el-table-column prop="summary" label="更新说明" min-width="140" show-overflow-tooltip />
+              <el-table-column label="编辑时间" width="160">
+                <template #default="{ row }">
+                  {{ row.created_at?.replace('T', ' ').substring(0, 16) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="130" align="center">
+                <template #default="{ row }">
+                  <el-button link type="primary" @click="viewRevision(row)">查看</el-button>
+                  <el-button v-if="canEdit" link type="warning" @click="restoreVersion(row)">恢复</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <el-empty v-if="!loadingRevisions && revisions.length === 0" description="暂无历史版本" :image-size="50" />
+          </div>
+        </div>
+      </main>
     </div>
 
-    <el-dialog v-model="editDialogVisible" title="编辑节点" width="400px">
-      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="80px">
-        <el-form-item label="标题" prop="title">
-          <el-input v-model="editForm.title" />
-        </el-form-item>
-        <el-form-item label="图标">
-          <el-select v-model="editForm.icon" placeholder="选择图标">
-            <el-option label="文档" value="document" />
-            <el-option label="文件夹" value="folder" />
-            <el-option label="笔记" value="note" />
-          </el-select>
+    <!-- 弹窗 -->
+    <el-dialog v-model="createVisible" :title="createForm.type === 'document' ? '新建文档' : '新建目录'" width="420px">
+      <el-form :model="createForm" label-width="60px">
+        <el-form-item :label="createForm.type === 'document' ? '文档名' : '目录名'">
+          <el-input v-model="createForm.title" placeholder="请输入名称" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitEditNode">确定</el-button>
+        <el-button @click="createVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitCreateNode">确定</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="renameVisible" title="重命名" width="420px">
+      <el-input v-model="renameTitle" placeholder="请输入新名称" />
+      <template #footer>
+        <el-button @click="renameVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitRename">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 历史版本预览 -->
+    <el-dialog v-model="revisionDialogVisible" title="版本预览" width="760px" top="5vh">
+      <div class="article" v-html="revisionPreviewHtml"></div>
+    </el-dialog>
+
+    <!-- 附件图片预览 -->
+    <el-dialog v-model="attachmentPreviewVisible" title="图片预览" width="640px">
+      <div class="article preview-img-wrap">
+        <img :src="attachmentPreviewUrl" alt="预览" />
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="downloadAttachment(currentAttachment!)">下载原图</el-button>
+      </template>
+    </el-dialog>
+
+    <MembersDialog
+      v-model="membersDialogVisible"
+      :space-id="spaceId"
+      :my-user-id="myUserId"
+      :my-role="myRole"
+      @changed="reloadTree"
+    />
+    <NodePermissionDialog
+      v-model="nodePermVisible"
+      :space-id="spaceId"
+      :node-id="permNodeId"
+      :title="permNodeTitle"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
-import type { FormInstance, FormRules } from 'element-plus'
+import type { ElTree, UploadFile } from 'element-plus'
 import {
-  ArrowLeft, FolderAdd, DocumentAdd, Folder, Document, Edit, Delete
+  Back,
+  Plus,
+  EditPen,
+  Delete,
+  FolderAdd,
+  FolderOpened,
+  Document,
+  User,
+  Lock,
+  Menu,
+  Cpu,
+  Box,
+  Link,
+  List,
+  ChatDotRound,
+  Picture,
+  Upload,
+  Check,
+  Close,
+  Operation,
+  View
 } from '@element-plus/icons-vue'
 import {
   getSpace,
   getNodeTree,
-  createNode as createNodeApi,
+  createNode,
   updateNode,
-  deleteNode as deleteNodeApi,
-  createDocument as createDocumentApi,
+  deleteNode,
   getDocument,
   updateDocument,
+  deleteSpace,
   listRevisions,
-  restoreRevision as restoreRevisionApi,
+  restoreRevision,
+  listAttachments,
+  createAttachment,
+  deleteAttachment,
+  previewMarkdown,
   type WikiSpace,
+  type WikiNode,
   type WikiNodeTree,
   type WikiDocument,
-  type DocumentRevision
+  type DocumentRevision,
+  type WikiAttachment
 } from '@/api/modules/wiki'
+import { uploadFile, downloadFile } from '@/api/modules/file'
+import { useUserStore } from '@/stores/user'
+import MembersDialog from './components/MembersDialog.vue'
+import NodePermissionDialog from './components/NodePermissionDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
-const spaceId = computed(() => route.params.id as string)
+const userStore = useUserStore()
 
+const spaceId = route.params.id as string
+const myUserId = computed(() => userStore.userInfo?.id || '')
+
+// ============ 空间 & 权限 ============
+const loadingSpace = ref(false)
 const spaceInfo = ref<WikiSpace | null>(null)
-const treeData = ref<WikiNodeTree[]>([])
-const treeRef = ref()
+const myRole = computed(() => spaceInfo.value?.my_role || '')
+const canManage = computed(() => myRole.value === 'owner' || myRole.value === 'admin')
+const canEdit = computed(() => myRole.value === 'owner' || myRole.value === 'admin' || myRole.value === 'editor')
 
-const currentNode = ref<WikiNodeTree | null>(null)
-const document = ref<WikiDocument | null>(null)
-const editableContent = ref('')
-const saving = ref(false)
-const showRevisions = ref(false)
-const revisions = ref<DocumentRevision[]>([])
+// ============ 目录树 ============
+const treeRef = ref<InstanceType<typeof ElTree>>()
+const loadingTree = ref(false)
+const tree = ref<WikiNodeTree[]>([])
+const expandedKeys = ref<string[]>([])
+const selectedNodeId = ref('')
+const currentNode = ref<WikiNode | null>(null)
 
-const editDialogVisible = ref(false)
-const editFormRef = ref<FormInstance>()
-const editingNodeId = ref<string | null>(null)
-const editForm = ref({ title: '', icon: '' })
-const editRules: FormRules = {
-  title: [{ required: true, message: '请输入标题', trigger: 'blur' }]
+function visibilityText(v: number) {
+  if (v === 3) return '公开'
+  if (v === 2) return '租户可见'
+  return '私有'
+}
+function visibilityTagType(v: number): 'success' | 'warning' | 'info' {
+  if (v === 3) return 'success'
+  if (v === 2) return 'warning'
+  return 'info'
 }
 
-function goBack() {
-  router.push('/wiki')
+function collectAncestors(nodes: WikiNodeTree[], targetId: string, stack: string[] = []): string[] | null {
+  for (const n of nodes) {
+    const path = [...stack, n.id]
+    if (n.id === targetId) return path
+    if (n.children?.length) {
+      const found = collectAncestors(n.children, targetId, path)
+      if (found) return found
+    }
+  }
+  return null
 }
 
-async function loadSpaceInfo() {
+async function loadSpace() {
+  loadingSpace.value = true
   try {
-    const res = await getSpace(spaceId.value)
-    spaceInfo.value = res
-  } catch (e) {
-    ElMessage.error('加载空间信息失败')
+    spaceInfo.value = await getSpace(spaceId)
+  } catch {
+    router.replace('/wiki')
+  } finally {
+    loadingSpace.value = false
   }
 }
 
-async function loadTree() {
+async function reloadTree() {
+  loadingTree.value = true
   try {
-    const res = await getNodeTree(spaceId.value)
-    treeData.value = res || []
-  } catch (e) {
-    treeData.value = []
+    const res = (await getNodeTree(spaceId)) ?? []
+    tree.value = res
+    const keep = selectedNodeId.value
+    if (keep) {
+      const path = collectAncestors(tree.value, keep)
+      if (path) expandedKeys.value = path.slice(0, -1)
+    }
+  } catch {
+    tree.value = []
+  } finally {
+    loadingTree.value = false
   }
 }
 
-function handleNodeClick(node: WikiNodeTree) {
-  if (node.type !== 'document') {
-    currentNode.value = null
-    document.value = null
-    editableContent.value = ''
-    showRevisions.value = false
-    return
+function findNodeById(nodes: WikiNodeTree[], id: string): WikiNodeTree | null {
+  for (const n of nodes) {
+    if (n.id === id) return n
+    if (n.children) {
+      const hit = findNodeById(n.children, id)
+      if (hit) return hit
+    }
   }
+  return null
+}
+
+async function selectNode(node: WikiNodeTree) {
   currentNode.value = node
-  showRevisions.value = false
-  loadDocument(node.id)
+  selectedNodeId.value = node.id
+  activePanel.value = 'attachments'
+  if (node.type === 'document') {
+    await loadDocument(node.id)
+  } else {
+    currentDocument.value = null
+    editing.value = false
+  }
 }
+
+// ============ 文档 ============
+const currentDocument = ref<WikiDocument | null>(null)
+const editing = ref(false)
+const editorMode = ref<'editor' | 'split' | 'preview'>('split')
+const editingContent = ref('')
+const previewHtml = ref('')
+const previewTimer = ref<number>()
+const previewLoading = ref(false)
+const dirty = ref(false)
+const saving = ref(false)
+const editorRef = ref<HTMLTextAreaElement>()
 
 async function loadDocument(nodeId: string) {
   try {
-    const res = await getDocument(nodeId)
-    document.value = res
-    editableContent.value = res?.content || ''
-  } catch (e) {
-    ElMessage.error('加载文档失败')
+    currentDocument.value = await getDocument(nodeId)
+    activePanel.value = 'attachments'
+    await loadAttachments()
+    await loadRevisions()
+  } catch {
+    currentDocument.value = null
   }
 }
 
-async function saveDocument() {
-  if (!document.value) return
+async function startEditing() {
+  if (!currentDocument.value) return
+  editing.value = true
+  editingContent.value = currentDocument.value.content || ''
+  previewHtml.value = ''
+  dirty.value = false
+  await nextTick()
+  schedulePreview()
+}
+
+async function schedulePreview() {
+  dirty.value = true
+  window.clearTimeout(previewTimer.value)
+  previewTimer.value = window.setTimeout(runPreview, 350)
+}
+
+async function runPreview() {
+  if (!editingContent.value.trim()) {
+    previewHtml.value = ''
+    return
+  }
+  previewLoading.value = true
+  try {
+    const res = await previewMarkdown(editingContent.value)
+    previewHtml.value = res?.content_html || ''
+  } catch {
+    previewHtml.value = ''
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+async function saveDoc() {
+  if (!currentDocument.value || !canEdit.value) return
   saving.value = true
   try {
-    await updateDocument(document.value.id, {
-      content: editableContent.value,
-      summary: '编辑更新'
+    currentDocument.value = await updateDocument(currentDocument.value.id, {
+      content: editingContent.value,
+      format: 'markdown'
     })
-    ElMessage.success('保存成功')
-  } catch (e) {
-    ElMessage.error('保存失败')
+    dirty.value = false
+    // 文档内容变化后刷新历史版本
+    await loadRevisions()
+    ElMessage.success('已保存')
   } finally {
     saving.value = false
   }
 }
 
-async function createNode(parentId: string | null) {
-  try {
-    await createNodeApi(spaceId.value, {
-      parent_id: parentId || undefined,
-      type: 'folder',
-      title: '新建文件夹',
-      icon: 'folder'
-    })
-    ElMessage.success('创建成功')
-    await loadTree()
-  } catch (e) {
-    ElMessage.error('创建失败')
-  }
-}
-
-async function createDocument(parentId: string | null) {
-  try {
-    const nodeRes = await createNodeApi(spaceId.value, {
-      parent_id: parentId || undefined,
-      type: 'document',
-      title: '新建文档',
-      icon: 'document'
-    })
-    await createDocumentApi(nodeRes.id, { node_id: nodeRes.id })
-    ElMessage.success('创建成功')
-    await loadTree()
-    currentNode.value = nodeRes
-    editableContent.value = ''
-  } catch (e) {
-    ElMessage.error('创建失败')
-  }
-}
-
-function editNode(node: WikiNodeTree) {
-  editingNodeId.value = node.id
-  editForm.value = { title: node.title, icon: node.icon }
-  editDialogVisible.value = true
-}
-
-async function submitEditNode() {
-  if (!editFormRef.value) return
-  await editFormRef.value.validate(async (valid) => {
-    if (!valid) return
+async function exitEditing() {
+  if (dirty.value) {
     try {
-      if (editingNodeId.value) {
-        await updateNode(editingNodeId.value, editForm.value)
-        ElMessage.success('更新成功')
-        editDialogVisible.value = false
-        await loadTree()
-        if (currentNode.value?.id === editingNodeId.value) {
-          currentNode.value = { ...currentNode.value!, title: editForm.value.title, icon: editForm.value.icon }
-        }
-      }
-    } catch (e) {
-      ElMessage.error('更新失败')
+      await ElMessageBox.confirm('有未保存的修改，退出编辑将丢弃，确定退出吗？', '提示', {
+        type: 'warning'
+      })
+    } catch {
+      return
     }
-  })
-}
-
-function deleteNode(node: WikiNodeTree) {
-  ElMessageBox.confirm(`确定要删除 "${node.title}" 吗？此操作不可恢复！`, '提示', {
-    type: 'warning'
-  })
-    .then(async () => {
-      await deleteNodeApi(node.id)
-      ElMessage.success('删除成功')
-      if (currentNode.value?.id === node.id) {
-        currentNode.value = null
-        document.value = null
-      }
-      await loadTree()
-    })
-    .catch(() => {})
-}
-
-async function loadRevisions() {
-  if (!document.value) return
-  try {
-    const res = await listRevisions(document.value.id)
-    revisions.value = res || []
-  } catch (e) {
-    revisions.value = []
+  }
+  editing.value = false
+  editorMode.value = 'split'
+  dirty.value = false
+  if (currentDocument.value) {
+    // 重新拉取最新内容
+    await loadDocument(currentDocument.value.node_id)
   }
 }
 
-async function restoreRevision(rev: DocumentRevision) {
-  if (!document.value) return
-  try {
-    await ElMessageBox.confirm(`确定要恢复到版本 v${rev.version} 吗？`, '提示', { type: 'warning' })
-    await restoreRevisionApi(document.value.id, rev.version)
-    ElMessage.success('恢复成功')
-    loadDocument(currentNode.value!.id)
-    loadRevisions()
-  } catch (e) {
-    // user cancelled
+onBeforeRouteLeave(() => {
+  if (editing.value && dirty.value) {
+    return window.confirm('有未保存的修改，确定离开吗？')
   }
-}
-
-watch(showRevisions, (val) => {
-  if (val && document.value) {
-    loadRevisions()
-  }
+  return true
 })
 
+// ============ Markdown 工具栏 ============
+const imageInput = ref<HTMLInputElement>()
+const uploading = ref(false)
+
+function replaceSelection(prefix: string, suffix = '', placeholder = '') {
+  const ta = editorRef.value
+  if (!ta) return
+  const start = ta.selectionStart
+  const end = ta.selectionEnd
+  const sel = editingContent.value.slice(start, end)
+  const target = sel || placeholder
+  const next = editingContent.value.slice(0, start) + prefix + target + suffix + editingContent.value.slice(end)
+  editingContent.value = next
+  void nextTick(() => {
+    ta.focus()
+    ta.setSelectionRange(start + prefix.length, start + prefix.length + target.length)
+  })
+  schedulePreview()
+}
+
+function blockPrefix(p: string) {
+  const ta = editorRef.value
+  if (!ta) return
+  const start = ta.selectionStart
+  const lineStart = editingContent.value.lastIndexOf('\n', start - 1) + 1
+  const next = editingContent.value.slice(0, lineStart) + p + editingContent.value.slice(lineStart)
+  editingContent.value = next
+  void nextTick(() => {
+    ta.focus()
+    ta.setSelectionRange(start + p.length, start + p.length)
+  })
+  schedulePreview()
+}
+
+function mdHeading() {
+  blockPrefix('## ')
+}
+function mdBold() {
+  replaceSelection('**', '**', '加粗文字')
+}
+function mdItalic() {
+  replaceSelection('*', '*', '斜体文字')
+}
+function mdCode() {
+  replaceSelection('`', '`', 'code')
+}
+function mdCodeBlock() {
+  blockPrefix('```\n')
+  editingContent.value += '\n```'
+  schedulePreview()
+}
+function mdLink() {
+  replaceSelection('[', '](https://)', '链接文字')
+}
+function mdList() {
+  blockPrefix('- ')
+}
+function mdQuote() {
+  blockPrefix('> ')
+}
+
+function resolveUploadPath(url: string) {
+  try {
+    return new URL(url, window.location.origin).pathname
+  } catch {
+    return url
+  }
+}
+
+async function handleImageUpload(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  uploading.value = true
+  try {
+    const resp = await uploadFile(file)
+    if (!resp?.id) {
+      ElMessage.error('上传失败')
+      return
+    }
+    // 图片同步登记为附件
+    try {
+      await createAttachment({
+        document_id: currentDocument.value!.id,
+        file_id: resp.id,
+        file_name: resp.file_name || file.name,
+        file_size: resp.file_size ?? file.size,
+        mime_type: resp.mime_type || file.type,
+        file_url: resp.url || ''
+      })
+      await loadAttachments()
+    } catch {
+      /* 附件登记失败不阻断插入 */
+    }
+    const path = resolveUploadPath(resp.url || '')
+    editingContent.value += `\n![${file.name || 'image'}](${path})\n`
+    schedulePreview()
+    ElMessage.success('图片已插入')
+  } catch {
+    /* 拦截器已提示 */
+  } finally {
+    uploading.value = false
+  }
+}
+
+// ============ 节点新建 / 重命名 / 删除 ============
+const createVisible = ref(false)
+const createForm = reactive({ type: 'document' as 'folder' | 'document', title: '' })
+const createParent = ref<WikiNode | null>(null)
+const submitting = ref(false)
+const renameVisible = ref(false)
+const renameTarget = ref<WikiNode | null>(null)
+const renameTitle = ref('')
+
+function openCreateNode(type: 'folder' | 'document', parent?: WikiNode) {
+  createForm.type = type
+  createForm.title = ''
+  createParent.value = parent ?? null
+  createVisible.value = true
+}
+
+async function submitCreateNode() {
+  if (!createForm.title.trim()) {
+    ElMessage.warning('请输入名称')
+    return
+  }
+  submitting.value = true
+  try {
+    const node = await createNode(spaceId, {
+      type: createForm.type,
+      title: createForm.title.trim(),
+      parent_id: createParent.value?.id || undefined
+    })
+    createVisible.value = false
+    ElMessage.success(createForm.type === 'document' ? '文档已创建' : '目录已创建')
+    await reloadTree()
+    // 定位并打开新建节点
+    const fresh = findNodeById(tree.value, node.id)
+    if (fresh) {
+      const path = collectAncestors(tree.value, node.id)
+      if (path) expandedKeys.value = path.slice(0, -1)
+      selectedNodeId.value = node.id
+      await selectNode(fresh)
+    }
+  } finally {
+    submitting.value = false
+  }
+}
+
+function openRename(node: WikiNode) {
+  renameTarget.value = node
+  renameTitle.value = node.title
+  renameVisible.value = true
+}
+
+async function submitRename() {
+  if (!renameTarget.value || !renameTitle.value.trim()) return
+  submitting.value = true
+  try {
+    await updateNode(spaceId, renameTarget.value.id, { title: renameTitle.value.trim() })
+    renameVisible.value = false
+    ElMessage.success('重命名成功')
+    await reloadTree()
+    if (renameTarget.value.id === selectedNodeId.value) {
+      currentNode.value = findNodeById(tree.value, selectedNodeId.value)
+      if (currentDocument.value) currentDocument.value.title = renameTitle.value.trim()
+    }
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function removeNode(node: WikiNode) {
+  try {
+    await ElMessageBox.confirm(
+      node.type === 'folder'
+        ? `目录 "${node.title}" 及其下所有内容将移入回收站，确定删除吗？`
+        : `文档 "${node.title}" 将移入回收站，确定删除吗？`,
+      '删除确认',
+      { type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  try {
+    await deleteNode(spaceId, node.id)
+    ElMessage.success('已移入回收站')
+    if (selectedNodeId.value === node.id) {
+      currentNode.value = null
+      currentDocument.value = null
+      editing.value = false
+      selectedNodeId.value = ''
+    }
+    await reloadTree()
+  } catch {
+    /* 拦截器已提示 */
+  }
+}
+
+async function handleDeleteSpace() {
+  if (!spaceInfo.value) return
+  try {
+    await ElMessageBox.confirm(
+      `知识库 "${spaceInfo.value.name}" 及其全部内容将移入回收站（保留 30 天），确定删除吗？`,
+      '删除空间',
+      { type: 'error' }
+    )
+  } catch {
+    return
+  }
+  try {
+    await deleteSpace(spaceId)
+    ElMessage.success('已删除并移入回收站')
+    router.replace('/wiki')
+  } catch {
+    /* 拦截器已提示 */
+  }
+}
+
+// ============ 成员 / 节点权限 ============
+const membersDialogVisible = ref(false)
+const nodePermVisible = ref(false)
+const permNodeId = ref('')
+const permNodeTitle = ref('')
+
+function openNodePermission(node: WikiNode) {
+  permNodeId.value = node.id
+  permNodeTitle.value = node.title
+  nodePermVisible.value = true
+}
+
+// ============ 附件 ============
+const activePanel = ref<'attachments' | 'history'>('attachments')
+const attachments = ref<WikiAttachment[]>([])
+
+async function loadAttachments() {
+  if (!currentDocument.value) return
+  attachments.value = (await listAttachments(currentDocument.value.id).catch(() => [])) ?? []
+}
+
+async function handleAttachmentAdd(file: File) {
+  if (!currentDocument.value || !file) return
+  uploading.value = true
+  try {
+    const resp = await uploadFile(file)
+    await createAttachment({
+      document_id: currentDocument.value.id,
+      file_id: resp.id,
+      file_name: resp.file_name || file.name,
+      file_size: resp.file_size ?? file.size,
+      mime_type: resp.mime_type || file.type,
+      file_url: resp.url || ''
+    })
+    ElMessage.success('附件已上传')
+    await loadAttachments()
+  } catch {
+    /* 拦截器已提示 */
+  } finally {
+    uploading.value = false
+  }
+}
+
+async function removeAttachment(a: WikiAttachment) {
+  try {
+    await ElMessageBox.confirm(`确定删除附件 "${a.file_name}" 吗？`, '提示', { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await deleteAttachment(a.id)
+    ElMessage.success('附件已删除')
+    await loadAttachments()
+  } catch {
+    /* 拦截器已提示 */
+  }
+}
+
+async function downloadAttachment(a: WikiAttachment) {
+  if (!a.file_id) {
+    // 无文件索引时退化为直接访问签名 URL
+    window.open(a.file_url, '_blank')
+    return
+  }
+  try {
+    const blob = await downloadFile(a.file_id)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = a.file_name
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    /* 拦截器已提示 */
+  }
+}
+
+// 图片附件在线预览
+const attachmentPreviewVisible = ref(false)
+const attachmentPreviewUrl = ref('')
+const currentAttachment = ref<WikiAttachment | null>(null)
+
+async function previewAttachment(a: WikiAttachment) {
+  const isImage = a.mime_type?.startsWith('image/')
+  if (isImage && a.file_id) {
+    try {
+      const blob = await downloadFile(a.file_id)
+      if (attachmentPreviewUrl.value) URL.revokeObjectURL(attachmentPreviewUrl.value)
+      attachmentPreviewUrl.value = URL.createObjectURL(blob)
+      currentAttachment.value = a
+      attachmentPreviewVisible.value = true
+      return
+    } catch {
+      /* 失败退化为下载 */
+    }
+  }
+  await downloadAttachment(a)
+}
+
+function formatSize(size?: number) {
+  if (!size && size !== 0) return ''
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
+// ============ 历史版本 ============
+const revisions = ref<DocumentRevision[]>([])
+const loadingRevisions = ref(false)
+const revisionDialogVisible = ref(false)
+const revisionPreviewHtml = ref('')
+
+async function loadRevisions() {
+  if (!currentDocument.value) return
+  loadingRevisions.value = true
+  try {
+    revisions.value = (await listRevisions(currentDocument.value.id)) ?? []
+  } catch {
+    revisions.value = []
+  } finally {
+    loadingRevisions.value = false
+  }
+}
+
+async function viewRevision(row: DocumentRevision) {
+  revisionPreviewHtml.value = row.content_html || '<p class="empty-tip">（此版本无正文内容）</p>'
+  revisionDialogVisible.value = true
+}
+
+async function restoreVersion(row: DocumentRevision) {
+  try {
+    await ElMessageBox.confirm(`确定将文档恢复到 v${row.version} 吗？将覆盖当前内容。`, '版本恢复', {
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+  try {
+    await restoreRevision(currentDocument.value!.id, row.version)
+    ElMessage.success('已恢复到该版本')
+    await loadDocument(currentDocument.value!.node_id)
+    await loadRevisions()
+  } catch {
+    /* 拦截器已提示 */
+  }
+}
+
+// ============ 初始化 ============
 onMounted(async () => {
-  await Promise.all([loadSpaceInfo(), loadTree()])
+  await loadSpace()
+  await reloadTree()
+  const initialNodeId = (route.query.node_id as string) || ''
+  if (initialNodeId) {
+    const node = findNodeById(tree.value, initialNodeId)
+    if (node) {
+      const path = collectAncestors(tree.value, initialNodeId)
+      if (path) expandedKeys.value = path.slice(0, -1)
+      await selectNode(node)
+    }
+  } else if (tree.value.length > 0) {
+    // 默认展开第一级
+    expandedKeys.value = tree.value.filter((n) => n.children?.length).map((n) => n.id)
+  }
 })
 </script>
 
 <style scoped>
-.wiki-space {
-  display: flex;
-  height: calc(100vh - 56px - 32px);
-  gap: 16px;
-}
-.sidebar {
-  width: 280px;
-  background: #fff;
-  border-radius: 8px;
-  padding: 16px;
+.space-page {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  height: calc(100vh - 96px);
+  gap: 10px;
 }
-.sidebar-header {
+.topbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 12px;
+  padding: 8px 4px;
+}
+.space-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 .space-title {
+  font-size: 17px;
   font-weight: 600;
-  font-size: 15px;
+}
+.space-desc {
+  color: #9ca3af;
+  font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 320px;
 }
-.sidebar-actions {
+.flex-1 {
+  flex: 1;
+}
+.workspace {
   display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.sidebar-actions .el-button {
   flex: 1;
+  min-height: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
 }
-.sidebar :deep(.el-tree) {
-  flex: 1;
-  overflow-y: auto;
-  border-right: none;
+.sidebar {
+  width: 260px;
+  border-right: 1px solid #eef0f3;
+  padding: 10px;
+  overflow: auto;
+  background: #fafbfc;
+}
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+}
+.sidebar-head .title {
+  font-weight: 600;
+}
+.tree-actions {
+  display: flex;
+  gap: 2px;
 }
 .tree-node {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex: 1;
-  font-size: 13px;
+  gap: 4px;
+  width: 100%;
+  overflow: hidden;
 }
-.node-title {
+.node-icon {
+  flex-shrink: 0;
+  color: #c0a04c;
+}
+.node-icon.active {
+  color: #409eff;
+}
+.node-label {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 13px;
 }
-.node-actions {
+.node-ops {
   display: none;
-  gap: 2px;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
 }
-.el-tree-node:hover .node-actions {
-  display: flex;
+.tree-node:hover .node-ops {
+  display: inline-flex;
 }
-.action-icon {
-  font-size: 14px;
-  cursor: pointer;
-  color: #9ca3af;
-}
-.action-icon:hover {
-  color: #3b82f6;
-}
-.action-icon.danger:hover {
-  color: #ef4444;
-}
-.content {
+.doc-area {
   flex: 1;
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  padding: 16px 20px;
+  overflow: hidden;
 }
-.content-header {
+.doc-toolbar,
+.editor-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
 }
-.content-header h2 {
-  margin: 0;
-  font-size: 18px;
+.doc-title {
+  font-size: 20px;
+  font-weight: 700;
 }
-.header-actions {
+.unsaved-tip {
+  margin-right: auto;
+}
+.editor-toolbar {
+  border-bottom: 1px solid #f0f1f3;
+  padding-bottom: 10px;
+}
+.mode-switch {
   display: flex;
-  gap: 8px;
 }
-.content-meta {
+.md-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.hidden-input {
+  display: none;
+}
+.dirty-dot {
+  color: #e6a23c;
+  font-size: 12px;
+}
+.editor-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 10px;
+}
+.md-input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  outline: none;
+}
+.md-input:focus {
+  border-color: #409eff;
+}
+.md-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+.doc-body {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid #f0f1f3;
+  border-radius: 8px;
+  padding: 12px 18px;
+  background: #fff;
+}
+.sub-panels {
+  border-top: 1px solid #f0f1f3;
+  margin-top: 12px;
+  padding-top: 10px;
+  max-height: 280px;
+  overflow: auto;
+}
+.panel-tabs {
   display: flex;
   gap: 16px;
-  font-size: 12px;
-  color: #9ca3af;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 8px;
 }
-.editor-area {
-  flex: 1;
-}
-.doc-editor :deep(.el-textarea__inner) {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 14px;
-  line-height: 1.6;
-  min-height: 400px !important;
-}
-.empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: #9ca3af;
-}
-.empty p {
-  margin: 8px 0 0;
-}
-.empty .hint {
+.panel-tabs .tab {
+  cursor: pointer;
+  color: #6b7280;
   font-size: 13px;
+  padding-bottom: 4px;
+}
+.panel-tabs .tab.active {
+  color: #409eff;
+  font-weight: 600;
+  border-bottom: 2px solid #409eff;
+}
+.panel-body {
+  min-height: 60px;
+}
+.attach-ops {
+  margin-bottom: 8px;
+}
+.attach-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+}
+.attach-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #f0f1f3;
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: #fafbfc;
+}
+.attach-icon {
+  color: #909399;
+}
+.attach-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.attach-size {
+  color: #9ca3af;
+  font-size: 12px;
+}
+.preview-img-wrap {
+  display: flex;
+  justify-content: center;
+}
+.preview-img-wrap img {
+  max-width: 100%;
+  max-height: 70vh;
+}
+</style>
+
+<style>
+/* 文章/预览通用排版（非 scoped，供 v-html 使用） */
+.article {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #1f2937;
+  word-break: break-word;
+}
+.article h1,
+.article h2,
+.article h3,
+.article h4 {
+  margin: 1em 0 0.5em;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.article h1 {
+  font-size: 22px;
+}
+.article h2 {
+  font-size: 19px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #eef0f3;
+}
+.article h3 {
+  font-size: 16px;
+}
+.article p {
+  margin: 0.6em 0;
+}
+.article a {
+  color: #409eff;
+  text-decoration: none;
+}
+.article a:hover {
+  text-decoration: underline;
+}
+.article blockquote {
+  margin: 0.8em 0;
+  padding: 4px 14px;
+  color: #6b7280;
+  border-left: 4px solid #e5e7eb;
+  background: #f9fafb;
+}
+.article code {
+  background: #f3f4f6;
+  color: #d97706;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: Consolas, 'Courier New', monospace;
+}
+.article pre {
+  background: #1f2937;
+  color: #e5e7eb;
+  padding: 12px 14px;
+  border-radius: 8px;
+  overflow: auto;
+}
+.article pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+.article img {
+  max-width: 100%;
+  border-radius: 6px;
+}
+.article table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.article th,
+.article td {
+  border: 1px solid #e5e7eb;
+  padding: 6px 10px;
+}
+.article ul,
+.article ol {
+  padding-left: 22px;
+}
+.article li {
+  margin: 4px 0;
+}
+.article hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 16px 0;
+}
+.article .empty-tip {
+  color: #9ca3af;
 }
 </style>

@@ -30,8 +30,8 @@ services:
       - METEORX_REDIS_PASSWORD=${REDIS_PASSWORD:-}
       - METEORX_REDIS_DB=0
       
-      # JWT
-      - METEORX_JWT_SECRET=${JWT_SECRET:-change-this-secret-key-in-production}
+      # JWT —— 生产必须显式提供强随机密钥（>=32字节），未配置将拒绝启动
+      - METEORX_JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set to a strong random value (>=32 chars) in production}
       - METEORX_JWT_EXPIRATION=24h
       - METEORX_JWT_ISSUER=meteorx-auth
       

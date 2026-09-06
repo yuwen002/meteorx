@@ -1,6 +1,10 @@
 import request from '../request'
 import type { PaginatedResult } from '@/types/pagination'
 
+// ============================================================
+// 类型定义（与后端 dto 对齐）
+// ============================================================
+
 export interface WikiSpace {
   id: string
   tenant_id: string
@@ -78,6 +82,51 @@ export interface WikiStats {
   total_views: number
 }
 
+export interface WikiTrashItem {
+  id: string
+  item_type: string
+  item_id: string
+  space_id: string
+  title: string
+  deleted_by: string
+  deleted_at: string
+  expires_at: string
+}
+
+export interface WikiSearchItem {
+  id: string
+  type: string
+  title: string
+  space_id: string
+  node_id: string
+  snippet: string
+  highlight: string
+  updated_at: string
+  score: number
+}
+
+export interface WikiAttachment {
+  id: string
+  document_id: string
+  file_id?: string
+  file_name: string
+  file_size: number
+  mime_type: string
+  file_url: string
+  uploaded_by: string
+  created_at: string
+}
+
+export interface NodePermission {
+  id: string
+  node_id: string
+  user_id: string
+  user_name?: string
+  permission: string
+  created_at: string
+  updated_at: string
+}
+
 export interface CreateSpaceReq {
   name: string
   description?: string
@@ -127,11 +176,15 @@ export interface AddMemberReq {
   role: 'owner' | 'admin' | 'editor' | 'viewer'
 }
 
+// ============================================================
+// 空间
+// ============================================================
+
 export function createSpace(req: CreateSpaceReq) {
   return request.post<any, WikiSpace>('/wiki/spaces', req)
 }
 
-export function listSpaces(params?: { page?: number; page_size?: number }) {
+export function listSpaces(params?: { page?: number; page_size?: number; keyword?: string }) {
   return request.get<any, PaginatedResult<WikiSpace>>('/wiki/spaces', { params })
 }
 
@@ -147,6 +200,10 @@ export function deleteSpace(id: string) {
   return request.delete<any, void>(`/wiki/spaces/${id}`)
 }
 
+// ============================================================
+// 节点（节点 CRUD 均挂在 /spaces/{spaceId}/nodes 之下）
+// ============================================================
+
 export function getNodeTree(spaceId: string) {
   return request.get<any, WikiNodeTree[]>(`/wiki/spaces/${spaceId}/nodes/tree`)
 }
@@ -155,17 +212,21 @@ export function createNode(spaceId: string, req: CreateNodeReq) {
   return request.post<any, WikiNode>(`/wiki/spaces/${spaceId}/nodes`, req)
 }
 
-export function getNode(id: string) {
-  return request.get<any, WikiNode>(`/wiki/nodes/${id}`)
+export function getNode(spaceId: string, id: string) {
+  return request.get<any, WikiNode>(`/wiki/spaces/${spaceId}/nodes/${id}`)
 }
 
-export function updateNode(id: string, req: UpdateNodeReq) {
-  return request.put<any, WikiNode>(`/wiki/nodes/${id}`, req)
+export function updateNode(spaceId: string, id: string, req: UpdateNodeReq) {
+  return request.put<any, WikiNode>(`/wiki/spaces/${spaceId}/nodes/${id}`, req)
 }
 
-export function deleteNode(id: string) {
-  return request.delete<any, void>(`/wiki/nodes/${id}`)
+export function deleteNode(spaceId: string, id: string) {
+  return request.delete<any, void>(`/wiki/spaces/${spaceId}/nodes/${id}`)
 }
+
+// ============================================================
+// 文档 & Markdown 预览
+// ============================================================
 
 export function createDocument(nodeId: string, req: CreateDocumentReq) {
   return request.post<any, WikiDocument>(`/wiki/documents/nodes/${nodeId}`, req)
@@ -183,6 +244,14 @@ export function deleteDocument(id: string) {
   return request.delete<any, void>(`/wiki/documents/${id}`)
 }
 
+export function previewMarkdown(content: string, format = 'markdown') {
+  return request.post<any, { content_html: string }>('/wiki/documents/preview', { content, format })
+}
+
+// ============================================================
+// 历史版本
+// ============================================================
+
 export function listRevisions(documentId: string) {
   return request.get<any, DocumentRevision[]>(`/wiki/documents/${documentId}/revisions`)
 }
@@ -195,6 +264,10 @@ export function restoreRevision(documentId: string, version: number) {
   return request.post<any, void>(`/wiki/documents/${documentId}/revisions/${version}/restore`)
 }
 
+// ============================================================
+// 成员管理
+// ============================================================
+
 export function listMembers(spaceId: string) {
   return request.get<any, WikiSpaceMember[]>(`/wiki/spaces/${spaceId}/members`)
 }
@@ -205,6 +278,79 @@ export function addMember(spaceId: string, req: AddMemberReq) {
 
 export function removeMember(spaceId: string, userId: string) {
   return request.delete<any, void>(`/wiki/spaces/${spaceId}/members/${userId}`)
+}
+
+// ============================================================
+// 节点权限
+// ============================================================
+
+export function listNodePermissions(spaceId: string, nodeId: string) {
+  return request.get<any, NodePermission[]>(`/wiki/spaces/${spaceId}/nodes/${nodeId}/permissions`)
+}
+
+export function setNodePermission(spaceId: string, nodeId: string, data: { user_id: string; permission: string }) {
+  return request.post<any, NodePermission>(`/wiki/spaces/${spaceId}/nodes/${nodeId}/permissions`, data)
+}
+
+export function removeNodePermission(spaceId: string, nodeId: string, userId: string, permission: string) {
+  return request.delete<any, void>(
+    `/wiki/spaces/${spaceId}/nodes/${nodeId}/permissions/${userId}/${permission}`
+  )
+}
+
+// ============================================================
+// 回收站
+// ============================================================
+
+export function listTrash(params?: { page?: number; page_size?: number; space_id?: string; item_type?: string }) {
+  return request.get<any, { items: WikiTrashItem[]; total: number; page: number; page_size: number }>(
+    '/wiki/trash',
+    { params }
+  )
+}
+
+export function restoreTrashItem(id: string) {
+  return request.post<any, void>(`/wiki/trash/${id}/restore`)
+}
+
+export function permanentDeleteTrashItem(id: string) {
+  return request.delete<any, void>(`/wiki/trash/${id}`)
+}
+
+// ============================================================
+// 全局搜索
+// ============================================================
+
+export function searchWiki(params: { q: string; space_id?: string; page?: number; page_size?: number }) {
+  return request.get<any, { results: WikiSearchItem[]; total: number; page: number; page_size: number }>(
+    '/wiki/search',
+    { params }
+  )
+}
+
+// ============================================================
+// 附件
+// ============================================================
+
+export interface CreateAttachmentReq {
+  document_id: string
+  file_id?: string
+  file_name: string
+  file_size?: number
+  mime_type?: string
+  file_url: string
+}
+
+export function listAttachments(documentId: string) {
+  return request.get<any, WikiAttachment[]>(`/wiki/documents/${documentId}/attachments`)
+}
+
+export function createAttachment(data: CreateAttachmentReq) {
+  return request.post<any, WikiAttachment>('/wiki/documents/attachments', data)
+}
+
+export function deleteAttachment(id: string) {
+  return request.delete<any, void>(`/wiki/documents/attachments/${id}`)
 }
 
 export function getWikiStats() {

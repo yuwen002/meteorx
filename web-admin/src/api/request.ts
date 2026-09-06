@@ -34,6 +34,10 @@ service.interceptors.response.use(
       }
       return Promise.reject(new Error(res.message || 'Error'))
     }
+    // 兼容分页响应 { code, data, pagination }：合并保留，由 toPageResult 统一归一化
+    if (res && typeof res === 'object' && 'pagination' in res && res.pagination) {
+      return { data: res.data, pagination: res.pagination }
+    }
     // 统一返回 data 字段内容，避免每个页面都写 res.data.xxx
     return res.data ?? res
   },

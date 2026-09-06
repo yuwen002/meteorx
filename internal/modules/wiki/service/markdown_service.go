@@ -26,8 +26,8 @@ func (s *markdownService) Render(markdown string) string {
 func (s *markdownService) SanitizeHTML(inputHTML string) string {
 	sanitized := inputHTML
 
-	// Remove script tags
-	scriptRegex := regexp.MustCompile(`(?i)<script[^>]*>.*?</script>`)
+	// Remove script tags (content included, may span multiple lines)
+	scriptRegex := regexp.MustCompile(`(?is)<script[^>]*>.*?</script>`)
 	sanitized = scriptRegex.ReplaceAllString(sanitized, "")
 
 	// Remove event handlers
@@ -38,13 +38,11 @@ func (s *markdownService) SanitizeHTML(inputHTML string) string {
 	jsRegex := regexp.MustCompile(`(?i)javascript\s*:`)
 	sanitized = jsRegex.ReplaceAllString(sanitized, "")
 
-	// Remove iframe, object, embed tags
-	dangerousTagsRegex := regexp.MustCompile(`(?i)<(iframe|object|embed|form|input|textarea|button|link|style|base|meta|applet|frame|frameset|ilayer|layer|event|select|isindex)[^>]*>.*?</\1>`)
+	// Remove dangerous tags. RE2 does not support backreferences, so pair-content
+	// removal is impossible in a single regexp; strip opening/closing/self-closing
+	// tags instead (leftover text is inert).
+	dangerousTagsRegex := regexp.MustCompile(`(?i)</?(?:iframe|object|embed|form|input|textarea|button|link|style|base|meta|applet|frame|frameset|ilayer|layer|event|select|isindex)(?:\s[^>]*)?/?>`)
 	sanitized = dangerousTagsRegex.ReplaceAllString(sanitized, "")
-
-	// Remove any remaining dangerous tags
-	singleTagRegex := regexp.MustCompile(`(?i)<(iframe|object|embed|form|input|textarea|button|link|style|base|meta|applet|frame|frameset|ilayer|layer|event|select|isindex)[^>]*/?>|<(iframe|object|embed|form|input|textarea|button|link|style|base|meta|applet|frame|frameset|ilayer|layer|event|select|isindex)[^>]*>`)
-	sanitized = singleTagRegex.ReplaceAllString(sanitized, "")
 
 	// Remove data: protocol URLs
 	dataURLRegex := regexp.MustCompile(`(?i)data\s*:`)

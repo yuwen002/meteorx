@@ -10,6 +10,7 @@ import (
 	"meteorx/pkg/pagination"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -68,10 +69,12 @@ func (h *WikiHandler) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
 	pg := pagination.NewPagination(page, pageSize)
 
+	keyword := strings.TrimSpace(r.URL.Query().Get("keyword"))
+
 	tenantID := contextx.GetTenantID(r.Context())
 	userID := contextx.GetUserID(r.Context())
 
-	spaces, total, err := h.svc.ListSpaces(r.Context(), tenantID, userID, pg.Page, pg.PageSize)
+	spaces, total, err := h.svc.ListSpaces(r.Context(), tenantID, userID, keyword, pg.Page, pg.PageSize)
 	if err != nil {
 		response.FailError(w, err)
 		return
@@ -365,6 +368,21 @@ func (h *WikiHandler) RestoreRevision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.Success(w, doc)
+}
+
+// PreviewMarkdown 将 Markdown 渲染为安全 HTML（编辑器实时预览，图片地址自动重签）
+// POST /api/v1/wiki/documents/preview
+func (h *WikiHandler) PreviewMarkdown(w http.ResponseWriter, r *http.Request) {
+	var req dto.MarkdownPreviewReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+	html, err := h.svc.RenderPreview(r.Context(), req.Content, req.Format)
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, map[string]string{"content_html": html})
 }
 
 // AddMember 添加 Space 成员

@@ -37,7 +37,7 @@ import (
 
 func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 	r := chi.NewRouter()
-	SetupMiddleware(r)
+	SetupMiddleware(r, BuildAllowedOrigins(cfg.Client))
 
 	tokenHelper := jwt.NewTokenHelper(cfg.JWT)
 
@@ -100,9 +100,8 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 		json.NewEncoder(w).Encode(health)
 	})
 
-	// 静态文件服务 - 提供上传文件的访问
-	fileServer := http.FileServer(http.Dir(cfg.File.UploadPath))
-	r.Handle("/uploads/*", http.StripPrefix("/uploads", fileServer))
+	// 上传文件静态服务：带短时效 HMAC 签名校验，杜绝目录列举与未授权访问
+	r.Handle("/uploads/*", middleware.SignedUploadsHandler(cfg.File.UploadPath, cfg.JWT.Secret))
 
 	r.Route("/api/v1", func(r chi.Router) {
 
@@ -123,7 +122,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 【第一层防线】挂载认证中间件，解析 Token 并注入 UserID, TenantID, Role
 			// 同时检查 token 是否在黑名单中（已登出的 token）
 			blacklistChecker := &middleware.RedisBlacklistChecker{Redis: rdb}
-			r.Use(middleware.Auth(tokenHelper, blacklistChecker))
+			r.Use(middleware.Auth(tokenHelper, blacklistChecker, cfg.Server.Mode))
 
 			// 审计日志中间件：自动记录所有请求（挂载在认证之后，确保能获取用户信息）
 			repo := auditRepo.NewAuditLogRepository(db)
@@ -155,7 +154,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			file.RegisterRoutes(r, db, cfg)
 
 			// 4.4 Wiki 知识库接口
-			wiki.InitModule(r, db, txManager)
+			wiki.InitModule(r, db, txManager, cfg)
 
 			// 4.5 租户端公告查看接口
 			notification.InitTenantModule(r, db)

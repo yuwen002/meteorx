@@ -8,7 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"meteorx/internal/common/signedurl"
 	"meteorx/pkg/idgen"
 )
 
@@ -16,13 +18,16 @@ import (
 type LocalStorage struct {
 	basePath string
 	baseURL  string
+	// signKey 为空时 URL 不带签名（保持历史公开行为，仅建议内网/调试场景）
+	signKey string
 }
 
-// NewLocalStorage 创建本地存储实例
-func NewLocalStorage(basePath, baseURL string) *LocalStorage {
+// NewLocalStorage 创建本地存储实例；signKey 用于对访问 URL 做 HMAC 签名
+func NewLocalStorage(basePath, baseURL, signKey string) *LocalStorage {
 	return &LocalStorage{
 		basePath: basePath,
 		baseURL:  baseURL,
+		signKey:  signKey,
 	}
 }
 
@@ -89,14 +94,24 @@ func (s *LocalStorage) Exists(ctx context.Context, path string) (bool, error) {
 	return false, err
 }
 
-// GetURL 获取文件访问URL
+// GetURL 获取文件访问URL；配置了签名密钥时返回带短时效签名的 URL
 func (s *LocalStorage) GetURL(path string) string {
-	return strings.TrimSuffix(s.baseURL, "/") + "/" + path
+	if s.signKey == "" {
+		return strings.TrimSuffix(s.baseURL, "/") + "/" + path
+	}
+	return signedurl.Build(s.baseURL, path, s.signKey, signedurl.Expires(signedurl.DefaultTTL))
 }
 
-// PresignURL 本地存储没有签名机制，直接返回公开访问 URL
-func (s *LocalStorage) PresignURL(_ context.Context, path string, _ int64) (string, error) {
-	return s.GetURL(path), nil
+// PresignURL 生成带签名的临时访问 URL（expiration 为有效期秒数）
+func (s *LocalStorage) PresignURL(_ context.Context, path string, expiration int64) (string, error) {
+	if s.signKey == "" {
+		return s.GetURL(path), nil
+	}
+	if expiration <= 0 {
+		expiration = int64(signedurl.DefaultTTL.Seconds())
+	}
+	expires := time.Now().Add(time.Duration(expiration) * time.Second).Unix()
+	return signedurl.Build(s.baseURL, path, s.signKey, expires), nil
 }
 
 // Type 返回存储类型

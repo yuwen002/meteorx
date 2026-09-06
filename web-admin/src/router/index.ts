@@ -56,6 +56,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '知识空间', icon: 'Reading', permission: 'wiki:list' }
       },
       {
+        path: 'wiki/search',
+        name: 'WikiSearch',
+        component: () => import('@/views/wiki/search.vue'),
+        meta: { title: 'Wiki 搜索', icon: 'Search', permission: 'wiki:list' }
+      },
+      {
+        path: 'wiki/trash',
+        name: 'WikiTrash',
+        component: () => import('@/views/wiki/trash.vue'),
+        meta: { title: 'Wiki 回收站', icon: 'Delete', permission: 'wiki:list' }
+      },
+      {
         path: 'announcement',
         name: 'Announcement',
         component: () => import('@/views/announcement/index.vue'),

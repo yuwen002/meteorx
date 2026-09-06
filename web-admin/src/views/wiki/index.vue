@@ -7,13 +7,19 @@
           placeholder="搜索空间名称"
           clearable
           style="width: 240px"
-          @keyup.enter="loadList"
+          @keyup.enter="search"
         />
-        <el-button type="primary" @click="loadList">
+        <el-button type="primary" @click="search">
           <el-icon><Search /></el-icon>查询
         </el-button>
         <el-button @click="resetSearch">重置</el-button>
         <div class="flex-1"></div>
+        <el-button @click="goSearchPage">
+          <el-icon><Search /></el-icon>Wiki 搜索
+        </el-button>
+        <el-button @click="goTrashPage">
+          <el-icon><Delete /></el-icon>回收站
+        </el-button>
         <el-button type="success" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>新建空间
         </el-button>
@@ -21,16 +27,12 @@
 
       <el-row v-loading="loading" :gutter="16">
         <el-col v-for="item in list" :key="item.id" :span="8" style="margin-bottom: 16px">
-          <el-card shadow="hover" class="space-card" @click="goDetail(item.id)">
+          <el-card shadow="hover" class="space-card" @click="goDetail(item)">
             <div class="space-header">
               <el-icon :size="28"><Reading /></el-icon>
               <span class="space-name">{{ item.name }}</span>
-              <el-tag
-                :type="item.visibility === 1 ? 'success' : 'info'"
-                size="small"
-                style="margin-left: auto"
-              >
-                {{ item.visibility === 1 ? '公开' : '私有' }}
+              <el-tag :type="visibilityTagType(item.visibility)" size="small" style="margin-left: auto">
+                {{ visibilityText(item.visibility) }}
               </el-tag>
             </div>
             <div v-if="item.description" class="space-desc">{{ item.description }}</div>
@@ -40,7 +42,7 @@
               <span>节点 {{ item.node_count || 0 }}</span>
               <span>{{ item.updated_at?.substring(0, 10) }}</span>
             </div>
-            <div class="space-actions" @click.stop>
+            <div v-if="canManage(item)" class="space-actions" @click.stop>
               <el-button link type="primary" @click="openEditDialog(item)">编辑</el-button>
               <el-button link type="danger" @click="handleDelete(item)">删除</el-button>
             </div>
@@ -75,8 +77,9 @@
         </el-form-item>
         <el-form-item label="可见性">
           <el-radio-group v-model="form.visibility">
-            <el-radio :label="1">公开</el-radio>
-            <el-radio :label="0">私有</el-radio>
+            <el-radio :label="1">私有（仅成员可见）</el-radio>
+            <el-radio :label="2">租户内可见</el-radio>
+            <el-radio :label="3">公开（平台可见）</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
@@ -90,10 +93,11 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Search, Plus, Reading } from '@element-plus/icons-vue'
+import { Search, Plus, Reading, Delete } from '@element-plus/icons-vue'
 import {
   listSpaces,
   createSpace,
@@ -104,6 +108,8 @@ import {
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
 
+const router = useRouter()
+
 const {
   list,
   total,
@@ -111,11 +117,18 @@ const {
   pageSize,
   loading,
   query,
+  search,
   reset,
   reload
 } = useTableList<WikiSpace, { keyword: string }>({
   fetchList: async (params) =>
-    toPageResult(await listSpaces({ page: params.page, page_size: params.page_size })),
+    toPageResult(
+      await listSpaces({
+        page: params.page,
+        page_size: params.page_size,
+        keyword: (params.keyword as string) || undefined
+      })
+    ),
   initialQuery: { keyword: '' },
   defaultPageSize: 12
 })
@@ -134,8 +147,31 @@ function resetSearch() {
   reset()
 }
 
-function goDetail(id: string) {
-  window.location.hash = `/wiki/spaces/${id}`
+// 可见性：1=私有  2=租户内可见  3=公开
+function visibilityText(v: number) {
+  if (v === 3) return '公开'
+  if (v === 2) return '租户可见'
+  return '私有'
+}
+function visibilityTagType(v: number): 'success' | 'warning' | 'info' {
+  if (v === 3) return 'success'
+  if (v === 2) return 'warning'
+  return 'info'
+}
+
+// 仅 owner/admin 可对空间做管理与删除
+function canManage(item: WikiSpace) {
+  return item.my_role === 'owner' || item.my_role === 'admin'
+}
+
+function goDetail(item: WikiSpace) {
+  router.push(`/wiki/spaces/${item.id}`)
+}
+function goSearchPage() {
+  router.push('/wiki/search')
+}
+function goTrashPage() {
+  router.push('/wiki/trash')
 }
 
 function openCreateDialog() {
@@ -150,7 +186,7 @@ function openEditDialog(item: WikiSpace) {
   editingId.value = item.id
   form.name = item.name
   form.description = item.description || ''
-  form.visibility = item.visibility
+  form.visibility = item.visibility || 1
   dialogVisible.value = true
 }
 
@@ -187,7 +223,6 @@ function handleDelete(item: WikiSpace) {
     })
     .catch(() => {})
 }
-
 </script>
 
 <style scoped>
