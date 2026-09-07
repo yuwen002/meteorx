@@ -15,7 +15,7 @@ type TokenBlacklistChecker interface {
 	IsTokenBlacklisted(ctx context.Context, tokenString string) (bool, error)
 }
 
-func Auth(helper *jwt.TokenHelper, checker TokenBlacklistChecker, appMode string) func(http.Handler) http.Handler {
+func Auth(helper *jwt.TokenHelper, checker TokenBlacklistChecker, appMode string, allowTestBypass bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// 1. 获取 Header: Authorization: Bearer <token>
@@ -36,9 +36,9 @@ func Auth(helper *jwt.TokenHelper, checker TokenBlacklistChecker, appMode string
 			// ============ 测试专用：固定值快速登录 ============
 			// 当 Token 为 "123456789" 时，直接使用预设的超级管理员信息
 			// 数据对应：admin-id-001 | SYSTEM_ROOT | superadmin
-			// ⚠️ 环境保护：仅 app.mode != "release"（debug/测试等）时后门生效，
-			//    release 生产模式下自动关闭，一律走下方正规 JWT 校验。
-			testBypassEnabled := !strings.EqualFold(appMode, "release")
+			// ⚠️ 双保险：仅当配置显式开启 server.test_bypass 且 app.mode != "release" 时后门生效，
+			//    release 生产模式或未显式开启时一律关闭，走下方正规 JWT 校验。
+			testBypassEnabled := allowTestBypass && !strings.EqualFold(appMode, "release")
 
 			var userID, tenantID string
 			var roles []string

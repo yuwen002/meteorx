@@ -2,22 +2,28 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
 	"meteorx/internal/modules/tenant/dto"
-	"meteorx/internal/modules/tenant/service"
 )
+
+// TenantSettingsService 租户设置服务接口（便于测试注入桩）
+type TenantSettingsService interface {
+	GetSettings(ctx context.Context, tenantID string) (*dto.TenantSettingsResp, error)
+	UpdateSettings(ctx context.Context, tenantID string, req dto.UpdateTenantSettingsReq) (*dto.TenantSettingsResp, error)
+}
 
 // TenantSettingsHandler 租户设置处理器
 type TenantSettingsHandler struct {
-	svc *service.TenantSettingsService
+	svc TenantSettingsService
 }
 
 // NewTenantSettingsHandler 创建租户设置处理器
-func NewTenantSettingsHandler(svc *service.TenantSettingsService) *TenantSettingsHandler {
+func NewTenantSettingsHandler(svc TenantSettingsService) *TenantSettingsHandler {
 	return &TenantSettingsHandler{svc: svc}
 }
 

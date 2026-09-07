@@ -142,7 +142,8 @@ func (s *wikiService) UpdateDocument(ctx context.Context, id string, userID stri
 	return resp, nil
 }
 
-// DeleteDocument 删除文档，先创建回收站记录再级联删除附件
+// DeleteDocument 删除文档（软删，先创建回收站记录）。
+// 附件记录随文档保留：物理清理由回收站“永久删除”流程统一处理，确保恢复后附件完整。
 func (s *wikiService) DeleteDocument(ctx context.Context, id string) error {
 	userID := contextx.GetUserID(ctx)
 	if err := s.CheckDocumentPermission(ctx, id, userID, "delete"); err != nil {
@@ -163,10 +164,9 @@ func (s *wikiService) DeleteDocument(ctx context.Context, id string) error {
 		return err
 	}
 
+	// 仅软删文档本身。附件记录必须保留：文档在回收站期间通过文档权限检查已不可见，
+	// 从回收站恢复后附件才能原样可用。物理清理统一由回收站“永久删除”的 Purge 流程处理。
 	return s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
-		if err := s.repo.DeleteAttachmentsByDocument(txCtx, id); err != nil {
-			return err
-		}
 		return s.repo.DeleteDocument(txCtx, id)
 	})
 }

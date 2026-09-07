@@ -2,11 +2,11 @@
 package handler
 
 import (
+	"context"
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
 	"meteorx/internal/modules/notification/dto"
-	"meteorx/internal/modules/notification/service"
 	"meteorx/pkg/pagination"
 	"net/http"
 	"strconv"
@@ -14,13 +14,24 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// AnnouncementService 公告服务接口（handler 依赖的最小业务面，便于测试注入桩）
+type AnnouncementService interface {
+	Create(ctx context.Context, publisherID string, req dto.CreateAnnouncementReq) (*dto.AnnouncementResp, error)
+	Update(ctx context.Context, id string, req dto.UpdateAnnouncementReq) (*dto.AnnouncementResp, error)
+	UpdateStatus(ctx context.Context, id string, status int) (*dto.AnnouncementResp, error)
+	GetByID(ctx context.Context, id string) (*dto.AnnouncementResp, error)
+	Delete(ctx context.Context, id string) error
+	List(ctx context.Context, query *dto.ListAnnouncementsQuery) (*dto.AnnouncementListResp, error)
+	ListForTenant(ctx context.Context, tenantID string, page, pageSize int) (*dto.AnnouncementListResp, error)
+}
+
 // AnnouncementHandler 公告处理器
 type AnnouncementHandler struct {
-	svc *service.AnnouncementService
+	svc AnnouncementService
 }
 
 // NewAnnouncementHandler 创建公告处理器
-func NewAnnouncementHandler(svc *service.AnnouncementService) *AnnouncementHandler {
+func NewAnnouncementHandler(svc AnnouncementService) *AnnouncementHandler {
 	return &AnnouncementHandler{svc: svc}
 }
 

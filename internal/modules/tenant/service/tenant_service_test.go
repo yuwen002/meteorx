@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -432,4 +433,89 @@ func (s *TenantServiceTestSuite) TestExecuteDueCancellations() {
 	s.Equal(tenantModel.CancelRequestStatusCompleted, s.repo.cancelRequests["cr-001"].Status)
 	// 未到期的不应被执行
 	s.Equal(tenantModel.CancelRequestStatusApproved, s.repo.cancelRequests["cr-002"].Status)
+}
+
+func (s *TenantServiceTestSuite) TestExecuteDueCancellations_CancelsActiveSubscription() {
+	s.seedTenant("t-001", "Acme", "acme")
+	effective := time.Now().Add(-time.Hour)
+	s.repo.seedCancelRequest(&tenantModel.CancelRequest{
+		ID:          "cr-001",
+		TenantID:    "t-001",
+		TenantName:  "Acme",
+		Status:      tenantModel.CancelRequestStatusApproved,
+		EffectiveAt: &effective,
+		AppliedAt:   time.Now(),
+	})
+	s.subRepo.active["t-001"] = &planModel.TenantSubscription{
+		ID: "sub-001", TenantID: "t-001", Status: planModel.SubscriptionActive,
+	}
+
+	executed, err := s.svc.ExecuteDueCancellations(s.ctx)
+
+	s.NoError(err)
+	s.Equal(1, executed)
+	s.Equal(planModel.SubscriptionCancelled, s.subRepo.updated["sub-001"])
+	s.Equal(tenantModel.CancelRequestStatusCompleted, s.repo.cancelRequests["cr-001"].Status)
+}
+
+// TestExecuteCancellation_CancelErrorKeepsRequestUncompleted 订阅取消失败必须报错，
+// 且申请不标记完成（下轮任务重试），避免“租户没了订阅仍生效”的静默不一致
+func (s *TenantServiceTestSuite) TestExecuteCancellation_CancelErrorKeepsRequestUncompleted() {
+	s.seedTenant("t-001", "Acme", "acme")
+	s.repo.seedCancelRequest(&tenantModel.CancelRequest{
+		ID:         "cr-001",
+		TenantID:   "t-001",
+		TenantName: "Acme",
+		Status:     tenantModel.CancelRequestStatusApproved,
+		AppliedAt:  time.Now(),
+	})
+	s.subRepo.active["t-001"] = &planModel.TenantSubscription{
+		ID: "sub-001", TenantID: "t-001", Status: planModel.SubscriptionActive,
+	}
+	s.subRepo.updateErr = errors.New("db down")
+
+	err := s.svc.ExecuteCancellation(s.ctx, s.repo.cancelRequests["cr-001"])
+
+	s.Error(err)
+	s.Contains(err.Error(), "取消租户生效订阅失败")
+	// 租户已软删（幂等可重试），但申请必须保持“已通过”，不得提前标记完成
+	s.NotNil(s.repo.tenants["t-001"].DeletedAt)
+	s.Equal(tenantModel.CancelRequestStatusApproved, s.repo.cancelRequests["cr-001"].Status)
+	s.Empty(s.subRepo.updated)
+}
+
+// TestExecuteCancellation_QueryErrorReturns 订阅查询遇到真实数据库错误同样返回，不静默
+func (s *TenantServiceTestSuite) TestExecuteCancellation_QueryErrorReturns() {
+	s.seedTenant("t-001", "Acme", "acme")
+	s.repo.seedCancelRequest(&tenantModel.CancelRequest{
+		ID:         "cr-001",
+		TenantID:   "t-001",
+		TenantName: "Acme",
+		Status:     tenantModel.CancelRequestStatusApproved,
+		AppliedAt:  time.Now(),
+	})
+	s.subRepo.getErr = errors.New("db down")
+
+	err := s.svc.ExecuteCancellation(s.ctx, s.repo.cancelRequests["cr-001"])
+
+	s.Error(err)
+	s.Contains(err.Error(), "查询租户生效订阅失败")
+	s.Equal(tenantModel.CancelRequestStatusApproved, s.repo.cancelRequests["cr-001"].Status)
+}
+
+// TestAdminHardDelete_CancelErrorReported 后台硬删除后订阅取消失败不再被吞掉
+func (s *TenantServiceTestSuite) TestAdminHardDelete_CancelErrorReported() {
+	s.seedTenant("t-001", "Acme", "acme")
+	s.subRepo.active["t-001"] = &planModel.TenantSubscription{
+		ID: "sub-001", TenantID: "t-001", Status: planModel.SubscriptionActive,
+	}
+	s.subRepo.updateErr = errors.New("db down")
+
+	err := s.svc.AdminHardDelete(s.ctx, "t-001")
+
+	s.Error(err)
+	s.Contains(err.Error(), "取消其生效订阅失败")
+	// 租户确已物理删除
+	_, ok := s.repo.tenants["t-001"]
+	s.False(ok)
 }

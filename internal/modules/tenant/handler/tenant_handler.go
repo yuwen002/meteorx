@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -14,18 +15,44 @@ import (
 	"meteorx/internal/common/validator"
 	planDto "meteorx/internal/modules/plan/dto"
 	"meteorx/internal/modules/tenant/dto"
+	"meteorx/internal/modules/tenant/model"
 	"meteorx/internal/modules/tenant/service"
 	"meteorx/pkg/logger"
 	"meteorx/pkg/pagination"
 )
 
+// TenantService 租户服务接口（handler 依赖的最小业务面，便于测试注入桩）
+type TenantService interface {
+	Register(ctx context.Context, req dto.RegisterTenantReq) (*model.Tenant, error)
+	AdminCreate(ctx context.Context, req dto.AdminCreateTenantReq) (*model.Tenant, error)
+	UpdateTenantStatus(ctx context.Context, id string, status int) error
+	QueryTenantList(ctx context.Context, page, pageSize int, name string, status *int) ([]*model.Tenant, int64, error)
+	GetTenantPlanBriefs(ctx context.Context, tenantIDs []string) (map[string]*planDto.TenantPlanBrief, error)
+	AdminDetail(ctx context.Context, id string) (*model.Tenant, error)
+	AdminUpdate(ctx context.Context, id string, req dto.AdminUpdateTenantReq) error
+	AdminDelete(ctx context.Context, id string) error
+	AdminHardDelete(ctx context.Context, id string) error
+	AdminUpdatePlan(ctx context.Context, id string, req planDto.AssignPlanReq) error
+	BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, []string, error)
+	BatchDelete(ctx context.Context, ids []string) (int64, []string, error)
+	FindDeleted(ctx context.Context, page, pageSize int, name string) ([]*model.Tenant, int64, error)
+	Restore(ctx context.Context, id string) error
+	GetCurrentTenant(ctx context.Context, tenantID string) (*model.Tenant, error)
+	UpdateCurrentTenant(ctx context.Context, tenantID string, req dto.UpdateCurrentTenantReq) error
+	GetInitStatus(ctx context.Context, tenantID string) (*dto.GetInitStatusResp, error)
+	ApplyCancellation(ctx context.Context, tenantID string, req dto.ApplyCancellationReq) (*dto.ApplyCancellationResp, error)
+	ListCancelRequests(ctx context.Context, page, pageSize int, status int, keyword string) (*dto.CancelRequestListResp, error)
+	ApproveCancellation(ctx context.Context, requestID, approverID string, req dto.AdminApproveCancelReq) (*dto.CancelRequestResp, error)
+	RejectCancellation(ctx context.Context, requestID, approverID string, req dto.AdminRejectCancelReq) (*dto.CancelRequestResp, error)
+}
+
 // TenantHandler 租户管理处理器
 type TenantHandler struct {
-	svc *service.TenantService
+	svc TenantService
 }
 
 // NewTenantHandler 创建租户管理处理器
-func NewTenantHandler(svc *service.TenantService) *TenantHandler {
+func NewTenantHandler(svc TenantService) *TenantHandler {
 	return &TenantHandler{svc: svc}
 }
 

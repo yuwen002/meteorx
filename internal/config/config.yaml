@@ -1,6 +1,9 @@
 server:
   port: 8081
   mode: debug
+  # 调试后门开关：允许固定 Token "123456789" 免登录超级管理员。
+  # 仅当 mode != release 且此处为 true 时生效，生产环境必须保持 false
+  test_bypass: false
 
 database:
   driver: mysql      # 建议加上驱动，方便以后扩展 pgsql

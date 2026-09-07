@@ -89,22 +89,26 @@ func (s *wikiService) PermanentDeleteTrashItem(ctx context.Context, id string, u
 		return err
 	}
 
-	var purgeErr error
-	switch item.ItemType {
-	case model.TrashTypeDocument:
-		purgeErr = s.repo.PurgeDocument(ctx, item.ItemID)
-	case model.TrashTypeNode:
-		purgeErr = s.repo.PurgeNodeTree(ctx, item.ItemID)
-	case model.TrashTypeSpace:
-		purgeErr = s.repo.PurgeSpaceTree(ctx, item.ItemID)
-	default:
-		return apperrors.ErrBadRequest("未知的项目类型")
-	}
-	if purgeErr != nil && !isTrashEntityMissing(purgeErr) {
-		return purgeErr
-	}
-	// Purge 内部已清理关联 trash 记录，此处兜底确保列表不再残留该行
-	return s.repo.DeleteTrashItem(ctx, item.ID)
+	// 物理清除（多张关联表）与回收站记录兜底清理必须同一事务，
+	// 避免中途失败留下半删数据。实体已不存在（软删记录缺失）时仍容忍并清理回收站行。
+	return s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
+		var purgeErr error
+		switch item.ItemType {
+		case model.TrashTypeDocument:
+			purgeErr = s.repo.PurgeDocument(txCtx, item.ItemID)
+		case model.TrashTypeNode:
+			purgeErr = s.repo.PurgeNodeTree(txCtx, item.ItemID)
+		case model.TrashTypeSpace:
+			purgeErr = s.repo.PurgeSpaceTree(txCtx, item.ItemID)
+		default:
+			return apperrors.ErrBadRequest("未知的项目类型")
+		}
+		if purgeErr != nil && !isTrashEntityMissing(purgeErr) {
+			return purgeErr
+		}
+		// Purge 内部已清理关联 trash 记录，此处兜底确保列表不再残留该行
+		return s.repo.DeleteTrashItem(txCtx, item.ID)
+	})
 }
 
 // MoveToTrash 将项目移动到回收站（30 天后自动过期）

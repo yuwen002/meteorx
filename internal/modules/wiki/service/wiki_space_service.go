@@ -83,8 +83,9 @@ func (s *wikiService) ListSpaces(ctx context.Context, tenantID string, userID st
 }
 
 // UpdateSpace 更新 Space 信息（名称、描述、可见性等）
-func (s *wikiService) UpdateSpace(ctx context.Context, id string, tenantID string, req *dto.UpdateWikiSpaceReq) (*dto.WikiSpaceResp, error) {
-	if err := s.CheckSpacePermission(ctx, id, tenantID, "space:update"); err != nil {
+// UpdateSpace 更新 Space 信息（userID 用于权限校验，语义上非 tenantID）
+func (s *wikiService) UpdateSpace(ctx context.Context, id string, userID string, req *dto.UpdateWikiSpaceReq) (*dto.WikiSpaceResp, error) {
+	if err := s.CheckSpacePermission(ctx, id, userID, "space:update"); err != nil {
 		return nil, err
 	}
 

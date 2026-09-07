@@ -125,7 +125,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 【第一层防线】挂载认证中间件，解析 Token 并注入 UserID, TenantID, Role
 			// 同时检查 token 是否在黑名单中（已登出的 token）
 			blacklistChecker := &middleware.RedisBlacklistChecker{Redis: rdb}
-			r.Use(middleware.Auth(tokenHelper, blacklistChecker, cfg.Server.Mode))
+			r.Use(middleware.Auth(tokenHelper, blacklistChecker, cfg.Server.Mode, cfg.Server.TestBypass))
 
 			// 审计日志中间件：自动记录所有请求（挂载在认证之后，确保能获取用户信息）
 			repo := auditRepo.NewAuditLogRepository(db)

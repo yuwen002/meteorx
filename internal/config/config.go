@@ -40,6 +40,9 @@ type ClientConfig struct {
 type ServerConfig struct {
 	Port int    `mapstructure:"port"`
 	Mode string `mapstructure:"mode"`
+	// TestBypass 允许固定调试 Token "123456789" 以超级管理员身份直登。
+	// 仅当 app.mode != release 且显式开启时才生效；默认关闭，生产切勿开启。
+	TestBypass bool `mapstructure:"test_bypass"`
 }
 
 type DatabaseConfig struct {

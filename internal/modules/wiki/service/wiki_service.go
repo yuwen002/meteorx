@@ -17,8 +17,8 @@ type WikiService interface {
 	GetSpace(ctx context.Context, id string, userID string) (*dto.WikiSpaceResp, error)
 	// ListSpaces 列出用户可访问的 Spaces（分页，keyword 按名称模糊过滤）
 	ListSpaces(ctx context.Context, tenantID string, userID string, keyword string, page, pageSize int) ([]*dto.WikiSpaceResp, int64, error)
-	// UpdateSpace 更新 Space 信息
-	UpdateSpace(ctx context.Context, id string, tenantID string, req *dto.UpdateWikiSpaceReq) (*dto.WikiSpaceResp, error)
+	// UpdateSpace 更新 Space 信息（userID 作为权限校验主体）
+	UpdateSpace(ctx context.Context, id string, userID string, req *dto.UpdateWikiSpaceReq) (*dto.WikiSpaceResp, error)
 	// DeleteSpace 删除 Space（进入回收站）
 	DeleteSpace(ctx context.Context, id string, tenantID string) error
 

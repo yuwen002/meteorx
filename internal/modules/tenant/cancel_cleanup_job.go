@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	planrepo "meteorx/internal/modules/plan/repository"
 	"meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/tenant/service"
 
@@ -27,6 +28,10 @@ func NewCancelCleanupJob(db *gorm.DB) *CancelCleanupJob {
 		nil,
 		nil,
 	)
+	// 注销执行需要取消租户的生效订阅（ExecuteCancellation 依赖 subRepo）。
+	// 此前此处未注入 subRepo，导致定时任务执行的到期注销会静默跳过订阅取消。
+	subRepo := planrepo.NewSubscriptionRepository(db)
+	svc.SetSubscriptionRepository(subRepo)
 	return &CancelCleanupJob{
 		svc:    svc,
 		logger: log.Default(),

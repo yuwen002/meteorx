@@ -15,6 +15,7 @@ import (
 	userRepo "meteorx/internal/modules/user/repository"
 	"meteorx/pkg/crypto"
 	"meteorx/pkg/idgen"
+	"meteorx/pkg/logger"
 	"time"
 )
 
@@ -323,11 +324,16 @@ func (s *TenantService) AdminHardDelete(ctx context.Context, id string) error {
 		return err
 	}
 
-	// 3. 若存在生效订阅，同时取消
+	// 3. 若存在生效订阅，同时取消（失败不再静默吞掉，明确告知调用方需人工处理）
 	if s.subRepo != nil {
 		activeSub, err := s.subRepo.GetActiveByTenant(ctx, id)
-		if err == nil && activeSub != nil {
-			_ = s.subRepo.UpdateStatus(ctx, activeSub.ID, planModel.SubscriptionCancelled)
+		if err != nil {
+			return fmt.Errorf("租户已物理删除，但查询其生效订阅失败: %w", err)
+		}
+		if activeSub != nil {
+			if err := s.subRepo.UpdateStatus(ctx, activeSub.ID, planModel.SubscriptionCancelled); err != nil {
+				return fmt.Errorf("租户已物理删除，但取消其生效订阅失败: %w", err)
+			}
 		}
 	}
 
@@ -580,6 +586,7 @@ func (s *TenantService) RejectCancellation(ctx context.Context, requestID, appro
 
 // ExecuteCancellation 执行租户注销
 // 1) 软删除租户 2) 取消其生效订阅 3) 标记申请完成
+// 订阅查询/取消失败时返回错误且不标记完成：软删除幂等，失败可在下次任务重试，避免订阅状态静默不一致
 func (s *TenantService) ExecuteCancellation(ctx context.Context, cancelReq *tenantModel.CancelRequest) error {
 	// 1. 软删除租户
 	if err := s.repo.Delete(ctx, cancelReq.TenantID); err != nil {
@@ -589,8 +596,13 @@ func (s *TenantService) ExecuteCancellation(ctx context.Context, cancelReq *tena
 	// 2. 取消生效订阅（若存在）
 	if s.subRepo != nil {
 		activeSub, err := s.subRepo.GetActiveByTenant(ctx, cancelReq.TenantID)
-		if err == nil && activeSub != nil {
-			_ = s.subRepo.UpdateStatus(ctx, activeSub.ID, planModel.SubscriptionCancelled)
+		if err != nil {
+			return fmt.Errorf("查询租户生效订阅失败: %w", err)
+		}
+		if activeSub != nil {
+			if err := s.subRepo.UpdateStatus(ctx, activeSub.ID, planModel.SubscriptionCancelled); err != nil {
+				return fmt.Errorf("取消租户生效订阅失败: %w", err)
+			}
 		}
 	}
 
@@ -613,7 +625,8 @@ func (s *TenantService) ExecuteDueCancellations(ctx context.Context) (int, error
 	executed := 0
 	for _, r := range dueRequests {
 		if err := s.ExecuteCancellation(ctx, r); err != nil {
-			// 单个失败不阻断后续
+			// 单个失败不阻断后续，但记录日志便于人工介入（下轮任务自动重试）
+			logger.Errorf("执行租户注销失败 tenant=%s request=%s: %v", r.TenantID, r.ID, err)
 			continue
 		}
 		executed++

@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -11,15 +12,25 @@ import (
 	"meteorx/internal/modules/auth/dto"
 	"meteorx/internal/modules/auth/service"
 	userdto "meteorx/internal/modules/user/dto"
+	userModel "meteorx/internal/modules/user/model"
 )
+
+// AuthService 认证服务接口（handler 依赖的最小业务面，便于测试注入桩）
+type AuthService interface {
+	Register(ctx context.Context, req dto.RegisterUserReq) (*userModel.User, error)
+	Login(ctx context.Context, req dto.LoginReq) (*userModel.User, []string, []string, string, error)
+	Logout(ctx context.Context, tokenString string) error
+	ForgotPassword(ctx context.Context, email string) error
+	ResetPassword(ctx context.Context, token, newPassword string) error
+}
 
 // AuthHandler 认证处理器
 type AuthHandler struct {
-	svc *service.AuthService
+	svc AuthService
 }
 
 // NewAuthHandler 创建认证处理器
-func NewAuthHandler(svc *service.AuthService) *AuthHandler {
+func NewAuthHandler(svc AuthService) *AuthHandler {
 	return &AuthHandler{svc: svc}
 }
 

@@ -347,8 +347,11 @@ func (s *wikiService) deleteNodeRecursive(ctx context.Context, id string) error 
 	if node.Type == model.NodeTypeDocument {
 		doc, err := s.repo.GetDocumentByNodeID(ctx, id)
 		if err == nil && doc != nil {
-			_ = s.repo.DeleteAttachmentsByDocument(ctx, doc.ID)
-			_ = s.repo.DeleteDocument(ctx, doc.ID)
+			// 与 DeleteDocument 一致：仅软删文档，保留附件以便从回收站恢复；
+			// 物理清理由回收站永久删除流程负责。
+			if err := s.repo.DeleteDocument(ctx, doc.ID); err != nil {
+				return err
+			}
 		}
 	}
 

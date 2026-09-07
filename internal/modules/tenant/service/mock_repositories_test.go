@@ -294,8 +294,10 @@ var _ rbacRepo.UserRoleRepository = (*mockUserRoleRepo)(nil)
 
 type mockSubRepo struct {
 	planRepo.SubscriptionRepository
-	active  map[string]*planModel.TenantSubscription
-	updated map[string]int
+	active    map[string]*planModel.TenantSubscription
+	updated   map[string]int
+	getErr    error
+	updateErr error
 }
 
 func newMockSubRepo() *mockSubRepo {
@@ -305,14 +307,21 @@ func newMockSubRepo() *mockSubRepo {
 	}
 }
 
+// GetActiveByTenant 与真实实现语义一致：无生效订阅返回 nil,nil（而非错误）
 func (m *mockSubRepo) GetActiveByTenant(_ context.Context, tenantID string) (*planModel.TenantSubscription, error) {
+	if m.getErr != nil {
+		return nil, m.getErr
+	}
 	if sub, ok := m.active[tenantID]; ok {
 		return sub, nil
 	}
-	return nil, errors.New("no active subscription")
+	return nil, nil
 }
 
 func (m *mockSubRepo) UpdateStatus(_ context.Context, id string, status int) error {
+	if m.updateErr != nil {
+		return m.updateErr
+	}
 	m.updated[id] = status
 	return nil
 }

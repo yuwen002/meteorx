@@ -18,10 +18,27 @@ type MockWikiRepository struct {
 	UpdateDocumentErr error
 	// GetMemberFn 可选注入，覆盖默认 GetMember 行为（用于模拟非成员/非 Owner 等权限场景）
 	GetMemberFn func(ctx context.Context, spaceID, userID string) (*model.WikiSpaceMember, error)
+	// GetNodeFn 可选注入，覆盖默认 GetNodeByID 行为（返回带 SpaceID/Type/Title 的节点）
+	GetNodeFn func(ctx context.Context, id string) (*model.WikiNode, error)
+
+	// 删除行为注入
+	DeleteDocumentErr               error // 非 nil 时 DeleteDocument 返回该错误
+	DeleteDocumentCalls             int   // 记录 DeleteDocument 被调用的次数
+	DeleteNodeCalls                 int   // 记录 DeleteNode 被调用的次数
+	DeleteAttachmentsByDocumentCalls int  // 记录 DeleteAttachmentsByDocument 被调用的次数
+
+	// 回收站行为注入
+	GetTrashItemErr      error   // 非 nil 时 GetTrashItem 优先返回该错误
+	RestoreErr           error   // 非 nil 时 RestoreSpace/RestoreDocument/RestoreNodeTree 返回该错误
+	PurgeErr             error   // 非 nil 时 PurgeSpaceTree/PurgeDocument/PurgeNodeTree 返回该错误
+	DeleteTrashItemErr   error   // 非 nil 时 DeleteTrashItem 返回该错误
+	DeleteTrashItemCalls int     // 记录 DeleteTrashItem 被调用的次数
+	LastCreatedTrash     *model.TrashItem // 最近一次 CreateTrashItem 写入的项目
 
 	spaces  map[string]*model.WikiSpace
 	members map[string][]*model.WikiSpaceMember
 	docs    map[string]*model.Document
+	trash   map[string]*model.TrashItem
 }
 
 func NewMockWikiRepository() *MockWikiRepository {
@@ -29,12 +46,18 @@ func NewMockWikiRepository() *MockWikiRepository {
 		spaces:  map[string]*model.WikiSpace{},
 		members: map[string][]*model.WikiSpaceMember{},
 		docs:    map[string]*model.Document{},
+		trash:   map[string]*model.TrashItem{},
 	}
 }
 
 // SeedDocument 向 mock 中预置一个文档，用于版本冲突等场景的测试。
 func (m *MockWikiRepository) SeedDocument(doc *model.Document) {
 	m.docs[doc.ID] = doc
+}
+
+// SeedTrashItem 向 mock 中预置一个回收站项目。
+func (m *MockWikiRepository) SeedTrashItem(item *model.TrashItem) {
+	m.trash[item.ID] = item
 }
 
 func (m *MockWikiRepository) CreateSpace(ctx context.Context, space *model.WikiSpace) error {
@@ -71,6 +94,9 @@ func (m *MockWikiRepository) CreateNode(ctx context.Context, node *model.WikiNod
 }
 
 func (m *MockWikiRepository) GetNodeByID(ctx context.Context, id string) (*model.WikiNode, error) {
+	if m.GetNodeFn != nil {
+		return m.GetNodeFn(ctx, id)
+	}
 	return &model.WikiNode{ID: id, Type: model.NodeTypeDocument}, nil
 }
 
@@ -87,6 +113,7 @@ func (m *MockWikiRepository) UpdateNode(ctx context.Context, node *model.WikiNod
 }
 
 func (m *MockWikiRepository) DeleteNode(ctx context.Context, id string) error {
+	m.DeleteNodeCalls++
 	return nil
 }
 
@@ -99,6 +126,11 @@ func (m *MockWikiRepository) CreateDocument(ctx context.Context, doc *model.Docu
 }
 
 func (m *MockWikiRepository) GetDocumentByNodeID(ctx context.Context, nodeID string) (*model.Document, error) {
+	for _, d := range m.docs {
+		if d.NodeID == nodeID {
+			return d, nil
+		}
+	}
 	return nil, ErrDocumentNotFound
 }
 
@@ -117,7 +149,8 @@ func (m *MockWikiRepository) UpdateDocument(ctx context.Context, doc *model.Docu
 }
 
 func (m *MockWikiRepository) DeleteDocument(ctx context.Context, id string) error {
-	return nil
+	m.DeleteDocumentCalls++
+	return m.DeleteDocumentErr
 }
 
 func (m *MockWikiRepository) IncrementViewCount(ctx context.Context, id string) error {
@@ -200,19 +233,39 @@ func (m *MockWikiRepository) GetUserNodePermissions(ctx context.Context, nodeID,
 }
 
 func (m *MockWikiRepository) CreateTrashItem(ctx context.Context, item *model.TrashItem) error {
+	m.trash[item.ID] = item
+	m.LastCreatedTrash = item
 	return nil
 }
 
 func (m *MockWikiRepository) ListTrashItems(ctx context.Context, tenantID string, spaceID string, itemType string, page, pageSize int) ([]*model.TrashItem, int64, error) {
-	return nil, 0, nil
+	var out []*model.TrashItem
+	for _, it := range m.trash {
+		if spaceID != "" && it.SpaceID != spaceID {
+			continue
+		}
+		if itemType != "" && it.ItemType != itemType {
+			continue
+		}
+		out = append(out, it)
+	}
+	return out, int64(len(out)), nil
 }
 
 func (m *MockWikiRepository) GetTrashItem(ctx context.Context, id string) (*model.TrashItem, error) {
+	if it, ok := m.trash[id]; ok {
+		return it, nil
+	}
+	if m.GetTrashItemErr != nil {
+		return nil, m.GetTrashItemErr
+	}
 	return nil, errors.New("trash item not found")
 }
 
 func (m *MockWikiRepository) DeleteTrashItem(ctx context.Context, id string) error {
-	return nil
+	m.DeleteTrashItemCalls++
+	delete(m.trash, id)
+	return m.DeleteTrashItemErr
 }
 
 func (m *MockWikiRepository) ExpireTrashItems(ctx context.Context) error {
@@ -220,27 +273,27 @@ func (m *MockWikiRepository) ExpireTrashItems(ctx context.Context) error {
 }
 
 func (m *MockWikiRepository) RestoreDocument(ctx context.Context, id string) error {
-	return nil
+	return m.RestoreErr
 }
 
 func (m *MockWikiRepository) RestoreSpace(ctx context.Context, id string) error {
-	return nil
+	return m.RestoreErr
 }
 
 func (m *MockWikiRepository) RestoreNodeTree(ctx context.Context, id string) error {
-	return nil
+	return m.RestoreErr
 }
 
 func (m *MockWikiRepository) PurgeDocument(ctx context.Context, id string) error {
-	return nil
+	return m.PurgeErr
 }
 
 func (m *MockWikiRepository) PurgeNodeTree(ctx context.Context, id string) error {
-	return nil
+	return m.PurgeErr
 }
 
 func (m *MockWikiRepository) PurgeSpaceTree(ctx context.Context, id string) error {
-	return nil
+	return m.PurgeErr
 }
 
 func (m *MockWikiRepository) SearchNodesByTitle(ctx context.Context, tenantID string, spaceID string, query string) ([]*model.WikiNode, error) {
@@ -268,5 +321,6 @@ func (m *MockWikiRepository) DeleteAttachment(ctx context.Context, id string) er
 }
 
 func (m *MockWikiRepository) DeleteAttachmentsByDocument(ctx context.Context, documentID string) error {
+	m.DeleteAttachmentsByDocumentCalls++
 	return nil
 }
