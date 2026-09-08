@@ -1,10 +1,11 @@
 package repository
 
 import (
+	"meteorx/internal/modules/wiki/model"
+
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"meteorx/internal/modules/wiki/model"
 )
 
 // setupSQLiteMemory 创建内存 SQLite 数据库并自动迁移表结构
@@ -24,11 +25,7 @@ func setupSQLiteMemory() (*gorm.DB, error) {
 		&model.Document{},
 		&model.DocumentRevision{},
 		&model.TrashItem{},
-		&model.WikiTag{},
 		&model.DocumentTag{},
-		&model.WikiAttachment{},
-		&model.WikiComment{},
-		&model.WikiShare{},
 	); err != nil {
 		return nil, err
 	}

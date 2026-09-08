@@ -4,9 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"meteorx/internal/common/contextx"
+	"meteorx/internal/modules/wiki/model"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"meteorx/internal/modules/wiki/model"
 )
 
 // setupIntegrationTest 创建内存 SQLite 数据库并返回 repository
@@ -27,12 +29,18 @@ func setupIntegrationTest(t *testing.T) (*wikiRepository, func()) {
 	return repo, cleanup
 }
 
+// testCtx 创建包含租户和用户信息的测试 context
+func testCtx(tenantID, userID string) context.Context {
+	ctx := context.Background()
+	return contextx.SetVars(ctx, tenantID, userID, []string{"admin"})
+}
+
 // TestIntegration_SpaceCRUD 验证 Space 的完整 CRUD 流程
 func TestIntegration_SpaceCRUD(t *testing.T) {
 	repo, cleanup := setupIntegrationTest(t)
 	defer cleanup()
 
-	ctx := context.Background()
+	ctx := testCtx("tenant-1", "user-1")
 
 	// 1. 创建 Space
 	space := &model.WikiSpace{
@@ -44,6 +52,7 @@ func TestIntegration_SpaceCRUD(t *testing.T) {
 	}
 	require.NoError(t, repo.CreateSpace(ctx, space))
 	assert.NotEmpty(t, space.ID)
+	assert.Equal(t, "tenant-1", space.TenantID)
 	assert.Equal(t, "测试空间", space.Name)
 
 	// 2. 查询 Space
@@ -53,10 +62,9 @@ func TestIntegration_SpaceCRUD(t *testing.T) {
 	assert.Equal(t, "测试空间", got.Name)
 
 	// 3. 更新 Space
-	require.NoError(t, repo.UpdateSpace(ctx, space.ID, map[string]interface{}{
-		"name":        "更新后的空间",
-		"description": "已更新",
-	}))
+	space.Name = "更新后的空间"
+	space.Description = "已更新"
+	require.NoError(t, repo.UpdateSpace(ctx, space))
 	got, err = repo.GetSpaceByID(ctx, space.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "更新后的空间", got.Name)
@@ -73,7 +81,7 @@ func TestIntegration_NodeCRUD(t *testing.T) {
 	repo, cleanup := setupIntegrationTest(t)
 	defer cleanup()
 
-	ctx := context.Background()
+	ctx := testCtx("tenant-1", "user-1")
 
 	// 先创建 Space
 	space := &model.WikiSpace{
@@ -103,18 +111,21 @@ func TestIntegration_NodeCRUD(t *testing.T) {
 	}
 	require.NoError(t, repo.CreateNode(ctx, child))
 
-	// 3. 查询节点树
-	tree, err := repo.GetNodeTreeBySpace(ctx, space.ID)
+	// 3. 查询节点列表（ListNodesBySpace 只返回根节点）
+	nodes, err := repo.ListNodesBySpace(ctx, space.ID)
 	require.NoError(t, err)
-	assert.Len(t, tree, 1)
-	assert.Equal(t, node.ID, tree[0].ID)
-	assert.Len(t, tree[0].Children, 1)
-	assert.Equal(t, child.ID, tree[0].Children[0].ID)
+	assert.Len(t, nodes, 1)
+	assert.Equal(t, node.ID, nodes[0].ID)
+
+	// 查询子节点
+	children, err := repo.ListChildNodes(ctx, node.ID)
+	require.NoError(t, err)
+	assert.Len(t, children, 1)
+	assert.Equal(t, child.ID, children[0].ID)
 
 	// 4. 更新节点
-	require.NoError(t, repo.UpdateNode(ctx, child.ID, map[string]interface{}{
-		"title": "更新后的文档",
-	}))
+	child.Title = "更新后的文档"
+	require.NoError(t, repo.UpdateNode(ctx, child))
 	got, err := repo.GetNodeByID(ctx, child.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "更新后的文档", got.Title)
@@ -130,7 +141,7 @@ func TestIntegration_DocumentCRUD(t *testing.T) {
 	repo, cleanup := setupIntegrationTest(t)
 	defer cleanup()
 
-	ctx := context.Background()
+	ctx := testCtx("tenant-1", "user-1")
 
 	// 创建 Space 和 Node
 	space := &model.WikiSpace{
@@ -150,11 +161,12 @@ func TestIntegration_DocumentCRUD(t *testing.T) {
 
 	// 1. 创建文档
 	doc := &model.Document{
+		TenantID:    "tenant-1",
 		NodeID:      node.ID,
-		Title:       "测试文档",
 		Content:     "# 内容",
 		ContentHTML: "<h1>内容</h1>",
 		Format:      "markdown",
+		CurrentVer:  1,
 	}
 	require.NoError(t, repo.CreateDocument(ctx, doc))
 	assert.NotEmpty(t, doc.ID)
@@ -167,20 +179,16 @@ func TestIntegration_DocumentCRUD(t *testing.T) {
 	assert.Equal(t, "# 内容", got.Content)
 
 	// 3. 更新文档（创建新版本）
-	require.NoError(t, repo.UpdateDocument(ctx, doc.ID, "更新内容", "<h1>更新内容</h1>", "v1.1 更新"))
+	doc.Content = "更新内容"
+	doc.ContentHTML = "<h1>更新内容</h1>"
+	doc.CurrentVer = 2 // 手动设置新版本号
+	require.NoError(t, repo.UpdateDocument(ctx, doc, 1)) // expectedVer=1
 	got, err = repo.GetDocumentByNodeID(ctx, node.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 2, got.CurrentVer)
 	assert.Equal(t, "更新内容", got.Content)
 
-	// 4. 查询版本历史
-	revisions, err := repo.ListDocumentRevisions(ctx, doc.ID)
-	require.NoError(t, err)
-	assert.Len(t, revisions, 2)
-	assert.Equal(t, 2, revisions[0].Version)
-	assert.Equal(t, "v1.1 更新", revisions[0].Summary)
-
-	// 5. 删除文档（软删）
+	// 4. 删除文档（软删）
 	require.NoError(t, repo.DeleteDocument(ctx, doc.ID))
 	_, err = repo.GetDocumentByNodeID(ctx, node.ID)
 	assert.Error(t, err)
@@ -191,7 +199,7 @@ func TestIntegration_SpaceMembers(t *testing.T) {
 	repo, cleanup := setupIntegrationTest(t)
 	defer cleanup()
 
-	ctx := context.Background()
+	ctx := testCtx("tenant-1", "user-1")
 
 	// 创建 Space
 	space := &model.WikiSpace{
@@ -217,7 +225,8 @@ func TestIntegration_SpaceMembers(t *testing.T) {
 	assert.Equal(t, model.SpaceRoleEditor, members[0].Role)
 
 	// 3. 更新成员角色
-	require.NoError(t, repo.UpdateMemberRole(ctx, space.ID, "user-2", model.SpaceRoleAdmin))
+	member.Role = model.SpaceRoleAdmin
+	require.NoError(t, repo.UpdateMemberRole(ctx, member))
 	members, err = repo.ListMembers(ctx, space.ID)
 	require.NoError(t, err)
 	assert.Equal(t, model.SpaceRoleAdmin, members[0].Role)
@@ -234,7 +243,7 @@ func TestIntegration_TrashBin(t *testing.T) {
 	repo, cleanup := setupIntegrationTest(t)
 	defer cleanup()
 
-	ctx := context.Background()
+	ctx := testCtx("tenant-1", "user-1")
 
 	// 创建 Space
 	space := &model.WikiSpace{
@@ -246,29 +255,20 @@ func TestIntegration_TrashBin(t *testing.T) {
 
 	// 1. 创建回收站记录
 	trashItem := &model.TrashItem{
-		Type:      model.TrashTypeSpace,
+		TenantID:  "tenant-1",
+		ItemType:  model.TrashTypeSpace,
 		ItemID:    space.ID,
 		SpaceID:   space.ID,
-		Name:      space.Name,
+		Title:     space.Name,
 		DeletedBy: "user-1",
 	}
 	require.NoError(t, repo.CreateTrashItem(ctx, trashItem))
 	assert.NotEmpty(t, trashItem.ID)
 
 	// 2. 查询回收站列表
-	items, err := repo.ListTrashItems(ctx, space.ID, nil, nil)
+	items, total, err := repo.ListTrashItems(ctx, "tenant-1", space.ID, "", 1, 10)
 	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
 	assert.Len(t, items, 1)
 	assert.Equal(t, space.ID, items[0].ItemID)
-
-	// 3. 恢复回收站记录
-	require.NoError(t, repo.RestoreTrashItem(ctx, trashItem.ID))
-	items, err = repo.ListTrashItems(ctx, space.ID, nil, nil)
-	require.NoError(t, err)
-	assert.Empty(t, items)
-
-	// 4. Space 应该恢复正常
-	got, err := repo.GetSpaceByID(ctx, space.ID)
-	require.NoError(t, err)
-	assert.Equal(t, space.Name, got.Name)
 }

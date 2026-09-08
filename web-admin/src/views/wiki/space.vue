@@ -294,7 +294,32 @@
           </div>
 
           <div v-else-if="activePanel === 'history'" class="panel-body">
-            <el-table v-loading="loadingRevisions" :data="revisions" size="small">
+            <div v-if="canEdit" class="history-ops" style="margin-bottom: 8px; display: flex; gap: 8px;">
+              <el-button size="small" :icon="Download" @click="exportDocument">导出文档</el-button>
+              <el-upload
+                :auto-upload="false"
+                :show-file-list="false"
+                :on-change="handleImportFile"
+                accept=".md,.markdown"
+              >
+                <el-button size="small" :icon="Upload">导入文档</el-button>
+              </el-upload>
+              <el-button 
+                v-if="revisions.length >= 2"
+                size="small" 
+                :icon="Difference" 
+                @click="openDiffDialog"
+              >
+                版本对比
+              </el-button>
+            </div>
+            <el-table 
+              v-loading="loadingRevisions" 
+              :data="revisions" 
+              size="small"
+              @selection-change="handleRevisionSelection"
+            >
+              <el-table-column type="selection" width="40" />
               <el-table-column label="版本" width="70">
                 <template #default="{ row }">v{{ row.version }}</template>
               </el-table-column>
@@ -368,6 +393,33 @@
       <div class="article" v-html="revisionPreviewHtml"></div>
     </el-dialog>
 
+    <!-- 版本对比对话框 -->
+    <el-dialog v-model="diffDialogVisible" title="版本对比" width="900px" top="5vh">
+      <div class="diff-selector" style="margin-bottom: 16px; display: flex; gap: 16px; align-items: center;">
+        <span>对比版本：</span>
+        <el-select v-model="diffVersion1" placeholder="选择旧版本" style="width: 150px">
+          <el-option
+            v-for="rev in revisions"
+            :key="rev.version"
+            :label="`v${rev.version}`"
+            :value="rev.version"
+          />
+        </el-select>
+        <span>→</span>
+        <el-select v-model="diffVersion2" placeholder="选择新版本" style="width: 150px">
+          <el-option
+            v-for="rev in revisions"
+            :key="rev.version"
+            :label="`v${rev.version}`"
+            :value="rev.version"
+          />
+        </el-select>
+        <el-button type="primary" :loading="loadingDiff" @click="loadDiff">对比</el-button>
+      </div>
+      <div v-if="diffHtml" class="diff-view" v-html="diffHtml"></div>
+      <el-empty v-else description="选择两个版本后点击对比查看差异" :image-size="80" />
+    </el-dialog>
+
     <!-- 附件图片预览 -->
     <el-dialog v-model="attachmentPreviewVisible" title="图片预览" width="640px">
       <div class="article preview-img-wrap">
@@ -430,7 +482,9 @@ import {
   PriceTag,
   Share,
   DataAnalysis,
-  Files
+  Files,
+  Download,
+  Difference
 } from '@element-plus/icons-vue'
 import {
   getSpace,
@@ -447,6 +501,9 @@ import {
   createAttachment,
   deleteAttachment,
   previewMarkdown,
+  compareRevisions,
+  exportDocument as exportDocumentApi,
+  importDocument as importDocumentApi,
   type WikiSpace,
   type WikiNode,
   type WikiNodeTree,
@@ -1081,6 +1138,114 @@ async function restoreVersion(row: DocumentRevision) {
   }
 }
 
+// ============ 版本对比 ============
+const diffDialogVisible = ref(false)
+const diffVersion1 = ref<number>(0)
+const diffVersion2 = ref<number>(0)
+const diffHtml = ref('')
+const loadingDiff = ref(false)
+const selectedRevisions = ref<DocumentRevision[]>([])
+
+function handleRevisionSelection(selection: DocumentRevision[]) {
+  selectedRevisions.value = selection
+}
+
+function openDiffDialog() {
+  if (revisions.value.length < 2) {
+    ElMessage.warning('至少需要两个版本才能进行对比')
+    return
+  }
+  diffVersion1.value = revisions.value[revisions.value.length - 1].version
+  diffVersion2.value = revisions.value[0].version
+  diffHtml.value = ''
+  diffDialogVisible.value = true
+}
+
+async function loadDiff() {
+  if (!currentDocument.value || !diffVersion1.value || !diffVersion2.value) {
+    ElMessage.warning('请选择两个版本进行对比')
+    return
+  }
+  loadingDiff.value = true
+  try {
+    const v1 = Math.min(diffVersion1.value, diffVersion2.value)
+    const v2 = Math.max(diffVersion1.value, diffVersion2.value)
+    const diff = await compareRevisions(currentDocument.value.id, v1, v2)
+    diffHtml.value = renderDiffHtml(diff)
+  } catch {
+    ElMessage.error('获取版本对比失败')
+    diffHtml.value = ''
+  } finally {
+    loadingDiff.value = false
+  }
+}
+
+function renderDiffHtml(diff: any): string {
+  if (!diff || !diff.diffs) return ''
+  let html = '<div class="diff-container">'
+  html += `<div class="diff-header">对比版本：v${diff.old_version} → v${diff.new_version}</div>`
+  html += '<div class="diff-content">'
+  
+  for (const line of diff.diffs) {
+    const lineClass = line.type === 'added' ? 'diff-added' : line.type === 'removed' ? 'diff-removed' : 'diff-unchanged'
+    const lineNum = line.type === 'added' ? line.new_line : line.type === 'removed' ? line.old_line : line.line_num
+    html += `<div class="${lineClass}">`
+    html += `<span class="diff-line-num">${lineNum}</span>`
+    html += `<span class="diff-line-content">${escapeHtml(line.content)}</span>`
+    html += '</div>'
+  }
+  
+  html += '</div></div>'
+  return html
+}
+
+function escapeHtml(text: string): string {
+  const div = document.createElement('div')
+  div.textContent = text
+  return div.innerHTML
+}
+
+// ============ 导入导出 ============
+async function exportDocument() {
+  if (!currentDocument.value) return
+  try {
+    const blob = await exportDocumentApi(currentDocument.value.id, 'markdown')
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${currentNode.value?.title || 'document'}.md`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('文档导出成功')
+  } catch {
+    ElMessage.error('文档导出失败')
+  }
+}
+
+async function handleImportFile(file: any) {
+  if (!currentDocument.value || !file.raw) return
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定要导入文件 "${file.name}" 吗？这将覆盖当前文档内容。`,
+      '导入文档',
+      { type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  
+  try {
+    await importDocumentApi(currentDocument.value.id, file.raw)
+    ElMessage.success('文档导入成功')
+    await loadDocument(currentDocument.value.node_id)
+  } catch {
+    ElMessage.error('文档导入失败')
+  }
+}
+
 // ============ 初始化 ============
 onMounted(async () => {
   await loadSpace()
@@ -1341,6 +1506,53 @@ onMounted(async () => {
 .preview-img-wrap img {
   max-width: 100%;
   max-height: 70vh;
+}
+
+/* 版本对比样式 */
+.diff-container {
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.diff-header {
+  padding: 12px 16px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  font-weight: 500;
+  color: #374151;
+}
+.diff-content {
+  max-height: 60vh;
+  overflow-y: auto;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.diff-added {
+  background: #f0fff4;
+  color: #22863a;
+}
+.diff-removed {
+  background: #ffeef0;
+  color: #cb2431;
+}
+.diff-unchanged {
+  background: #fff;
+  color: #586069;
+}
+.diff-line-num {
+  display: inline-block;
+  width: 50px;
+  text-align: right;
+  padding-right: 12px;
+  color: #999;
+  user-select: none;
+  border-right: 1px solid #e5e7eb;
+  margin-right: 12px;
+}
+.diff-line-content {
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 </style>
 

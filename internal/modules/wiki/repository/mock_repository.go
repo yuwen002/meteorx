@@ -33,7 +33,13 @@ type MockWikiRepository struct {
 	PurgeErr             error   // 非 nil 时 PurgeSpaceTree/PurgeDocument/PurgeNodeTree 返回该错误
 	DeleteTrashItemErr   error   // 非 nil 时 DeleteTrashItem 返回该错误
 	DeleteTrashItemCalls int     // 记录 DeleteTrashItem 被调用的次数
+	CreateTrashItemCalls int     // 记录 CreateTrashItem 被调用的次数
 	LastCreatedTrash     *model.TrashItem // 最近一次 CreateTrashItem 写入的项目
+
+	// 查询函数注入
+	ListNodesBySpaceFn    func(ctx context.Context, spaceID string) ([]*model.WikiNode, error)
+	ListChildNodesFn      func(ctx context.Context, parentID string) ([]*model.WikiNode, error)
+	GetDocumentByNodeIDFn func(ctx context.Context, nodeID string) (*model.Document, error)
 
 	spaces  map[string]*model.WikiSpace
 	members map[string][]*model.WikiSpaceMember
@@ -101,10 +107,16 @@ func (m *MockWikiRepository) GetNodeByID(ctx context.Context, id string) (*model
 }
 
 func (m *MockWikiRepository) ListNodesBySpace(ctx context.Context, spaceID string) ([]*model.WikiNode, error) {
+	if m.ListNodesBySpaceFn != nil {
+		return m.ListNodesBySpaceFn(ctx, spaceID)
+	}
 	return nil, nil
 }
 
 func (m *MockWikiRepository) ListChildNodes(ctx context.Context, parentID string) ([]*model.WikiNode, error) {
+	if m.ListChildNodesFn != nil {
+		return m.ListChildNodesFn(ctx, parentID)
+	}
 	return nil, nil
 }
 
@@ -126,6 +138,9 @@ func (m *MockWikiRepository) CreateDocument(ctx context.Context, doc *model.Docu
 }
 
 func (m *MockWikiRepository) GetDocumentByNodeID(ctx context.Context, nodeID string) (*model.Document, error) {
+	if m.GetDocumentByNodeIDFn != nil {
+		return m.GetDocumentByNodeIDFn(ctx, nodeID)
+	}
 	for _, d := range m.docs {
 		if d.NodeID == nodeID {
 			return d, nil
@@ -233,6 +248,10 @@ func (m *MockWikiRepository) GetUserNodePermissions(ctx context.Context, nodeID,
 }
 
 func (m *MockWikiRepository) CreateTrashItem(ctx context.Context, item *model.TrashItem) error {
+	m.CreateTrashItemCalls++
+	if item.ID == "" {
+		item.ID = "trash-" + item.ItemID
+	}
 	m.trash[item.ID] = item
 	m.LastCreatedTrash = item
 	return nil
