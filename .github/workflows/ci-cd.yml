@@ -33,19 +33,15 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
-    - name: Run tests
-      run: go test -v -race -coverprofile=coverage.out ./...
+    # 统一校验入口：范围收敛到后端包（cmd/internal/pkg），
+    # 与本地 scripts/test.sh / test.ps1 保持一致，避免 `./...` 误扫前端依赖。
+    - name: Run backend checks (vet + build + race tests)
+      run: bash scripts/test.sh
 
     - name: Upload coverage
       uses: codecov/codecov-action@v4
       with:
         file: ./coverage.out
-
-    - name: Run go vet
-      run: go vet ./...
-
-    - name: Build
-      run: go build -v ./...
 
     - name: Run linter
       uses: golangci/golangci-lint-action@v6

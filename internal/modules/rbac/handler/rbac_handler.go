@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"context"
 	"meteorx/internal/modules/rbac/model"
 	"net/http"
 	"strconv"
@@ -10,19 +11,62 @@ import (
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
 	"meteorx/internal/modules/rbac/dto"
-	"meteorx/internal/modules/rbac/service"
 	"meteorx/pkg/pagination"
 
 	"github.com/go-chi/chi/v5"
 )
 
+// RBACService 角色权限服务接口（handler 依赖的最小业务面；*service.RBACService 完整实现）
+type RBACService interface {
+	CreateRole(ctx context.Context, req dto.CreateRoleReq) (*model.Role, error)
+	GetRole(ctx context.Context, id string) (*model.Role, error)
+	ListRoles(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*model.Role, int64, error)
+	ListRolesByScope(ctx context.Context, scope string) ([]*model.Role, error)
+	ListSystemAdminRoles(ctx context.Context) ([]*model.Role, error)
+	UpdateRole(ctx context.Context, id string, req dto.UpdateRoleReq) (*model.Role, error)
+	DeleteRole(ctx context.Context, id string) error
+	PermanentDeleteRole(ctx context.Context, id string) error
+	BatchPermanentDeleteRoles(ctx context.Context, ids []string) (int64, error)
+	UpdateRoleStatus(ctx context.Context, id string, status int) error
+	BatchUpdateRoleStatus(ctx context.Context, ids []string, status int) (int64, error)
+	BatchDeleteRoles(ctx context.Context, ids []string) (int64, error)
+	ListDeletedRoles(ctx context.Context, page, pageSize int, keyword string) ([]*model.Role, int64, error)
+	RestoreRole(ctx context.Context, id string) error
+	CreatePermission(ctx context.Context, req dto.CreatePermissionReq) (*model.Permission, error)
+	GetPermission(ctx context.Context, id string) (*model.Permission, error)
+	ListPermissions(ctx context.Context, page, pageSize int, resource, keyword string) ([]*model.Permission, int64, error)
+	UpdatePermission(ctx context.Context, id string, req dto.UpdatePermissionReq) (*model.Permission, error)
+	UpdatePermissionStatus(ctx context.Context, id string, status int) error
+	BatchUpdatePermissionStatus(ctx context.Context, ids []string, status int) (int64, error)
+	DeletePermission(ctx context.Context, id string) error
+	BatchDeletePermissions(ctx context.Context, ids []string) (int64, error)
+	BindRolePermissions(ctx context.Context, roleID string, req dto.BindRolePermissionsReq) error
+	GetRolePermissions(ctx context.Context, roleID string) ([]*model.Permission, error)
+	GetRolePermissionsWithResource(ctx context.Context, roleID, resource string) ([]*model.Permission, error)
+	UnbindRolePermission(ctx context.Context, roleID, permissionID string) error
+	UnbindRolePermissions(ctx context.Context, roleID string, permissionIDs []string) (int64, error)
+	BatchBindRolesPermissions(ctx context.Context, req dto.BatchBindRolesPermissionsReq) (int64, error)
+	BatchUnbindRolesPermissions(ctx context.Context, req dto.BatchUnbindRolesPermissionsReq) (int64, error)
+	ListRolePermissions(ctx context.Context, page, pageSize int, roleID, permissionID string) ([]*model.RolePermission, int64, error)
+	AssignUserRoles(ctx context.Context, userID string, req dto.AssignUserRolesReq) error
+	GetUserRoles(ctx context.Context, userID string) ([]*model.Role, error)
+	RemoveUserRole(ctx context.Context, userID, roleID string) error
+	RemoveAllUserRoles(ctx context.Context, userID string) error
+	GetRoleUsers(ctx context.Context, roleID string) ([]string, error)
+	ListUserRoles(ctx context.Context, page, pageSize int, userID, roleID string) ([]*model.UserRole, int64, error)
+	BatchAssignUserRoles(ctx context.Context, req dto.BatchAssignUserRolesReq) (int64, error)
+	CountRoles(ctx context.Context, tenantID string) (int64, error)
+	CountPermissions(ctx context.Context) (int64, error)
+	CountUserPermissions(ctx context.Context, userID string) (int64, error)
+}
+
 // RBACHandler 角色权限管理处理器
 type RBACHandler struct {
-	svc *service.RBACService
+	svc RBACService
 }
 
 // NewRBACHandler 创建角色权限管理处理器
-func NewRBACHandler(svc *service.RBACService) *RBACHandler {
+func NewRBACHandler(svc RBACService) *RBACHandler {
 	return &RBACHandler{svc: svc}
 }
 

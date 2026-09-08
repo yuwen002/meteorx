@@ -22,7 +22,6 @@ type TenantServiceTestSuite struct {
 	repo       *mockTenantRepo
 	userRepo   *mockUserRepo
 	roleRepo   *mockRoleRepo
-	urRepo     *mockUserRoleRepo
 	subRepo    *mockSubRepo
 	assignPlan bool
 	planErr    error
@@ -33,10 +32,9 @@ func (s *TenantServiceTestSuite) SetupTest() {
 	s.repo = newMockTenantRepo()
 	s.userRepo = newMockUserRepo()
 	s.roleRepo = newMockRoleRepo()
-	s.urRepo = newMockUserRoleRepo()
 	s.subRepo = newMockSubRepo()
 
-	s.svc = NewTenantService(s.repo, s.userRepo, s.roleRepo, s.urRepo)
+	s.svc = NewTenantService(s.repo, s.userRepo, s.roleRepo)
 	s.svc.SetSubscriptionRepository(s.subRepo)
 	// 注入套餐分配 Provider（测试记录赋值是否被调用）
 	s.svc.SetPlanAssignProvider(s)
@@ -106,11 +104,8 @@ func (s *TenantServiceTestSuite) TestRegisterSuccess() {
 	s.Equal("acme", tenant.Domain)
 	s.Equal(tenantModel.StatusEnabled, tenant.Status)
 	s.NotEmpty(tenant.ID)
-	// 已分配默认角色
-	s.Len(s.urRepo.assigned, 1)
-	for _, roleIDs := range s.urRepo.assigned {
-		s.Equal([]string{"role-tenant_admin"}, roleIDs)
-	}
+	// 默认角色已随注册传入持久层，与租户/用户在同一事务内原子落库
+	s.Equal([]string{"role-tenant_admin"}, s.repo.lastRoleIDs)
 }
 
 func (s *TenantServiceTestSuite) TestRegisterDomainConflict() {
@@ -162,6 +157,24 @@ func (s *TenantServiceTestSuite) TestRegisterRoleDisabled() {
 	_, err := s.svc.Register(s.ctx, req)
 	s.Error(err)
 	s.Contains(err.Error(), "默认租户管理员角色已禁用")
+}
+
+func (s *TenantServiceTestSuite) TestAdminCreateAssignsDefaultRole() {
+	s.seedRole("tenant_admin", 1)
+	req := tenantDto.AdminCreateTenantReq{}
+	req.Name = "Acme"
+	req.Domain = "acme"
+	req.Status = tenantModel.StatusEnabled
+	req.AdminUser.Username = "boss"
+	req.AdminUser.Password = "Admin@123456"
+	req.AdminUser.Nickname = "Boss"
+	req.AdminUser.Email = "boss@acme.com"
+
+	tenant, err := s.svc.AdminCreate(s.ctx, req)
+	s.NoError(err)
+	s.Require().NotNil(tenant)
+	// 默认角色同样随创建事务一并下发到持久层
+	s.Equal([]string{"role-tenant_admin"}, s.repo.lastRoleIDs)
 }
 
 // ---------- 查询类 ----------

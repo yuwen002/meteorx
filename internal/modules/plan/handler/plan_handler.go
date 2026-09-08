@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -16,13 +17,24 @@ import (
 	"meteorx/pkg/pagination"
 )
 
+// PlanService 套餐服务接口（handler 依赖的最小业务面；*service.PlanService 完整实现）
+type PlanService interface {
+	CreatePlan(ctx context.Context, req dto.CreatePlanReq) (*dto.PlanResp, error)
+	UpdatePlan(ctx context.Context, id string, req dto.UpdatePlanReq) (*dto.PlanResp, error)
+	ListPlans(ctx context.Context, page, pageSize int, keyword string, status *int) ([]*dto.PlanResp, int64, error)
+	ListEnabledPlans(ctx context.Context) ([]*dto.PlanResp, error)
+	DeletePlan(ctx context.Context, id string) error
+	AssignPlan(ctx context.Context, tenantID string, req dto.AssignPlanReq) error
+	GetCurrentPlan(ctx context.Context, tenantID string) (*dto.CurrentPlanResp, error)
+}
+
 // PlanHandler 套餐管理处理器
 type PlanHandler struct {
-	svc *service.PlanService
+	svc PlanService
 }
 
 // NewPlanHandler 创建套餐管理处理器
-func NewPlanHandler(svc *service.PlanService) *PlanHandler {
+func NewPlanHandler(svc PlanService) *PlanHandler {
 	return &PlanHandler{svc: svc}
 }
 

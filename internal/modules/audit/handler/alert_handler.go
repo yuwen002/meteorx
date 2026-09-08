@@ -1,20 +1,31 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
 
 	"meteorx/internal/common/response"
 	"meteorx/internal/modules/audit/dto"
-	"meteorx/internal/modules/audit/service"
+	"meteorx/internal/modules/audit/model"
 )
 
-type AlertHandler struct {
-	alertSvc *service.AlertService
+// AlertService 告警服务接口（handler 依赖的最小业务面；*service.AlertService 完整实现）
+type AlertService interface {
+	CreateRule(ctx context.Context, req dto.CreateAlertRuleReq) (*model.AlertRule, error)
+	UpdateRule(ctx context.Context, id string, req dto.UpdateAlertRuleReq) (*model.AlertRule, error)
+	DeleteRule(ctx context.Context, id string) error
+	ListRules(ctx context.Context) ([]*model.AlertRule, error)
+	ListAlerts(ctx context.Context, page, pageSize int, ruleID, userID, riskLevel string) ([]*model.AuditAlert, int64, error)
+	GetAlertStats(ctx context.Context, days int) (*model.AlertStats, error)
 }
 
-func NewAlertHandler(alertSvc *service.AlertService) *AlertHandler {
+type AlertHandler struct {
+	alertSvc AlertService
+}
+
+func NewAlertHandler(alertSvc AlertService) *AlertHandler {
 	return &AlertHandler{alertSvc: alertSvc}
 }
 

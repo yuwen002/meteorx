@@ -2,13 +2,14 @@
 package handler
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
 	"meteorx/internal/modules/audit/dto"
-	"meteorx/internal/modules/audit/service"
+	"meteorx/internal/modules/audit/model"
 	"meteorx/pkg/pagination"
 	"net/http"
 	"strconv"
@@ -17,13 +18,23 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// AuditService 审计服务接口（handler 依赖的最小业务面；*service.AuditService 完整实现）
+type AuditService interface {
+	CreateLog(ctx context.Context, req dto.CreateAuditLogReq) (*model.AuditLog, error)
+	GetLog(ctx context.Context, id string) (*dto.AuditLogResp, error)
+	ListLogs(ctx context.Context, query *dto.ListAuditLogsQuery) (*dto.AuditLogListResp, error)
+	GetStats(ctx context.Context) (*dto.AuditLogStatsResp, error)
+	CleanupLogs(ctx context.Context, days int) (int64, error)
+	GetDashboard(ctx context.Context, tenantID string, days int) (*dto.DashboardResp, error)
+}
+
 // AuditHandler 审计日志处理器
 type AuditHandler struct {
-	svc *service.AuditService
+	svc AuditService
 }
 
 // NewAuditHandler 创建审计日志处理器
-func NewAuditHandler(svc *service.AuditService) *AuditHandler {
+func NewAuditHandler(svc AuditService) *AuditHandler {
 	return &AuditHandler{svc: svc}
 }
 

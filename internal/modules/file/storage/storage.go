@@ -33,7 +33,7 @@ type Storage interface {
 }
 
 // NewStorage 根据配置创建对应的存储实例
-// signKey 用于本地文件访问 URL 签名（通常取 JWT Secret）；为空则不签名（仅限调试场景）
+// signKey 用于本地文件访问 URL 签名（取 file.sign_key，与 JWT 登录密钥解耦）；为空则不签名（仅限调试场景）
 // 当前默认实现 local；后续扩展 oss / s3 时在此处增加分支
 func NewStorage(cfg config.FileConfig, signKey string) Storage {
 	storageType := cfg.StorageType

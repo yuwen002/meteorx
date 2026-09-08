@@ -25,8 +25,7 @@ func NewCancelCleanupJob(db *gorm.DB) *CancelCleanupJob {
 	svc := service.NewTenantService(
 		tenantRepo,
 		nil, // user repo 由 bootstrap 注入，注销流程不需要
-		nil,
-		nil,
+		nil, // role repo 由 bootstrap 注入，注销流程不需要
 	)
 	// 注销执行需要取消租户的生效订阅（ExecuteCancellation 依赖 subRepo）。
 	// 此前此处未注入 subRepo，导致定时任务执行的到期注销会静默跳过订阅取消。

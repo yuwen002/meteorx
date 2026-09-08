@@ -22,6 +22,7 @@ type mockTenantRepo struct {
 	tenantRepo.TenantRepository
 	tenants        map[string]*tenantModel.Tenant
 	cancelRequests map[string]*tenantModel.CancelRequest
+	lastRoleIDs    []string // 记录最近一次 CreateTenantWithAdmin 下发的角色 ID
 }
 
 func newMockTenantRepo() *mockTenantRepo {
@@ -60,8 +61,9 @@ func (m *mockTenantRepo) GetByName(_ context.Context, name string) (*tenantModel
 	return nil, errors.New("tenant not found")
 }
 
-func (m *mockTenantRepo) CreateTenantWithAdmin(_ context.Context, tenant *tenantModel.Tenant, _ *userModel.User) error {
+func (m *mockTenantRepo) CreateTenantWithAdmin(_ context.Context, tenant *tenantModel.Tenant, _ *userModel.User, roleIDs []string) error {
 	m.tenants[tenant.ID] = tenant
+	m.lastRoleIDs = append([]string{}, roleIDs...)
 	return nil
 }
 
@@ -271,24 +273,6 @@ func (m *mockRoleRepo) GetByCode(_ context.Context, tenantID, code string) (*rba
 }
 
 var _ rbacRepo.RoleRepository = (*mockRoleRepo)(nil)
-
-// ---------- 内存 mock：UserRoleRepository ----------
-
-type mockUserRoleRepo struct {
-	rbacRepo.UserRoleRepository
-	assigned map[string][]string
-}
-
-func newMockUserRoleRepo() *mockUserRoleRepo {
-	return &mockUserRoleRepo{assigned: make(map[string][]string)}
-}
-
-func (m *mockUserRoleRepo) AssignRoles(_ context.Context, userID string, roleIDs []string) error {
-	m.assigned[userID] = append([]string{}, roleIDs...)
-	return nil
-}
-
-var _ rbacRepo.UserRoleRepository = (*mockUserRoleRepo)(nil)
 
 // ---------- 内存 mock：SubscriptionRepository ----------
 

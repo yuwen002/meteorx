@@ -19,8 +19,8 @@ type TenantRepository interface {
 	GetByDomain(ctx context.Context, domain string) (*model.Tenant, error)
 	// GetByName 根据租户名称查询租户信息
 	GetByName(ctx context.Context, name string) (*model.Tenant, error)
-	// CreateTenantWithAdmin 在事务中同时创建租户和管理员用户
-	CreateTenantWithAdmin(ctx context.Context, tenant *model.Tenant, user *userModel.User) error
+	// CreateTenantWithAdmin 在单个事务中原子创建：租户、管理员用户及管理员默认角色关联（三张表同落库）
+	CreateTenantWithAdmin(ctx context.Context, tenant *model.Tenant, user *userModel.User, roleIDs []string) error
 	// UpdateStatus 更新租户状态
 	UpdateStatus(ctx context.Context, id string, status int) error
 	// Update 更新租户信息

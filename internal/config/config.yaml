@@ -54,8 +54,14 @@ security:
 file:
   upload_path: "./uploads"   # 文件上传存储路径
   # 文件访问URL前缀：接口返回的 url 会附带短时效 HMAC 签名（默认 30 分钟），
-  # 由 jwt.secret 派生签名密钥；/uploads 静态服务会校验签名后才提供文件
+  # 由 file.sign_key 派生签名密钥（独立于 jwt.secret，未配置时回退 jwt.secret 兼容旧部署）；
+  # /uploads 静态服务会校验签名后才提供文件
   upload_url: "http://localhost:8081/uploads"
+  # 独立签名密钥（建议至少 32 位随机串）：只影响上传访问链接，轮换不会使登录态失效。
+  # 支持平滑轮换：逗号分隔传入新旧密钥，第一把用于签发新链接，其余仅校验存量链接，
+  # 待旧链接全部过期后移除旧密钥即可，例如 "new-key,old-key"。
+  # 生成方式: openssl rand -base64 32
+  # sign_key: ""
   max_file_size: 10485760    # 最大文件大小 10MB (10 * 1024 * 1024)
   allowed_types:             # 允许的文件类型
     - "image/jpeg"

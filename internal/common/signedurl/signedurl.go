@@ -50,3 +50,22 @@ func Verify(path, secret string, expires int64, signature string) bool {
 	expected := Sign(path, secret, expires)
 	return hmac.Equal([]byte(expected), []byte(strings.ToLower(signature)))
 }
+
+// VerifyAny 校验签名是否匹配密钥链中的任一密钥（同样常量时间比较）。
+// 用于签名密钥平滑轮换：切换后新链接由主密钥签发，存量链接仍可由链尾的历史密钥验证，
+// 待存量链接全部过期后再从配置中移除旧密钥即可，避免"一刀切"导致短时效链接集体失效。
+func VerifyAny(path string, secrets []string, expires int64, signature string) bool {
+	if signature == "" || expires <= 0 || len(secrets) == 0 {
+		return false
+	}
+	lower := strings.ToLower(signature)
+	for _, secret := range secrets {
+		if secret == "" {
+			continue
+		}
+		if hmac.Equal([]byte(Sign(path, secret, expires)), []byte(lower)) {
+			return true
+		}
+	}
+	return false
+}

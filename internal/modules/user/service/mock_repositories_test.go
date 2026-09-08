@@ -209,7 +209,7 @@ func (m *mockTenantRepo) GetByName(_ context.Context, _ string) (*tenantModel.Te
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockTenantRepo) CreateTenantWithAdmin(_ context.Context, _ *tenantModel.Tenant, _ *userModel.User) error {
+func (m *mockTenantRepo) CreateTenantWithAdmin(_ context.Context, _ *tenantModel.Tenant, _ *userModel.User, _ []string) error {
 	return nil
 }
 

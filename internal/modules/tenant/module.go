@@ -27,8 +27,7 @@ func initHandler(db *gorm.DB) *handler.TenantHandler {
 	tenantRepo := tenantrepo.NewTenantRepository(db)
 	userRepo := userrepository.NewUserRepository(db)
 	roleRepo := rbacrepo.NewRoleRepository(db)
-	userRoleRepo := rbacrepo.NewUserRoleRepository(db)
-	svc := service.NewTenantService(tenantRepo, userRepo, roleRepo, userRoleRepo)
+	svc := service.NewTenantService(tenantRepo, userRepo, roleRepo)
 
 	// 注入套餐摘要查询器 & 套餐分配器（PlanService 实现了两个接口）
 	planRepo := planrepo.NewPlanRepository(db)

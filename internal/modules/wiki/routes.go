@@ -16,9 +16,9 @@ import (
 func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config) {
 	repo := repository.NewWikiRepository(gormDB)
 	svc := service.NewWikiService(repo, tx)
-	// 文档内嵌 /uploads 图片签名支持（与文件模块共用访问基址与签名密钥）
+	// 文档内嵌 /uploads 图片签名支持（与文件模块共用访问基址与独立签名密钥）
 	if cfg != nil {
-		svc.SetUploadSigner(cfg.File.UploadURL, cfg.JWT.Secret)
+		svc.SetUploadSigner(cfg.File.UploadURL, cfg.File.UploadSignKey(cfg.JWT.Secret))
 	}
 	h := handler.NewWikiHandler(svc)
 

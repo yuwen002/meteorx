@@ -1,18 +1,25 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
 	"meteorx/internal/common/response"
-	"meteorx/internal/modules/audit/service"
+	"meteorx/internal/modules/audit/dto"
 )
 
-type SessionHandler struct {
-	sessionSvc *service.SessionService
+// SessionService 会话分析服务接口（handler 依赖的最小业务面；*service.SessionService 完整实现）
+type SessionService interface {
+	GetSessionLogs(ctx context.Context, sessionID string) (*dto.SessionAnalysisResp, error)
+	ListSessions(ctx context.Context, page, pageSize int, userID string) ([]dto.SessionSummaryResp, int64, error)
 }
 
-func NewSessionHandler(sessionSvc *service.SessionService) *SessionHandler {
+type SessionHandler struct {
+	sessionSvc SessionService
+}
+
+func NewSessionHandler(sessionSvc SessionService) *SessionHandler {
 	return &SessionHandler{sessionSvc: sessionSvc}
 }
 

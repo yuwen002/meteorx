@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -18,13 +19,58 @@ import (
 	"gorm.io/gorm"
 )
 
+// UserService 用户服务接口（handler 依赖的最小业务面，便于测试注入桩；
+// *service.UserService 完整实现该接口，生产装配零改动）
+type UserService interface {
+	// 租户内用户管理
+	ListByTenant(ctx context.Context, tenantID string, page, pageSize int, keyword string, status *int) ([]*dto.UserResp, int64, error)
+	GetByID(ctx context.Context, userID string) (*dto.UserResp, error)
+	BelongsToTenant(ctx context.Context, userID, tenantID string) bool
+	Create(ctx context.Context, tenantID string, req dto.CreateUserReq) (*dto.UserResp, error)
+	Update(ctx context.Context, userID string, req dto.UpdateUserReq) (*dto.UserResp, error)
+	Delete(ctx context.Context, userID string) error
+	CountByTenant(ctx context.Context, tenantID string) (int64, error)
+	CountAllUsers(ctx context.Context) (int64, error)
+	ChangePassword(ctx context.Context, userID, oldPassword, newPassword string) error
+	ResetPassword(ctx context.Context, userID, newPassword string) error
+	ListDeletedUsers(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error)
+	RestoreUser(ctx context.Context, tenantID, userID string) error
+	PermanentDeleteUser(ctx context.Context, tenantID, userID string) error
+	// 系统管理员管理
+	ListMasterAdmins(ctx context.Context, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error)
+	GetMasterAdmin(ctx context.Context, userID string) (*dto.UserResp, error)
+	CreateMasterAdmin(ctx context.Context, req dto.CreateMasterAdminReq) (*dto.UserResp, error)
+	UpdateMasterAdmin(ctx context.Context, userID string, req dto.UpdateMasterAdminReq) (*dto.UserResp, error)
+	DeleteMasterAdmin(ctx context.Context, userID string) error
+	UpdateMasterAdminStatus(ctx context.Context, userID string, status int) error
+	ListDeletedMasterAdmins(ctx context.Context, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error)
+	RestoreMasterAdmin(ctx context.Context, userID string) error
+	PermanentDeleteMasterAdmin(ctx context.Context, userID string) error
+	BatchUpdateMasterAdminStatus(ctx context.Context, ids []string, status int) (int64, error)
+	BatchDeleteMasterAdmins(ctx context.Context, ids []string) (int64, error)
+	// 系统管理员跨租户用户管理
+	AdminCreateTenantUser(ctx context.Context, req dto.AdminCreateTenantUserReq) (*dto.UserResp, error)
+	AdminListTenantUsers(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error)
+	AdminListAllTenantUsers(ctx context.Context, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error)
+	AdminUpdateTenantUser(ctx context.Context, tenantID, userID string, req dto.UpdateUserReq) (*dto.UserResp, error)
+	AdminDeleteTenantUser(ctx context.Context, tenantID, userID string) error
+	AdminListDeletedTenantUsers(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error)
+	AdminListAllDeletedTenantUsers(ctx context.Context, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error)
+	AdminRestoreTenantUser(ctx context.Context, tenantID, userID string) error
+	AdminPermanentDeleteTenantUser(ctx context.Context, tenantID, userID string) error
+	AdminUpdateTenantUserStatus(ctx context.Context, tenantID, userID string, status int) error
+	AdminBatchUpdateTenantUserStatus(ctx context.Context, tenantID string, ids []string, status int) (int64, error)
+	AdminBatchDeleteTenantUsers(ctx context.Context, tenantID string, ids []string) (int64, error)
+	AdminResetTenantUserPassword(ctx context.Context, tenantID, userID, newPassword string) error
+}
+
 // UserHandler 用户管理处理器
 type UserHandler struct {
-	svc *service.UserService
+	svc UserService
 }
 
 // NewUserHandler 创建用户管理处理器
-func NewUserHandler(svc *service.UserService) *UserHandler {
+func NewUserHandler(svc UserService) *UserHandler {
 	return &UserHandler{svc: svc}
 }
 

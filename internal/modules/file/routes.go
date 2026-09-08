@@ -18,7 +18,8 @@ import (
 func RegisterRoutes(r chi.Router, db *gorm.DB, cfg *config.Config) {
 	// 初始化依赖
 	fileRepo := filerepo.NewFileRepository(db)
-	fileStorage := storage.NewStorage(cfg.File, cfg.JWT.Secret)
+	// 上传访问 URL 用独立签名密钥签发（未配置 file.sign_key 时兼容回退 jwt.secret）
+	fileStorage := storage.NewStorage(cfg.File, cfg.File.UploadSignKey(cfg.JWT.Secret))
 	fileSvc := service.NewFileService(fileRepo, fileStorage)
 	fileHandler := handler.NewFileHandler(fileSvc, cfg.File)
 

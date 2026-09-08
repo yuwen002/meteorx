@@ -2,8 +2,10 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 
@@ -11,20 +13,35 @@ import (
 	"meteorx/internal/common/response"
 	"meteorx/internal/config"
 	"meteorx/internal/modules/file/dto"
-	"meteorx/internal/modules/file/service"
 	"meteorx/pkg/pagination"
 
 	"github.com/go-chi/chi/v5"
 )
 
+// FileService 文件服务接口（handler 依赖的最小业务面；*service.FileService 完整实现）
+type FileService interface {
+	Upload(ctx context.Context, fileHeader *multipart.FileHeader, tenantID, userID string) (*dto.UploadFileResp, error)
+	GetByID(ctx context.Context, id string) (*dto.FileResp, error)
+	GetByIDWithScope(ctx context.Context, id, tenantID string) (*dto.FileResp, error)
+	ListByTenant(ctx context.Context, tenantID string, req *dto.FileListReq) ([]*dto.FileResp, int64, error)
+	ListByUser(ctx context.Context, tenantID, userID string, req *dto.FileListReq) ([]*dto.FileResp, int64, error)
+	Update(ctx context.Context, id string, tenantID string, req *dto.FileUpdateReq) error
+	Delete(ctx context.Context, id, tenantID string) error
+	BatchDelete(ctx context.Context, tenantID string, req *dto.BatchDeleteReq) (*dto.BatchDeleteResp, error)
+	GetDeletedList(ctx context.Context, tenantID string, page, pageSize int) ([]*dto.FileResp, int64, error)
+	Restore(ctx context.Context, id, tenantID string) error
+	PermanentDelete(ctx context.Context, id, tenantID string) error
+	Download(ctx context.Context, id, tenantID string) (io.ReadCloser, string, error)
+}
+
 // FileHandler 文件处理器
 type FileHandler struct {
-	service *service.FileService
+	service FileService
 	cfg     config.FileConfig
 }
 
 // NewFileHandler 创建文件处理器实例
-func NewFileHandler(svc *service.FileService, cfg config.FileConfig) *FileHandler {
+func NewFileHandler(svc FileService, cfg config.FileConfig) *FileHandler {
 	return &FileHandler{service: svc, cfg: cfg}
 }
 

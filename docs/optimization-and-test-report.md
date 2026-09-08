@@ -1,17 +1,22 @@
 # MeteorX 代码优化与测试报告
 
-日期：2026-09-07（四轮）
-范围：全仓审查（Go 后端 + web-admin 前端概览）、针对性修复、测试补齐、handler 层测试推广（wiki/tenant）+ 基础组件补齐
+日期：2026-09-08（九轮）
+范围：全仓审查（Go 后端 + web-admin 前端概览）、针对性修复、测试补齐、handler 层测试推广（wiki/tenant）+ 基础组件补齐、注册事务边界修复、测试范围收敛与 CI 统一校验入口、handler 层横推 user/plan/audit/rbac/file 收官、文件分享签名密钥缺陷修复（独立密钥 + 平滑轮换）
 
 ---
 
 ## 一、执行摘要
 
 - 全仓 `go test ./...` 通过（exit 0），`go vet ./internal/... ./pkg/...` 无告警。
-- 累计**修复 6 个真实缺陷/残缺**（P0 安全后门 1、功能级 4、事务边界 1、命名语义 1）。
+- 累计**修复 8 个真实缺陷/残缺**（P0 安全后门 1、功能级 4、事务边界 2、命名语义 1）。
 - 第三轮启动、第四轮推广 **handler 层测试**（此前全仓 0 覆盖的最大缺口）：为 `auth` / `notification` / `dashboard` / `wiki` / `tenant` 五个模块 handler 引入**服务接口缝**（生产调用方零改动），累计 **100+ HTTP 用例**，handler 覆盖率：auth 90.3% / notification 83.8% / dashboard 100% / **wiki 69.9%** / **tenant 78.6%**。
 - 第四轮同步补齐基础组件：`common/response` 93.3%、`middleware` 42.6%（request_id / 全局 panic 恢复 / master admin / 限流语义）、wiki 服务命名语义修复。
-- 新增 **30+ 测试文件/模块、300+ 测试用例**。
+- 新增 **70 个测试文件、691 个测试用例**（后端 `internal`/`pkg`）。
+- 第五轮：修复**注册流程角色分配无事务边界**（原 P1 待办）——角色关联并入 `CreateTenantWithAdmin` 同一事务原子落库，并新增 repository 层 sqlmock 回滚用例守护。
+- 第六轮：**测试范围收敛 + CI 统一校验入口**——`web-admin` 前端目录声明嵌套 `go.mod`，从根模块隔离（根治本地 `go test ./...` 误扫 `node_modules/flatted/golang`）；新增 `scripts/test.sh`（Linux/CI）与 `scripts/test.ps1`（Windows 本地）作为后端 vet+build+test 的统一入口；CI `backend` job 从脆弱的 `./...` 收敛到后端包范围并复用脚本（仍含 `-race` 与覆盖率上传）。
+- 第七轮：**handler 层横推 user / plan / audit（audit+alert+session）**——为三个模块 handler 接入服务接口缝（生产零改动），新增 **166 个 HTTP 用例**：`user`（用户管理/master admin/跨租户/回收站/profile/统计，98 例）、`plan`（套餐 CRUD/下拉/分配/当前套餐，28 例）、`audit`（日志查询/CSV 导出/超管清理权限位/告警规则/告警记录/会话分析，40 例）。注册守卫中 `type XxxService interface` 断言依赖编译期验证；`PathValue` 路由通过标准库 `http.ServeMux` 注入测试。handler 层累计覆盖 **8 个模块、260+ HTTP 用例**。
+- 第八轮：**handler 层横推收官 rbac / file**——`rbac`（角色/权限/回收站/绑定解绑/用户-角色/统计，71 例）与 `file`（multipart 上传白名单校验/超限/租户隔离/回收站/流式下载，28 例）接入服务接口缝，新增 **99 个 HTTP 用例**。至此 **10 个模块 handler 全部覆盖，累计 360+ HTTP 用例**，handler 层服务接口缝横推完成（P1 收官）；上传类通过 `multipart.Writer` 在测试中真实构造 MIME 白名单场景。
+- 第九轮：**修复"上传访问签名密钥与 JWT 登录密钥耦合"缺陷（原 P2 待办）**——`/uploads` 静态验签、`file` 访问 URL、wiki 内嵌图片与免登录分享重签 **4 处装配点原均复用 `cfg.JWT.Secret`**，更换 JWT secret 会令全部存量短时效链接失效并牵连登录态。已解耦为独立 `file.sign_key`（未配置自动回退 `jwt.secret` 兼容旧部署），并支持**逗号分隔密钥链平滑轮换**：新链接用首项密钥签发、`signedurl.VerifyAny` 与 uploads 中间件按密钥链校验存量链接（宽限期后移除旧密钥即可）。新增 4 组测试函数（signedurl 轮换边界 6 项、uploads 新旧链放行/拒绝 3 场景、local_storage 签名/预签名/无密钥 6 项、config 回退/轮换/纯分隔符 4 类断言）。
 - 产物：本报告（`docs/optimization-and-test-report.md`）。
 
 ---
@@ -56,18 +61,26 @@
 
 接口/实现形参名会误导后续调用与维护（handler 实际传入登录用户，服务内按 `userID` 做 `CheckSpacePermission`）。已统一改名为 `userID` 并补注释（纯改名，编译级验证不影响调用方与既有测试）。
 
+### 7.【P1 一致性】租户注册角色分配无事务边界 → 三表同一事务原子落库
+`internal/modules/tenant/repository/tenant_repository.go`、`tenant/service/tenant_service.go`
+
+`CreateTenantWithAdmin`（事务内建租户+管理员）与 `AssignRoles` 分属 tenant/rbac 两个 repo、各管各的事务，注册在两步之间失败会遗留"有租户无角色"的脏数据且重试无法自愈（新租户再走注册会被域名/用户名冲突拦截）。修复：
+- `CreateTenantWithAdmin` 签名扩展 `roleIDs []string`，在**同一 GORM 事务**内依次写入 `tenants` / `users` / `user_roles`，任一步失败整体回滚；角色写入失败返回带语境的错误。
+- `Register` / `AdminCreate` 删除事务外的 `AssignRoles` 二次提交，角色 ID 随创建一次性下发；`TenantService` 不再依赖 `UserRoleRepository`。
+- 新增 repository 层 sqlmock 用例 3 个：三表成功提交、**角色写入失败触发回滚**、空角色列表跳过关联表；service 层补充 `AdminCreate` 默认角色下发断言。
+
 ---
 
 ## 三、待办优化清单（建议，未改）
 
 | 级别 | 位置 | 问题与建议 |
 |---|---|---|
-| P1 | 各模块 handler 层 | ✅ 完成：auth/notification/dashboard/wiki/tenant 五模块已接入服务接口缝并补 HTTP 测试（wiki 69.9%、tenant 78.6%）；user/plan/rbac 等小型 handler 可继续同模式 |
-| P1 | `tenant/service` Register 角色分配 | `CreateTenantWithAdmin`（事务内建租户+管理员）与 `AssignRoles` 分属不同 repo、无事务边界，失败会留下无角色租户。建议后续纳入事务或失败补偿 |
-| P2 | 文件分享 | 上传分享/公开链接签名复用 JWT 密钥（`file.go` 注释已提示），更换 JWT secret 会使存量链接失效。建议独立签名密钥 + 轮换版本化 |
+| P1 | 各模块 handler 层 | ✅ 完成（第三~八轮收官）：auth/notification/dashboard/wiki/tenant/user/plan/audit/rbac/file **10 模块全部**接入服务接口缝并补 HTTP 测试，累计 360+ 用例；handler 层横推无剩余 |
+| P1 | `tenant/service` Register 角色分配 | ✅ 完成（第五轮）：角色关联并入 `CreateTenantWithAdmin` 同一事务原子落库，失败整体回滚，附 sqlmock 回滚用例 |
+| P2 | 文件分享 | ✅ 完成（第九轮）：上传访问链接签名从复用 `jwt.secret` 解耦为独立 `file.sign_key`（4 处装配点：/uploads 验签、file 访问 URL、wiki 内嵌图片、免登录分享重签），未配置回退兼容；`signedurl.VerifyAny` + uploads 中间件支持密钥链**平滑轮换**（逗号分隔，首项签发、全链验签），附 signedurl/uploads/storage/config 用例 |
 | P2 | wiki 空间/节点删除 | `DeleteSpace` 仅软删空间行，子节点/文档保持活跃、回收站列表不展示子实体；文档级删除已与回收站闭环，空间语义建议文档化 |
 | P2 | repository 层 | 仅 wiki 有 sqlmock 轻量测试；建议引入 `glebarez/sqlite` 做内存真实库测试 |
-| P2 | 测试工程 | `go test ./...` 会扫到 `web-admin/node_modules/flatted/golang/...`，建议 CI/脚本限定包范围或嵌套 go.mod 隔离 |
+| P2 | 测试工程 | ✅ 完成（第六轮）：`web-admin` 以嵌套 `go.mod` 从 Go 模块隔离（`go list ./...` 已不再含 node_modules）；新增 `scripts/test.sh` / `test.ps1` 统一后端校验入口；CI backend 收敛到 `cmd/internal/pkg` 范围 |
 | P3 | `common/auditctx`、`common/response`、`iplocation`、`emailer` | 零覆盖且多为 IO/中间件，成本收益比低，可后续随 handler 层一并覆盖 |
 
 ---
@@ -124,6 +137,6 @@ go test ./internal/common/... ./internal/middleware ./internal/modules/auth/... 
 
 ## 五、测试路线图（建议后续）
 
-1. **handler 层集成测试**（主要完成）：按“service 接口缝 + chi `httptest`”模式已覆盖 auth / notification / dashboard / **wiki / tenant**；剩余 user/plan/rbac/role 等小 handler 可直接套用同模式。
+1. **handler 层集成测试**（✅ 第八轮收官）：按“service 接口缝 + chi `httptest`”模式已覆盖 **auth / notification / dashboard / wiki / tenant / user / plan / audit / rbac / file 全部 10 个模块**，累计 360+ HTTP 用例，无剩余模块。
 2. **repository 真实库**：`glebarez/sqlite` 内存库，替代 sqlmock 覆盖盲区（尤其排序/软删过滤/级联）。
 3. **CI 落地**：GitHub Actions 执行 `go vet ./...`、`go test -race`、覆盖率门禁；web-admin 引入 Vitest（当前无前端测试基建）。

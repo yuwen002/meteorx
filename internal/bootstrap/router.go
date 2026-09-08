@@ -100,8 +100,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 		json.NewEncoder(w).Encode(health)
 	})
 
-	// 上传文件静态服务：带短时效 HMAC 签名校验，杜绝目录列举与未授权访问
-	r.Handle("/uploads/*", middleware.SignedUploadsHandler(cfg.File.UploadPath, cfg.JWT.Secret))
+	// 上传文件静态服务：带短时效 HMAC 签名校验，杜绝目录列举与未授权访问。
+	// 使用独立签名密钥链（首项签发、全链校验），与 jwt.secret 解耦以便单独轮换。
+	r.Handle("/uploads/*", middleware.SignedUploadsHandler(cfg.File.UploadPath, cfg.File.UploadSignKeys(cfg.JWT.Secret)))
 
 	r.Route("/api/v1", func(r chi.Router) {
 

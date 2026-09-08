@@ -1,6 +1,9 @@
 package config
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type Config struct {
 	Server     ServerConfig     `mapstructure:"server"`
@@ -120,6 +123,10 @@ type FileConfig struct {
 	MaxFileSize  int64    `mapstructure:"max_file_size"` // 最大文件大小（字节）
 	AllowedTypes []string `mapstructure:"allowed_types"` // 允许的文件MIME类型
 	StorageType  string   `mapstructure:"storage_type"`  // 存储类型: local / oss / s3（预留）
+	// SignKey 上传资源访问 URL 的独立签名密钥（不再复用 jwt.secret，避免更换登录密钥导致存量公开链接失效）。
+	// 支持逗号分隔传入多把密钥以实现平滑轮换：第一把为当前签发密钥（新链接使用），
+	// 其余仅用于校验存量链接（宽限期后可移除）；为空时回退 jwt.secret 以兼容未配置的旧部署。
+	SignKey string `mapstructure:"sign_key"`
 	// 云存储配置（预留，未启用时为空即可）
 	Cloud struct {
 		Endpoint  string `mapstructure:"endpoint"`   // OSS/S3 endpoint
@@ -128,4 +135,32 @@ type FileConfig struct {
 		Bucket    string `mapstructure:"bucket"`     // Bucket 名称
 		Region    string `mapstructure:"region"`     // Region
 	} `mapstructure:"cloud"`
+}
+
+// UploadSignKey 返回当前用于签发上传资源短时效访问 URL 的密钥。
+// 轮换配置下取密钥链首项；未配置 file.sign_key 时回退 jwt.secret（兼容旧部署）。
+func (f FileConfig) UploadSignKey(jwtSecret string) string {
+	keys := f.UploadSignKeys(jwtSecret)
+	if len(keys) == 0 {
+		return ""
+	}
+	return keys[0]
+}
+
+// UploadSignKeys 返回完整签名密钥链（首项签发 + 全部校验存量链接）。
+// 语义：sign_key 按逗号分隔（形如 "new-key,old-key"），空项被剔除。
+func (f FileConfig) UploadSignKeys(jwtSecret string) []string {
+	if strings.TrimSpace(f.SignKey) == "" {
+		if strings.TrimSpace(jwtSecret) == "" {
+			return nil
+		}
+		return []string{jwtSecret}
+	}
+	var keys []string
+	for _, part := range strings.Split(f.SignKey, ",") {
+		if k := strings.TrimSpace(part); k != "" {
+			keys = append(keys, k)
+		}
+	}
+	return keys
 }

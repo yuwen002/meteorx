@@ -19,7 +19,7 @@ func RegisterPublicShareRoute(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, c
 	extRepo := repository.NewWikiRepositoryExtended(gormDB)
 	extSvc := service.NewWikiServiceExtended(extRepo, tx)
 	if cfg != nil {
-		extSvc.SetUploadSigner(cfg.File.UploadURL, cfg.JWT.Secret)
+		extSvc.SetUploadSigner(cfg.File.UploadURL, cfg.File.UploadSignKey(cfg.JWT.Secret))
 	}
 	extH := handler.NewWikiHandlerExtended(extSvc)
 

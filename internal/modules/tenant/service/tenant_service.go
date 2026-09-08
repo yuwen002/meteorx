@@ -38,7 +38,6 @@ type TenantService struct {
 	repo               repository.TenantRepository
 	userRepo           userRepo.UserRepository
 	roleRepo           rbacRepo.RoleRepository
-	userRoleRepo       rbacRepo.UserRoleRepository
 	planProvider       TenantPlanProvider
 	planAssignProvider TenantPlanAssignProvider
 	subRepo            planRepo.SubscriptionRepository
@@ -48,13 +47,11 @@ func NewTenantService(
 	repo repository.TenantRepository,
 	userRepo userRepo.UserRepository,
 	roleRepo rbacRepo.RoleRepository,
-	userRoleRepo rbacRepo.UserRoleRepository,
 ) *TenantService {
 	return &TenantService{
-		repo:         repo,
-		userRepo:     userRepo,
-		roleRepo:     roleRepo,
-		userRoleRepo: userRoleRepo,
+		repo:     repo,
+		userRepo: userRepo,
+		roleRepo: roleRepo,
 	}
 }
 
@@ -150,14 +147,10 @@ func (s *TenantService) Register(ctx context.Context, req dto.RegisterTenantReq)
 		Status:   1,     // 默认激活
 	}
 
-	// 8. 抛给持久层执行事务
-	if err := s.repo.CreateTenantWithAdmin(ctx, tenantPO, userPO); err != nil {
+	// 8. 抛给持久层执行事务：租户、用户与默认角色关联三张表原子落库，
+	// 任一环节失败整体回滚，避免遗留"有租户无角色"的脏数据
+	if err := s.repo.CreateTenantWithAdmin(ctx, tenantPO, userPO, []string{role.ID}); err != nil {
 		return nil, err
-	}
-
-	// 9. 为用户分配角色（写入 user_roles 表）
-	if err := s.userRoleRepo.AssignRoles(ctx, userID, []string{role.ID}); err != nil {
-		return nil, fmt.Errorf("用户角色分配失败: %w", err)
 	}
 
 	return tenantPO, nil
@@ -211,14 +204,9 @@ func (s *TenantService) AdminCreate(ctx context.Context, req dto.AdminCreateTena
 		Status:   1,     // 默认激活用户状态
 	}
 
-	// 6. 交付底层 Repository 开启强一致性事务落库
-	if err := s.repo.CreateTenantWithAdmin(ctx, tenant, user); err != nil {
+	// 6. 交付底层 Repository 开启强一致性事务落库（租户、用户与默认角色关联原子写入）
+	if err := s.repo.CreateTenantWithAdmin(ctx, tenant, user, []string{role.ID}); err != nil {
 		return nil, err
-	}
-
-	// 7. 为用户分配角色（写入 user_roles 表）
-	if err := s.userRoleRepo.AssignRoles(ctx, userID, []string{role.ID}); err != nil {
-		return nil, fmt.Errorf("用户角色分配失败: %w", err)
 	}
 
 	return tenant, nil

@@ -6,6 +6,8 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
+	rbacRepo "meteorx/internal/modules/rbac/repository"
 	userModel "meteorx/internal/modules/user/model"
 	userRepo "meteorx/internal/modules/user/repository"
 	"time"
@@ -184,17 +186,18 @@ func (r *tenantRepository) GetByDomain(ctx context.Context, domain string) (*mod
 	return record.toDomain(), nil
 }
 
-// CreateTenantWithAdmin 在物理库层开启 GORM 事务，两张表同时落库
-// CreateTenantWithAdmin 在创建租户的同时创建管理员用户
-// 这是一个跨模块的数据库操作，使用事务确保数据一致性
+// CreateTenantWithAdmin 在物理库层开启 GORM 事务，三张表（tenants/users/user_roles）原子落库。
+// 历史上角色分配由 service 在事务之外另行调用 AssignRoles 完成，若该步失败会遗留
+// "已建租户与用户但无角色"的脏数据且无法自愈；现并入同一事务，任一步失败整体回滚。
 // 参数:
 //   - ctx: 上下文信息，用于传递请求范围的数据、取消信号和截止日期
 //   - t: 租户模型对象，包含租户的基本信息
 //   - u: 用户模型对象，将作为该租户的管理员
+//   - roleIDs: 需要分配给该管理员的角色 ID 列表（通常为默认租户管理员角色）
 //
 // 返回值:
 //   - error: 操作过程中发生的错误，如果成功则为nil
-func (r *tenantRepository) CreateTenantWithAdmin(ctx context.Context, t *model.Tenant, u *userModel.User) error {
+func (r *tenantRepository) CreateTenantWithAdmin(ctx context.Context, t *model.Tenant, u *userModel.User, roleIDs []string) error {
 	// 1. 组装本模块的 PO (Persistent Object)
 	// 将领域模型转换为持久化对象，以便与数据库交互
 	tenantPO := &TenantPO{
@@ -221,7 +224,7 @@ func (r *tenantRepository) CreateTenantWithAdmin(ctx context.Context, t *model.T
 		IsMaster: u.IsMaster,
 	}
 
-	// 3. 执行本地事务闭包
+	// 3. 执行本地事务闭包：租户、用户、用户-角色关联三张表原子落库
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 写入租户表
 		if err := tx.Create(tenantPO).Error; err != nil {
@@ -231,6 +234,20 @@ func (r *tenantRepository) CreateTenantWithAdmin(ctx context.Context, t *model.T
 		// 写入用户表
 		if err := tx.Create(userPO).Error; err != nil {
 			return err
+		}
+
+		// 写入默认角色关联（新用户必然无历史角色，无需先清理）
+		if len(roleIDs) > 0 {
+			roleRecords := make([]rbacRepo.UserRolePO, 0, len(roleIDs))
+			for _, roleID := range roleIDs {
+				roleRecords = append(roleRecords, rbacRepo.UserRolePO{
+					UserID: u.ID,
+					RoleID: roleID,
+				})
+			}
+			if err := tx.Create(&roleRecords).Error; err != nil {
+				return fmt.Errorf("写入用户角色关联失败: %w", err)
+			}
 		}
 
 		return nil // 自动提交
