@@ -1,0 +1,54 @@
+# MeteorX 告警规则
+groups:
+  - name: meteorx_alerts
+    interval: 30s
+    rules:
+      # === 服务可用性 ===
+      - alert: MeteorXDown
+        expr: up{job="meteorx"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MeteorX 服务不可用"
+          description: "MeteorX 服务 {{ $labels.instance }} 已下线超过 1 分钟"
+
+      # === 高错误率 ===
+      - alert: MeteorXHighErrorRate
+        expr: rate(meteorx_http_requests_total{label=~"5[0-9][0-9]:.*"}[5m]) / rate(meteorx_http_requests_total[5m]) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MeteorX 错误率过高"
+          description: "MeteorX 5xx 错误率超过 5%（当前值: {{ $value | humanizePercentage }}）"
+
+      # === 高延迟 ===
+      - alert: MeteorXHighLatency
+        expr: rate(meteorx_http_request_duration_seconds_sum[5m]) / rate(meteorx_http_request_duration_seconds_count[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MeteorX 请求延迟过高"
+          description: "MeteorX 平均请求延迟超过 1 秒（当前值: {{ $value | humanizeDuration }}）"
+
+      # === 内存使用率 ===
+      - alert: MeteorXHighMemoryUsage
+        expr: go_memstats_alloc_bytes{job="meteorx"} / go_memstats_sys_bytes{job="meteorx"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MeteorX 内存使用率过高"
+          description: "MeteorX 内存使用率超过 80%（当前值: {{ $value | humanizePercentage }}）"
+
+      # === 重启次数 ===
+      - alert: MeteorXRestartTooFrequent
+        expr: changes(process_start_time_seconds{job="meteorx"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MeteorX 频繁重启"
+          description: "MeteorX 在最近 15 分钟内发生了重启"

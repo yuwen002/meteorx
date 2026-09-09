@@ -1,0 +1,62 @@
+{
+  "title": "MeteorX - 服务监控面板",
+  "uid": "meteorx-overview",
+  "version": 1,
+  "schemaVersion": 36,
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "title": "请求速率",
+      "type": "graph",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 8},
+      "targets": [{"expr": "rate(meteorx_http_requests_total[1m])", "legendFormat": "总请求数"}]
+    },
+    {
+      "title": "错误率",
+      "type": "graph",
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 8},
+      "targets": [{"expr": "rate(meteorx_http_requests_total{label=~\"5[0-9][0-9]:.*\"}[5m]) / rate(meteorx_http_requests_total[5m])", "legendFormat": "5xx错误率"}]
+    },
+    {
+      "title": "请求延迟",
+      "type": "graph",
+      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 8},
+      "targets": [{"expr": "rate(meteorx_http_request_duration_seconds_sum[5m]) / rate(meteorx_http_request_duration_seconds_count[5m])", "legendFormat": "平均延迟(秒)"}]
+    },
+    {
+      "title": "服务运行时间",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 8, "w": 4, "h": 6},
+      "targets": [{"expr": "meteorx_uptime_seconds"}]
+    },
+    {
+      "title": "请求总数",
+      "type": "stat",
+      "gridPos": {"x": 4, "y": 8, "w": 4, "h": 6},
+      "targets": [{"expr": "sum(meteorx_http_requests_total)"}]
+    },
+    {
+      "title": "Go 内存使用",
+      "type": "graph",
+      "gridPos": {"x": 8, "y": 8, "w": 8, "h": 6},
+      "targets": [
+        {"expr": "go_memstats_alloc_bytes{job=\"meteorx\"}", "legendFormat": "已分配"},
+        {"expr": "go_memstats_sys_bytes{job=\"meteorx\"}", "legendFormat": "系统内存"}
+      ]
+    },
+    {
+      "title": "Go 协程数",
+      "type": "graph",
+      "gridPos": {"x": 16, "y": 8, "w": 8, "h": 6},
+      "targets": [{"expr": "go_goroutines{job=\"meteorx\"}", "legendFormat": "Goroutines"}]
+    },
+    {
+      "title": "状态码分布",
+      "type": "pie",
+      "gridPos": {"x": 0, "y": 14, "w": 8, "h": 8},
+      "targets": [{"expr": "sum(meteorx_http_requests_total) by (label)", "legendFormat": "{{label}}"}]
+    }
+  ]
+}
