@@ -112,6 +112,14 @@ func (r *alertRuleRepository) CreateAlert(ctx context.Context, alert *model.Audi
 	return r.db.WithContext(ctx).Create(po).Error
 }
 
+func (r *alertRuleRepository) GetAlertByID(ctx context.Context, id string) (*model.AuditAlert, error) {
+	var po AuditAlertPO
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&po).Error; err != nil {
+		return nil, err
+	}
+	return po.toDomain(), nil
+}
+
 func (r *alertRuleRepository) ListAlerts(ctx context.Context, page, pageSize int, ruleID, userID, riskLevel string) ([]*model.AuditAlert, int64, error) {
 	db := r.db.WithContext(ctx).Model(&AuditAlertPO{})
 

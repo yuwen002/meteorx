@@ -101,6 +101,9 @@ type AlertRuleRepository interface {
 	// CreateAlert 创建告警记录
 	CreateAlert(ctx context.Context, alert *model.AuditAlert) error
 
+	// GetAlertByID 根据ID获取告警记录
+	GetAlertByID(ctx context.Context, id string) (*model.AuditAlert, error)
+
 	// ListAlerts 分页查询告警记录
 	ListAlerts(ctx context.Context, page, pageSize int, ruleID, userID, riskLevel string) ([]*model.AuditAlert, int64, error)
 

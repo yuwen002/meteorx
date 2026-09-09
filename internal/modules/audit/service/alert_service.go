@@ -111,6 +111,16 @@ func (s *AlertService) DeleteRule(ctx context.Context, id string) error {
 	return s.alertRepo.Delete(ctx, id)
 }
 
+// GetRule 获取告警规则详情
+func (s *AlertService) GetRule(ctx context.Context, id string) (*model.AlertRule, error) {
+	return s.alertRepo.GetByID(ctx, id)
+}
+
+// GetAlert 获取告警记录详情
+func (s *AlertService) GetAlert(ctx context.Context, id string) (*model.AuditAlert, error) {
+	return s.alertRepo.GetAlertByID(ctx, id)
+}
+
 // ListRules 获取所有告警规则
 func (s *AlertService) ListRules(ctx context.Context) ([]*model.AlertRule, error) {
 	return s.alertRepo.List(ctx)

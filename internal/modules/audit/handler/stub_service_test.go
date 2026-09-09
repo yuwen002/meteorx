@@ -98,6 +98,16 @@ func (s *stubAlertService) DeleteRule(_ context.Context, id string) error {
 	return s.Err
 }
 
+func (s *stubAlertService) GetRule(_ context.Context, id string) (*model.AlertRule, error) {
+	s.GotID = id
+	return s.Rule, s.Err
+}
+
+func (s *stubAlertService) GetAlert(_ context.Context, id string) (*model.AuditAlert, error) {
+	s.GotID = id
+	return s.Alerts[0], s.Err
+}
+
 func (s *stubAlertService) ListRules(_ context.Context) ([]*model.AlertRule, error) {
 	return s.Rules, s.Err
 }

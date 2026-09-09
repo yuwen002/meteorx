@@ -16,7 +16,9 @@ type AlertService interface {
 	CreateRule(ctx context.Context, req dto.CreateAlertRuleReq) (*model.AlertRule, error)
 	UpdateRule(ctx context.Context, id string, req dto.UpdateAlertRuleReq) (*model.AlertRule, error)
 	DeleteRule(ctx context.Context, id string) error
+	GetRule(ctx context.Context, id string) (*model.AlertRule, error)
 	ListRules(ctx context.Context) ([]*model.AlertRule, error)
+	GetAlert(ctx context.Context, id string) (*model.AuditAlert, error)
 	ListAlerts(ctx context.Context, page, pageSize int, ruleID, userID, riskLevel string) ([]*model.AuditAlert, int64, error)
 	GetAlertStats(ctx context.Context, days int) (*model.AlertStats, error)
 }
@@ -103,6 +105,42 @@ func (h *AlertHandler) ListRules(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, resp)
+}
+
+// GetRule 获取告警规则详情
+// GET /api/v1/audit/alert-rules/{id}
+func (h *AlertHandler) GetRule(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		response.Fail(w, http.StatusBadRequest, "规则ID不能为空")
+		return
+	}
+
+	rule, err := h.alertSvc.GetRule(r.Context(), id)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取告警规则详情失败")
+		return
+	}
+
+	response.Success(w, dto.ToAlertRuleResp(rule))
+}
+
+// GetAlert 获取告警记录详情
+// GET /api/v1/audit/alerts/{id}
+func (h *AlertHandler) GetAlert(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		response.Fail(w, http.StatusBadRequest, "告警ID不能为空")
+		return
+	}
+
+	alert, err := h.alertSvc.GetAlert(r.Context(), id)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取告警记录详情失败")
+		return
+	}
+
+	response.Success(w, dto.ToAlertLogResp(alert))
 }
 
 // ListAlerts 分页查询告警记录

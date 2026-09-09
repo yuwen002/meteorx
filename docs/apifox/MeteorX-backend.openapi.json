@@ -6814,6 +6814,141 @@
           }
         }
       }
+    },
+    "/api/v1/audit/user-timeline": {
+      "get": {
+        "summary": "用户操作时间线（按天分组）",
+        "tags": ["审计日志"],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": { "type": "integer", "default": 20 }
+          },
+          {
+            "name": "start_time",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "end_time",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTimelineResp"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/detailed-stats": {
+      "get": {
+        "summary": "详细统计（小时级/风险等级/用户活跃度）",
+        "tags": ["审计日志"],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": { "type": "integer", "default": 7 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailedStatsResp"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/anomalies": {
+      "get": {
+        "summary": "异常检测（高频失败等）",
+        "tags": ["审计日志"],
+        "parameters": [
+          {
+            "name": "threshold",
+            "in": "query",
+            "schema": { "type": "integer", "default": 5 }
+          },
+          {
+            "name": "window_minutes",
+            "in": "query",
+            "schema": { "type": "integer", "default": 30 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AnomalyLogResp"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/alerts/stats": {
+      "get": {
+        "summary": "告警统计数据",
+        "tags": ["告警管理"],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": { "type": "integer", "default": 7 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertStatsResp"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -10195,6 +10330,112 @@
           "duration_minutes": {
             "type": "integer",
             "title": "会话时长（分钟）"
+          }
+        }
+      },
+      "UserTimelineResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TimelineItem"
+                }
+              },
+              "total": { "type": "integer" },
+              "pages": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "TimelineItem": {
+        "type": "object",
+        "properties": {
+          "date": { "type": "string", "description": "日期 YYYY-MM-DD" },
+          "count": { "type": "integer" },
+          "success": { "type": "integer" },
+          "failure": { "type": "integer" },
+          "logs": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AuditLogResp" }
+          }
+        }
+      },
+      "DetailedStatsResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "hourly_stats": {
+                "type": "object",
+                "additionalProperties": { "type": "integer" }
+              },
+              "risk_level_stats": {
+                "type": "object",
+                "additionalProperties": { "type": "integer" }
+              },
+              "user_activity": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "user_id": { "type": "string" },
+                    "username": { "type": "string" },
+                    "count": { "type": "integer" },
+                    "failures": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "AnomalyLogResp": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string" },
+          "username": { "type": "string" },
+          "anomaly_type": {
+            "type": "string",
+            "enum": ["high_failure_rate", "geo_anomaly", "brute_force"]
+          },
+          "anomaly_label": { "type": "string" },
+          "failure_count": { "type": "integer" },
+          "total_count": { "type": "integer" },
+          "window_minutes": { "type": "integer" },
+          "first_seen": { "type": "string", "format": "date-time" },
+          "last_seen": { "type": "string", "format": "date-time" },
+          "risk_level": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          },
+          "details": { "type": "string" }
+        }
+      },
+      "AlertStatsResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "total_count": { "type": "integer" },
+              "today_count": { "type": "integer" },
+              "by_rule": {
+                "type": "object",
+                "additionalProperties": { "type": "integer" }
+              },
+              "by_risk_level": {
+                "type": "object",
+                "additionalProperties": { "type": "integer" }
+              }
+            }
           }
         }
       }

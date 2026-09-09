@@ -40,6 +40,7 @@ func RegisterRoutes(r chi.Router, h *handler.AuditHandler, alertH *handler.Alert
 			r.Use(middleware.AutoRequirePermission(checker))
 			r.Get("/", alertH.ListRules)         // audit:alert-rule:list
 			r.Post("/", alertH.CreateRule)       // audit:alert-rule:create
+			r.Get("/{id}", alertH.GetRule)       // audit:alert-rule:read
 			r.Put("/{id}", alertH.UpdateRule)    // audit:alert-rule:update
 			r.Delete("/{id}", alertH.DeleteRule) // audit:alert-rule:delete
 		})
@@ -49,6 +50,7 @@ func RegisterRoutes(r chi.Router, h *handler.AuditHandler, alertH *handler.Alert
 			r.Use(middleware.AutoRequirePermission(checker))
 			r.Get("/", alertH.ListAlerts)         // audit:alert:list
 			r.Get("/stats", alertH.GetAlertStats) // audit:alert:stats
+			r.Get("/{id}", alertH.GetAlert)       // audit:alert:read
 		})
 
 		// 会话分析（需要权限）

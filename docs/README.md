@@ -20,7 +20,6 @@
 - [错误/响应规范](architecture/error.md)
 - [数据库/事务架构](architecture/database.md)
 - [审计架构](architecture/audit.md)
-- [审计增强功能](architecture/audit-enhanced.md)
 - [Wiki 架构](architecture/wiki.md)
 - [分页/排序/过滤架构](architecture/pagination.md)
 - [配置/启动架构](architecture/config.md)
@@ -54,7 +53,6 @@ docs/
 │   ├── error.md
 │   ├── database.md
 │   ├── audit.md
-│   ├── audit-enhanced.md
 │   ├── wiki.md
 │   ├── pagination.md
 │   ├── config.md
