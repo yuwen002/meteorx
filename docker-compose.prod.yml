@@ -38,6 +38,17 @@ services:
       # Log
       - METEORX_LOG_LEVEL=info
       - METEORX_LOG_FORMAT=json
+      
+      # OAuth2
+      - METEORX_OAUTH_GOOGLE_CLIENT_ID=${OAUTH_GOOGLE_CLIENT_ID:-}
+      - METEORX_OAUTH_GOOGLE_CLIENT_SECRET=${OAUTH_GOOGLE_CLIENT_SECRET:-}
+      - METEORX_OAUTH_GITHUB_CLIENT_ID=${OAUTH_GITHUB_CLIENT_ID:-}
+      - METEORX_OAUTH_GITHUB_CLIENT_SECRET=${OAUTH_GITHUB_CLIENT_SECRET:-}
+      - METEORX_OAUTH_REDIRECT_URL=${OAUTH_REDIRECT_URL:-http://localhost/auth/google/callback}
+      
+      # WebSocket
+      - METEORX_WS_ENABLED=true
+      - METEORX_WS_MAX_CONNECTION=1000
     depends_on:
       mysql:
         condition: service_healthy
@@ -117,10 +128,135 @@ services:
       timeout: 3s
       retries: 5
 
+  # ============================================================
+  # 监控系统 - Prometheus + Grafana
+  # ============================================================
+
+  # Prometheus 指标采集
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: meteorx-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts:/etc/prometheus/alerts:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - meteorx-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana 可视化面板
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: meteorx-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    volumes:
+      - ./deploy/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./deploy/grafana/dashboard-providers.yml:/etc/grafana/provisioning/dashboards/dashboard-providers.yml:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - meteorx-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Node Exporter - 主机系统资源监控
+  node-exporter:
+    image: prom/node-exporter:v1.8.1
+    container_name: meteorx-node-exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/root'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - meteorx-network
+
+  # MySQL Exporter - 数据库指标
+  mysql-exporter:
+    image: prom/mysqld-exporter:v0.15.1
+    container_name: meteorx-mysql-exporter
+    restart: unless-stopped
+    ports:
+      - "9104:9104"
+    environment:
+      - DATA_SOURCE_NAME=root:${DB_PASSWORD:-meteorx_secure_password}@tcp(mysql:3306)/meteorx
+    depends_on:
+      - mysql
+    networks:
+      - meteorx-network
+
+  # Redis Exporter - Redis 指标
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    container_name: meteorx-redis-exporter
+    restart: unless-stopped
+    ports:
+      - "9121:9121"
+    environment:
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    depends_on:
+      - redis
+    networks:
+      - meteorx-network
+
+  # cAdvisor - Docker 容器指标
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: meteorx-cadvisor
+    restart: unless-stopped
+    ports:
+      - "8082:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    networks:
+      - meteorx-network
+
 volumes:
   mysql-data:
     driver: local
   redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
     driver: local
 
 networks:

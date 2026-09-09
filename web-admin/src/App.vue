@@ -42,7 +42,8 @@ onMessage((msg: WSMessage) => {
       break
 
     case 'announcement':
-      // 公告通知 - 可触发弹窗或页面刷新
+      // 收到新公告通知，刷新公告列表
+      notificationStore.loadAnnouncements()
       break
 
     case 'unread_count':

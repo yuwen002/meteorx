@@ -51,11 +51,13 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 
 	// 初始化指标收集器
 	metricsCollector := middleware.NewMetricsCollector()
+	promMetrics := middleware.NewPrometheusMetrics()
 
 	// 全局中间件：Recovery -> Logger -> Metrics -> CORS
 	r.Use(middleware.Recovery)
 	r.Use(middleware.Logger)
 	r.Use(metricsCollector.Metrics)
+	r.Use(promMetrics.Middleware)
 
 	// 初始化默认套餐（幂等）
 	initPlans(db)
@@ -66,8 +68,8 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// 指标查询接口
-	r.Handle("/metrics", metricsCollector.MetricsHandler())
+	// 指标查询接口（Prometheus 格式，含 Go 运行时指标）
+	r.Handle("/metrics", promMetrics.Handler())
 
 	// 深度健康检查（检查数据库和Redis连接状态）
 	r.Get("/health/ready", func(w http.ResponseWriter, r *http.Request) {
@@ -200,7 +202,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 				user.InitAdminModule(r, db)
 
 				// 7. RBAC 角色权限管理接口（仅后台管理员可操作）
-				rbac.InitModule(r, db)
+				rbac.InitModule(r, db, rdb, repo)
 
 				// 8. 审计日志管理接口（仅后台管理员可操作）
 				emailCfg := emailer.NewEmailer(cfg.Email.Host, cfg.Email.Port, cfg.Email.Username, cfg.Email.Password, cfg.Email.From, cfg.Email.FromName)

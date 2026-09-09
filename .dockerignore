@@ -1,45 +1,57 @@
-# Git 文件
+# Git
 .git
 .gitignore
 .gitattributes
 
-# 文档
-*.md
-LICENSE
-docs/
-
 # IDE
-.vscode
 .idea
+.vscode
 *.swp
 *.swo
-*~
 
-# 日志
+# Build
+build/
+dist/
+*.exe
+*.test
+*.out
+coverage.html
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
 *.log
 logs/
 
-# 临时文件
-*.tmp
-*.bak
-*.cache
+# Uploads
+uploads/
 
-# 测试
-*_test.go
+# Data
+data/
 
-# 前端开发文件
+# Node
+node_modules/
 web-admin/node_modules/
 
 # Docker
+.dockerignore
 Dockerfile
 Dockerfile.dev
 docker-compose*.yml
 
-# CI/CD
+# CI
 .github/
-.gitlab-ci.yml
 
-# 其他
-.env
-.env.*
-!.env.example
+# Docs
+docs/
+
+# Scripts
+scripts/
+deploy/
+
+# OS
+.DS_Store
+Thumbs.db

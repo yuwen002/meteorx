@@ -74,9 +74,139 @@
 
 ---
 
-## 五、系统优化与架构改进
+## 五、权限系统完善（RBAC 审计与缓存）
 
-### 5.1 审计日志批量处理优化
+**后端改造 `internal/modules/rbac` 模块**
+
+### 5.1 权限审计日志
+
+**涉及文件：**
+- `internal/middleware/permission_audit.go` - 定义权限审计日志结构体和记录器接口
+- `internal/modules/rbac/service/permission_audit_storage.go` - 实现审计日志存储到审计模块
+- `internal/modules/rbac/service/rbac_service.go` - 在角色/权限分配方法中集成审计日志
+- `internal/modules/rbac/module.go` - 初始化审计日志记录器
+
+**改进效果：**
+- 每次角色分配/移除 → 自动写入审计日志
+- 每次权限绑定/解绑 → 自动写入审计日志
+- 支持批量操作审计
+
+### 5.2 权限缓存
+
+**涉及文件：**
+- `internal/middleware/permission_cache.go` - 实现基于 Redis 的权限缓存（TTL=5分钟）
+- `internal/modules/rbac/module.go` - Redis 可用时启用缓存
+- `internal/modules/rbac/service/rbac_service.go` - 权限变更后自动失效缓存
+
+**改进效果：**
+- 权限查询性能提升（Redis 缓存命中）
+- 支持用户级和全局级缓存失效
+- 权限变更后即时生效
+
+---
+
+## 六、指标监控系统（Prometheus + Grafana）
+
+**后端新增 Prometheus 指标暴露**
+
+### 6.1 HTTP 请求指标
+
+**涉及文件：**
+- `internal/middleware/prometheus.go` - 实现 Prometheus 格式指标采集
+- `internal/bootstrap/router.go` - 注册 `/metrics` 端点
+
+**指标列表：**
+
+| 指标名 | 类型 | 标签 | 说明 |
+|--------|------|------|------|
+| `meteorx_http_requests_total` | Counter | method, path, status | 请求总数 |
+| `meteorx_http_request_duration_seconds` | Histogram | method, path | 请求延迟分布 |
+| `meteorx_uptime_seconds` | Gauge | - | 服务运行时间 |
+| `go_memstats_alloc_bytes` | Gauge | - | 已分配堆内存 |
+| `go_goroutines` | Gauge | - | 当前 goroutine 数量 |
+| `go_memstats_sys_bytes` | Gauge | - | 系统内存占用 |
+| `go_memstats_gc_cpu_fraction` | Gauge | - | GC CPU 占比 |
+| `go_threads` | Gauge | - | 系统线程数 |
+| `process_start_time_seconds` | Gauge | - | 进程启动时间戳 |
+
+### 6.2 监控部署栈
+
+**新增文件：**
+- `deploy/prometheus/prometheus.yml` - Prometheus 采集配置
+- `deploy/prometheus/alerts/meteorx_alerts.yml` - 告警规则配置
+- `deploy/grafana/datasources/datasource.yml` - Grafana 数据源配置
+- `deploy/grafana/dashboard-providers.yml` - Grafana 面板配置
+- `deploy/grafana/dashboards/meteorx-dashboard.json` - 服务监控面板
+
+**Docker Compose 新增服务（`docker-compose.prod.yml`）：**
+
+| 服务 | 端口 | 说明 |
+|------|------|------|
+| Prometheus | 9090 | 指标存储（30天保留） |
+| Grafana | 3000 | 可视化面板（admin/admin） |
+| Node Exporter | 9100 | 主机指标 |
+| MySQL Exporter | 9104 | 数据库指标 |
+| Redis Exporter | 9121 | Redis 指标 |
+| cAdvisor | 8082 | 容器指标 |
+
+**告警规则：**
+- 服务宕机：`meteorx_up == 0` 持续 1 分钟
+- 高错误率：5xx 错误率 > 5% 持续 5 分钟
+- 高延迟：平均延迟 > 2 秒持续 5 分钟
+- 高内存：内存使用 > 80% 持续 5 分钟
+- 频繁重启：`process_start_time_seconds` 变化
+
+---
+
+## 七、前端全局通知中心面板
+
+**前端新增 `web-admin/src/views/wiki/components/GlobalNotificationCenter.vue`**
+
+### 7.1 功能描述
+
+将原有的告警按钮升级为完整的全局通知中心，整合公告通知和告警通知。
+
+### 7.2 涉及文件
+
+| 文件 | 变更 |
+|------|------|
+| `web-admin/src/views/wiki/components/GlobalNotificationCenter.vue` | **新增** - 全局通知中心组件 |
+| `web-admin/src/stores/notification.ts` | **修改** - 新增公告管理状态和方法 |
+| `web-admin/src/layouts/DefaultLayout.vue` | **修改** - 替换告警按钮为通知中心 |
+| `web-admin/src/App.vue` | **修改** - WebSocket 联动刷新公告 |
+
+### 7.3 功能点
+
+- **通知铃铛**：顶部导航栏显示未读总数角标（公告+告警）
+- **公告标签**：显示最近 5 条公告，未读标记蓝色圆点，点击跳转
+- **告警标签**：显示最近 10 条告警，按风险级别着色
+- **全部标为已读**：一键清空所有未读标识
+- **WebSocket 联动**：收到新公告通知时自动刷新列表
+- **智能时间**：显示"刚刚/X分钟前/X小时前/X天前"
+
+### 7.4 数据流
+
+```
+后端发布公告 → 广播 WebSocket announcement 消息
+        │
+        ▼
+前端 App.vue 收到消息 → 调用 notificationStore.loadAnnouncements()
+        │
+        ▼
+   通知中心自动刷新 → 更新未读角标
+        │
+        ▼
+   用户点击铃铛 → 弹出通知面板
+        │
+        ▼
+   点击公告 → 标记已读 → 跳转公告列表页
+```
+
+---
+
+## 八、系统优化与架构改进
+
+### 8.1 审计日志批量处理优化
 
 **性能提升：10-100倍**
 
@@ -92,7 +222,7 @@
 - 批量大小：100条，刷新间隔：5秒
 - 减少数据库连接开销和磁盘IO
 
-### 5.2 Context生命周期管理
+### 8.2 Context生命周期管理
 
 **涉及文件：**
 - `internal/middleware/audit_middleware.go` - 异步审计日志使用带超时的Context（10秒）
@@ -104,7 +234,7 @@
 - 异步操作支持优雅取消
 - 符合 Go 语言最佳实践
 
-### 5.3 统一错误处理
+### 8.3 统一错误处理
 
 **涉及文件：**
 - `internal/modules/tenant/handler/tenant_handler.go` - 替换硬编码状态码为 `http.StatusXXX` 常量
@@ -116,7 +246,7 @@
 - 符合 Go 语言最佳实践
 - 禁止使用硬编码HTTP状态码
 
-### 5.4 日志标准化
+### 8.4 日志标准化
 
 **涉及文件：**
 - `internal/modules/tenant/handler/tenant_handler.go` - 替换 `fmt.Println` → `log.Printf`
@@ -128,7 +258,7 @@
 - 添加模块前缀（如 `[TenantHandler]`、`[UserHandler]`、`[FileService]`）
 - 便于日志收集、分析和监控
 
-### 5.5 JWT密钥安全强化
+### 8.5 JWT密钥安全强化
 
 **涉及文件：**
 - `internal/config/config.yaml` - 添加强密钥警告注释
@@ -137,7 +267,7 @@
 - 提醒开发者在生产环境使用强随机密钥
 - 提供生成强密钥的方法说明：`openssl rand -base64 64`
 
-### 5.6 健康检查增强
+### 8.6 健康检查增强
 
 **涉及文件：**
 - `internal/bootstrap/router.go` - 新增 `/health/ready` 深度检查端点
@@ -148,7 +278,7 @@
 - `/health/ready` - 深度检查（数据库+Redis连接状态，K8s就绪探针使用）
 - 返回详细的JSON健康状态
 
-### 5.7 角色永久删除功能
+### 8.7 角色永久删除功能
 
 **涉及文件：**
 - `internal/modules/rbac/repository/interface.go` - 添加 `PermanentDelete` 和 `BatchPermanentDelete` 接口

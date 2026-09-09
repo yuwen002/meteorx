@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-container class="layout-container">
     <!-- 侧边栏 -->
     <el-aside :width="appStore.sidebarCollapsed ? '64px' : '220px'" class="sidebar">
@@ -138,23 +138,7 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
-          <!-- 告警通知红点 -->
-          <el-badge
-            :value="notificationStore.unreadAlertCount"
-            :hidden="notificationStore.unreadAlertCount === 0"
-            class="alert-badge"
-          >
-            <el-tooltip content="告警通知" placement="bottom">
-              <el-button
-                :icon="Warning"
-                circle
-                :type="notificationStore.hasUnreadAlerts ? 'danger' : 'default'"
-                @click="handleAlertClick"
-              />
-            </el-tooltip>
-          </el-badge>
-
-          <!-- WebSocket 连接状态指示器 -->
+          <GlobalNotificationCenter />
           <el-tooltip
             :content="notificationStore.wsConnected ? '实时连接已建立' : '实时连接已断开'"
             placement="bottom"
@@ -186,7 +170,6 @@
         </div>
       </el-header>
 
-      <!-- 主内容 -->
       <el-main class="main">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
@@ -199,12 +182,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import {
   ArrowDown,
   Avatar,
   Bell,
   CloseBold,
+  Connection,
   Document,
   Expand,
   Fold,
@@ -218,6 +202,7 @@ import {
   Reading,
   Setting,
   SwitchButton,
+  Timer,
   User,
   UserFilled,
   Warning
@@ -228,6 +213,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { useNotificationStore } from '@/stores/notification'
+import GlobalNotificationCenter from '@/views/wiki/components/GlobalNotificationCenter.vue'
 
 const router = useRouter()
 const currentRoute = useRoute()
@@ -236,6 +222,10 @@ const appStore = useAppStore()
 const notificationStore = useNotificationStore()
 
 const activeMenu = computed(() => currentRoute.path)
+
+onMounted(() => {
+  notificationStore.loadAnnouncements()
+})
 
 async function handleCommand(cmd: string) {
   if (cmd === 'logout') {
@@ -253,11 +243,6 @@ async function handleCommand(cmd: string) {
   } else if (cmd === 'profile') {
     router.push('/profile')
   }
-}
-
-function handleAlertClick() {
-  notificationStore.markAllAlertsAsRead()
-  router.push('/system/audit/alert')
 }
 </script>
 
@@ -326,20 +311,10 @@ function handleAlertClick() {
 .fade-leave-to {
   opacity: 0;
 }
-
-/* 告警通知红点 */
-.alert-badge {
-  margin-right: 12px;
-}
-.alert-badge :deep(.el-badge__content) {
-  background-color: #f56c6c;
-}
-
-/* WebSocket 连接状态指示器 */
 .ws-status {
   display: inline-flex;
   align-items: center;
-  margin-right: 16px;
+  margin-right: 12px;
 }
 .ws-dot {
   width: 8px;

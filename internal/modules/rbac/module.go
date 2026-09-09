@@ -2,6 +2,9 @@ package rbac
 
 import (
 	"context"
+	"meteorx/internal/cache"
+	"meteorx/internal/middleware"
+	auditRepo "meteorx/internal/modules/audit/repository"
 	"meteorx/internal/modules/rbac/handler"
 	"meteorx/internal/modules/rbac/repository"
 	"meteorx/internal/modules/rbac/service"
@@ -19,13 +22,26 @@ import (
 // 2. SeedRolePermissions：给 superadmin 角色绑定所有权限（幂等）
 // 3. SeedUserRoles：把 admin 用户绑定到 superadmin 角色（幂等）
 // 4. 注册所有角色/权限/用户-角色相关的 HTTP 路由
-func InitModule(r chi.Router, db *gorm.DB) {
+func InitModule(r chi.Router, db *gorm.DB, rdb *cache.Redis, auditRepo auditRepo.AuditLogRepository) {
 	roleRepo := repository.NewRoleRepository(db)
 	permRepo := repository.NewPermissionRepository(db)
 	rolePermRepo := repository.NewRolePermissionRepository(db)
 	userRoleRepo := repository.NewUserRoleRepository(db)
 
-	svc := service.NewRBACService(roleRepo, permRepo, rolePermRepo, userRoleRepo)
+	// 创建权限审计日志记录器
+	var auditLogger *middleware.PermissionAuditLogger
+	if auditRepo != nil {
+		auditStorage := service.NewPermissionAuditStorage(auditRepo)
+		auditLogger = middleware.NewPermissionAuditLogger(auditStorage)
+	}
+
+	// 创建权限缓存（Redis 可用时启用）
+	var permCache *middleware.PermissionCache
+	if rdb != nil && rdb.IsAvailable() {
+		permCache = middleware.NewPermissionCache(rdb.Client, 5*time.Minute)
+	}
+
+	svc := service.NewRBACService(roleRepo, permRepo, rolePermRepo, userRoleRepo, auditLogger, permCache)
 
 	// ====== Step 1: 注册预定义权限（基于 code 做幂等） ======
 	permInserted, permTotal, err := SeedPermissions(context.Background(), svc)

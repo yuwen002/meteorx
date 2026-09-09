@@ -6949,6 +6949,87 @@
           }
         }
       }
+    },
+    "/api/v1/ws": {
+      "get": {
+        "tags": ["通知公告"],
+        "summary": "WebSocket 实时通知连接",
+        "description": "建立 WebSocket 连接，用于实时推送公告、告警等通知。支持两种认证方式：1) URL 查询参数 ?token=xxx 2) Authorization: Bearer {token} 请求头",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "description": "JWT 令牌（可通过 URL 参数传递）",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "Switching Protocols - WebSocket 连接升级成功"
+          },
+          "401": {
+            "description": "Unauthorized - 缺少或无效的 token"
+          },
+          "429": {
+            "description": "Too Many Requests - 同一用户连接数超过限制（最多10个）"
+          }
+        },
+        "x-apifox-ws-messages": [
+          {
+            "direction": "server->client",
+            "name": "announcement",
+            "description": "新公告通知",
+            "payload": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "description": "公告ID" },
+                "title": { "type": "string", "description": "公告标题" },
+                "content": { "type": "string", "description": "公告内容" }
+              }
+            }
+          },
+          {
+            "direction": "server->client",
+            "name": "alert",
+            "description": "告警通知",
+            "payload": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "description": "告警ID" },
+                "rule_name": { "type": "string", "description": "告警规则名称" },
+                "risk_level": { "type": "string", "description": "风险级别" },
+                "message": { "type": "string", "description": "告警消息" },
+                "username": { "type": "string", "description": "相关用户" },
+                "time": { "type": "integer", "description": "时间戳" }
+              }
+            }
+          },
+          {
+            "direction": "server->client",
+            "name": "unread_count",
+            "description": "未读数量更新",
+            "payload": {
+              "type": "object",
+              "properties": {
+                "count": { "type": "integer", "description": "未读数量" }
+              }
+            }
+          },
+          {
+            "direction": "server->client",
+            "name": "ping",
+            "description": "服务端心跳（每30秒发送）",
+            "payload": { "type": "null" }
+          },
+          {
+            "direction": "client->server",
+            "name": "pong",
+            "description": "客户端心跳响应",
+            "payload": { "type": "null" }
+          }
+        ]
+      }
     }
   },
   "components": {

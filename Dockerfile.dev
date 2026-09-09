@@ -1,5 +1,5 @@
 # 开发环境 Dockerfile（支持热重载）
-FROM golang:1.21-alpine
+FROM golang:1.25-alpine
 
 WORKDIR /app
 

@@ -197,7 +197,64 @@
 
 ---
 
-## 4. 权限码列表
+## 4. 实时推送（WebSocket）
+
+公告模块支持通过 WebSocket 实时推送新公告通知到所有已连接的前端客户端。
+
+### 4.1 WebSocket 连接
+
+**端点：** `GET /api/v1/ws?token={jwt_token}`
+
+**认证方式：** URL 查询参数 `token` 或 `Authorization: Bearer {token}` 请求头
+
+### 4.2 消息类型
+
+| 类型 | 方向 | 说明 |
+|------|------|------|
+| `ping` | Server → Client | 心跳请求（服务端每30秒发送） |
+| `pong` | Client → Server | 心跳响应 |
+| `announcement` | Server → Client | 新公告通知 |
+| `alert` | Server → Client | 告警通知 |
+| `unread_count` | Server → Client | 未读数量更新 |
+
+### 4.3 公告推送消息格式
+
+```json
+{
+  "type": "announcement",
+  "payload": {
+    "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "title": "平台维护通知",
+    "content": "本周六凌晨进行系统升级..."
+  },
+  "time": 1724158800
+}
+```
+
+### 4.4 前端处理流程
+
+```
+WebSocket 连接建立
+        │
+        ▼
+  收到 announcement 消息
+        │
+        ▼
+  刷新通知中心公告列表
+        │
+        ▼
+  更新通知铃铛未读角标
+        │
+        ▼
+  用户点击铃铛 → 弹出通知面板
+        │
+        ▼
+  点击公告 → 跳转公告列表页
+```
+
+---
+
+## 5. 权限码列表
 
 | 权限码 | 说明 |
 |--------|------|

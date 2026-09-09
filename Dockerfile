@@ -1,27 +1,38 @@
-# 多阶段构建 - 构建阶段
-FROM golang:1.21-alpine AS builder
+# ============================================================
+# Stage 1: Build
+# ============================================================
+FROM golang:1.25-alpine AS builder
 
-# 设置工作目录
 WORKDIR /app
 
-# 安装必要的构建工具
-RUN apk add --no-cache git ca-certificates
+# 安装构建依赖
+RUN apk add --no-cache git ca-certificates tzdata
 
-# 复制 go mod 文件并下载依赖（利用 Docker 缓存）
+# 利用 Docker 缓存层，先复制依赖文件
 COPY go.mod go.sum ./
 RUN go mod download
 
 # 复制源代码
 COPY . .
 
-# 构建应用（静态链接）
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o meteorx ./cmd/server
+# 构建静态链接二进制（去除调试信息、压缩体积）
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-w -s" -a -installsuffix cgo -o meteorx ./cmd/server
 
-# 运行阶段
-FROM alpine:latest
+# ============================================================
+# Stage 2: Runtime
+# ============================================================
+FROM alpine:3.20
 
-# 安装必要的运行时依赖
-RUN apk add --no-cache ca-certificates tzdata
+# 元数据标签
+LABEL org.opencontainers.image.title="MeteorX"
+LABEL org.opencontainers.image.description="MeteorX 多租户 SaaS 管理系统后端"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.source="https://github.com/meteorx/meteorx"
+LABEL org.opencontainers.image.licenses="MIT"
+
+# 安装运行时依赖
+RUN apk add --no-cache ca-certificates tzdata curl
 
 # 设置时区
 ENV TZ=Asia/Shanghai
@@ -30,16 +41,14 @@ ENV TZ=Asia/Shanghai
 RUN addgroup -g 1001 appgroup && \
     adduser -S -u 1001 -G appgroup appuser
 
-# 设置工作目录
+# 创建工作目录
 WORKDIR /app
 
-# 从构建阶段复制二进制文件
+# 从构建阶段复制产物
 COPY --from=builder /app/meteorx .
-
-# 复制配置文件
 COPY --from=builder /app/internal/config/config.yaml ./config/
 
-# 创建必要的目录
+# 创建必要目录并设置权限
 RUN mkdir -p logs uploads data && \
     chown -R appuser:appgroup /app
 
@@ -50,8 +59,8 @@ USER appuser
 EXPOSE 8080
 
 # 健康检查
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -sf http://localhost:8080/health || exit 1
 
 # 启动应用
 ENTRYPOINT ["./meteorx"]

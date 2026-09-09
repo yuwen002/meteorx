@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"meteorx/internal/common/contextx"
+	"meteorx/internal/middleware"
 	"meteorx/internal/modules/rbac/dto"
 	"meteorx/internal/modules/rbac/model"
 	"meteorx/internal/modules/rbac/repository"
 	"meteorx/pkg/idgen"
+	"meteorx/pkg/logger"
 	"strconv"
 	"time"
 )
@@ -17,6 +19,8 @@ type RBACService struct {
 	permissionRepo     repository.PermissionRepository
 	rolePermissionRepo repository.RolePermissionRepository
 	userRoleRepo       repository.UserRoleRepository
+	auditLogger        *middleware.PermissionAuditLogger
+	permCache          *middleware.PermissionCache
 }
 
 func NewRBACService(
@@ -24,12 +28,16 @@ func NewRBACService(
 	pr repository.PermissionRepository,
 	rpr repository.RolePermissionRepository,
 	urr repository.UserRoleRepository,
+	auditLogger *middleware.PermissionAuditLogger,
+	permCache *middleware.PermissionCache,
 ) *RBACService {
 	return &RBACService{
 		roleRepo:           rr,
 		permissionRepo:     pr,
 		rolePermissionRepo: rpr,
 		userRoleRepo:       urr,
+		auditLogger:        auditLogger,
+		permCache:          permCache,
 	}
 }
 
@@ -398,20 +406,39 @@ func (s *RBACService) BatchDeletePermissions(ctx context.Context, ids []string) 
 
 func (s *RBACService) BindRolePermissions(ctx context.Context, roleID string, req dto.BindRolePermissionsReq) error {
 	// 验证角色是否存在
-	_, err := s.roleRepo.GetByID(ctx, roleID)
+	role, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
 		return errors.New("角色不存在")
 	}
 
 	// 验证所有权限ID是否存在
+	permissions := make([]*model.Permission, 0, len(req.PermissionIDs))
 	for _, permissionID := range req.PermissionIDs {
-		_, err := s.permissionRepo.GetByID(ctx, permissionID)
+		perm, err := s.permissionRepo.GetByID(ctx, permissionID)
 		if err != nil {
 			return errors.New("权限ID不存在: " + permissionID)
 		}
+		permissions = append(permissions, perm)
 	}
 
-	return s.rolePermissionRepo.BindPermissions(ctx, roleID, req.PermissionIDs)
+	if err := s.rolePermissionRepo.BindPermissions(ctx, roleID, req.PermissionIDs); err != nil {
+		return err
+	}
+
+	// 记录审计日志
+	operatorID := logger.GetUserID(ctx)
+	for _, perm := range permissions {
+		s.auditLogger.LogPermissionGrant(ctx, roleID, operatorID, perm.Code, perm.Name)
+	}
+
+	// 失效所有用户的权限缓存（因为角色权限变更影响所有拥有该角色的用户）
+	if s.permCache != nil {
+		if err := s.permCache.InvalidateAllPermissions(ctx); err != nil {
+			logger.Ctx(ctx).Warn("Failed to invalidate all permission caches", "error", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *RBACService) GetRolePermissions(ctx context.Context, roleID string) ([]*model.Permission, error) {
@@ -427,25 +454,66 @@ func (s *RBACService) GetRolePermissionCodes(ctx context.Context, roleID string)
 }
 
 func (s *RBACService) UnbindRolePermission(ctx context.Context, roleID, permissionID string) error {
-	if _, err := s.roleRepo.GetByID(ctx, roleID); err != nil {
+	role, err := s.roleRepo.GetByID(ctx, roleID)
+	if err != nil {
 		return errors.New("角色不存在")
 	}
-	if _, err := s.permissionRepo.GetByID(ctx, permissionID); err != nil {
+	perm, err := s.permissionRepo.GetByID(ctx, permissionID)
+	if err != nil {
 		return errors.New("权限不存在")
 	}
-	return s.rolePermissionRepo.UnbindPermission(ctx, roleID, permissionID)
+	if err := s.rolePermissionRepo.UnbindPermission(ctx, roleID, permissionID); err != nil {
+		return err
+	}
+
+	// 记录审计日志
+	operatorID := logger.GetUserID(ctx)
+	s.auditLogger.LogPermissionRevoke(ctx, roleID, operatorID, perm.Code, perm.Name)
+
+	// 失效所有用户的权限缓存
+	if s.permCache != nil {
+		if err := s.permCache.InvalidateAllPermissions(ctx); err != nil {
+			logger.Ctx(ctx).Warn("Failed to invalidate all permission caches", "error", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *RBACService) UnbindRolePermissions(ctx context.Context, roleID string, permissionIDs []string) (int64, error) {
-	if _, err := s.roleRepo.GetByID(ctx, roleID); err != nil {
+	role, err := s.roleRepo.GetByID(ctx, roleID)
+	if err != nil {
 		return 0, errors.New("角色不存在")
 	}
+
+	permissions := make([]*model.Permission, 0, len(permissionIDs))
 	for _, permissionID := range permissionIDs {
-		if _, err := s.permissionRepo.GetByID(ctx, permissionID); err != nil {
+		perm, err := s.permissionRepo.GetByID(ctx, permissionID)
+		if err != nil {
 			return 0, errors.New("权限不存在: " + permissionID)
 		}
+		permissions = append(permissions, perm)
 	}
-	return s.rolePermissionRepo.BatchUnbindPermissions(ctx, []string{roleID}, permissionIDs)
+
+	count, err := s.rolePermissionRepo.BatchUnbindPermissions(ctx, []string{roleID}, permissionIDs)
+	if err != nil {
+		return count, err
+	}
+
+	// 记录审计日志
+	operatorID := logger.GetUserID(ctx)
+	for _, perm := range permissions {
+		s.auditLogger.LogPermissionRevoke(ctx, roleID, operatorID, perm.Code, perm.Name)
+	}
+
+	// 失效所有用户的权限缓存
+	if s.permCache != nil {
+		if err := s.permCache.InvalidateAllPermissions(ctx); err != nil {
+			logger.Ctx(ctx).Warn("Failed to invalidate all permission caches", "error", err)
+		}
+	}
+
+	return count, nil
 }
 
 func (s *RBACService) BatchBindRolesPermissions(ctx context.Context, req dto.BatchBindRolesPermissionsReq) (int64, error) {
@@ -457,14 +525,36 @@ func (s *RBACService) BatchBindRolesPermissions(ctx context.Context, req dto.Bat
 	}
 
 	// 验证所有权限ID是否存在
+	permissions := make([]*model.Permission, 0, len(req.PermissionIDs))
 	for _, permissionID := range req.PermissionIDs {
-		_, err := s.permissionRepo.GetByID(ctx, permissionID)
+		perm, err := s.permissionRepo.GetByID(ctx, permissionID)
 		if err != nil {
 			return 0, errors.New("权限ID不存在: " + permissionID)
 		}
+		permissions = append(permissions, perm)
 	}
 
-	return s.rolePermissionRepo.BatchBindPermissions(ctx, req.RoleIDs, req.PermissionIDs)
+	count, err := s.rolePermissionRepo.BatchBindPermissions(ctx, req.RoleIDs, req.PermissionIDs)
+	if err != nil {
+		return count, err
+	}
+
+	// 记录审计日志
+	operatorID := logger.GetUserID(ctx)
+	for _, roleID := range req.RoleIDs {
+		for _, perm := range permissions {
+			s.auditLogger.LogPermissionGrant(ctx, roleID, operatorID, perm.Code, perm.Name)
+		}
+	}
+
+	// 失效所有用户的权限缓存
+	if s.permCache != nil {
+		if err := s.permCache.InvalidateAllPermissions(ctx); err != nil {
+			logger.Ctx(ctx).Warn("Failed to invalidate all permission caches", "error", err)
+		}
+	}
+
+	return count, nil
 }
 
 func (s *RBACService) BatchUnbindRolesPermissions(ctx context.Context, req dto.BatchUnbindRolesPermissionsReq) (int64, error) {
@@ -474,7 +564,28 @@ func (s *RBACService) BatchUnbindRolesPermissions(ctx context.Context, req dto.B
 	if len(req.PermissionIDs) == 0 {
 		return 0, errors.New("权限ID列表不能为空")
 	}
-	return s.rolePermissionRepo.BatchUnbindPermissions(ctx, req.RoleIDs, req.PermissionIDs)
+
+	count, err := s.rolePermissionRepo.BatchUnbindPermissions(ctx, req.RoleIDs, req.PermissionIDs)
+	if err != nil {
+		return count, err
+	}
+
+	// 记录审计日志
+	operatorID := logger.GetUserID(ctx)
+	for _, roleID := range req.RoleIDs {
+		for _, permissionID := range req.PermissionIDs {
+			s.auditLogger.LogPermissionRevoke(ctx, roleID, operatorID, permissionID, "")
+		}
+	}
+
+	// 失效所有用户的权限缓存
+	if s.permCache != nil {
+		if err := s.permCache.InvalidateAllPermissions(ctx); err != nil {
+			logger.Ctx(ctx).Warn("Failed to invalidate all permission caches", "error", err)
+		}
+	}
+
+	return count, nil
 }
 
 func (s *RBACService) ListRolePermissions(ctx context.Context, page, pageSize int, roleID, permissionID string) ([]*model.RolePermission, int64, error) {
@@ -523,14 +634,33 @@ func (s *RBACService) AssignUserRoles(ctx context.Context, userID string, req dt
 	}
 
 	// 验证所有角色ID是否存在
+	roles := make([]*model.Role, 0, len(req.RoleIDs))
 	for _, roleID := range req.RoleIDs {
-		_, err := s.roleRepo.GetByID(ctx, roleID)
+		role, err := s.roleRepo.GetByID(ctx, roleID)
 		if err != nil {
 			return errors.New("角色ID不存在: " + roleID)
 		}
+		roles = append(roles, role)
 	}
 
-	return s.userRoleRepo.AssignRoles(ctx, userID, req.RoleIDs)
+	if err := s.userRoleRepo.AssignRoles(ctx, userID, req.RoleIDs); err != nil {
+		return err
+	}
+
+	// 记录审计日志
+	operatorID := logger.GetUserID(ctx)
+	for _, role := range roles {
+		s.auditLogger.LogRoleAssignment(ctx, userID, operatorID, role.ID, role.Name)
+	}
+
+	// 失效权限缓存
+	if s.permCache != nil {
+		if err := s.permCache.InvalidateUserPermissions(ctx, userID); err != nil {
+			logger.Ctx(ctx).Warn("Failed to invalidate permission cache", "user_id", userID, "error", err)
+		}
+	}
+
+	return nil
 }
 
 // GetUserRoles 获取用户的角色列表
@@ -563,10 +693,26 @@ func (s *RBACService) RemoveUserRole(ctx context.Context, userID, roleID string)
 	if err := s.userRoleRepo.CheckUserExists(ctx, userID); err != nil {
 		return err
 	}
-	if _, err := s.roleRepo.GetByID(ctx, roleID); err != nil {
+	role, err := s.roleRepo.GetByID(ctx, roleID)
+	if err != nil {
 		return errors.New("角色ID不存在: " + roleID)
 	}
-	return s.userRoleRepo.DeleteByUserIDAndRoleID(ctx, userID, roleID)
+	if err := s.userRoleRepo.DeleteByUserIDAndRoleID(ctx, userID, roleID); err != nil {
+		return err
+	}
+
+	// 记录审计日志
+	operatorID := logger.GetUserID(ctx)
+	s.auditLogger.LogRoleRemoval(ctx, userID, operatorID, role.ID, role.Name)
+
+	// 失效权限缓存
+	if s.permCache != nil {
+		if err := s.permCache.InvalidateUserPermissions(ctx, userID); err != nil {
+			logger.Ctx(ctx).Warn("Failed to invalidate permission cache", "user_id", userID, "error", err)
+		}
+	}
+
+	return nil
 }
 
 // RemoveAllUserRoles 删除用户的所有角色
@@ -574,7 +720,28 @@ func (s *RBACService) RemoveAllUserRoles(ctx context.Context, userID string) err
 	if err := s.userRoleRepo.CheckUserExists(ctx, userID); err != nil {
 		return err
 	}
-	return s.userRoleRepo.DeleteByUserID(ctx, userID)
+
+	// 获取用户当前角色，用于审计日志
+	roles, _ := s.GetUserRoles(ctx, userID)
+
+	if err := s.userRoleRepo.DeleteByUserID(ctx, userID); err != nil {
+		return err
+	}
+
+	// 记录审计日志
+	operatorID := logger.GetUserID(ctx)
+	for _, role := range roles {
+		s.auditLogger.LogRoleRemoval(ctx, userID, operatorID, role.ID, role.Name)
+	}
+
+	// 失效权限缓存
+	if s.permCache != nil {
+		if err := s.permCache.InvalidateUserPermissions(ctx, userID); err != nil {
+			logger.Ctx(ctx).Warn("Failed to invalidate permission cache", "user_id", userID, "error", err)
+		}
+	}
+
+	return nil
 }
 
 // GetRoleUsers 获取拥有某角色的用户列表
@@ -607,11 +774,13 @@ func (s *RBACService) BatchAssignUserRoles(ctx context.Context, req dto.BatchAss
 	}
 
 	// 验证所有角色ID是否存在
+	roleNames := make(map[string]string)
 	for roleID := range allRoleIDs {
-		_, err := s.roleRepo.GetByID(ctx, roleID)
+		role, err := s.roleRepo.GetByID(ctx, roleID)
 		if err != nil {
 			return 0, errors.New("角色ID不存在: " + roleID)
 		}
+		roleNames[roleID] = role.Name
 	}
 	// 验证所有用户ID是否存在
 	for userID := range allUserIDs {
@@ -620,6 +789,7 @@ func (s *RBACService) BatchAssignUserRoles(ctx context.Context, req dto.BatchAss
 		}
 	}
 
+	operatorID := logger.GetUserID(ctx)
 	var count int64
 	for _, assignment := range req.UserRoleAssignments {
 		if len(assignment.RoleIDs) == 0 {
@@ -628,6 +798,21 @@ func (s *RBACService) BatchAssignUserRoles(ctx context.Context, req dto.BatchAss
 		if err := s.userRoleRepo.AssignRoles(ctx, assignment.UserID, assignment.RoleIDs); err != nil {
 			return count, err
 		}
+
+		// 记录审计日志
+		for _, roleID := range assignment.RoleIDs {
+			if name, ok := roleNames[roleID]; ok {
+				s.auditLogger.LogRoleAssignment(ctx, assignment.UserID, operatorID, roleID, name)
+			}
+		}
+
+		// 失效权限缓存
+		if s.permCache != nil {
+			if err := s.permCache.InvalidateUserPermissions(ctx, assignment.UserID); err != nil {
+				logger.Ctx(ctx).Warn("Failed to invalidate permission cache", "user_id", assignment.UserID, "error", err)
+			}
+		}
+
 		count++
 	}
 	return count, nil
