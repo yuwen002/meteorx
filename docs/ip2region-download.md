@@ -106,7 +106,7 @@ ip2region.xdb 文件应该约 10MB。如果小于 5MB，说明下载不完整。
 确保应用程序有文件读取权限：
 ```bash
 chmod 644 data/ip2region.xdb
-```
+```·
 
 ## 注意事项
 

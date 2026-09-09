@@ -14,10 +14,8 @@ import (
 
 // SetupMiddleware 集中配置全局中间件
 func SetupMiddleware(r *chi.Mux, allowedOrigins []string) {
-	r.Use(middleware.RequestIDMiddleware)
 	r.Use(middleware.GlobalErrorHandler)
 	r.Use(chimiddleware.RealIP)
-	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Timeout(60 * time.Second))
 
 	r.Use(CorsMiddleware(allowedOrigins))

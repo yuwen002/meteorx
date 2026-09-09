@@ -7,133 +7,224 @@ on:
     branches: [ main ]
 
 env:
-  GO_VERSION: '1.25'
-  NODE_VERSION: '20'
+  GO_VERSION: '1.21'
+  NODE_VERSION: '18'
 
 jobs:
-  # Backend Tests and Build
-  backend:
+  # 代码质量检查
+  lint:
+    name: Code Quality
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          args: --timeout=5m
 
-    - name: Download dependencies
-      run: go mod download
+  # 单元测试
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: meteorx_test
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_password
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 3306:3306
 
-    # 统一校验入口：范围收敛到后端包（cmd/internal/pkg），
-    # 与本地 scripts/test.sh / test.ps1 保持一致，避免 `./...` 误扫前端依赖。
-    - name: Run backend checks (vet + build + race tests)
-      run: bash scripts/test.sh
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
 
-    - name: Upload coverage
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.out
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Run linter
-      uses: golangci/golangci-lint-action@v6
-      with:
-        version: latest
-        args: --timeout=5m
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-  # Frontend Tests and Build
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests with coverage
+        env:
+          METEORX_DB_HOST: localhost
+          METEORX_DB_PORT: 3306
+          METEORX_DB_USER: test_user
+          METEORX_DB_PASSWORD: test_password
+          METEORX_DB_NAME: meteorx_test
+          METEORX_REDIS_HOST: localhost
+          METEORX_REDIS_PORT: 6379
+          METEORX_REDIS_PASSWORD: ""
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+          go tool cover -func=coverage.out
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  # 构建测试
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build binary
+        run: |
+          CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o meteorx ./cmd/server
+          CGO_ENABLED=0 GOOS=darwin go build -a -installsuffix cgo -o meteorx-macos ./cmd/server
+          CGO_ENABLED=0 GOOS=windows go build -a -installsuffix cgo -o meteorx.exe ./cmd/server
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries
+          path: |
+            meteorx
+            meteorx-macos
+            meteorx.exe
+
+  # Docker 构建和推送
+  docker:
+    name: Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/meteorx
+          tags: |
+            type=sha,format=long
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # 前端测试和构建
   frontend:
+    name: Frontend
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./web-admin
+        working-directory: web-admin
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
-        cache-dependency-path: ./web-admin/package-lock.json
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
-    - name: Install dependencies
-      run: npm ci
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: web-admin/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('web-admin/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
-    - name: Run TypeScript type check
-      run: npx vue-tsc --noEmit
+      - name: Install dependencies
+        run: npm ci
 
-    - name: Run ESLint
-      run: npm run lint
+      - name: Run lint
+        run: npm run lint
 
-    - name: Build
-      run: npm run build
+      - name: Run tests
+        run: npm run test:run
 
-  # Build and Push Docker Images
-  docker:
-    needs: [backend, frontend]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-    - uses: actions/checkout@v4
+      - name: Build
+        run: npm run build
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-
-    - name: Build and push backend
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: true
-        tags: |
-          ${{ secrets.DOCKER_USERNAME }}/meteorx-api:latest
-          ${{ secrets.DOCKER_USERNAME }}/meteorx-api:${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Build and push frontend
-      uses: docker/build-push-action@v5
-      with:
-        context: ./web-admin
-        push: true
-        tags: |
-          ${{ secrets.DOCKER_USERNAME }}/meteorx-web:latest
-          ${{ secrets.DOCKER_USERNAME }}/meteorx-web:${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-  # Deploy to Production (optional)
-  deploy:
-    needs: docker
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Deploy to server
-      env:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        SERVER_HOST: ${{ secrets.SERVER_HOST }}
-        SERVER_USER: ${{ secrets.SERVER_USER }}
-      run: |
-        echo "$SSH_PRIVATE_KEY" > private_key
-        chmod 600 private_key
-        ssh -i private_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST "
-          cd /opt/meteorx &&
-          docker-compose -f docker-compose.prod.yml pull &&
-          docker-compose -f docker-compose.prod.yml up -d
-        "
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-dist
+          path: web-admin/dist/

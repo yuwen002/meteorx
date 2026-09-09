@@ -94,6 +94,26 @@
             <el-icon><Document /></el-icon>
             <template #title>审计日志</template>
           </el-menu-item>
+          <el-menu-item index="/system/audit/login-history">
+            <el-icon><User /></el-icon>
+            <template #title>登录历史</template>
+          </el-menu-item>
+          <el-menu-item index="/system/audit/timeline">
+            <el-icon><Timer /></el-icon>
+            <template #title>用户时间线</template>
+          </el-menu-item>
+          <el-menu-item index="/system/audit/alert">
+            <el-icon><Bell /></el-icon>
+            <template #title>告警管理</template>
+          </el-menu-item>
+          <el-menu-item index="/system/audit/anomaly">
+            <el-icon><Warning /></el-icon>
+            <template #title>异常检测</template>
+          </el-menu-item>
+          <el-menu-item index="/system/audit/session">
+            <el-icon><Connection /></el-icon>
+            <template #title>会话分析</template>
+          </el-menu-item>
           <el-menu-item index="/system/announcement">
             <el-icon><Bell /></el-icon>
             <template #title>公告管理</template>

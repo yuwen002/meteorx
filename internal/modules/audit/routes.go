@@ -21,6 +21,9 @@ func RegisterRoutes(r chi.Router, h *handler.AuditHandler, alertH *handler.Alert
 		// Dashboard 统计接口：无需细粒度权限校验（只需登录）
 		r.Get("/stats", h.GetStats)
 		r.Get("/dashboard", h.GetDashboard)
+		r.Get("/user-timeline", h.GetUserTimeline)        // 用户时间线（需登录）
+		r.Get("/detailed-stats", h.GetDetailedStats)      // 详细统计（需登录）
+		r.Get("/anomalies", h.GetAnomalyLogs)             // 异常检测（需登录）
 
 		// 需要细粒度权限校验的路由组
 		r.Route("/logs", func(r chi.Router) {

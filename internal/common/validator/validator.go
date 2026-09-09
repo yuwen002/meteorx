@@ -28,7 +28,7 @@ func init() {
 
 	// 注册自定义用户名验证器（允许字母、数字、下划线、连字符）
 	if err := validate.RegisterValidation("username", validateUsername); err != nil {
-		logger.NewLogger("[VALIDATOR]").Error("注册自定义验证器失败: " + err.Error())
+		logger.Error("注册自定义验证器失败: " + err.Error())
 	}
 }
 

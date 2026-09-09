@@ -6,6 +6,7 @@ import (
 	"meteorx/internal/modules/audit/model"
 	"meteorx/internal/modules/audit/repository"
 	"meteorx/pkg/idgen"
+	"sort"
 	"time"
 )
 
@@ -204,4 +205,176 @@ func (s *AuditService) GetDashboard(ctx context.Context, tenantID string, days i
 		Trend:       trend,
 		TopModules:  topModules,
 	}, nil
+}
+
+// GetUserTimeline 获取用户操作时间线
+func (s *AuditService) GetUserTimeline(ctx context.Context, req *dto.UserTimelineReq) (*dto.UserTimelineResp, error) {
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.PageSize <= 0 {
+		req.PageSize = 20
+	}
+
+	logs, total, err := s.repo.GetUserTimeline(ctx, req.UserID, req.Page, req.PageSize, req.StartTime, req.EndTime)
+	if err != nil {
+		return nil, err
+	}
+
+	// 按日期分组
+	dateMap := make(map[string][]*dto.AuditLogResp)
+	for _, log := range logs {
+		date := log.CreatedAt.Format("2006-01-02")
+		dateMap[date] = append(dateMap[date], dto.ToAuditLogResp(log))
+	}
+
+	// 按日期排序
+	dates := make([]string, 0, len(dateMap))
+	for date := range dateMap {
+		dates = append(dates, date)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
+
+	items := make([]*dto.TimelineItem, 0, len(dates))
+	for _, date := range dates {
+		logs := dateMap[date]
+		var success, failure int64
+		for _, l := range logs {
+			if l.Result == "success" {
+				success++
+			} else {
+				failure++
+			}
+		}
+		items = append(items, &dto.TimelineItem{
+			Date:    date,
+			Count:   int64(len(logs)),
+			Success: success,
+			Failure: failure,
+			Logs:    logs,
+		})
+	}
+
+	totalPages := int(total) / req.PageSize
+	if int(total)%req.PageSize > 0 {
+		totalPages++
+	}
+
+	return &dto.UserTimelineResp{
+		Items: items,
+		Total: total,
+		Pages: totalPages,
+	}, nil
+}
+
+// GetDetailedStats 获取详细统计
+func (s *AuditService) GetDetailedStats(ctx context.Context, days int) (*dto.DetailedStatsResp, error) {
+	if days <= 0 {
+		days = 7
+	}
+
+	stats, err := s.repo.GetStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	hourlyStats, err := s.repo.GetHourlyStats(ctx, days)
+	if err != nil {
+		return nil, err
+	}
+
+	userActivity, err := s.repo.GetUserActivityStats(ctx, days, 20)
+	if err != nil {
+		return nil, err
+	}
+
+	riskLevelStats, err := s.repo.GetRiskLevelStats(ctx, days)
+	if err != nil {
+		return nil, err
+	}
+
+	trend, err := s.repo.GetTrendStats(ctx, "", days)
+	if err != nil {
+		return nil, err
+	}
+
+	trendPoints := make([]dto.TrendPoint, len(trend))
+	for i, t := range trend {
+		trendPoints[i] = dto.TrendPoint{
+			Date:    t.Date,
+			Count:   t.Count,
+			Success: t.Success,
+			Failure: t.Failure,
+		}
+	}
+
+	activityDTOs := make([]*dto.UserActivityStatDTO, len(userActivity))
+	for i, u := range userActivity {
+		activityDTOs[i] = &dto.UserActivityStatDTO{
+			UserID:   u.UserID,
+			Username: u.Username,
+			Count:    u.Count,
+			Failures: u.Failures,
+		}
+	}
+
+	return &dto.DetailedStatsResp{
+		TotalCount:     stats.TotalCount,
+		TodayCount:     stats.TodayCount,
+		ActionStats:    stats.ActionStats,
+		ModuleStats:    stats.ModuleStats,
+		ResultStats:    stats.ResultStats,
+		RiskLevelStats: riskLevelStats,
+		HourlyStats:    hourlyStats,
+		UserActivity:   activityDTOs,
+		Trend:          trendPoints,
+	}, nil
+}
+
+// GetAnomalyLogs 获取异常日志
+func (s *AuditService) GetAnomalyLogs(ctx context.Context, threshold int, windowMinutes int) ([]*dto.AnomalyLogResp, error) {
+	if threshold <= 0 {
+		threshold = 5
+	}
+	if windowMinutes <= 0 {
+		windowMinutes = 30
+	}
+
+	anomalies, err := s.repo.GetAnomalyLogs(ctx, threshold, windowMinutes)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*dto.AnomalyLogResp, len(anomalies))
+	for i, a := range anomalies {
+		label := getAnomalyLabel(a.AnomalyType)
+		result[i] = &dto.AnomalyLogResp{
+			UserID:        a.UserID,
+			Username:      a.Username,
+			AnomalyType:   a.AnomalyType,
+			AnomalyLabel:  label,
+			FailureCount:  a.FailureCount,
+			TotalCount:    a.TotalCount,
+			WindowMinutes: a.WindowMinutes,
+			FirstSeen:     a.FirstSeen.Format("2006-01-02 15:04:05"),
+			LastSeen:      a.LastSeen.Format("2006-01-02 15:04:05"),
+			RiskLevel:     a.RiskLevel,
+			Details:       a.Details,
+		}
+	}
+	return result, nil
+}
+
+// getAnomalyLabel 获取异常类型中文标签
+func getAnomalyLabel(t string) string {
+	switch t {
+	case model.AnomalyTypeHighFailure:
+		return "高频操作失败"
+	case model.AnomalyTypeGeoAnomaly:
+		return "异地登录异常"
+	case model.AnomalyTypeBruteForce:
+		return "暴力破解尝试"
+	default:
+		return t
+	}
 }

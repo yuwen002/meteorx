@@ -45,6 +45,21 @@ type AuditLogRepository interface {
 
 	// ListSessions 获取会话摘要列表
 	ListSessions(ctx context.Context, page, pageSize int, userID string) ([]model.SessionSummary, int64, error)
+
+	// GetUserTimeline 获取用户操作时间线（按天分组，按时间降序）
+	GetUserTimeline(ctx context.Context, userID string, page, pageSize int, startTime, endTime string) ([]*model.AuditLog, int64, error)
+
+	// GetHourlyStats 获取小时级统计
+	GetHourlyStats(ctx context.Context, days int) (map[string]int64, error)
+
+	// GetUserActivityStats 获取用户活跃度统计
+	GetUserActivityStats(ctx context.Context, days, limit int) ([]model.UserActivityStat, error)
+
+	// GetRiskLevelStats 获取风险等级分布
+	GetRiskLevelStats(ctx context.Context, days int) (map[string]int64, error)
+
+	// GetAnomalyLogs 检测异常日志（短时高频失败、异地登录等）
+	GetAnomalyLogs(ctx context.Context, threshold int, windowMinutes int) ([]*model.AnomalyLog, error)
 }
 
 type AuditLogQuery struct {

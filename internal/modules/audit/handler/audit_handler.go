@@ -26,6 +26,9 @@ type AuditService interface {
 	GetStats(ctx context.Context) (*dto.AuditLogStatsResp, error)
 	CleanupLogs(ctx context.Context, days int) (int64, error)
 	GetDashboard(ctx context.Context, tenantID string, days int) (*dto.DashboardResp, error)
+	GetUserTimeline(ctx context.Context, req *dto.UserTimelineReq) (*dto.UserTimelineResp, error)
+	GetDetailedStats(ctx context.Context, days int) (*dto.DetailedStatsResp, error)
+	GetAnomalyLogs(ctx context.Context, threshold int, windowMinutes int) ([]*dto.AnomalyLogResp, error)
 }
 
 // AuditHandler 审计日志处理器
@@ -195,6 +198,69 @@ func (h *AuditHandler) GetDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, data)
+}
+
+// GetUserTimeline 获取用户操作时间线
+// GET /api/v1/audit/user-timeline?user_id=xxx&page=1&page_size=20
+func (h *AuditHandler) GetUserTimeline(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("user_id")
+	if userID == "" {
+		response.Fail(w, http.StatusBadRequest, "用户ID不能为空")
+		return
+	}
+
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("page_size")
+	page, _ := strconv.Atoi(pageStr)
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+
+	req := &dto.UserTimelineReq{
+		Page:      page,
+		PageSize:  pageSize,
+		UserID:    userID,
+		StartTime: r.URL.Query().Get("start_time"),
+		EndTime:   r.URL.Query().Get("end_time"),
+	}
+
+	result, err := h.svc.GetUserTimeline(r.Context(), req)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取用户时间线失败")
+		return
+	}
+
+	response.Success(w, result)
+}
+
+// GetDetailedStats 获取详细统计
+// GET /api/v1/audit/detailed-stats?days=7
+func (h *AuditHandler) GetDetailedStats(w http.ResponseWriter, r *http.Request) {
+	daysStr := r.URL.Query().Get("days")
+	days, _ := strconv.Atoi(daysStr)
+
+	result, err := h.svc.GetDetailedStats(r.Context(), days)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取详细统计数据失败")
+		return
+	}
+
+	response.Success(w, result)
+}
+
+// GetAnomalyLogs 获取异常日志
+// GET /api/v1/audit/anomalies?threshold=5&window_minutes=30
+func (h *AuditHandler) GetAnomalyLogs(w http.ResponseWriter, r *http.Request) {
+	thresholdStr := r.URL.Query().Get("threshold")
+	windowStr := r.URL.Query().Get("window_minutes")
+	threshold, _ := strconv.Atoi(thresholdStr)
+	windowMinutes, _ := strconv.Atoi(windowStr)
+
+	result, err := h.svc.GetAnomalyLogs(r.Context(), threshold, windowMinutes)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取异常日志失败")
+		return
+	}
+
+	response.Success(w, result)
 }
 
 // exportCSV 导出为 CSV 格式

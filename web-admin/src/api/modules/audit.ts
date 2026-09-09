@@ -136,3 +136,76 @@ export function exportAuditLogs(params: {
   
   return `/api/v1/audit/logs/export?${query.toString()}`
 }
+
+// ---------------------- 新增 API ----------------------
+
+// 用户时间线
+export interface TimelineItem {
+  date: string
+  count: number
+  success: number
+  failure: number
+  logs: AuditLogItem[]
+}
+
+export interface UserTimelineResult {
+  items: TimelineItem[]
+  total: number
+  pages: number
+}
+
+export function getUserTimeline(params: {
+  user_id: string
+  page?: number
+  page_size?: number
+  start_time?: string
+  end_time?: string
+}): Promise<UserTimelineResult> {
+  return get('/audit/user-timeline', params)
+}
+
+// 详细统计
+export interface UserActivityStat {
+  user_id: string
+  username: string
+  count: number
+  failures: number
+}
+
+export interface DetailedStats {
+  total_count: number
+  today_count: number
+  action_stats: Record<string, number>
+  module_stats: Record<string, number>
+  result_stats: Record<string, number>
+  risk_level_stats: Record<string, number>
+  hourly_stats: Record<string, number>
+  user_activity: UserActivityStat[]
+  trend: TrendPoint[]
+}
+
+export function getDetailedStats(days?: number): Promise<DetailedStats> {
+  return get('/audit/detailed-stats', { days: days || 7 })
+}
+
+// 异常检测
+export interface AnomalyLogItem {
+  user_id: string
+  username: string
+  anomaly_type: string
+  anomaly_label: string
+  failure_count: number
+  total_count: number
+  window_minutes: number
+  first_seen: string
+  last_seen: string
+  risk_level: string
+  details: string
+}
+
+export function getAnomalyLogs(params?: {
+  threshold?: number
+  window_minutes?: number
+}): Promise<AnomalyLogItem[]> {
+  return get('/audit/anomalies', params)
+}

@@ -3,6 +3,8 @@ package logger
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"

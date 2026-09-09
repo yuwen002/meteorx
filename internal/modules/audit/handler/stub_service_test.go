@@ -51,6 +51,18 @@ func (s *stubAuditService) GetDashboard(_ context.Context, tenantID string, days
 	return s.Dashboard, s.Err
 }
 
+func (s *stubAuditService) GetUserTimeline(_ context.Context, req *dto.UserTimelineReq) (*dto.UserTimelineResp, error) {
+	return &dto.UserTimelineResp{Items: []*dto.TimelineItem{}, Total: 0, Pages: 0}, s.Err
+}
+
+func (s *stubAuditService) GetDetailedStats(_ context.Context, days int) (*dto.DetailedStatsResp, error) {
+	return &dto.DetailedStatsResp{}, s.Err
+}
+
+func (s *stubAuditService) GetAnomalyLogs(_ context.Context, threshold int, windowMinutes int) ([]*dto.AnomalyLogResp, error) {
+	return []*dto.AnomalyLogResp{}, s.Err
+}
+
 // stubAlertService 桩实现 handler.AlertService
 type stubAlertService struct {
 	Err      error

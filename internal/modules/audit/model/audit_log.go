@@ -120,3 +120,32 @@ type TrendQuery struct {
 	StartTime string `form:"start_time"`
 	EndTime   string `form:"end_time"`
 }
+
+// UserActivityStat 用户活跃度统计
+type UserActivityStat struct {
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+	Count    int64  `json:"count"`
+	Failures int64  `json:"failures"`
+}
+
+// AnomalyLog 异常日志记录
+type AnomalyLog struct {
+	UserID        string    `json:"user_id"`
+	Username      string    `json:"username"`
+	AnomalyType   string    `json:"anomaly_type"` // high_failure_rate, geo_anomaly, brute_force
+	FailureCount  int64     `json:"failure_count"`
+	TotalCount    int64     `json:"total_count"`
+	WindowMinutes int       `json:"window_minutes"`
+	FirstSeen     time.Time `json:"first_seen"`
+	LastSeen      time.Time `json:"last_seen"`
+	RiskLevel     string    `json:"risk_level"`
+	Details       string    `json:"details"`
+}
+
+// AnomalyType 异常类型常量
+const (
+	AnomalyTypeHighFailure = "high_failure_rate" // 高频失败
+	AnomalyTypeGeoAnomaly  = "geo_anomaly"       // 异地登录异常
+	AnomalyTypeBruteForce  = "brute_force"        // 暴力破解尝试
+)

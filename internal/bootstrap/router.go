@@ -47,6 +47,14 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 	// 初始化限流器
 	rateLimiter := security.NewRateLimiter(rdb, cfg.Security.RateLimit)
 
+	// 初始化指标收集器
+	metricsCollector := middleware.NewMetricsCollector()
+
+	// 全局中间件：Recovery -> Logger -> Metrics -> CORS
+	r.Use(middleware.Recovery)
+	r.Use(middleware.Logger)
+	r.Use(metricsCollector.Metrics)
+
 	// 初始化默认套餐（幂等）
 	initPlans(db)
 
@@ -55,6 +63,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
+
+	// 指标查询接口
+	r.Handle("/metrics", metricsCollector.MetricsHandler())
 
 	// 深度健康检查（检查数据库和Redis连接状态）
 	r.Get("/health/ready", func(w http.ResponseWriter, r *http.Request) {

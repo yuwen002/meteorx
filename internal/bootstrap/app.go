@@ -15,7 +15,12 @@ import (
 )
 
 func StartApp() {
-	// 1. 加载配置
+	// 1. 初始化日志系统
+	if err := logger.Init(logger.DefaultConfig()); err != nil {
+		panic(fmt.Sprintf("Failed to initialize logger: %v", err))
+	}
+
+	// 2. 加载配置
 	cfg, err := LoadConfig()
 	if err != nil {
 		logger.Fatalf("Load config failed: %v", err)
@@ -113,4 +118,7 @@ func StartApp() {
 	}
 
 	logger.Info("MeteorX server stopped")
+
+	// 6) 关闭日志系统（刷新异步日志缓冲区，放在最后一步）
+	logger.Close()
 }

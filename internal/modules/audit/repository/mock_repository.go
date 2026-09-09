@@ -209,6 +209,60 @@ func (m *MockAuditLogRepository) ListSessions(ctx context.Context, page, pageSiz
 	return summaries, total, nil
 }
 
+// GetUserTimeline Mock 实现
+func (m *MockAuditLogRepository) GetUserTimeline(ctx context.Context, userID string, page, pageSize int, startTime, endTime string) ([]*model.AuditLog, int64, error) {
+	var result []*model.AuditLog
+	for _, log := range m.logs {
+		if log.UserID != userID {
+			continue
+		}
+		if startTime != "" && log.CreatedAt.Format("2006-01-02") < startTime {
+			continue
+		}
+		if endTime != "" && log.CreatedAt.Format("2006-01-02") > endTime {
+			continue
+		}
+		result = append(result, log)
+	}
+
+	start := (page - 1) * pageSize
+	if start > len(result) {
+		start = len(result)
+	}
+	end := start + pageSize
+	if end > len(result) {
+		end = len(result)
+	}
+
+	return result[start:end], int64(len(result)), nil
+}
+
+// GetHourlyStats Mock 实现
+func (m *MockAuditLogRepository) GetHourlyStats(ctx context.Context, days int) (map[string]int64, error) {
+	return map[string]int64{}, nil
+}
+
+// GetUserActivityStats Mock 实现
+func (m *MockAuditLogRepository) GetUserActivityStats(ctx context.Context, days, limit int) ([]model.UserActivityStat, error) {
+	return []model.UserActivityStat{}, nil
+}
+
+// GetRiskLevelStats Mock 实现
+func (m *MockAuditLogRepository) GetRiskLevelStats(ctx context.Context, days int) (map[string]int64, error) {
+	stats := make(map[string]int64)
+	for _, log := range m.logs {
+		if log.RiskLevel != "" {
+			stats[log.RiskLevel]++
+		}
+	}
+	return stats, nil
+}
+
+// GetAnomalyLogs Mock 实现
+func (m *MockAuditLogRepository) GetAnomalyLogs(ctx context.Context, threshold int, windowMinutes int) ([]*model.AnomalyLog, error) {
+	return []*model.AnomalyLog{}, nil
+}
+
 // MockAlertRuleRepository 告警规则仓库的内存实现（用于测试）
 type MockAlertRuleRepository struct {
 	rules  []*model.AlertRule

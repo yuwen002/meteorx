@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"meteorx/internal/modules/audit/model"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -168,7 +169,12 @@ func (r *auditLogRepository) List(ctx context.Context, query *AuditLogQuery) ([]
 		db = db.Where("module = ?", query.Module)
 	}
 	if query.Action != "" {
-		db = db.Where("action = ?", query.Action)
+		actions := strings.Split(query.Action, ",")
+		if len(actions) > 1 {
+			db = db.Where("action IN ?", actions)
+		} else {
+			db = db.Where("action = ?", query.Action)
+		}
 	}
 	if query.Resource != "" {
 		db = db.Where("resource LIKE ?", "%"+query.Resource+"%")
@@ -490,4 +496,160 @@ func (r *auditLogRepository) ListSessions(ctx context.Context, page, pageSize in
 	}
 
 	return summaries, total, nil
+}
+
+// GetUserTimeline 获取用户操作时间线
+func (r *auditLogRepository) GetUserTimeline(ctx context.Context, userID string, page, pageSize int, startTime, endTime string) ([]*model.AuditLog, int64, error) {
+	db := r.db.WithContext(ctx).Model(&AuditLogPO{}).Where("user_id = ?", userID)
+
+	if startTime != "" {
+		db = db.Where("created_at >= ?", startTime)
+	}
+	if endTime != "" {
+		db = db.Where("created_at <= ?", endTime)
+	}
+
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var pos []AuditLogPO
+	if err := db.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&pos).Error; err != nil {
+		return nil, 0, err
+	}
+
+	logs := make([]*model.AuditLog, len(pos))
+	for i, po := range pos {
+		logs[i] = po.toDomain()
+	}
+	return logs, total, nil
+}
+
+// GetHourlyStats 获取小时级统计
+func (r *auditLogRepository) GetHourlyStats(ctx context.Context, days int) (map[string]int64, error) {
+	type result struct {
+		Hour  string
+		Count int64
+	}
+
+	cutoff := time.Now().AddDate(0, 0, -days)
+	var results []result
+	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).
+		Select("DATE_FORMAT(created_at, '%Y-%m-%d %H:00') as hour, COUNT(*) as count").
+		Where("created_at >= ?", cutoff).
+		Group("hour").
+		Order("hour ASC").
+		Scan(&results).Error; err != nil {
+		return nil, err
+	}
+
+	stats := make(map[string]int64)
+	for _, r := range results {
+		stats[r.Hour] = r.Count
+	}
+	return stats, nil
+}
+
+// GetUserActivityStats 获取用户活跃度统计
+func (r *auditLogRepository) GetUserActivityStats(ctx context.Context, days, limit int) ([]model.UserActivityStat, error) {
+	type result struct {
+		UserID   string
+		Username string
+		Count    int64
+		Failures int64
+	}
+
+	cutoff := time.Now().AddDate(0, 0, -days)
+	var results []result
+	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).
+		Select("user_id, username, COUNT(*) as count, SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) as failures").
+		Where("created_at >= ? AND user_id != ''", cutoff).
+		Group("user_id, username").
+		Order("count DESC").
+		Limit(limit).
+		Scan(&results).Error; err != nil {
+		return nil, err
+	}
+
+	stats := make([]model.UserActivityStat, len(results))
+	for i, r := range results {
+		stats[i] = model.UserActivityStat{
+			UserID:   r.UserID,
+			Username: r.Username,
+			Count:    r.Count,
+			Failures: r.Failures,
+		}
+	}
+	return stats, nil
+}
+
+// GetRiskLevelStats 获取风险等级分布
+func (r *auditLogRepository) GetRiskLevelStats(ctx context.Context, days int) (map[string]int64, error) {
+	type result struct {
+		RiskLevel string
+		Count     int64
+	}
+
+	cutoff := time.Now().AddDate(0, 0, -days)
+	var results []result
+	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).
+		Select("risk_level, COUNT(*) as count").
+		Where("created_at >= ? AND risk_level != ''", cutoff).
+		Group("risk_level").
+		Scan(&results).Error; err != nil {
+		return nil, err
+	}
+
+	stats := make(map[string]int64)
+	for _, r := range results {
+		stats[r.RiskLevel] = r.Count
+	}
+	return stats, nil
+}
+
+// GetAnomalyLogs 检测异常日志
+func (r *auditLogRepository) GetAnomalyLogs(ctx context.Context, threshold int, windowMinutes int) ([]*model.AnomalyLog, error) {
+	// 1. 高频失败检测：在指定时间窗口内，同一用户失败次数超过阈值
+	type failureResult struct {
+		UserID   string
+		Username string
+		Count    int64
+		Total    int64
+		MinTime  time.Time
+		MaxTime  time.Time
+	}
+
+	cutoff := time.Now().Add(-time.Duration(windowMinutes) * time.Minute)
+	var failures []failureResult
+	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).
+		Select("user_id, username, COUNT(*) as count, SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) as total, MIN(created_at) as min_time, MAX(created_at) as max_time").
+		Where("created_at >= ? AND user_id != ''", cutoff).
+		Group("user_id, username").
+		Having("total >= ?", threshold).
+		Scan(&failures).Error; err != nil {
+		return nil, err
+	}
+
+	var anomalies []*model.AnomalyLog
+	for _, f := range failures {
+		riskLevel := model.RiskMedium
+		if f.Total >= int64(threshold*3) {
+			riskLevel = model.RiskHigh
+		}
+		anomalies = append(anomalies, &model.AnomalyLog{
+			UserID:        f.UserID,
+			Username:      f.Username,
+			AnomalyType:   model.AnomalyTypeHighFailure,
+			FailureCount:  f.Total,
+			TotalCount:    f.Count,
+			WindowMinutes: windowMinutes,
+			FirstSeen:     f.MinTime,
+			LastSeen:      f.MaxTime,
+			RiskLevel:     riskLevel,
+			Details:       "",
+		})
+	}
+
+	return anomalies, nil
 }

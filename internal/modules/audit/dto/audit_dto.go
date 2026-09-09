@@ -267,3 +267,66 @@ type RuleCount struct {
 	RuleName string `json:"rule_name"`
 	Count    int64  `json:"count"`
 }
+
+// --- 新增：用户时间线、详细统计、异常检测 ---
+
+// UserTimelineReq 用户时间线查询参数
+type UserTimelineReq struct {
+	Page      int    `json:"page" form:"page"`
+	PageSize  int    `json:"page_size" form:"page_size"`
+	UserID    string `json:"user_id" form:"user_id" binding:"required"`
+	StartTime string `json:"start_time" form:"start_time"`
+	EndTime   string `json:"end_time" form:"end_time"`
+}
+
+// TimelineItem 时间线条目（按天聚合）
+type TimelineItem struct {
+	Date    string            `json:"date"`
+	Count   int64             `json:"count"`
+	Success int64             `json:"success"`
+	Failure int64             `json:"failure"`
+	Logs    []*AuditLogResp   `json:"logs"`
+}
+
+// UserTimelineResp 用户时间线响应
+type UserTimelineResp struct {
+	Items   []*TimelineItem   `json:"items"`
+	Total   int64             `json:"total"`
+	Pages   int               `json:"pages"`
+}
+
+// DetailedStatsResp 详细统计数据
+type DetailedStatsResp struct {
+	TotalCount     int64                  `json:"total_count"`
+	TodayCount     int64                  `json:"today_count"`
+	ActionStats    map[string]int64       `json:"action_stats"`
+	ModuleStats    map[string]int64       `json:"module_stats"`
+	ResultStats    map[string]int64       `json:"result_stats"`
+	RiskLevelStats map[string]int64       `json:"risk_level_stats"`
+	HourlyStats    map[string]int64       `json:"hourly_stats"`
+	UserActivity   []*UserActivityStatDTO `json:"user_activity"`
+	Trend          []TrendPoint           `json:"trend"`
+}
+
+// UserActivityStatDTO 用户活跃度
+type UserActivityStatDTO struct {
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+	Count    int64  `json:"count"`
+	Failures int64  `json:"failures"`
+}
+
+// AnomalyLogResp 异常日志响应
+type AnomalyLogResp struct {
+	UserID        string `json:"user_id"`
+	Username      string `json:"username"`
+	AnomalyType   string `json:"anomaly_type"`
+	AnomalyLabel  string `json:"anomaly_label"`
+	FailureCount  int64  `json:"failure_count"`
+	TotalCount    int64  `json:"total_count"`
+	WindowMinutes int    `json:"window_minutes"`
+	FirstSeen     string `json:"first_seen"`
+	LastSeen      string `json:"last_seen"`
+	RiskLevel     string `json:"risk_level"`
+	Details       string `json:"details"`
+}

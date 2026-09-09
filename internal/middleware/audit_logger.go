@@ -26,7 +26,6 @@ func AuditLogger(next http.Handler) http.Handler {
 		if isWriteOperation(r.Method) {
 			userID := logger.GetUserID(r.Context())
 			tenantID := logger.GetTenantID(r.Context())
-			requestID := logger.GetRequestID(r.Context())
 
 			logger.Ctx(r.Context()).Info("Audit Log",
 				"operation", r.Method,

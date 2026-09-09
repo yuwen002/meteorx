@@ -1,0 +1,45 @@
+# Git 文件
+.git
+.gitignore
+.gitattributes
+
+# 文档
+*.md
+LICENSE
+docs/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# 日志
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.bak
+*.cache
+
+# 测试
+*_test.go
+
+# 前端开发文件
+web-admin/node_modules/
+
+# Docker
+Dockerfile
+Dockerfile.dev
+docker-compose*.yml
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# 其他
+.env
+.env.*
+!.env.example

@@ -134,6 +134,24 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '审计日志', icon: 'Document', permission: 'audit:log:list', requireMaster: true }
       },
       {
+        path: 'system/audit/login-history',
+        name: 'AuditLoginHistory',
+        component: () => import('@/views/system/audit/login-history.vue'),
+        meta: { title: '登录历史', icon: 'User', permission: 'audit:log:list', requireMaster: true }
+      },
+      {
+        path: 'system/audit/timeline',
+        name: 'AuditTimeline',
+        component: () => import('@/views/system/audit/timeline.vue'),
+        meta: { title: '用户时间线', icon: 'Timer', permission: 'audit:log:list', requireMaster: true }
+      },
+      {
+        path: 'system/audit/anomaly',
+        name: 'AuditAnomaly',
+        component: () => import('@/views/system/audit/anomaly.vue'),
+        meta: { title: '异常检测', icon: 'Warning', permission: 'audit:alert:list', requireMaster: true }
+      },
+      {
         path: 'system/audit/alert',
         name: 'AuditAlert',
         component: () => import('@/views/system/audit/alert.vue'),
