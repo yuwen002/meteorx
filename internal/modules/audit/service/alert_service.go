@@ -14,6 +14,7 @@ import (
 	"meteorx/internal/modules/audit/model"
 	"meteorx/internal/modules/audit/repository"
 	"meteorx/internal/pkg/emailer"
+	"meteorx/internal/ws"
 	"meteorx/pkg/idgen"
 	"meteorx/pkg/logger"
 )
@@ -229,6 +230,17 @@ func (s *AlertService) sendNotifications(ctx context.Context, rule *model.AlertR
 			s.sendWebhookNotification(targets, alert)
 		}
 	}
+
+	// WebSocket 实时推送告警通知
+	ws.SendAlert(alert.UserID, map[string]interface{}{
+		"id":         alert.ID,
+		"rule_name":  alert.RuleName,
+		"risk_level": alert.RiskLevel,
+		"action":     alert.Action,
+		"message":    alert.Message,
+		"username":   alert.Username,
+		"time":       alert.CreatedAt.UnixMilli(),
+	})
 
 	alert.Notified = true
 	alert.NotifyTime = time.Now()

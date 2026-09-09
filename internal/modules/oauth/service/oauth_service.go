@@ -97,22 +97,30 @@ func (s *OAuthService) Login(ctx context.Context, provider, code string) (*model
 		return nil, nil, nil, "", false, err
 	}
 
-	// 获取用户角色
-	roles, err := s.userRoleRepo.GetRolesByUserID(ctx, user.ID)
+	// 获取用户角色编码
+	roleCodes, err := s.userRoleRepo.GetRoleCodesByUserID(ctx, user.ID)
 	if err != nil {
-		roles = []string{}
+		roleCodes = []string{}
 	}
+	user.Roles = roleCodes
 
-	// 获取权限列表
-	permCodes, err := s.rolePermissionRepo.GetPermissionCodesByRoles(ctx, roles)
-	if err != nil {
-		permCodes = []string{}
-	}
-
-	// 生成 JWT Token
-	roleCodes := make([]string, len(roles))
-	for i, role := range roles {
-		roleCodes[i] = role
+	// 获取权限列表（通过角色ID查询权限码）
+	permCodes := make([]string, 0)
+	roleIDs, err := s.userRoleRepo.GetRoleIDsByUserID(ctx, user.ID)
+	if err == nil {
+		seen := make(map[string]bool)
+		for _, roleID := range roleIDs {
+			codes, err := s.rolePermissionRepo.GetPermissionCodesByRoleID(ctx, roleID)
+			if err != nil {
+				continue
+			}
+			for _, c := range codes {
+				if !seen[c] {
+					seen[c] = true
+					permCodes = append(permCodes, c)
+				}
+			}
+		}
 	}
 
 	token, err := s.tokenHelper.GenerateToken(user.ID, user.TenantID, roleCodes)
@@ -120,7 +128,7 @@ func (s *OAuthService) Login(ctx context.Context, provider, code string) (*model
 		return nil, nil, nil, "", false, err
 	}
 
-	return user, roles, permCodes, token, isNew, nil
+	return user, roleCodes, permCodes, token, isNew, nil
 }
 
 // findOrCreateUser 查找已关联的 OAuth 用户，或创建新用户
@@ -161,7 +169,7 @@ func (s *OAuthService) findOrCreateUser(ctx context.Context, info *dto.OAuthUser
 	defaultRole := "tenant_user"
 	role, err := s.roleRepo.GetByCode(ctx, "", defaultRole)
 	if err == nil && role != nil {
-		_ = s.userRoleRepo.AddUserRole(ctx, newUser.ID, role.ID)
+		_ = s.userRoleRepo.AssignRoles(ctx, newUser.ID, []string{role.ID})
 	}
 
 	return newUser, true, nil

@@ -94,3 +94,21 @@ ip_location:
   provider: "http-api"  # 解析方式：http-api（在线）/ ip2region（离线）
   db_path: "./data/ip2region.xdb"  # ip2region 数据库文件路径（仅 provider=ip2region 时需要）
   timeout: 3  # HTTP API 超时时间（秒），默认 3
+
+# OAuth2 第三方登录配置
+oauth:
+  google:
+    enabled: false
+    client_id: ""
+    client_secret: ""
+    redirect_url: "http://localhost:5173/auth/google/callback"
+  github:
+    enabled: false
+    client_id: ""
+    client_secret: ""
+    redirect_url: "http://localhost:5173/auth/github/callback"
+
+# WebSocket 实时推送配置
+ws:
+  enabled: true
+  max_conn_per_user: 10

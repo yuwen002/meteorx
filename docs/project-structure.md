@@ -52,6 +52,12 @@ meteorx/
 │   │   ├── config.yaml           # YAML 默认配置
 │   │   └── validator.go          # ⭐ 配置验证器（启动时校验必填项）
 │   │
+│   ├── ws/                        # ⭐ WebSocket 实时推送
+│   │   ├── hub.go                # 连接管理器（注册/注销/广播/定时清理）
+│   │   ├── client.go             # 客户端连接（读写泵/心跳检测）
+│   │   ├── handler.go            # HTTP → WebSocket 升级（JWT 认证）
+│   │   └── ws.go                 # 全局单例/工具函数（SendAlert/SendAnnouncement）
+│   │
 │   ├── middleware/                # HTTP 中间件
 │   │   ├── request_id.go         # ⭐ 请求 ID + 全局异常恢复（RequestIDMiddleware/GlobalErrorHandler）
 │   │   ├── auth.go               # JWT 认证中间件（解析 Token 注入上下文）
@@ -343,11 +349,15 @@ meteorx/
         │   └── index.ts          # 路由配置
         ├── stores/
         │   ├── app.ts            # 全局应用状态
-        │   └── user.ts           # 用户状态 + 权限码列表
+        │   ├── user.ts           # 用户状态 + 权限码列表
+        │   └── notification.ts   # ⭐ 告警通知状态管理（WebSocket 实时推送）
+        ├── composables/
+        │   └── useWebSocket.ts   # ⭐ WebSocket 连接管理（自动重连/心跳/消息分发）
         ├── utils/
         │   └── auth.ts           # Token 存储工具
         ├── views/
         │   ├── login/index.vue
+        │   ├── login/OAuthCallback.vue   # ⭐ OAuth2 第三方登录回调页面
         │   ├── forgot-password/index.vue   # 忘记密码（邮箱找回）
         │   ├── reset-password/index.vue    # 重置密码（令牌设置新密码）
         │   ├── dashboard/index.vue

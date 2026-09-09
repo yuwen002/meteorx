@@ -1,4 +1,4 @@
-import { post } from '@/api/request'
+import { post, get } from '@/api/request'
 
 export interface LoginParams {
   username: string
@@ -39,6 +39,17 @@ export interface ResetPasswordReq {
   new_password: string
 }
 
+export interface OAuthRedirectResult {
+  url: string
+}
+
+export interface OAuthLoginResult {
+  token: string
+  user: LoginUserInfo
+  permissions: string[]
+  is_new_user: boolean
+}
+
 // 登录
 export function login(params: LoginParams) {
   return post<LoginResult>('/auth/login', params)
@@ -57,4 +68,14 @@ export function forgotPassword(email: string) {
 // 重置密码
 export function resetPassword(token: string, newPassword: string) {
   return post<{ message: string }>('/auth/reset-password', { token, new_password: newPassword })
+}
+
+// OAuth2 获取跳转链接
+export function getOAuthRedirectURL(provider: string) {
+  return get<OAuthRedirectResult>(`/auth/oauth/${provider}/redirect`)
+}
+
+// OAuth2 登录回调
+export function oauthLogin(provider: string, code: string, state?: string) {
+  return post<OAuthLoginResult>('/auth/oauth/callback', { provider, code, state })
 }

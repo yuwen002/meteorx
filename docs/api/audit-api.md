@@ -610,3 +610,68 @@
 - 同一会话的所有操作自动关联
 - 支持按会话 ID 查询完整操作时间线
 - 提供会话统计（请求数、成功率、平均耗时）
+
+### 7.6 WebSocket 实时告警推送
+
+#### 7.6.1 连接说明
+
+通过 WebSocket 实时推送告警通知到前端：
+
+| 项目 | 说明 |
+|------|------|
+| 连接地址 | `ws://{host}/api/v1/ws` |
+| 认证方式 | URL Query 参数 `?token={jwt_token}` 或 `Authorization: Bearer {jwt_token}` |
+| 协议 | JSON 文本帧 |
+| 心跳间隔 | 客户端每 30 秒发送 `{"type":"ping"}`，服务端回复 `{"type":"pong"}` |
+| 自动重连 | 前端 SDK 支持断线自动重连 |
+
+#### 7.6.2 消息格式
+
+**服务端推送消息：**
+```json
+{
+  "type": "alert",
+  "payload": {
+    "id": "alert-001",
+    "rule_name": "高风险操作告警",
+    "risk_level": "high",
+    "action": "delete",
+    "message": "用户 admin 执行了删除操作，风险等级：high",
+    "username": "admin",
+    "time": "2026-09-08T10:00:00Z"
+  }
+}
+```
+
+**消息类型：**
+
+| 类型 | 说明 | 方向 |
+|------|------|------|
+| `alert` | 告警通知 | 服务端 → 客户端 |
+| `announcement` | 公告推送 | 服务端 → 客户端 |
+| `ping` | 心跳请求 | 双向 |
+| `pong` | 心跳响应 | 双向 |
+
+#### 7.6.3 告警推送流程
+
+1. 告警规则触发 → 创建告警记录
+2. 服务端通过 WebSocket 向目标用户推送实时告警
+3. 前端收到消息后更新通知栏红点
+4. 用户点击红点跳转至告警管理页面查看详情
+
+#### 7.6.4 前端集成
+
+**WebSocket 连接管理：** `web-admin/src/composables/useWebSocket.ts`
+
+```typescript
+// 使用示例
+const { connected, connect, disconnect, onMessage } = useWebSocket()
+
+// 监听告警消息
+onMessage((msg) => {
+  if (msg.type === 'alert') {
+    // 更新通知栏
+    notificationStore.addAlert(msg.payload)
+  }
+})
+```

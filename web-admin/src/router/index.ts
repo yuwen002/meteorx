@@ -27,6 +27,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '知识分享', public: true }
   },
   {
+    path: '/auth/:provider/callback',
+    name: 'OAuthCallback',
+    component: () => import('@/views/login/OAuthCallback.vue'),
+    meta: { title: '第三方登录', public: true }
+  },
+  {
     path: '/',
     component: () => import('@/layouts/DefaultLayout.vue'),
     redirect: '/dashboard',

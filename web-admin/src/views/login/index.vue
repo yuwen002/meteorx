@@ -75,6 +75,30 @@
             忘记密码？
           </el-link>
         </div>
+
+        <!-- OAuth2 第三方登录 -->
+        <div class="oauth-divider">
+          <span>或</span>
+        </div>
+        <div class="oauth-buttons">
+          <el-button
+            class="oauth-btn oauth-google"
+            :icon="Promotion"
+            size="large"
+            @click="handleOAuthLogin('google')"
+          >
+            Google 登录
+          </el-button>
+          <el-button
+            class="oauth-btn oauth-github"
+            :icon="Monitor"
+            size="large"
+            @click="handleOAuthLogin('github')"
+          >
+            GitHub 登录
+          </el-button>
+        </div>
+
         <div class="tips">
           <el-icon><InfoFilled /></el-icon>
           {{ loginMode === 'admin' ? '默认管理员账号：admin / 123456' : '请输入租户 ID 和租户账号' }}
@@ -89,9 +113,9 @@ import { reactive, ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus/es/components/message/index'
-import { InfoFilled, Warning, Avatar, OfficeBuilding } from '@element-plus/icons-vue'
+import { InfoFilled, Warning, Avatar, OfficeBuilding, Promotion, Monitor } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import type { LoginParams, LoginErrorData } from '@/api/auth'
+import { getOAuthRedirectURL, oauthLogin, type LoginParams, type LoginErrorData } from '@/api/auth'
 
 const router = useRouter()
 const route = useRoute()
@@ -169,6 +193,18 @@ async function handleLogin() {
       loading.value = false
     }
   })
+}
+
+async function handleOAuthLogin(provider: string) {
+  try {
+    const res = await getOAuthRedirectURL(provider)
+    const data = (res as any)?.data || res
+    if (data?.url) {
+      window.location.href = data.url
+    }
+  } catch (e) {
+    ElMessage.error('OAuth 登录失败，请稍后重试')
+  }
 }
 
 function goForgotPassword() {
@@ -289,5 +325,45 @@ function goForgotPassword() {
 .lockout-info {
   font-size: 12px;
   color: #d97706;
+}
+
+/* OAuth2 第三方登录 */
+.oauth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+  color: #9ca3af;
+  font-size: 13px;
+}
+.oauth-divider::before,
+.oauth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e5e7eb;
+}
+.oauth-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.oauth-btn {
+  width: 100%;
+  justify-content: center;
+}
+.oauth-google {
+  border-color: #ea4335;
+  color: #ea4335;
+}
+.oauth-google:hover {
+  background: #fef2f2;
+}
+.oauth-github {
+  border-color: #24292f;
+  color: #24292f;
+}
+.oauth-github:hover {
+  background: #f6f8fa;
 }
 </style>

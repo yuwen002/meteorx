@@ -138,6 +138,32 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
+          <!-- 告警通知红点 -->
+          <el-badge
+            :value="notificationStore.unreadAlertCount"
+            :hidden="notificationStore.unreadAlertCount === 0"
+            class="alert-badge"
+          >
+            <el-tooltip content="告警通知" placement="bottom">
+              <el-button
+                :icon="Warning"
+                circle
+                :type="notificationStore.hasUnreadAlerts ? 'danger' : 'default'"
+                @click="handleAlertClick"
+              />
+            </el-tooltip>
+          </el-badge>
+
+          <!-- WebSocket 连接状态指示器 -->
+          <el-tooltip
+            :content="notificationStore.wsConnected ? '实时连接已建立' : '实时连接已断开'"
+            placement="bottom"
+          >
+            <span class="ws-status" :class="{ connected: notificationStore.wsConnected }">
+              <span class="ws-dot"></span>
+            </span>
+          </el-tooltip>
+
           <el-dropdown @command="handleCommand">
             <span class="user-info">
               <el-avatar :size="32" style="background: #3b82f6">
@@ -193,18 +219,21 @@ import {
   Setting,
   SwitchButton,
   User,
-  UserFilled
+  UserFilled,
+  Warning
 } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
+import { useNotificationStore } from '@/stores/notification'
 
 const router = useRouter()
 const currentRoute = useRoute()
 const userStore = useUserStore()
 const appStore = useAppStore()
+const notificationStore = useNotificationStore()
 
 const activeMenu = computed(() => currentRoute.path)
 
@@ -224,6 +253,11 @@ async function handleCommand(cmd: string) {
   } else if (cmd === 'profile') {
     router.push('/profile')
   }
+}
+
+function handleAlertClick() {
+  notificationStore.markAllAlertsAsRead()
+  router.push('/system/audit/alert')
 }
 </script>
 
@@ -291,5 +325,31 @@ async function handleCommand(cmd: string) {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* 告警通知红点 */
+.alert-badge {
+  margin-right: 12px;
+}
+.alert-badge :deep(.el-badge__content) {
+  background-color: #f56c6c;
+}
+
+/* WebSocket 连接状态指示器 */
+.ws-status {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 16px;
+}
+.ws-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #f56c6c;
+  transition: background-color 0.3s;
+}
+.ws-status.connected .ws-dot {
+  background-color: #67c23a;
+  box-shadow: 0 0 4px rgba(103, 194, 58, 0.5);
 }
 </style>

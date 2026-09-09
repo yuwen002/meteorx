@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"meteorx/internal/ws"
 	"net/http"
 	"os"
 	"os/signal"
@@ -53,7 +54,13 @@ func StartApp() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// 7. 初始化路由并注入依赖
+	// 7. 初始化 WebSocket Hub（支持实时推送）
+	if cfg.WS.Enabled {
+		ws.InitHub()
+		logger.Infof("[WS] WebSocket hub initialized")
+	}
+
+	// 8. 初始化路由并注入依赖
 	r := InitRouter(ctx, db, cfg, rdb)
 
 	// 7.1 启动订阅到期自动禁用租户的定时任务（绑定 app 主 context，支持优雅取消）
@@ -98,7 +105,10 @@ func StartApp() {
 		logger.Errorf("HTTP server shutdown error: %v", err)
 	}
 
-	// 4) 关闭 Redis 连接
+	// 4) 关闭 WebSocket Hub（断开所有连接）
+	ws.StopHub()
+
+	// 6) 关闭 Redis 连接
 	if rdb != nil {
 		if err := rdb.Close(); err != nil {
 			logger.Errorf("Redis close error: %v", err)

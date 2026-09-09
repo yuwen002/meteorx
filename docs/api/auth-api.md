@@ -18,6 +18,10 @@
 | POST | `/auth/forgot-password` | 忘记密码（发送重置邮件） | 公开 |
 | POST | `/auth/reset-password` | 重置密码（通过邮件令牌） | 公开 |
 
+| GET | `/auth/oauth/:provider/redirect` | 获取 OAuth2 跳转链接 | 公开 |
+| GET | `/auth/oauth/callback` | OAuth2 登录回调 | 公开 |
+| POST | `/auth/oauth/callback` | OAuth2 登录回调（POST） | 公开 |
+
 ---
 
 ## 2. 数据结构
@@ -264,3 +268,81 @@
 | 密码重置令牌 | Redis 存储，30 分钟过期，一次性使用 |
 | 信息泄露防护 | 忘记密码接口对不存在的邮箱返回相同响应 |
 | 邮件发送失败 | 即使邮件发送失败，仍返回统一响应避免暴露信息 |
+
+---
+
+## 5. OAuth2 第三方登录
+
+### 5.1 获取 OAuth2 跳转链接
+
+`GET /api/v1/auth/oauth/{provider}/redirect`
+
+**路径参数：**
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| provider | string | 第三方登录提供商，支持 `google`、`github` |
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=xxx&redirect_uri=xxx&response_type=code&scope=email+profile&state=xxx"
+  }
+}
+```
+
+**业务规则：**
+- 支持的 provider：`google`、`github`
+- 前端收到 `url` 后直接跳转
+- 跳转后用户授权，第三方平台回调到前端 `OAuthCallback.vue` 页面
+
+### 5.2 OAuth2 登录回调
+
+`POST /api/v1/auth/oauth/callback`
+
+**请求体：**
+```json
+{
+  "provider": "google",
+  "code": "4/0AX4XfWi...",
+  "state": "random_state_string"
+}
+```
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "user": {
+      "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "tenant_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "username": "google_12345",
+      "nickname": "张三",
+      "email": "zhangsan@gmail.com",
+      "avatar": "https://...",
+      "status": 1,
+      "is_master": false
+    },
+    "permissions": ["file:list", "user:list"],
+    "is_new": true
+  }
+}
+```
+
+**业务规则：**
+- 首次登录自动创建用户（用户名自动生成：`{provider}_{provider_user_id}`）
+- 重复登录匹配已有用户（通过 provider + provider_user_id）
+- 自动分配默认角色
+- 返回 `is_new` 字段标识是否为新注册用户
+
+**错误响应：**
+| 状态码 | 场景 |
+|--------|------|
+| 400 | 缺少必要参数（provider/code） |
+| 401 | 第三方授权码无效或已过期 |
+| 500 | 服务器内部错误 |

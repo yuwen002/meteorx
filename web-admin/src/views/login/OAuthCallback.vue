@@ -39,15 +39,11 @@ onMounted(async () => {
     const res = await oauthLogin(provider, code, state)
     const data = (res as any)?.data || res
     // 使用 OAuth 返回的 token 和用户信息登录
-    userStore.token = data.token || ''
-    userStore.userInfo = data.user || null
-    userStore.permissions = data.permissions || []
-
-    localStorage.setItem('meteorx_token', userStore.token)
-    if (userStore.userInfo) {
-      localStorage.setItem('meteorx_user', JSON.stringify(userStore.userInfo))
-    }
-    localStorage.setItem('meteorx_permissions', JSON.stringify(userStore.permissions))
+    userStore.setOAuthUser({
+      token: data.token || '',
+      user: data.user || null,
+      permissions: data.permissions || []
+    })
 
     ElMessage.success('登录成功')
     const redirect = route.query.redirect as string || '/'

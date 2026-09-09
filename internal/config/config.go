@@ -16,6 +16,28 @@ type Config struct {
 	Email      EmailConfig      `mapstructure:"email"`
 	Client     ClientConfig     `mapstructure:"client"`
 	IPLocation IPLocationConfig `mapstructure:"ip_location"`
+	OAuth      OAuthConfig      `mapstructure:"oauth"`
+	WS         WSConfig         `mapstructure:"ws"`
+}
+
+// WSConfig WebSocket 配置
+type WSConfig struct {
+	Enabled      bool `mapstructure:"enabled"`
+	MaxConnPerUser int `mapstructure:"max_conn_per_user"`
+}
+
+// OAuthConfig OAuth2 登录配置
+type OAuthConfig struct {
+	Google  OAuthProviderConfig `mapstructure:"google"`
+	GitHub  OAuthProviderConfig `mapstructure:"github"`
+}
+
+// OAuthProviderConfig OAuth2 提供商配置
+type OAuthProviderConfig struct {
+	Enabled     bool   `mapstructure:"enabled"`
+	ClientID    string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURL string `mapstructure:"redirect_url"`
 }
 
 type IPLocationConfig struct {

@@ -92,6 +92,17 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  // OAuth2 登录：直接设置用户信息（外部已获取 token）
+  function setOAuthUser(data: { token: string; user: LoginUserInfo; permissions: string[] }) {
+    token.value = data.token || ''
+    userInfo.value = data.user || null
+    permissions.value = data.permissions || []
+
+    localStorage.setItem(TOKEN_KEY, token.value)
+    if (userInfo.value) localStorage.setItem(USER_KEY, JSON.stringify(userInfo.value))
+    localStorage.setItem(PERMS_KEY, JSON.stringify(permissions.value))
+  }
+
   return {
     token,
     userInfo,
@@ -99,6 +110,7 @@ export const useUserStore = defineStore('user', () => {
     isLoggedIn,
     isAdmin,
     doLogin,
+    setOAuthUser,
     setPermissions,
     logout,
     logoutSync,

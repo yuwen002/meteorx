@@ -22,6 +22,7 @@ import (
 	auditSvc "meteorx/internal/modules/audit/service"
 	"meteorx/internal/modules/auth"
 	"meteorx/internal/modules/file"
+	"meteorx/internal/modules/oauth"
 	"meteorx/internal/modules/plan"
 	planRepo "meteorx/internal/modules/plan/repository"
 	planSvc "meteorx/internal/modules/plan/service"
@@ -31,6 +32,7 @@ import (
 	userRepo "meteorx/internal/modules/user/repository"
 	"meteorx/internal/modules/wiki"
 	dbpkg "meteorx/internal/pkg/db"
+	"meteorx/internal/ws"
 	"meteorx/pkg/logger"
 	"meteorx/pkg/security"
 )
@@ -128,7 +130,10 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 2. 租户公开接口（仅限注册）
 			tenant.InitPublicModule(r, db)
 
-			// 3. Wiki 文档公开分享（免登录，凭 token/密码访问）
+			// 3. OAuth2 第三方登录（免登录，公开接口）
+			oauth.InitModule(r, db, *cfg, tokenHelper)
+
+			// 4. Wiki 文档公开分享（免登录，凭 token/密码访问）
 			wiki.RegisterPublicShareRoute(r, db, txManager, cfg)
 		})
 
@@ -148,6 +153,13 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			middleware.InitAuditBatchProcessor(ctx, auditService)
 
 			r.Use(middleware.AuditMiddleware(auditService, ipLocator))
+
+			// 2.1 WebSocket 实时推送（需认证）
+			if cfg.WS.Enabled {
+				wsHub := ws.GetHub()
+				wsHandler := ws.NewHandler(wsHub, tokenHelper)
+				r.Get("/ws", wsHandler.ServeWS)
+			}
 
 			// 3. 租户私有接口（租户管理员登录后：管理本公司信息、查看套餐等）
 			tenant.InitPrivateModule(r, db)
