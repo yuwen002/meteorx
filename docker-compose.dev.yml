@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # 开发应用服务（带热重载）
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: meteorx-app-dev
+    ports:
+      - "8080:8080"
+    environment:
+      - METEORX_APP_PORT=8080
+      - METEORX_APP_MODE=debug
+      - METEORX_DB_HOST=db
+      - METEORX_DB_PORT=3306
+      - METEORX_DB_USER=meteorx
+      - METEORX_DB_PASSWORD=meteorx_password
+      - METEORX_DB_NAME=meteorx
+      - METEORX_REDIS_HOST=redis
+      - METEORX_REDIS_PORT=6379
+      - METEORX_REDIS_PASSWORD=redis_password
+      - METEORX_REDIS_DB=0
+      - METEORX_JWT_SECRET=dev-jwt-secret-key-for-local-development-only
+      - METEORX_JWT_EXPIRATION=24h
+      - METEORX_JWT_ISSUER=meteorx
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - .:/app
+      - go-mod-cache:/go/pkg/mod
+    networks:
+      - meteorx-network
+    restart: unless-stopped
+
+  # MySQL 数据库
+  db:
+    image: mysql:8.0
+    container_name: meteorx-db-dev
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=meteorx
+      - MYSQL_USER=meteorx
+      - MYSQL_PASSWORD=meteorx_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - db-data-dev:/var/lib/mysql
+    networks:
+      - meteorx-network
+    restart: unless-stopped
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: meteorx-redis-dev
+    command: redis-server --requirepass redis_password --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data-dev:/data
+    networks:
+      - meteorx-network
+    restart: unless-stopped
+
+volumes:
+  db-data-dev:
+    driver: local
+  redis-data-dev:
+    driver: local
+  go-mod-cache:
+    driver: local
+
+networks:
+  meteorx-network:
+    driver: bridge
