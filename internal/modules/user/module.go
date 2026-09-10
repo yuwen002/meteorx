@@ -20,7 +20,7 @@ func newPermissionChecker(db *gorm.DB) middleware.PermissionChecker {
 	roleRepo := rbacRepo.NewRoleRepository(db)
 	rolePermRepo := rbacRepo.NewRolePermissionRepository(db)
 	userRoleRepo := rbacRepo.NewUserRoleRepository(db)
-	return rbacSvc.NewRBACService(roleRepo, permRepo, rolePermRepo, userRoleRepo)
+	return rbacSvc.NewRBACService(roleRepo, permRepo, rolePermRepo, userRoleRepo, nil, nil)
 }
 
 // 提取公共工厂方法，保持与租户模块结构一致

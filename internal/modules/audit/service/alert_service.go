@@ -13,6 +13,7 @@ import (
 	"meteorx/internal/modules/audit/dto"
 	"meteorx/internal/modules/audit/model"
 	"meteorx/internal/modules/audit/repository"
+	"meteorx/internal/notify"
 	"meteorx/internal/pkg/emailer"
 	"meteorx/internal/ws"
 	"meteorx/pkg/idgen"
@@ -241,6 +242,12 @@ func (s *AlertService) sendNotifications(ctx context.Context, rule *model.AlertR
 		"username":   alert.Username,
 		"time":       alert.CreatedAt.UnixMilli(),
 	})
+
+	// 通过多渠道通知管理器发送告警通知（补充渠道）
+	mgr := notify.GetGlobalManager()
+	if mgr != nil {
+		mgr.NotifyAlert(ctx, rule.Name, alert.Message, notify.PriorityUrgent, targets)
+	}
 
 	alert.Notified = true
 	alert.NotifyTime = time.Now()

@@ -406,7 +406,7 @@ func (s *RBACService) BatchDeletePermissions(ctx context.Context, ids []string) 
 
 func (s *RBACService) BindRolePermissions(ctx context.Context, roleID string, req dto.BindRolePermissionsReq) error {
 	// 验证角色是否存在
-	role, err := s.roleRepo.GetByID(ctx, roleID)
+	_, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
 		return errors.New("角色不存在")
 	}
@@ -454,7 +454,7 @@ func (s *RBACService) GetRolePermissionCodes(ctx context.Context, roleID string)
 }
 
 func (s *RBACService) UnbindRolePermission(ctx context.Context, roleID, permissionID string) error {
-	role, err := s.roleRepo.GetByID(ctx, roleID)
+	_, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
 		return errors.New("角色不存在")
 	}
@@ -481,7 +481,7 @@ func (s *RBACService) UnbindRolePermission(ctx context.Context, roleID, permissi
 }
 
 func (s *RBACService) UnbindRolePermissions(ctx context.Context, roleID string, permissionIDs []string) (int64, error) {
-	role, err := s.roleRepo.GetByID(ctx, roleID)
+	_, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
 		return 0, errors.New("角色不存在")
 	}

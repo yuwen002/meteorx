@@ -18,12 +18,28 @@ type Config struct {
 	IPLocation IPLocationConfig `mapstructure:"ip_location"`
 	OAuth      OAuthConfig      `mapstructure:"oauth"`
 	WS         WSConfig         `mapstructure:"ws"`
+	Notify     NotifyConfig     `mapstructure:"notify"`
 }
 
 // WSConfig WebSocket 配置
 type WSConfig struct {
 	Enabled      bool `mapstructure:"enabled"`
 	MaxConnPerUser int `mapstructure:"max_conn_per_user"`
+}
+
+// NotifyConfig 多渠道通知配置
+type NotifyConfig struct {
+	// Webhook 通知渠道
+	Webhook WebhookNotifyConfig `mapstructure:"webhook"`
+}
+
+// WebhookNotifyConfig Webhook 通知配置
+type WebhookNotifyConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`
+	Kind     string `mapstructure:"kind"`     // generic / dingtalk / wechat / feishu
+	URL      string `mapstructure:"url"`      // Webhook URL
+	Secret   string `mapstructure:"secret"`   // 签名密钥
+	OnEvents []string `mapstructure:"on_events"` // 触发事件列表：announcement/alert/cancel_request/subscription_expiry
 }
 
 // OAuthConfig OAuth2 登录配置

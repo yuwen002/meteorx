@@ -109,10 +109,57 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
 
+  migrate:
+    name: Database Migration
+    runs-on: ubuntu-latest
+    needs: [test]
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: meteorx_test
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_password
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 3306:3306
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Download dependencies
+        run: go mod download
+      - name: Build migrate binary
+        run: go build -ldflags="-w -s" -o ./dist/migrate ./cmd/migrate
+      - name: Run migration
+        env:
+          METEORX_DB_HOST: localhost
+          METEORX_DB_PORT: 3306
+          METEORX_DB_USER: test_user
+          METEORX_DB_PASSWORD: test_password
+          METEORX_DB_NAME: meteorx_test
+        run: ./dist/migrate
+
   build:
     name: Build Backend
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint, test, migrate]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
@@ -250,6 +297,9 @@ jobs:
             export REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            # 等待数据库就绪后执行迁移
+            sleep 15
+            docker compose -f docker-compose.prod.yml exec -T backend ./meteorx migrate
             docker image prune -f
             sleep 10
             curl -sf http://localhost:8081/health && echo "Deployment successful!" || echo "Health check failed"

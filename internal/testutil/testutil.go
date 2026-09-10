@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -78,7 +79,9 @@ func ParseResponse(t *testing.T, w *httptest.ResponseRecorder, target interface{
 // AssertStatusCode 断言 HTTP 状态码
 func AssertStatusCode(t *testing.T, w *httptest.ResponseRecorder, expected int) {
 	t.Helper()
-	require.Equal(t, expected, w.Code, "HTTP 状态码不匹配，响应体: %s", w.Body.String())
+	if w.Code != expected {
+		t.Errorf("HTTP 状态码不匹配: got %d, want %d, 响应体: %s", w.Code, expected, w.Body.String())
+	}
 }
 
 // NewJSONBody 将结构体编码为 JSON 请求体
@@ -86,31 +89,5 @@ func NewJSONBody(t *testing.T, v interface{}) io.Reader {
 	t.Helper()
 	b, err := json.Marshal(v)
 	require.NoError(t, err)
-	return io.NopCloser(bytesReader(b))
-}
-
-type bytesReader struct {
-	*bytesReaderImpl
-}
-
-type bytesReaderImpl struct {
-	data []byte
-	off  int
-}
-
-func (r *bytesReaderImpl) Read(p []byte) (n int, err error) {
-	if r.off >= len(r.data) {
-		return 0, io.EOF
-	}
-	n = copy(p, r.data[r.off:])
-	r.off += n
-	return n, nil
-}
-
-func (r *bytesReaderImpl) Close() error {
-	return nil
-}
-
-func bytesReader(data []byte) *bytesReaderImpl {
-	return &bytesReaderImpl{data: data, off: 0}
+	return bytes.NewReader(b)
 }

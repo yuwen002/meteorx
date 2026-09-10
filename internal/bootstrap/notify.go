@@ -50,7 +50,7 @@ func initNotifyManager(cfg *config.Config) {
 	// 设置全局管理器
 	notify.SetGlobalManager(manager)
 
-	logger.Infof("[Notify] Notification manager initialized with %d channels", manager.(interface{ ChannelCount() int }).ChannelCount())
+	logger.Infof("[Notify] Notification manager initialized with %d channels", manager.ChannelCount())
 }
 
 // parseWebhookKind 解析 Webhook 类型字符串

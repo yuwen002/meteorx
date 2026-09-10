@@ -28,7 +28,7 @@ func initPermissionChecker(db *gorm.DB) middleware.PermissionChecker {
 	permRepo := rbacrepo.NewPermissionRepository(db)
 	rolePermRepo := rbacrepo.NewRolePermissionRepository(db)
 	userRoleRepo := rbacrepo.NewUserRoleRepository(db)
-	return rbacsvc.NewRBACService(roleRepo, permRepo, rolePermRepo, userRoleRepo)
+	return rbacsvc.NewRBACService(roleRepo, permRepo, rolePermRepo, userRoleRepo, nil, nil)
 }
 
 // NewQuotaVerifier 创建配额校验器（供 user 模块注入，避免循环依赖）

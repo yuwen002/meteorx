@@ -178,6 +178,11 @@ func itoa(n int) string {
 	return s
 }
 
+// ChannelCount 返回已注册渠道数量
+func (m *Manager) ChannelCount() int {
+	return m.composite.ChannelCount()
+}
+
 // GlobalManager 全局通知管理器（由 bootstrap 初始化）
 var GlobalManager *Manager
 

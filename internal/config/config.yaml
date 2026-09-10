@@ -112,3 +112,14 @@ oauth:
 ws:
   enabled: true
   max_conn_per_user: 10
+
+# 多渠道消息通知配置
+notify:
+  webhook:
+    enabled: false
+    kind: "generic"           # 支持: generic / dingtalk / wechat / feishu
+    url: ""                   # Webhook URL（如钉钉机器人、企业微信机器人）
+    secret: ""                # 签名密钥（部分渠道需要）
+    on_events:                # 触发通知的事件列表
+      - "alert"               # 系统告警
+      - "announcement"        # 公告发布

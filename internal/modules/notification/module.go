@@ -40,5 +40,5 @@ func initPermissionChecker(db *gorm.DB) middleware.PermissionChecker {
 	permRepo := rbacrepo.NewPermissionRepository(db)
 	rolePermRepo := rbacrepo.NewRolePermissionRepository(db)
 	userRoleRepo := rbacrepo.NewUserRoleRepository(db)
-	return rbacsvc.NewRBACService(roleRepo, permRepo, rolePermRepo, userRoleRepo)
+	return rbacsvc.NewRBACService(roleRepo, permRepo, rolePermRepo, userRoleRepo, nil, nil)
 }

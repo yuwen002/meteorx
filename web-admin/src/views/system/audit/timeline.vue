@@ -133,34 +133,70 @@
     <el-empty v-else description="请输入用户ID查询操作时间线" />
 
     <!-- 详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="日志详情" width="900px" destroy-on-close>
-      <el-descriptions v-if="currentLog" :column="2" border>
-        <el-descriptions-item label="日志ID">{{ currentLog.id }}</el-descriptions-item>
-        <el-descriptions-item label="请求ID">{{ currentLog.request_id || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="操作用户">{{ currentLog.username }} ({{ currentLog.user_id }})</el-descriptions-item>
-        <el-descriptions-item label="模块">{{ currentLog.module }}</el-descriptions-item>
-        <el-descriptions-item label="操作类型">{{ getActionLabel(currentLog.action) }}</el-descriptions-item>
-        <el-descriptions-item label="风险等级">
-          <el-tag size="small" :type="getRiskLevelType(currentLog.risk_level)">{{ getRiskLevelLabel(currentLog.risk_level) }}</el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="HTTP方法">{{ currentLog.method }}</el-descriptions-item>
-        <el-descriptions-item label="请求路径" :span="2">{{ currentLog.path }}</el-descriptions-item>
-        <el-descriptions-item label="状态码">
-          <el-tag size="small" :type="currentLog.status_code >= 400 ? 'danger' : 'success'">{{ currentLog.status_code }}</el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="结果">
-          <el-tag size="small" :type="currentLog.result === 'success' ? 'success' : 'danger'">
-            {{ currentLog.result === 'success' ? '成功' : '失败' }}
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="客户端IP">{{ currentLog.client_ip }}</el-descriptions-item>
-        <el-descriptions-item label="IP位置">{{ currentLog.ip_location || '未知' }}</el-descriptions-item>
-        <el-descriptions-item label="耗时">{{ currentLog.duration }}ms</el-descriptions-item>
-        <el-descriptions-item label="操作时间">{{ currentLog.created_at }}</el-descriptions-item>
-        <el-descriptions-item v-if="currentLog.error_message" label="错误信息" :span="2">
-          <span style="color: #f56c6c">{{ currentLog.error_message }}</span>
-        </el-descriptions-item>
-      </el-descriptions>
+    <el-dialog v-model="detailVisible" title="日志详情" width="960px" destroy-on-close>
+      <template v-if="currentLog">
+        <el-tabs type="border-card">
+          <el-tab-pane label="基本信息">
+            <el-descriptions :column="2" border>
+              <el-descriptions-item label="日志ID">{{ currentLog.id }}</el-descriptions-item>
+              <el-descriptions-item label="请求ID">{{ currentLog.request_id || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="操作用户">{{ currentLog.username }} ({{ currentLog.user_id }})</el-descriptions-item>
+              <el-descriptions-item label="模块">{{ currentLog.module }}</el-descriptions-item>
+              <el-descriptions-item label="操作类型">{{ getActionLabel(currentLog.action) }}</el-descriptions-item>
+              <el-descriptions-item label="风险等级">
+                <el-tag size="small" :type="getRiskLevelType(currentLog.risk_level)">{{ getRiskLevelLabel(currentLog.risk_level) }}</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="HTTP方法">{{ currentLog.method }}</el-descriptions-item>
+              <el-descriptions-item label="请求路径" :span="2">{{ currentLog.path }}</el-descriptions-item>
+              <el-descriptions-item label="来源页面">{{ currentLog.referer || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="资源ID">{{ currentLog.resource_id || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="状态码">
+                <el-tag size="small" :type="currentLog.status_code >= 400 ? 'danger' : 'success'">{{ currentLog.status_code }}</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="结果">
+                <el-tag size="small" :type="currentLog.result === 'success' ? 'success' : 'danger'">
+                  {{ currentLog.result === 'success' ? '成功' : '失败' }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="客户端IP">{{ currentLog.client_ip }}</el-descriptions-item>
+              <el-descriptions-item label="IP位置">{{ currentLog.ip_location || '未知' }}</el-descriptions-item>
+              <el-descriptions-item label="耗时">{{ currentLog.duration }}ms</el-descriptions-item>
+              <el-descriptions-item label="操作时间">{{ currentLog.created_at }}</el-descriptions-item>
+              <el-descriptions-item v-if="currentLog.error_message" label="错误信息" :span="2">
+                <span style="color: #f56c6c">{{ currentLog.error_message }}</span>
+              </el-descriptions-item>
+            </el-descriptions>
+          </el-tab-pane>
+          <el-tab-pane label="详细信息">
+            <el-descriptions :column="2" border>
+              <el-descriptions-item label="会话ID">{{ currentLog.session_id || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="链路追踪ID">{{ currentLog.trace_id || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="用户代理" :span="2">
+                <span style="word-break: break-all; font-size: 12px;">{{ currentLog.user_agent || '-' }}</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="设备信息" :span="2">{{ currentLog.device_info || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="标签" :span="2">{{ currentLog.tags || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="租户ID" :span="2">{{ currentLog.tenant_id || '-' }}</el-descriptions-item>
+            </el-descriptions>
+          </el-tab-pane>
+          <el-tab-pane label="请求参数">
+            <div class="body-viewer">
+              <div v-if="currentLog.request_body" class="body-content">
+                <pre><code>{{ formatJSON(currentLog.request_body) }}</code></pre>
+              </div>
+              <el-empty v-else description="无请求参数" />
+            </div>
+          </el-tab-pane>
+          <el-tab-pane label="响应内容">
+            <div class="body-viewer">
+              <div v-if="currentLog.response_body" class="body-content">
+                <pre><code>{{ formatJSON(currentLog.response_body) }}</code></pre>
+              </div>
+              <el-empty v-else description="无响应内容" />
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -260,6 +296,15 @@ function getRiskLevelLabel(level: string): string {
   const map: Record<string, string> = { low: '低', medium: '中', high: '高', critical: '严重' }
   return map[level] || level
 }
+
+function formatJSON(str: string): string {
+  if (!str) return '-'
+  try {
+    return JSON.stringify(JSON.parse(str), null, 2)
+  } catch {
+    return str
+  }
+}
 </script>
 
 <style scoped lang="scss">
@@ -269,18 +314,18 @@ function getRiskLevelLabel(level: string): string {
 
 .search-card {
   margin-bottom: 16px;
+}
 
-  .search-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 
-  .user-info {
-    margin-left: 8px;
-    font-size: 14px;
-    color: #595959;
-  }
+.user-info {
+  color: #606266;
+  font-size: 14px;
 }
 
 .stats-row {
@@ -288,48 +333,42 @@ function getRiskLevelLabel(level: string): string {
 }
 
 .stat-card {
-  .stat-content {
-    display: flex;
-    align-items: center;
-    gap: 16px;
+  :deep(.el-card__body) {
+    padding: 16px;
   }
+}
 
-  .stat-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
+.stat-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 
-    &.total-icon { background: #e6f7ff; color: #1890ff; }
-    &.days-icon { background: #f6ffed; color: #52c41a; }
-    &.success-icon { background: #f6ffed; color: #52c41a; }
-    &.fail-icon { background: #fff2f0; color: #ff4d4f; }
-  }
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
 
-  .stat-info {
-    flex: 1;
-  }
+  &.total-icon { background: #ecf5ff; color: #409eff; }
+  &.days-icon { background: #f0f9eb; color: #67c23a; }
+  &.success-icon { background: #f0f9eb; color: #67c23a; }
+  &.fail-icon { background: #fef0f0; color: #f56c6c; }
+}
 
-  .stat-label {
-    font-size: 14px;
-    color: #8c8c8c;
-    margin-bottom: 4px;
-  }
-
-  .stat-value {
-    font-size: 24px;
-    font-weight: 600;
-    color: #262626;
-  }
+.stat-info {
+  .stat-label { font-size: 12px; color: #909399; }
+  .stat-value { font-size: 24px; font-weight: bold; color: #303133; }
 }
 
 .timeline-container {
   background: #fff;
-  border-radius: 8px;
-  padding: 24px;
+  border-radius: 4px;
+  border: 1px solid #ebeef5;
+  padding: 20px;
 }
 
 .timeline-year {
@@ -339,88 +378,44 @@ function getRiskLevelLabel(level: string): string {
 .timeline-date-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: #fafafa;
-  border-radius: 6px;
+  gap: 12px;
   margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #f5f7fa;
+  border-radius: 4px;
 
-  .date-badge {
-    font-weight: 600;
-    font-size: 15px;
-    color: #262626;
-  }
-
-  .date-count {
-    font-size: 13px;
-    color: #8c8c8c;
-    margin-left: 8px;
-  }
-
-  .date-success {
-    font-size: 13px;
-    color: #52c41a;
-    margin-left: 8px;
-  }
-
-  .date-failure {
-    font-size: 13px;
-    color: #f56c6c;
-    margin-left: 8px;
-  }
+  .date-badge { font-weight: bold; color: #303133; font-size: 14px; }
+  .date-count { color: #909399; font-size: 12px; }
+  .date-success { color: #67c23a; font-size: 12px; }
+  .date-failure { color: #f56c6c; font-size: 12px; }
 }
 
 .timeline-items {
   padding-left: 20px;
-  border-left: 2px solid #e8e8e8;
-  margin-left: 8px;
 }
 
 .timeline-item {
   display: flex;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f2f2f2;
   cursor: pointer;
-  border-radius: 6px;
   transition: background 0.2s;
-  position: relative;
 
-  &:hover {
-    background: #f5f5f5;
-  }
-
-  &::before {
-    content: '';
-    position: absolute;
-    left: -22px;
-    top: 20px;
-    width: 10px;
-    height: 2px;
-    background: #e8e8e8;
-  }
+  &:hover { background: #fafafa; }
+  &:last-child { border-bottom: none; }
 }
 
 .timeline-dot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  margin-top: 4px;
+  margin-top: 6px;
   flex-shrink: 0;
 
-  &.dot-success {
-    background: #52c41a;
-    border: 2px solid #b7eb8f;
-  }
-
-  &.dot-failure {
-    background: #f56c6c;
-    border: 2px solid #ffa39e;
-  }
-
-  &.dot-warning {
-    background: #faad14;
-    border: 2px solid #ffe58f;
-  }
+  &.dot-success { background: #67c23a; }
+  &.dot-warning { background: #e6a23c; }
+  &.dot-failure { background: #f56c6c; }
 }
 
 .timeline-content {
@@ -430,33 +425,59 @@ function getRiskLevelLabel(level: string): string {
 
 .timeline-time {
   font-size: 12px;
-  color: #8c8c8c;
-  margin-bottom: 4px;
+  color: #909399;
+  margin-bottom: 2px;
 }
 
 .timeline-action {
-  margin-bottom: 4px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
+  margin-bottom: 4px;
 }
 
 .timeline-path {
-  font-size: 13px;
-  color: #262626;
+  color: #303133;
   font-family: monospace;
+  font-size: 13px;
   margin-left: 4px;
 }
 
 .timeline-meta {
   font-size: 12px;
-  color: #8c8c8c;
+  color: #909399;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
 }
 
 .pagination {
+  margin-top: 16px;
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
+}
+
+.body-viewer {
+  max-height: 400px;
+  overflow: auto;
+  background: #f5f7fa;
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.body-content {
+  pre {
+    margin: 0;
+    code {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+  }
 }
 </style>
+</template>

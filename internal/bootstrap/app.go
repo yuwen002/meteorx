@@ -60,6 +60,9 @@ func StartApp() {
 		logger.Infof("[WS] WebSocket hub initialized")
 	}
 
+	// 7.1 初始化多渠道通知管理器
+	initNotifyManager(cfg)
+
 	// 8. 初始化路由并注入依赖
 	r := InitRouter(ctx, db, cfg, rdb)
 

@@ -315,12 +315,164 @@
 
 ---
 
+## 九、数据库迁移自动化
+
+**新增 `cmd/migrate/main.go`** - 独立的迁移 CLI
+
+```bash
+# 执行数据库迁移（不启动服务器）
+go run ./cmd/migrate
+
+# 或通过 server 命令
+go run ./cmd/server migrate
+```
+
+**CI/CD 集成：**
+- 新增 `migrate` job：在 `test` 之后、`build` 之前运行，验证数据库迁移
+- 生产部署 `deploy` job 中增加迁移步骤：`docker compose exec backend ./meteorx migrate`
+- 配合 `main.go` 的 `migrate` 参数，实现单二进制多用途
+
+---
+
+## 十、集成测试基础设施
+
+**新增 `internal/testutil` 包** - 共享测试工具
+
+| 函数 | 说明 |
+|------|------|
+| `NewTestRouter` | 创建测试用 chi 路由器 |
+| `TestContext` | 创建包含认证信息的测试上下文 |
+| `ExecuteRequest` | 执行 HTTP 测试请求 |
+| `ParseResponse` | 解析 JSON 响应 |
+| `AssertStatusCode` | 断言 HTTP 状态码 |
+| `NewJSONBody` | 将结构体编码为 JSON 请求体 |
+
+**新增 `test/mockdata` 包** - Mock API 响应数据
+
+| 文件 | 说明 |
+|------|------|
+| `api/tenant_get.json` | 获取单个租户 |
+| `api/tenant_list.json` | 租户列表 |
+| `api/user_list.json` | 用户列表 |
+| `api/audit_dashboard.json` | 审计仪表盘 |
+
+---
+
+## 十一、前后端联调优化
+
+**WebSocket 重连机制 ( `web-admin/src/composables/useWebSocket.ts` )**
+
+| 特性 | 说明 |
+|------|------|
+| **指数退避重连** | 1s → 2s → 4s → 8s ... 最大 30s |
+| **最大重试次数** | 10 次后停止，避免无限重连 |
+| **随机抖动** | 每次重连延迟 +0~1s 随机值，避免大量客户端同时重连 |
+| **心跳超时检测** | 10s 无 pong 响应即触发重连 |
+| **离线消息队列** | 断连期间的消息缓存到 localStorage，重连后自动发送 |
+| **连接状态** | 新增 `connecting` / `reconnectAttempts` / `lastConnectedTime` 状态 |
+
+**审计日志详情增强 ( `web-admin/src/views/system/audit/timeline.vue` )**
+
+| 特性 | 说明 |
+|------|------|
+| **标签页切换** | 基本信息 / 详细信息 / 请求参数 / 响应内容 |
+| **详细信息** | 会话ID、链路追踪ID、用户代理、设备信息、标签、租户ID |
+| **请求参数** | JSON 格式化显示请求体 |
+| **响应内容** | JSON 格式化显示响应体 |
+| **新增字段** | referer（来源页面）、resource_id（资源ID） |
+
+---
+
+## 十二、多渠道消息通知系统
+
+### 架构设计
+
+```
+                    ┌─────────────────┐
+                    │   notify.Manager │  ← 统一入口
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              ▼              ▼              ▼
+     ┌────────────┐ ┌────────────┐ ┌────────────┐
+     │  Email     │ │  WebSocket │ │  Webhook   │
+     │  Notifier  │ │  Notifier  │ │  Notifier  │
+     └────────────┘ └────────────┘ └────────────┘
+                                           │
+                          ┌────────────────┼────────────────┐
+                          ▼                ▼                ▼
+                   ┌──────────┐    ┌──────────┐    ┌──────────┐
+                   │ 钉钉     │    │ 企业微信  │    │ 飞书     │
+                   │ 机器人   │    │ 机器人    │    │ 机器人   │
+                   └──────────┘    └──────────┘    └──────────┘
+```
+
+### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `internal/notify/notifier.go` | 核心接口 (`Notifier`)、消息结构 (`Message`)、优先级、渠道类型 |
+| `internal/notify/email_notifier.go` | 邮件通知渠道 - HTML 模板，支持多收件人 |
+| `internal/notify/webhook_notifier.go` | Webhook 渠道 - 钉钉/企微/飞书/通用格式 |
+| `internal/notify/ws_notifier.go` | WebSocket 站内信（封装 ws.Hub） |
+| `internal/notify/composite_notifier.go` | 组合通知器 - 并发发送到多个渠道 |
+| `internal/notify/manager.go` | 统一管理器 - 提供业务语义化接口 + 全局单例 |
+| `internal/bootstrap/notify.go` | 启动初始化 - 自动注册所有可用渠道 |
+
+### 核心接口
+
+```go
+// Notifier 通知渠道接口
+type Notifier interface {
+    Type() ChannelType           // 渠道类型
+    Send(ctx, *Message) error    // 发送通知
+    Name() string                // 渠道名称
+}
+
+// Message 统一通知消息
+type Message struct {
+    ID         string
+    Title      string
+    Content    string
+    Channel    ChannelType    // email/webhook/websocket
+    Priority   Priority       // low/normal/high/urgent
+    Recipients []string       // 收件人列表
+    Extra      map[string]interface{}
+}
+```
+
+### 业务集成点
+
+| 模块 | 事件 | 通知渠道 | 说明 |
+|------|------|----------|------|
+| **通知公告** | 公告发布 | WebSocket + Webhook | 推送给所有在线用户 |
+| **审计告警** | 告警触发 | Email + Webhook + WebSocket | 发送给规则配置的目标 |
+| **租户注销** | 审批通过/驳回 | Email + WebSocket | 通知租户管理员（预留） |
+| **订阅到期** | 即将到期 | Email + WebSocket（预留） | 通知租户管理员（预留） |
+
+### 配置说明 (`config.yaml`)
+
+```yaml
+notify:
+  webhook:
+    enabled: false
+    kind: "generic"              # generic / dingtalk / wechat / feishu
+    url: ""                      # Webhook URL
+    secret: ""                   # 签名密钥
+    on_events:                   # 触发事件
+      - "alert"
+      - "announcement"
+```
+
+---
+
 ## 验证状态
 
 - ✅ 后端 `go build ./...` 全量编译通过
-- ✅ `go vet` 新增模块无静态问题
+- ✅ `go vet ./internal/notify/...` 新增模块无静态问题
 - ✅ 前端 `vue-tsc --noEmit` 类型检查通过（新文件无报错）
 - ✅ 新文件均执行 `gofmt` 格式化
+- ✅ 修复了 RBAC 模块中 `NewRBACService` 签名变更导致的 7 处编译错误
 - ✅ 所有单元测试通过（audit/service、rbac/service、file/service、user/service、middleware）
 
 > 提示：需重新启动后端服务并执行数据库迁移（AutoMigrate 会自动创建 `announcements`、`cancel_requests` 两张新表）。

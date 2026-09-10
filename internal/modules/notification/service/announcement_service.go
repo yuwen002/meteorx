@@ -6,18 +6,46 @@ import (
 	"meteorx/internal/modules/notification/dto"
 	"meteorx/internal/modules/notification/model"
 	"meteorx/internal/modules/notification/repository"
+	"meteorx/internal/notify"
 	"meteorx/pkg/idgen"
 	"time"
 )
 
+// AnnouncementPublishCallback 公告发布回调（多渠道通知）
+type AnnouncementPublishCallback func(ctx context.Context, title, content string, scope string, targetTenantID string)
+
 // AnnouncementService 公告业务服务
 type AnnouncementService struct {
-	repo repository.AnnouncementRepository
+	repo       repository.AnnouncementRepository
+	onPublish  AnnouncementPublishCallback
 }
 
 // NewAnnouncementService 创建公告服务
 func NewAnnouncementService(repo repository.AnnouncementRepository) *AnnouncementService {
-	return &AnnouncementService{repo: repo}
+	return &AnnouncementService{
+		repo: repo,
+		onPublish: defaultPublishCallback,
+	}
+}
+
+// SetPublishCallback 设置公告发布回调
+func (s *AnnouncementService) SetPublishCallback(cb AnnouncementPublishCallback) {
+	if cb != nil {
+		s.onPublish = cb
+	}
+}
+
+// defaultPublishCallback 默认发布回调：通过全局通知管理器发送通知
+func defaultPublishCallback(ctx context.Context, title, content string, scope string, targetTenantID string) {
+	mgr := notify.GetGlobalManager()
+	if mgr == nil {
+		return
+	}
+
+	// 通过 WebSocket 推送给所有在线用户
+	_ = mgr.NotifyAnnouncement(ctx, title, content, nil)
+
+	// 如果 Webhook 配置了 announcement 事件，也会自动推送
 }
 
 // Create 创建公告
@@ -44,6 +72,12 @@ func (s *AnnouncementService) Create(ctx context.Context, publisherID string, re
 	if err := s.repo.Create(ctx, a); err != nil {
 		return nil, err
 	}
+
+	// 发布时触发多渠道通知
+	if a.Status == model.AnnouncementStatusPublished && s.onPublish != nil {
+		s.onPublish(ctx, a.Title, a.Content, a.Scope, a.TargetTenantID)
+	}
+
 	return dto.ToAnnouncementResp(a), nil
 }
 
@@ -71,6 +105,12 @@ func (s *AnnouncementService) Update(ctx context.Context, id string, req dto.Upd
 	if err := s.repo.Update(ctx, a); err != nil {
 		return nil, err
 	}
+
+	// 发布公告时触发多渠道通知
+	if a.Status == model.AnnouncementStatusPublished && s.onPublish != nil {
+		s.onPublish(ctx, a.Title, a.Content, a.Scope, a.TargetTenantID)
+	}
+
 	return dto.ToAnnouncementResp(a), nil
 }
 

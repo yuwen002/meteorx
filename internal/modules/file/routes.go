@@ -28,7 +28,7 @@ func RegisterRoutes(r chi.Router, db *gorm.DB, cfg *config.Config) {
 	permRepo := rbacrepo.NewPermissionRepository(db)
 	rolePermRepo := rbacrepo.NewRolePermissionRepository(db)
 	userRoleRepo := rbacrepo.NewUserRoleRepository(db)
-	checker := rbacsvc.NewRBACService(roleRepo, permRepo, rolePermRepo, userRoleRepo)
+	checker := rbacsvc.NewRBACService(roleRepo, permRepo, rolePermRepo, userRoleRepo, nil, nil)
 
 	// 文件管理路由组
 	r.Route("/files", func(r chi.Router) {
