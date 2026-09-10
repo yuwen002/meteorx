@@ -1,0 +1,42 @@
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "total_count": 1024,
+    "today_count": 128,
+    "action_stats": {
+      "create": 320,
+      "update": 480,
+      "delete": 64,
+      "login": 120,
+      "logout": 40
+    },
+    "module_stats": {
+      "auth": 160,
+      "user": 256,
+      "tenant": 192,
+      "rbac": 128,
+      "wiki": 288
+    },
+    "result_stats": {
+      "success": 980,
+      "failure": 44
+    },
+    "trend": [
+      {"date": "2026-09-03", "count": 120, "success": 115, "failure": 5},
+      {"date": "2026-09-04", "count": 145, "success": 140, "failure": 5},
+      {"date": "2026-09-05", "count": 98, "success": 95, "failure": 3},
+      {"date": "2026-09-06", "count": 156, "success": 150, "failure": 6},
+      {"date": "2026-09-07", "count": 135, "success": 130, "failure": 5},
+      {"date": "2026-09-08", "count": 165, "success": 158, "failure": 7},
+      {"date": "2026-09-09", "count": 128, "success": 124, "failure": 4}
+    ],
+    "top_modules": [
+      {"module": "wiki", "count": 288},
+      {"module": "user", "count": 256},
+      {"module": "tenant", "count": 192},
+      {"module": "auth", "count": 160},
+      {"module": "rbac", "count": 128}
+    ]
+  }
+}

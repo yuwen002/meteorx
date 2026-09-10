@@ -1,0 +1,15 @@
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "id": "t-001",
+    "name": "示例租户",
+    "domain": "example.com",
+    "status": 1,
+    "contact_email": "admin@example.com",
+    "region": "cn-east",
+    "description": "这是一个示例租户",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+}

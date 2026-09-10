@@ -1,0 +1,33 @@
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "items": [
+      {
+        "id": "u-001",
+        "username": "admin",
+        "nickname": "管理员",
+        "email": "admin@example.com",
+        "tenant_id": "t-001",
+        "status": 1,
+        "roles": ["tenant_admin"],
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z"
+      },
+      {
+        "id": "u-002",
+        "username": "user1",
+        "nickname": "用户一",
+        "email": "user1@example.com",
+        "tenant_id": "t-001",
+        "status": 1,
+        "roles": ["user"],
+        "created_at": "2026-01-15T00:00:00Z",
+        "updated_at": "2026-01-15T00:00:00Z"
+      }
+    ],
+    "total": 2,
+    "page": 1,
+    "page_size": 20
+  }
+}
