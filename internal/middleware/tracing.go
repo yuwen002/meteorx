@@ -7,8 +7,8 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -23,7 +23,7 @@ var tracer = otel.Tracer("meteorx/middleware")
 //   - 自动记录 HTTP 方法、URL、状态码等标准属性
 //   - 将 Trace ID 注入响应头（方便调试）
 //
-// 使用方式：在 Chi Router 中作为全局中间件注册
+// 使用方式：在 Chi Router 中作为全局中间件注册。
 //
 //	r.Use(middleware.TracingMiddleware)
 func TracingMiddleware(next http.Handler) http.Handler {
@@ -35,15 +35,15 @@ func TracingMiddleware(next http.Handler) http.Handler {
 		routePattern := getRoutePattern(r)
 		spanName := r.Method + " " + routePattern
 
-		// 3. 使用 otelhttp 的语义约定创建 Span
+		// 3. 创建 Span，设置标准属性
 		opts := []trace.SpanStartOption{
 			trace.WithAttributes(
-				semconv.HTTPRequestMethodKey.String(r.Method),
-				semconv.HTTPRouteKey.String(routePattern),
-				semconv.URLFullKey.String(r.URL.String()),
-				semconv.HTTPSchemeKey.String(r.URL.Scheme),
-				semconv.NetHostNameKey.String(r.Host),
-				semconv.HTTPUserAgentOriginalKey.String(r.UserAgent()),
+				attribute.String("http.request.method", r.Method),
+				attribute.String("http.route", routePattern),
+				attribute.String("url.full", r.URL.String()),
+				attribute.String("url.scheme", r.URL.Scheme),
+				attribute.String("server.address", r.Host),
+				attribute.String("user_agent.original", r.UserAgent()),
 				attribute.String("http.target", r.URL.RequestURI()),
 			),
 			trace.WithSpanKind(trace.SpanKindServer),
@@ -65,11 +65,12 @@ func TracingMiddleware(next http.Handler) http.Handler {
 		// 7. 将带有 Span 的 Context 传递下去
 		next.ServeHTTP(rw, r.WithContext(ctx))
 
-		// 8. 记录响应状态码
-		span.SetAttributes(semconv.HTTPResponseStatusCodeKey.Int(rw.StatusCode))
+		// 8. 记录响应状态码，并根据状态码设置 Span 状态
+		span.SetAttributes(attribute.Int("http.response.status_code", rw.StatusCode))
+
 		if rw.StatusCode >= 500 {
 			span.SetAttributes(attribute.String("error.type", "server_error"))
-			span.SetStatus(trace.StatusError, http.StatusText(rw.StatusCode))
+			span.SetStatus(codes.Error, http.StatusText(rw.StatusCode))
 		} else if rw.StatusCode >= 400 {
 			span.SetAttributes(attribute.String("error.type", "client_error"))
 		}
@@ -87,7 +88,7 @@ func TracingHTTPHandler(name string, handler http.Handler) http.Handler {
 // getRoutePattern 从 Chi 上下文中提取路由模式。
 // 如果无法获取，则回退为原始 URL 路径。
 //
-// 示例返回: "GET /api/v1/tenants/{id}"
+//	示例返回: "GET /api/v1/tenants/{id}"
 func getRoutePattern(r *http.Request) string {
 	// 优先从 Chi 路由上下文获取匹配的模式
 	routeCtx := chi.RouteContext(r.Context())

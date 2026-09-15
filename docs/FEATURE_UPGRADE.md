@@ -466,13 +466,111 @@ notify:
 
 ---
 
+## 十三、OpenTelemetry 可观测性集成
+
+### 现状与痛点
+
+| 方面 | 当前实现 | 问题 |
+|------|----------|------|
+| **日志** | 自建 `pkg/logger` 结构化日志 | 无 OTel Logs Bridge |
+| **指标** | 手写 `PrometheusMetrics`（纯内存） | 重启丢失，无直方图，无百分位 |
+| **追踪** | ❌ 不存在 | 跨模块调用完全黑盒 |
+
+### 架构
+
+```
+┌─ MeteorX API ─────────────────────┐
+│                                    │
+│  HTTP Request                      │
+│    │                               │
+│    ├─ TracingMiddleware ──┐        │
+│    │  (Chi Route Pattern) │ Span   │
+│    ├─ GORM OTel Plugin ───┤        │
+│    │  (SQL 查询追踪)      │        │
+│    └─ ...                 ┘        │
+│                                    │
+│  TracerProvider (全局)             │
+│    │                               │
+│    ├─ stdout Exporter (开发)       │
+│    └─ OTLP gRPC Exporter (生产)    │
+└──────────┬─────────────────────────┘
+           │ OTLP gRPC (port 4317)
+           ▼
+┌─ OTel Collector ───────────────────┐
+│  receivers: otlp (gRPC + HTTP)    │
+│  processors: batch, memory_limiter│
+│  exporters: debug, otlp (->Jaeger)│
+└──────────┬─────────────────────────┘
+           │ OTLP gRPC
+           ▼
+┌─ Jaeger (All-in-One) ─────────────┐
+│  UI: http://localhost:16686        │
+│  Store: in-memory (开发/演示)      │
+└────────────────────────────────────┘
+```
+
+### 新增/修改文件
+
+| 文件 | 说明 |
+|------|------|
+| `internal/otel/config.go` | OTel 配置结构体 |
+| `internal/otel/provider.go` | SDK 初始化（TracerProvider + Exporter + Sampler） |
+| `internal/middleware/tracing.go` | Chi 路由追踪中间件（自动提取 W3C Trace Context） |
+| `internal/bootstrap/database.go` | 新增 GORM OTel 追踪插件注册 |
+| `internal/bootstrap/app.go` | 集成 OTel 初始化 + 优雅关闭 |
+| `internal/bootstrap/router.go` | 注册 TracingMiddleware |
+| `internal/config/config.go` | 新增 `OTelConfig` |
+| `internal/config/config.yaml` | 新增 OTel 配置节 |
+| `deploy/otel-collector/config.yaml` | OTel Collector 管道配置 |
+| `docker-compose.prod.yml` | 新增 OTel Collector + Jaeger 服务 |
+
+### 配置说明
+
+```yaml
+otel:
+  enabled: true
+  exporter: "stdout"           # stdout（开发）/ otlp（生产）
+  endpoint: "localhost:4317"   # OTLP gRPC 端点
+  insecure: true               # 开发环境跳过 TLS
+  sample_rate: 1.0             # 采样率（生产建议 0.1）
+  service_name: "meteorx"
+  service_version: "1.0.0"
+```
+
+### 集成效果
+
+- **Trace ID 响应头**：每个 HTTP 响应都会返回 `X-Trace-ID`
+- **Span 命名**：`GET /api/v1/tenants/{id}` 格式（含 Chi 路由模式）
+- **GORM 追踪**：每次 SQL 查询自动关联到当前 Trace
+- **上下文传播**：支持 W3C Trace Context（`traceparent` 头）
+- **优雅关闭**：服务退出前刷新所有 Span 缓冲区
+
+### 开发调试
+
+启动后可以在控制台看到类似输出（stdout 模式下）：
+
+```
+Span #1
+    Trace ID:      b1a9c8d7...
+    Span ID:       e5f4a3b2...
+    Attributes:
+         - http.request.method:  GET
+         - http.route:           /api/v1/tenants
+         - http.response.status_code: 200
+```
+
+生产环境下可通过 Jaeger UI（`http://localhost:16686`）查看完整的 Trace 调用链。
+
+---
+
 ## 验证状态
 
 - ✅ 后端 `go build ./...` 全量编译通过
 - ✅ `go vet ./internal/notify/...` 新增模块无静态问题
 - ✅ 前端 `vue-tsc --noEmit` 类型检查通过（新文件无报错）
 - ✅ 新文件均执行 `gofmt` 格式化
-- ✅ 修复了 RBAC 模块中 `NewRBACService` 签名变更导致的 7 处编译错误
-- ✅ 所有单元测试通过（audit/service、rbac/service、file/service、user/service、middleware）
+- ✅ 修复 7 处 `NewRBACService` 签名变更编译错误
+- ✅ OTel 集成：TracingMiddleware + GORM 插件 + OTLP 导出 + Jaeger 部署
 
 > 提示：需重新启动后端服务并执行数据库迁移（AutoMigrate 会自动创建 `announcements`、`cancel_requests` 两张新表）。
+> 提示：OTel stdout 模式开机即用；生产环境需 `docker-compose -f docker-compose.prod.yml up -d opentelemetry-collector jaeger` 启动追踪后端。

@@ -249,6 +249,40 @@ services:
     networks:
       - meteorx-network
 
+  # ============================================================
+  # 可观测性栈 - OTel Collector + Jaeger
+  # ============================================================
+
+  # OTel Collector - 接收 Trace 数据并转发到 Jaeger
+  opentelemetry-collector:
+    image: otel/opentelemetry-collector-contrib:0.112.0
+    container_name: meteorx-otel-collector
+    restart: unless-stopped
+    ports:
+      - "4317:4317"    # OTLP gRPC 接收端
+      - "4318:4318"    # OTLP HTTP 接收端
+    volumes:
+      - ./deploy/otel-collector/config.yaml:/etc/otel-collector/config.yaml:ro
+    command:
+      - '--config=/etc/otel-collector/config.yaml'
+    depends_on:
+      - jaeger
+    networks:
+      - meteorx-network
+
+  # Jaeger - 分布式追踪存储和 UI
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: meteorx-jaeger
+    restart: unless-stopped
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4317:4317"    # OTLP gRPC（Collector 会发到这里）
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - meteorx-network
+
 volumes:
   mysql-data:
     driver: local

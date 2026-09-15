@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"meteorx/internal/otel"
 	"meteorx/internal/ws"
 	"net/http"
 	"os"
@@ -63,6 +64,24 @@ func StartApp() {
 	// 7.1 初始化多渠道通知管理器
 	initNotifyManager(cfg)
 
+	// 7.2 初始化 OpenTelemetry 可观测性
+	otelCfg := &otel.Config{
+		Enabled:        cfg.OTel.Enabled,
+		Exporter:       cfg.OTel.Exporter,
+		Endpoint:       cfg.OTel.Endpoint,
+		Insecure:       cfg.OTel.Insecure,
+		SampleRate:     cfg.OTel.SampleRate,
+		ServiceName:    cfg.OTel.ServiceName,
+		ServiceVersion: cfg.OTel.ServiceVersion,
+	}
+	otelShutdown, err := otel.InitProvider(ctx, otelCfg, cfg.Server.Mode)
+	if err != nil {
+		logger.Warnf("Failed to initialize OpenTelemetry, running without tracing: %v", err)
+		otelShutdown = func() {} // 空操作，避免 nil 调用
+	}
+	logger.Infof("[OTel] OpenTelemetry initialized: exporter=%s, sample_rate=%.1f, env=%s",
+		otelCfg.Exporter, otelCfg.SampleRate, cfg.Server.Mode)
+
 	// 8. 初始化路由并注入依赖
 	r := InitRouter(ctx, db, cfg, rdb)
 
@@ -100,6 +119,9 @@ func StartApp() {
 
 	// 2) 停止批量审计日志处理器（刷新缓冲中剩余的日志）
 	middleware.StopAuditBatchProcessor()
+
+	// 3) 关闭 OTel TracerProvider（刷新缓冲区中的 Span 数据）
+	otelShutdown()
 
 	// 3) 关闭 HTTP 服务器（等待在途请求完成）
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second)

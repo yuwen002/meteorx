@@ -7,6 +7,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
+	otelgorm "gorm.io/plugin/opentelemetry/tracing"
 
 	"meteorx/internal/config"
 	"meteorx/pkg/logger"
@@ -36,6 +37,13 @@ func InitDB(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// 注册 OTel 追踪插件（如果全局 TracerProvider 已初始化，会自动关联 Trace）
+	if err := db.Use(otelgorm.NewPlugin()); err != nil {
+		logger.Warnf("Failed to register GORM OTel plugin, DB tracing disabled: %v", err)
+	} else {
+		logger.Info("GORM OTel tracing plugin registered")
 	}
 
 	sqlDB, err := db.DB()

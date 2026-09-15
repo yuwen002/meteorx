@@ -19,6 +19,7 @@ type Config struct {
 	OAuth      OAuthConfig      `mapstructure:"oauth"`
 	WS         WSConfig         `mapstructure:"ws"`
 	Notify     NotifyConfig     `mapstructure:"notify"`
+	OTel       OTelConfig       `mapstructure:"otel"`
 }
 
 // WSConfig WebSocket 配置
@@ -40,6 +41,17 @@ type WebhookNotifyConfig struct {
 	URL      string `mapstructure:"url"`      // Webhook URL
 	Secret   string `mapstructure:"secret"`   // 签名密钥
 	OnEvents []string `mapstructure:"on_events"` // 触发事件列表：announcement/alert/cancel_request/subscription_expiry
+}
+
+// OTelConfig OpenTelemetry 可观测性配置
+type OTelConfig struct {
+	Enabled        bool    `mapstructure:"enabled"`
+	Exporter       string  `mapstructure:"exporter"`        // stdout / otlp
+	Endpoint       string  `mapstructure:"endpoint"`        // OTLP gRPC 端点（exporter=otlp 时生效）
+	Insecure       bool    `mapstructure:"insecure"`        // 跳过 TLS（开发环境）
+	SampleRate     float64 `mapstructure:"sample_rate"`     // Trace 采样率 0.0~1.0
+	ServiceName    string  `mapstructure:"service_name"`
+	ServiceVersion string  `mapstructure:"service_version"`
 }
 
 // OAuthConfig OAuth2 登录配置

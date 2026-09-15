@@ -123,3 +123,15 @@ notify:
     on_events:                # 触发通知的事件列表
       - "alert"               # 系统告警
       - "announcement"        # 公告发布
+
+# OpenTelemetry 可观测性配置
+# 开发环境:  exporter=stdout，直接输出到控制台
+# 生产环境:  exporter=otlp，发送到 OTel Collector（需部署 docker-compose）
+otel:
+  enabled: true
+  exporter: "stdout"           # stdout（开发调试） / otlp（生产环境）
+  endpoint: "localhost:4317"   # OTLP gRPC 端点（生产环境指向 opentelemetry-collector:4317）
+  insecure: true               # 开发环境跳过 TLS，生产需设为 false
+  sample_rate: 1.0             # 开发环境 100% 采样；生产建议 0.1（10%）
+  service_name: "meteorx"
+  service_version: "1.0.0"

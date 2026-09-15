@@ -53,9 +53,10 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 	metricsCollector := middleware.NewMetricsCollector()
 	promMetrics := middleware.NewPrometheusMetrics()
 
-	// 全局中间件：Recovery -> Logger -> Metrics -> CORS
+	// 全局中间件：Recovery -> Logger -> Tracing -> Metrics -> CORS
 	r.Use(middleware.Recovery)
 	r.Use(middleware.Logger)
+	r.Use(middleware.TracingMiddleware)
 	r.Use(metricsCollector.Metrics)
 	r.Use(promMetrics.Middleware)
 
