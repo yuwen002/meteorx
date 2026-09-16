@@ -6,6 +6,7 @@ import (
 	"meteorx/internal/modules/wiki/dto"
 	"meteorx/internal/modules/wiki/repository"
 	db "meteorx/internal/pkg/db"
+	"meteorx/internal/search"
 )
 
 // WikiService Wiki 模块服务接口
@@ -105,6 +106,9 @@ type WikiService interface {
 	// ========== Rendering / Uploads ==========
 	// SetUploadSigner 注入 /uploads 静态资源签名参数（文档内嵌图片动态签发，仅模块初始化时调用）
 	SetUploadSigner(uploadBaseURL, signKey string)
+	// SetWikiIndexer 设置搜索引擎索引器，用于文档创建/更新/删除时自动同步索引。
+	// 搜索引擎未配置（NoopEngine）时调用此方法不影响业务逻辑。
+	SetWikiIndexer(indexer *search.WikiIndexer)
 	// RenderPreview 将 Markdown 渲染为安全 HTML（编辑器实时预览，上传图片地址自动重签）
 	RenderPreview(ctx context.Context, content, format string) (string, error)
 
@@ -118,6 +122,8 @@ type wikiService struct {
 	repo        repository.WikiRepository
 	tx          *db.TxManager
 	markdownSvc MarkdownService
+	engine      search.Engine
+	indexer     *search.WikiIndexer
 
 	// uploadBaseURL 对外访问 /uploads 的基础地址（如 http://host:8081/uploads）；
 	// uploadSignKey 与文件存储一致的上传签名密钥。两者为空时禁用文档图片动态重签。
@@ -132,6 +138,13 @@ func NewWikiService(repo repository.WikiRepository, tx *db.TxManager) WikiServic
 		tx:          tx,
 		markdownSvc: NewMarkdownService(),
 	}
+}
+
+// SetWikiIndexer 设置搜索引擎索引器，用于文档创建/更新/删除时自动同步索引。
+// 搜索引擎未配置（NoopEngine）时调用此方法不影响业务逻辑。
+func (s *wikiService) SetWikiIndexer(indexer *search.WikiIndexer) {
+	s.indexer = indexer
+	s.engine = indexer.Engine()
 }
 
 // GetStats 获取 Wiki 统计数据（Space、Node、Document 数量及浏览数）

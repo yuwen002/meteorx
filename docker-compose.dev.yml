@@ -35,9 +35,22 @@ services:
       # WebSocket
       - METEORX_WS_ENABLED=true
       - METEORX_WS_MAX_CONNECTION=1000
+
+      # OpenTelemetry
+      - METEORX_OTEL_ENABLED=true
+      - METEORX_OTEL_EXPORTER=stdout
+      - METEORX_OTEL_ENDPOINT=otel-collector:4317
+      - METEORX_OTEL_INSECURE=true
+
+      # MeiliSearch 全文检索（开发环境默认启用）
+      - METEORX_SEARCH_PROVIDER=meilisearch
+      - METEORX_SEARCH_HOST=http://meilisearch:7700
+      - METEORX_SEARCH_API_KEY=dev-master-key
+      - METEORX_SEARCH_INDEX_PREFIX=meteorx_dev_
     depends_on:
       - db
       - redis
+      - meilisearch
     volumes:
       - .:/app
       - go-mod-cache:/go/pkg/mod
@@ -75,10 +88,35 @@ services:
       - meteorx-network
     restart: unless-stopped
 
+  # MeiliSearch 全文搜索引擎
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: meteorx-meilisearch-dev
+    ports:
+      - "7700:7700"
+    environment:
+      - MEILI_MASTER_KEY=dev-master-key
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_ENV=development
+      - MEILI_LOG_LEVEL=INFO
+    volumes:
+      - meilisearch-data-dev:/meili_data
+    networks:
+      - meteorx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 volumes:
   db-data-dev:
     driver: local
   redis-data-dev:
+    driver: local
+  meilisearch-data-dev:
     driver: local
   go-mod-cache:
     driver: local

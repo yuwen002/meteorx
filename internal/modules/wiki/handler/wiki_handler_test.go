@@ -813,6 +813,85 @@ func TestWikiSearch_DefaultsAndPayload(t *testing.T) {
 	assert.Equal(t, []string{testTenant, testUser, "性能优化", "", "1", "20"}, stub.params["Search"])
 }
 
+func TestWikiSearch_WithSpaceID(t *testing.T) {
+	stub := newStubWiki()
+	router := newWikiRouter(stub)
+
+	w := doWiki(t, router, http.MethodGet, "/search", "", map[string]string{"q": "优化", "space_id": "sp-1"})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, []string{testTenant, testUser, "优化", "sp-1", "1", "20"}, stub.params["Search"])
+}
+
+func TestWikiSearch_WithCustomPagination(t *testing.T) {
+	stub := newStubWiki()
+	router := newWikiRouter(stub)
+
+	w := doWiki(t, router, http.MethodGet, "/search", "", map[string]string{
+		"q": "测试", "page": "3", "page_size": "10",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, []string{testTenant, testUser, "测试", "", "3", "10"}, stub.params["Search"])
+}
+
+func TestWikiSearch_WithoutQuery_ReturnsEmpty(t *testing.T) {
+	stub := newStubWiki()
+	router := newWikiRouter(stub)
+
+	w := doWiki(t, router, http.MethodGet, "/search", "", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	// handler 透传空 q 给 service
+	require.Contains(t, stub.params, "Search")
+	assert.Empty(t, stub.params["Search"][2])
+}
+
+func TestWikiSearch_ServiceError_Returns500(t *testing.T) {
+	stub := newStubWiki().failWith(apperrors.NewInternal("search service unavailable"))
+	router := newWikiRouter(stub)
+
+	w := doWiki(t, router, http.MethodGet, "/search", "", map[string]string{"q": "error"})
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestWikiSearch_WithNegativePage_DefaultsTo1(t *testing.T) {
+	stub := newStubWiki()
+	router := newWikiRouter(stub)
+
+	w := doWiki(t, router, http.MethodGet, "/search", "", map[string]string{
+		"q": "doc", "page": "-1", "page_size": "-5",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, []string{testTenant, testUser, "doc", "", "1", "20"}, stub.params["Search"])
+}
+
+func TestWikiSearch_ResponseStructure(t *testing.T) {
+	stub := newStubWiki()
+	router := newWikiRouter(stub)
+
+	w := doWiki(t, router, http.MethodGet, "/search", "", map[string]string{"q": "结构"})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var out struct {
+		Data struct {
+			Results  []json.RawMessage `json:"results"`
+			Total    int64             `json:"total"`
+			Page     int               `json:"page"`
+			PageSize int               `json:"page_size"`
+			Query    string            `json:"query"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
+	assert.Equal(t, int64(1), out.Data.Total)
+	assert.Equal(t, 1, out.Data.Page)
+	assert.Equal(t, 20, out.Data.PageSize)
+	assert.Equal(t, "结构", out.Data.Query)
+	assert.Len(t, out.Data.Results, 1)
+}
+
 func TestWikiCreateAttachment_Success(t *testing.T) {
 	stub := newStubWiki()
 	router := newWikiRouter(stub)

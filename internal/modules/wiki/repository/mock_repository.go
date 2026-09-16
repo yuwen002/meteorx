@@ -40,6 +40,10 @@ type MockWikiRepository struct {
 	ListNodesBySpaceFn    func(ctx context.Context, spaceID string) ([]*model.WikiNode, error)
 	ListChildNodesFn      func(ctx context.Context, parentID string) ([]*model.WikiNode, error)
 	GetDocumentByNodeIDFn func(ctx context.Context, nodeID string) (*model.Document, error)
+	// SearchNodesByTitleFn 可注入，覆盖 SearchNodesByTitle 默认行为（返回 nil, nil）
+	SearchNodesByTitleFn      func(ctx context.Context, tenantID, spaceID, query string) ([]*model.WikiNode, error)
+	// SearchDocumentsByContentFn 可注入，覆盖 SearchDocumentsByContent 默认行为（返回 nil, nil）
+	SearchDocumentsByContentFn func(ctx context.Context, tenantID, spaceID, query string) ([]*model.Document, error)
 
 	spaces  map[string]*model.WikiSpace
 	members map[string][]*model.WikiSpaceMember
@@ -316,10 +320,16 @@ func (m *MockWikiRepository) PurgeSpaceTree(ctx context.Context, id string) erro
 }
 
 func (m *MockWikiRepository) SearchNodesByTitle(ctx context.Context, tenantID string, spaceID string, query string) ([]*model.WikiNode, error) {
+	if m.SearchNodesByTitleFn != nil {
+		return m.SearchNodesByTitleFn(ctx, tenantID, spaceID, query)
+	}
 	return nil, nil
 }
 
 func (m *MockWikiRepository) SearchDocumentsByContent(ctx context.Context, tenantID string, spaceID string, query string) ([]*model.Document, error) {
+	if m.SearchDocumentsByContentFn != nil {
+		return m.SearchDocumentsByContentFn(ctx, tenantID, spaceID, query)
+	}
 	return nil, nil
 }
 

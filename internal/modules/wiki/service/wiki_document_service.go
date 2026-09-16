@@ -48,6 +48,13 @@ func (s *wikiService) CreateDocument(ctx context.Context, nodeID string, userID 
 		return nil, err
 	}
 
+	// 同步索引到搜索引擎
+	if s.indexer != nil {
+		if idxErr := s.indexer.IndexNode(context.Background(), nodeID); idxErr != nil {
+			// 索引失败不影响业务
+		}
+	}
+
 	return s.buildDocumentResp(ctx, node, doc)
 }
 
@@ -139,6 +146,12 @@ func (s *wikiService) UpdateDocument(ctx context.Context, id string, userID stri
 	if err != nil {
 		return nil, err
 	}
+	// 文档内容变更后同步索引
+	if s.indexer != nil {
+		if idxErr := s.indexer.IndexNode(context.Background(), resp.NodeID); idxErr != nil {
+			// 索引失败不影响业务
+		}
+	}
 	return resp, nil
 }
 
@@ -165,10 +178,17 @@ func (s *wikiService) DeleteDocument(ctx context.Context, id string) error {
 	}
 
 	// 仅软删文档本身。附件记录必须保留：文档在回收站期间通过文档权限检查已不可见，
-	// 从回收站恢复后附件才能原样可用。物理清理统一由回收站“永久删除”的 Purge 流程处理。
-	return s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
+	// 从回收站恢复后附件才能原样可用。物理清理统一由回收站"永久删除"的 Purge 流程处理。
+	err = s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
 		return s.repo.DeleteDocument(txCtx, id)
 	})
+	// 从搜索引擎中删除文档索引
+	if err == nil && s.indexer != nil {
+		if idxErr := s.indexer.DeleteNode(context.Background(), doc.NodeID); idxErr != nil {
+			// 索引删除失败不影响业务
+		}
+	}
+	return err
 }
 
 // buildDocumentResp 构建文档响应结构（包含标题、内容、Revision 信息）

@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/meilisearch/meilisearch-go"
 	"meteorx/pkg/logger"
+
+	"github.com/meilisearch/meilisearch-go"
 )
 
 const (
@@ -41,7 +42,7 @@ func newMeiliSearchEngine(host, apiKey, prefix string) (*meiliSearchEngine, erro
 		avail:  true,
 	}
 
-	logger.Infof("MeiliSearch connected: version=%s, status=%s", health.Version, health.Status)
+	logger.Infof("MeiliSearch connected: status=%s", health.Status)
 
 	// 确保索引存在（索引在首次添加文档时自动创建，但提前创建方便配置）
 	if err := e.ensureIndex(wikiIndex); err != nil {
@@ -54,7 +55,7 @@ func newMeiliSearchEngine(host, apiKey, prefix string) (*meiliSearchEngine, erro
 func (e *meiliSearchEngine) ensureIndex(indexName string) error {
 	fullName := e.prefix + indexName
 	_, err := e.client.Index(fullName).UpdateFilterableAttributes(
-		&[]string{"tenant_id", "space_id", "type", "node_id"},
+		&[]interface{}{"tenant_id", "space_id", "type", "node_id"},
 	)
 	if err != nil {
 		return err
@@ -116,7 +117,7 @@ func (e *meiliSearchEngine) Index(ctx context.Context, docs ...Document) error {
 		}
 	}
 
-	_, err := e.client.Index(e.fullIndexName()).AddDocuments(docMaps)
+	_, err := e.client.Index(e.fullIndexName()).AddDocuments(docMaps, nil)
 	if err != nil {
 		return fmt.Errorf("meilisearch index failed: %w", err)
 	}
@@ -134,7 +135,7 @@ func (e *meiliSearchEngine) Delete(ctx context.Context, ids ...string) error {
 		return nil
 	}
 
-	_, err := e.client.Index(e.fullIndexName()).DeleteDocuments(ids)
+	_, err := e.client.Index(e.fullIndexName()).DeleteDocuments(ids, nil)
 	if err != nil {
 		return fmt.Errorf("meilisearch delete failed: %w", err)
 	}
@@ -163,10 +164,10 @@ func (e *meiliSearchEngine) Search(ctx context.Context, q *Query) (*SearchRespon
 
 	// 构建搜索请求
 	searchReq := &meilisearch.SearchRequest{
-		Offset: int64(offset),
-		Limit:  int64(limit),
-		Filter: e.buildFilter(q),
-		Sort:   []string{"updated_at:desc"},
+		Offset:                int64(offset),
+		Limit:                 int64(limit),
+		Filter:                e.buildFilter(q),
+		Sort:                  []string{"updated_at:desc"},
 		AttributesToHighlight: []string{"title", "content"},
 		HighlightPreTag:       "<em>",
 		HighlightPostTag:      "</em>",
@@ -178,14 +179,50 @@ func (e *meiliSearchEngine) Search(ctx context.Context, q *Query) (*SearchRespon
 		return nil, fmt.Errorf("meilisearch search failed: %w", err)
 	}
 
-	// 解析结果
+	// 解析结果 — Hit 类型为 map[string]json.RawMessage，使用 DecodeInto 解析
+	type hitDoc struct {
+		ID        string  `json:"id"`
+		Type      string  `json:"type"`
+		Title     string  `json:"title"`
+		Content   string  `json:"content"`
+		SpaceID   string  `json:"space_id"`
+		NodeID    string  `json:"node_id"`
+		TenantID  string  `json:"tenant_id"`
+		OwnerID   string  `json:"owner_id"`
+		UpdatedAt float64 `json:"updated_at"`
+		CreatedAt float64 `json:"created_at"`
+		Score     float64 `json:"_score"`
+		Formatted *struct {
+			Title   string `json:"title"`
+			Content string `json:"content"`
+		} `json:"_formatted"`
+	}
+
 	results := make([]SearchResult, 0, len(resp.Hits))
 	for _, hit := range resp.Hits {
-		hitMap, ok := hit.(map[string]interface{})
-		if !ok {
+		var doc hitDoc
+		if err := hit.DecodeInto(&doc); err != nil {
 			continue
 		}
-		result := e.mapToSearchResult(hitMap)
+		result := SearchResult{
+			Document: Document{
+				ID:        doc.ID,
+				Type:      DocType(doc.Type),
+				Title:     doc.Title,
+				Content:   doc.Content,
+				SpaceID:   doc.SpaceID,
+				NodeID:    doc.NodeID,
+				TenantID:  doc.TenantID,
+				OwnerID:   doc.OwnerID,
+				UpdatedAt: time.Unix(int64(doc.UpdatedAt), 0),
+				CreatedAt: time.Unix(int64(doc.CreatedAt), 0),
+			},
+			Score: doc.Score,
+		}
+		if doc.Formatted != nil {
+			result.Highlight = doc.Formatted.Title
+			result.Snippet = truncateContent(doc.Formatted.Content, 200)
+		}
 		results = append(results, result)
 	}
 
@@ -231,62 +268,6 @@ func (e *meiliSearchEngine) buildFilter(q *Query) string {
 	return filter
 }
 
-func (e *meiliSearchEngine) mapToSearchResult(hitMap map[string]interface{}) SearchResult {
-	result := SearchResult{}
-
-	if id, ok := hitMap["id"].(string); ok {
-		result.ID = id
-	}
-	if docType, ok := hitMap["type"].(string); ok {
-		result.Type = DocType(docType)
-	}
-	if title, ok := hitMap["title"].(string); ok {
-		result.Title = title
-	}
-	if content, ok := hitMap["content"].(string); ok {
-		result.Content = content
-	}
-	if spaceID, ok := hitMap["space_id"].(string); ok {
-		result.SpaceID = spaceID
-	}
-	if nodeID, ok := hitMap["node_id"].(string); ok {
-		result.NodeID = nodeID
-	}
-	if tenantID, ok := hitMap["tenant_id"].(string); ok {
-		result.TenantID = tenantID
-	}
-	if ownerID, ok := hitMap["owner_id"].(string); ok {
-		result.OwnerID = ownerID
-	}
-
-	// 提取高亮片段
-	if formatted, ok := hitMap["_formatted"].(map[string]interface{}); ok {
-		if title, ok := formatted["title"].(string); ok {
-			result.Highlight = title
-		}
-		if content, ok := formatted["content"].(string); ok {
-			result.Snippet = truncateContent(content, 200)
-		}
-	}
-
-	// 评分
-	if score, ok := hitMap["_score"].(float64); ok {
-		result.Score = score
-	} else {
-		result.Score = 1.0
-	}
-
-	// 时间
-	if updatedAt, ok := hitMap["updated_at"].(float64); ok {
-		result.UpdatedAt = time.Unix(int64(updatedAt), 0)
-	}
-	if createdAt, ok := hitMap["created_at"].(float64); ok {
-		result.CreatedAt = time.Unix(int64(createdAt), 0)
-	}
-
-	return result
-}
-
 func truncateContent(content string, maxLen int) string {
 	runes := []rune(content)
 	if len(runes) <= maxLen {
@@ -300,7 +281,7 @@ func (e *meiliSearchEngine) ClearIndex(ctx context.Context) error {
 		return ErrSearchEngineUnavailable
 	}
 
-	_, err := e.client.Index(e.fullIndexName()).DeleteAllDocuments()
+	_, err := e.client.Index(e.fullIndexName()).DeleteAllDocuments(nil)
 	if err != nil {
 		return fmt.Errorf("meilisearch clear index failed: %w", err)
 	}

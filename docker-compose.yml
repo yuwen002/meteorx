@@ -35,6 +35,12 @@ services:
       # WebSocket
       - METEORX_WS_ENABLED=true
       - METEORX_WS_MAX_CONNECTION=1000
+      
+      # Search
+      - METEORX_SEARCH_PROVIDER=${METEORX_SEARCH_PROVIDER:-none}
+      - METEORX_SEARCH_HOST=${METEORX_SEARCH_HOST:-http://meilisearch:7700}
+      - METEORX_SEARCH_API_KEY=${METEORX_SEARCH_API_KEY:-}
+      - METEORX_SEARCH_INDEX_PREFIX=${METEORX_SEARCH_INDEX_PREFIX:-meteorx_}
     depends_on:
       db:
         condition: service_healthy
@@ -115,10 +121,37 @@ services:
     profiles:
       - production
 
+# MeiliSearch 全文搜索引擎（默认不启动，使用 profile 显式启用）
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: meteorx-meilisearch
+    ports:
+      - "7700:7700"
+    environment:
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY:-change_this_master_key_in_production}
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_ENV=production
+      - MEILI_LOG_LEVEL=INFO
+    volumes:
+      - meilisearch-data:/meili_data
+    networks:
+      - meteorx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    profiles:
+      - with-search
+
 volumes:
   db-data:
     driver: local
   redis-data:
+    driver: local
+  meilisearch-data:
     driver: local
   app-logs:
     driver: local

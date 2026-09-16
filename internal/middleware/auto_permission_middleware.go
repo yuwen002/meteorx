@@ -300,6 +300,13 @@ func deriveAction(method, remaining string) string {
 		}
 	}
 
+	// 搜索：search
+	if strings.Contains(remaining, "search") {
+		if method == "GET" {
+			return "search"
+		}
+	}
+
 	// 下拉选择：select → list_select（角色/套餐等下拉列表）
 	if strings.Contains(remaining, "select") {
 		if method == "GET" {

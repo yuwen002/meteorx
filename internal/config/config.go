@@ -20,6 +20,20 @@ type Config struct {
 	WS         WSConfig         `mapstructure:"ws"`
 	Notify     NotifyConfig     `mapstructure:"notify"`
 	OTel       OTelConfig       `mapstructure:"otel"`
+	Search     SearchConfig     `mapstructure:"search"`
+}
+
+// SearchConfig 全文检索引擎配置
+type SearchConfig struct {
+	// Provider 搜索引擎类型：meilisearch / none
+	// 设为 none 或留空时降级为数据库 LIKE 搜索（向后兼容）
+	Provider string `mapstructure:"provider"`
+	// Host 搜索引擎服务地址（如 http://127.0.0.1:7700）
+	Host string `mapstructure:"host"`
+	// APIKey MeiliSearch 主密钥（用于索引管理，非搜索专用 key）
+	APIKey string `mapstructure:"api_key"`
+	// IndexPrefix 索引前缀（多环境隔离，如 "meteorx_dev_"），默认 "meteorx_"
+	IndexPrefix string `mapstructure:"index_prefix"`
 }
 
 // WSConfig WebSocket 配置
@@ -98,6 +112,18 @@ type ServerConfig struct {
 	TestBypass bool `mapstructure:"test_bypass"`
 }
 
+// DatabaseReplicaConfig 从库（只读副本）配置
+type DatabaseReplicaConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
+	Name     string `mapstructure:"name"`
+	TLS      bool   `mapstructure:"tls"`
+	// Weight 负载均衡权重（默认 1），权重越高分配到的查询越多
+	Weight int `mapstructure:"weight"`
+}
+
 type DatabaseConfig struct {
 	Driver   string `mapstructure:"driver"`
 	Host     string `mapstructure:"host"`
@@ -107,6 +133,9 @@ type DatabaseConfig struct {
 	Name     string `mapstructure:"name"`
 	TLS      bool   `mapstructure:"tls"`
 	Debug    bool   `mapstructure:"debug"` // 开启后输出 SQL 日志
+	// Replicas 只读从库列表（启用读写分离时配置）
+	// 配置后 GORM 自动将 SELECT 查询路由到从库，INSERT/UPDATE/DELETE 仍走主库
+	Replicas []DatabaseReplicaConfig `mapstructure:"replicas"`
 }
 
 type RedisConfig struct {

@@ -53,6 +53,11 @@ func LoadConfig() (*config.Config, error) {
 		{"jwt.expiration", "METEORX_JWT_EXPIRATION"},
 		{"jwt.issuer", "METEORX_JWT_ISSUER"},
 		{"client.base_url", "METEORX_CLIENT_BASE_URL"},
+		// Search
+		{"search.provider", "METEORX_SEARCH_PROVIDER"},
+		{"search.host", "METEORX_SEARCH_HOST"},
+		{"search.api_key", "METEORX_SEARCH_API_KEY"},
+		{"search.index_prefix", "METEORX_SEARCH_INDEX_PREFIX"},
 	}
 	for _, b := range envBindings {
 		if err := mustBindEnv(v, b.key, b.env); err != nil {

@@ -70,6 +70,12 @@ func (s *wikiService) CreateNode(ctx context.Context, spaceID string, userID str
 		if err != nil {
 			return nil, err
 		}
+		// 同步索引到搜索引擎
+		if s.indexer != nil {
+			if idxErr := s.indexer.IndexNode(context.Background(), resp.ID); idxErr != nil {
+				// 索引失败不影响业务，仅记录日志
+			}
+		}
 		return resp, nil
 	}
 
@@ -97,6 +103,13 @@ func (s *wikiService) CreateNode(ctx context.Context, spaceID string, userID str
 	}
 	if err := s.repo.CreateNode(ctx, node); err != nil {
 		return nil, err
+	}
+
+	// 文件夹节点也同步索引（标题可被搜索）
+	if s.indexer != nil {
+		if idxErr := s.indexer.IndexNode(context.Background(), node.ID); idxErr != nil {
+			// 索引失败不影响业务
+		}
 	}
 
 	return s.buildNodeResp(ctx, node)
@@ -324,9 +337,17 @@ func (s *wikiService) DeleteNode(ctx context.Context, id string) error {
 		return err
 	}
 
-	return s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
+	err = s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
 		return s.deleteNodeRecursive(txCtx, id)
 	})
+	// 从搜索引擎中删除节点索引
+	if err == nil && s.indexer != nil {
+		// 递归删除子节点的索引也一并清理
+		if idxErr := s.indexer.DeleteNode(context.Background(), id); idxErr != nil {
+			// 索引删除失败不影响业务
+		}
+	}
+	return err
 }
 
 // deleteNodeRecursive 递归删除节点及其所有后代。

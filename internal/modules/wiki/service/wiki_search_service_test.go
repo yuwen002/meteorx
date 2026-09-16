@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"meteorx/internal/common/contextx"
-	"meteorx/internal/modules/wiki/dto"
 	"meteorx/internal/modules/wiki/model"
 	"meteorx/internal/modules/wiki/repository"
 	"meteorx/internal/search"

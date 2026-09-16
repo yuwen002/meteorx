@@ -592,7 +592,7 @@ Space
 
 `GET /api/v1/wiki/search`
 
-**权限码**：`wiki:wiki_node:list`
+**权限码**：`wiki:search`
 
 **描述**：按标题和内容搜索 Wiki，自动过滤无权限内容，返回带摘要片段的搜索结果
 

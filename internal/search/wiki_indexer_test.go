@@ -55,7 +55,7 @@ func (m *mockDocProvider) GetDocumentByNodeID(_ context.Context, nodeID string) 
 
 // ---- Helper ----
 
-func fixtureNode(id, title, spaceID, tenantID, ownerID string, nodeType model.NodeType) *model.WikiNode {
+func fixtureNode(id, title, spaceID, tenantID, ownerID string, nodeType string) *model.WikiNode {
 	return &model.WikiNode{
 		ID:        id,
 		Title:     title,
@@ -69,13 +69,12 @@ func fixtureNode(id, title, spaceID, tenantID, ownerID string, nodeType model.No
 }
 
 func fixtureDoc(nodeID, content string) *model.Document {
-	now := time.Now()
 	return &model.Document{
 		ID:        "doc-" + nodeID,
 		NodeID:    nodeID,
 		Content:   content,
 		CreatedAt: time.Now(),
-		UpdatedAt: &now,
+		UpdatedAt: time.Now(),
 	}
 }
 

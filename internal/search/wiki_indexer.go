@@ -36,6 +36,11 @@ func NewWikiIndexer(engine Engine, nodeProvider WikiNodeProvider, docProvider Wi
 	}
 }
 
+// Engine 返回底层搜索引擎实例
+func (idx *WikiIndexer) Engine() Engine {
+	return idx.engine
+}
+
 // IndexNode 将节点及关联文档索引到搜索引擎。
 // 对于 document 类型的节点，会同时索引标题和文档内容。
 func (idx *WikiIndexer) IndexNode(ctx context.Context, nodeID string) error {
@@ -66,9 +71,7 @@ func (idx *WikiIndexer) IndexNode(ctx context.Context, nodeID string) error {
 		if err == nil && document != nil {
 			doc.Content = document.Content
 			doc.Type = DocTypeWikiDocument
-			if document.UpdatedAt != nil {
-				doc.UpdatedAt = *document.UpdatedAt
-			}
+			doc.UpdatedAt = document.UpdatedAt
 		}
 	}
 
@@ -120,9 +123,7 @@ func (idx *WikiIndexer) BatchIndexAll(ctx context.Context, nodes []*model.WikiNo
 			if err == nil && document != nil {
 				doc.Content = document.Content
 				doc.Type = DocTypeWikiDocument
-				if document.UpdatedAt != nil {
-					doc.UpdatedAt = *document.UpdatedAt
-				}
+				doc.UpdatedAt = document.UpdatedAt
 			}
 		}
 

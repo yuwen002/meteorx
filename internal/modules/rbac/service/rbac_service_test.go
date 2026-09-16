@@ -14,7 +14,7 @@ func newTestRBAC() (*RBACService, *mockRoleRepo, *mockPermissionRepo, *mockRoleP
 	pr := newMockPermissionRepo()
 	rpr := newMockRolePermRepo()
 	urr := newMockUserRoleRepo()
-	svc := NewRBACService(rr, pr, rpr, urr)
+	svc := NewRBACService(rr, pr, rpr, urr, nil, nil)
 	return svc, rr, pr, rpr, urr
 }
 

@@ -5,6 +5,7 @@ import (
 	"meteorx/internal/modules/wiki/handler"
 	"meteorx/internal/modules/wiki/repository"
 	"meteorx/internal/modules/wiki/service"
+	"meteorx/internal/search"
 
 	db "meteorx/internal/pkg/db"
 
@@ -16,6 +17,18 @@ import (
 func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config) {
 	repo := repository.NewWikiRepository(gormDB)
 	svc := service.NewWikiService(repo, tx)
+
+	// 初始化全文搜索引擎（配置为 none 时降级为数据库 LIKE 搜索）
+	searchCfg := search.Config{
+		Provider:    cfg.Search.Provider,
+		Host:        cfg.Search.Host,
+		APIKey:      cfg.Search.APIKey,
+		IndexPrefix: cfg.Search.IndexPrefix,
+	}
+	engine := search.NewEngine(searchCfg)
+	indexer := search.NewWikiIndexer(engine, repo, repo)
+	svc.SetWikiIndexer(indexer)
+
 	// 文档内嵌 /uploads 图片签名支持（与文件模块共用访问基址与独立签名密钥）
 	if cfg != nil {
 		svc.SetUploadSigner(cfg.File.UploadURL, cfg.File.UploadSignKey(cfg.JWT.Secret))

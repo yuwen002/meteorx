@@ -156,6 +156,11 @@ func buildTestRouter() *chi.Mux {
 				r.Delete("/cleanup", noop)
 			})
 		})
+
+		r.Route("/wiki", func(r chi.Router) {
+			r.Get("/search", noop)
+			r.Get("/stats", noop)
+		})
 	})
 	return r
 }
@@ -385,6 +390,24 @@ func TestDerivePermissionCode_AuditLog(t *testing.T) {
 		{"log create", http.MethodPost, "/api/v1/audit/logs", "audit:log:create"},
 		{"log read", http.MethodGet, "/api/v1/audit/logs/{id}", "audit:log:read"},
 		{"log cleanup", http.MethodDelete, "/api/v1/audit/logs/cleanup", "audit:log:cleanup"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := doRequest(r, c.method, c.path)
+			if got != c.want {
+				t.Errorf("derivePermissionCode(%s %s) = %q, want %q", c.method, c.path, got, c.want)
+			}
+		})
+	}
+}
+
+func TestDerivePermissionCode_Wiki(t *testing.T) {
+	r := buildTestRouter()
+
+	cases := []testCase{
+		{"wiki search", http.MethodGet, "/api/v1/wiki/search", "wiki:search"},
+		{"wiki stats", http.MethodGet, "/api/v1/wiki/stats", "wiki:list"},
 	}
 
 	for _, c := range cases {

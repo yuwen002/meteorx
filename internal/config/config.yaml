@@ -14,6 +14,22 @@ database:
   name: meteorx
   tls: false         # 修正：去掉引号
   debug: true        # 开启后在控制台输出 SQL 日志
+  # 读写分离配置（如不需从库，留空即可）
+  # replicas:
+  #   - host: 192.168.1.101
+  #     port: 3306
+  #     user: replicator
+  #     password: readonly_pass
+  #     name: meteorx
+  #     tls: false
+  #     weight: 2        # 权重越高分配到的查询越多（默认 1）
+  #   - host: 192.168.1.102
+  #     port: 3306
+  #     user: replicator
+  #     password: readonly_pass
+  #     name: meteorx
+  #     tls: false
+  #     weight: 1
 
 redis:
   host: 127.0.0.1
@@ -135,3 +151,10 @@ otel:
   sample_rate: 1.0             # 开发环境 100% 采样；生产建议 0.1（10%）
   service_name: "meteorx"
   service_version: "1.0.0"
+
+# MeiliSearch 全文检索引擎（如不配置，降级为数据库 LIKE 搜索）
+search:
+  provider: none              # meilisearch / none（留空或 none 时使用数据库 LIKE 搜索）
+  # host: "http://127.0.0.1:7700"
+  # api_key: "YOUR_MASTER_KEY"
+  # index_prefix: "meteorx_"   # 索引前缀（多环境隔离），默认 "meteorx_"
