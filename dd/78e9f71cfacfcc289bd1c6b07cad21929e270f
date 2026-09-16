@@ -1,0 +1,56 @@
+internal/modules/rbac/service/rbac_service_test.go
+  h_a3f313f3d96276 17
+internal/middleware/auto_permission_middleware_test.go
+  h_a3f313f3d96276 159-163,405-422
+internal/modules/wiki/service/wiki_node_service.go
+  h_a3f313f3d96276 73-78,108-114,340,343-350
+docs/api/wiki-api.md
+  h_a3f313f3d96276 595
+docs/apifox/MeteorX-backend.openapi.json
+  h_a3f313f3d96276 5396-5397,5399-5401,5405-5406,5436-5466,9638,9641-9642,9644-9647,10010-10013,10016-10021,10025-10030,12423-12424,12727-12732,12739-12740,12742,12744-12745,12772-12773
+internal/modules/wiki/service/wiki_service.go
+  h_a3f313f3d96276 9,109-111,125-126,143-147
+internal/bootstrap/config.go
+  h_a3f313f3d96276 56-60
+internal/modules/wiki/service/wiki_search_service.go
+  h_a3f313f3d96276 8,12,18-72
+internal/search/mock_engine.go
+  h_a3f313f3d96276 1-107
+internal/search/meilisearch.go
+  h_a3f313f3d96276 9-10,45,58,120,138,167-170,182-200,203-204,207-225,284,301
+internal/modules/wiki/routes.go
+  h_a3f313f3d96276 8,20-31
+docker-compose.dev.yml
+  h_a3f313f3d96276 39-43,45-49,53,91-103,107-112,119
+internal/modules/wiki/service/wiki_document_service.go
+  h_a3f313f3d96276 51-57,149-154,181-182,185-191
+internal/modules/wiki/handler/wiki_handler_test.go
+  h_a3f313f3d96276 816-894
+internal/modules/wiki/repository/mock_repository.go
+  h_a3f313f3d96276 43-46,323-325,330-332
+internal/middleware/auto_permission_middleware.go
+  h_a3f313f3d96276 303-309
+internal/config/config.go
+  h_a3f313f3d96276 23,26-36,115-124,136-138
+internal/bootstrap/database.go
+  h_a3f313f3d96276 10,17-18,20,29,34,37-67,77,88-93
+internal/search/wiki_indexer_test.go
+  h_a3f313f3d96276 58,77
+internal/config/config.yaml
+  h_a3f313f3d96276 17-32,154-160
+docker-compose.yml
+  h_a3f313f3d96276 38-43,124-148,154
+internal/search/wiki_indexer.go
+  h_a3f313f3d96276 39-43,74,126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "dd78e9f71cfacfcc289bd1c6b07cad21929e270f",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
