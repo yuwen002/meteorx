@@ -1,0 +1,32 @@
+docs/apifox/_add_wiki_ext.ps1
+  h_a3f313f3d96276 1-301
+internal/search/meilisearch.go
+  h_a3f313f3d96276 1-280
+internal/search/noop.go
+  h_a3f313f3d96276 1-60
+internal/search/wiki_indexer.go
+  h_a3f313f3d96276 1-157
+internal/modules/wiki/service/wiki_search_service_test.go
+  h_a3f313f3d96276 1-367
+internal/search/mock_engine_test.go
+  h_a3f313f3d96276 1-107
+internal/search/engine.go
+  h_a3f313f3d96276 1-136
+docs/apifox/_gen_wiki_ext.go
+  h_a3f313f3d96276 1-525
+internal/search/noop_test.go
+  h_a3f313f3d96276 1-109
+internal/search/wiki_indexer_test.go
+  h_a3f313f3d96276 1-324
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "f30cb7ad51fc149c72c5b96b47ef4ba0b897f325",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
