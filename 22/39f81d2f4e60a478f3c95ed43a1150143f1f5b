@@ -1,0 +1,24 @@
+internal/common/contextx/contextx.go
+  h_a3f313f3d96276 11-12,22-47
+internal/modules/audit/model/audit_log.go
+  h_a3f313f3d96276 39
+internal/modules/audit/repository/audit_repository.go
+  h_a3f313f3d96276 465,475,504
+internal/middleware/audit_middleware.go
+  h_a3f313f3d96276 59-69,88,92,173-174
+internal/modules/audit/service/session_service.go
+  h_a3f313f3d96276 110
+internal/modules/audit/repository/mock_repository.go
+  h_a3f313f3d96276 151,180-182,219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "2239f81d2f4e60a478f3c95ed43a1150143f1f5b",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
