@@ -50,6 +50,7 @@ func Logger(next http.Handler) http.Handler {
 		duration := time.Since(start)
 
 		// 记录结构化日志
+		clientIP := stripPort(r.RemoteAddr)
 		logger.Info("HTTP Request",
 			"request_id", requestID,
 			"method", r.Method,
@@ -57,7 +58,7 @@ func Logger(next http.Handler) http.Handler {
 			"query", r.URL.RawQuery,
 			"status", rw.StatusCode,
 			"duration_ms", duration.Milliseconds(),
-			"remote_addr", r.RemoteAddr,
+			"remote_addr", clientIP,
 			"user_agent", r.UserAgent(),
 		)
 

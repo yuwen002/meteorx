@@ -6,9 +6,12 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
+	"meteorx/internal/middleware"
+	auditmodel "meteorx/internal/modules/audit/model"
 	"meteorx/internal/modules/auth/dto"
 	"meteorx/internal/modules/auth/service"
 	userdto "meteorx/internal/modules/user/dto"
@@ -19,7 +22,7 @@ import (
 type AuthService interface {
 	Register(ctx context.Context, req dto.RegisterUserReq) (*userModel.User, error)
 	Login(ctx context.Context, req dto.LoginReq) (*userModel.User, []string, []string, string, error)
-	Logout(ctx context.Context, tokenString string) error
+	Logout(ctx context.Context, tokenString string) (userID, username, tenantID string, err error)
 	ForgotPassword(ctx context.Context, email string) error
 	ResetPassword(ctx context.Context, token, newPassword string) error
 }
@@ -62,8 +65,22 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	start := time.Now()
+
 	user, _, permCodes, token, err := h.svc.Login(r.Context(), req)
 	if err != nil {
+		// 记录登录失败审计日志
+		loginReq := middleware.NewAuditLogReq(r)
+		loginReq.Module = "auth"
+		loginReq.Action = auditmodel.ActionTypeLogin
+		loginReq.Resource = r.URL.Path
+		loginReq.StatusCode = http.StatusUnauthorized
+		loginReq.Result = auditmodel.ResultFailure
+		loginReq.ErrorMessage = err.Error()
+		loginReq.RiskLevel = auditmodel.RiskHigh
+		loginReq.Duration = time.Since(start).Milliseconds()
+		middleware.RecordAuditLog(r.Context(), &loginReq)
+
 		if loginErr, ok := err.(*service.LoginError); ok {
 			errorResp := dto.LoginErrorResp{
 				Message:           loginErr.Message,
@@ -77,6 +94,20 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		response.Fail(w, http.StatusUnauthorized, err.Error())
 		return
 	}
+
+	// 记录登录成功审计日志
+	loginReq := middleware.NewAuditLogReq(r)
+	loginReq.UserID = user.ID
+	loginReq.Username = user.Username
+	loginReq.TenantID = user.TenantID
+	loginReq.Module = "auth"
+	loginReq.Action = auditmodel.ActionTypeLogin
+	loginReq.Resource = r.URL.Path
+	loginReq.StatusCode = http.StatusOK
+	loginReq.Result = auditmodel.ResultSuccess
+	loginReq.RiskLevel = auditmodel.RiskMedium
+	loginReq.Duration = time.Since(start).Milliseconds()
+	middleware.RecordAuditLog(r.Context(), &loginReq)
 
 	converter := userdto.UserConverter{}
 	loginResp := dto.LoginResp{
@@ -104,11 +135,27 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tokenString := parts[1]
+	start := time.Now()
 
-	if err := h.svc.Logout(r.Context(), tokenString); err != nil {
+	userID, username, tenantID, err := h.svc.Logout(r.Context(), tokenString)
+	if err != nil {
 		response.Fail(w, http.StatusInternalServerError, "登出失败: "+err.Error())
 		return
 	}
+
+	// 记录登出审计日志
+	logoutReq := middleware.NewAuditLogReq(r)
+	logoutReq.UserID = userID
+	logoutReq.Username = username
+	logoutReq.TenantID = tenantID
+	logoutReq.Module = "auth"
+	logoutReq.Action = auditmodel.ActionTypeLogout
+	logoutReq.Resource = r.URL.Path
+	logoutReq.StatusCode = http.StatusOK
+	logoutReq.Result = auditmodel.ResultSuccess
+	logoutReq.RiskLevel = auditmodel.RiskLow
+	logoutReq.Duration = time.Since(start).Milliseconds()
+	middleware.RecordAuditLog(r.Context(), &logoutReq)
 
 	response.Success(w, nil)
 }

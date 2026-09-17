@@ -500,7 +500,7 @@ func (r *auditLogRepository) ListSessions(ctx context.Context, page, pageSize in
 
 // GetUserTimeline 获取用户操作时间线
 func (r *auditLogRepository) GetUserTimeline(ctx context.Context, userID string, page, pageSize int, startTime, endTime string) ([]*model.AuditLog, int64, error) {
-	db := r.db.WithContext(ctx).Model(&AuditLogPO{}).Where("user_id = ?", userID)
+	db := r.db.WithContext(ctx).Model(&AuditLogPO{}).Where("user_id = ? OR username = ?", userID, userID)
 
 	if startTime != "" {
 		db = db.Where("created_at >= ?", startTime)

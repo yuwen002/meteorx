@@ -29,6 +29,9 @@ tmp/
 temp/
 *.tmp
 
+# Uploaded files
+uploads/
+
 # Docker overrides
 docker-compose.override.yml
 

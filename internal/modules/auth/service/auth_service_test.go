@@ -256,7 +256,7 @@ func (s *AuthServiceTestSuite) TestLoginDisabledAccount() {
 
 func (s *AuthServiceTestSuite) TestLogoutRedisUnavailable() {
 	// redis 为空时应静默降级成功
-	err := s.svc.Logout(s.ctx, "some-token")
+	_, _, _, err := s.svc.Logout(s.ctx, "some-token")
 	s.NoError(err)
 }
 

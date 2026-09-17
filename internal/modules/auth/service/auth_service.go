@@ -228,15 +228,25 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User,
 }
 
 // Logout 用户登出，将 token 加入黑名单
-func (s *AuthService) Logout(ctx context.Context, tokenString string) error {
-	if s.redis == nil || !s.redis.IsAvailable() {
-		return nil
-	}
-
-	// 解析 token 获取过期时间
+// 返回 userID、username 和 tenantID 供审计日志使用。
+func (s *AuthService) Logout(ctx context.Context, tokenString string) (userID, username, tenantID string, err error) {
+	// 解析 token
 	claims, err := s.tokenHelper.ParseToken(tokenString)
 	if err != nil {
-		return nil
+		return "", "", "", nil
+	}
+	userID = claims.UserID
+	tenantID = claims.TenantID
+
+	// 查用户名
+	if userID != "" {
+		if u, lookupErr := s.userRepo.GetByID(ctx, userID); lookupErr == nil && u != nil {
+			username = u.Username
+		}
+	}
+
+	if s.redis == nil || !s.redis.IsAvailable() {
+		return userID, username, tenantID, nil
 	}
 
 	// 计算 token 剩余有效期
@@ -245,16 +255,16 @@ func (s *AuthService) Logout(ctx context.Context, tokenString string) error {
 	if claims.ExpiresAt != nil && claims.ExpiresAt.Time.After(now) {
 		expiration = claims.ExpiresAt.Time.Sub(now)
 	} else {
-		return nil
+		return userID, username, tenantID, nil
 	}
 
 	// 将 token 加入黑名单，有效期与 token 剩余有效期相同
 	key := fmt.Sprintf("%s%s", tokenBlacklistPrefix, tokenString)
-	err = s.redis.Set(ctx, key, "1", expiration)
-	if err == cache.ErrRedisUnavailable {
-		return nil
+	e := s.redis.Set(ctx, key, "1", expiration)
+	if e == cache.ErrRedisUnavailable {
+		return userID, username, tenantID, nil
 	}
-	return err
+	return userID, username, tenantID, e
 }
 
 // IsTokenBlacklisted 检查 token 是否在黑名单中

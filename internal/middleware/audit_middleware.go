@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -114,11 +115,11 @@ func recordAuditLog(ctx context.Context, auditSvc *service.AuditService, ipLocat
 	}
 
 	// 获取客户端IP
-	clientIP := r.RemoteAddr
+	clientIP := stripPort(r.RemoteAddr)
 	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		clientIP = strings.Split(forwarded, ",")[0]
+		clientIP = stripPort(strings.Split(forwarded, ",")[0])
 	} else if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
-		clientIP = realIP
+		clientIP = stripPort(realIP)
 	}
 
 	// 解析IP地理位置
@@ -131,7 +132,7 @@ func recordAuditLog(ctx context.Context, auditSvc *service.AuditService, ipLocat
 	}
 
 	// 解析设备信息
-	deviceInfo := parseDeviceInfo(r.UserAgent())
+	deviceInfo := ParseDeviceInfo(r.UserAgent())
 
 	// 评估风险等级
 	riskLevel := evaluateRiskLevel(r.URL.Path, r.Method, module, action)
@@ -259,8 +260,21 @@ func shouldSkipAudit(path string) bool {
 	return false
 }
 
-// parseDeviceInfo 从 User-Agent 解析设备信息
-func parseDeviceInfo(userAgent string) string {
+// NewAuditLogReq 从 HTTP 请求构建基础的审计日志请求（填充IP、设备信息等公共字段）
+// 供登录/登出等非中间件场景手动记录使用。
+func NewAuditLogReq(r *http.Request) dto.CreateAuditLogReq {
+	return dto.CreateAuditLogReq{
+		Method:     r.Method,
+		Path:       r.URL.Path,
+		ClientIP:   stripPort(r.RemoteAddr),
+		UserAgent:  r.UserAgent(),
+		DeviceInfo: ParseDeviceInfo(r.UserAgent()),
+		Referer:    r.Referer(),
+	}
+}
+
+// ParseDeviceInfo 从 User-Agent 解析设备信息（导出供外部使用）
+func ParseDeviceInfo(userAgent string) string {
 	if userAgent == "" {
 		return "Unknown"
 	}
@@ -378,4 +392,13 @@ func getTraceID(r *http.Request) string {
 	}
 
 	return ""
+}
+
+// stripPort 从 host:port 格式中剥离端口号，兼容 IPv4 和 IPv6
+func stripPort(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	return host
 }

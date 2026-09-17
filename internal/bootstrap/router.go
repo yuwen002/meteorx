@@ -153,7 +153,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			auditService := auditSvc.NewAuditService(repo)
 
 			// 初始化批量处理器（性能优化，使用传入的context支持优雅取消）
-			middleware.InitAuditBatchProcessor(ctx, auditService)
+			middleware.InitAuditBatchProcessor(ctx, auditService, ipLocator)
 
 			r.Use(middleware.AuditMiddleware(auditService, ipLocator))
 

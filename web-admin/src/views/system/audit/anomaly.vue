@@ -115,7 +115,7 @@
 
     <!-- 空状态 -->
     <el-empty v-if="!loading && anomalies.length === 0 && hasDetected" description="未检测到异常操作" />
-    <el-empty v-if="!hasDetected" description="设置检测参数后点击"开始检测"" />
+    <el-empty v-if="!hasDetected" description='设置检测参数后点击"开始检测"' />
   </div>
 </template>
 

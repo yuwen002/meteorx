@@ -7,6 +7,7 @@ import (
 
 	"meteorx/internal/modules/audit/dto"
 	"meteorx/internal/modules/audit/service"
+	"meteorx/pkg/iplocation"
 )
 
 // AuditBatchProcessor 批量审计日志处理器
@@ -118,14 +119,40 @@ func (p *AuditBatchProcessor) Stop() {
 // GlobalBatchProcessor 全局批量处理器实例
 var GlobalBatchProcessor *AuditBatchProcessor
 
+// globalAuditSvc 全局审计服务实例（供 RecordAuditLog 回退使用）
+var globalAuditSvc *service.AuditService
+
+// globalIPLocator 全局 IP 地理位置解析器（供 RecordAuditLog 使用）
+var globalIPLocator iplocation.IPLocator
+
 // InitAuditBatchProcessor 初始化全局批量处理器
-func InitAuditBatchProcessor(ctx context.Context, svc *service.AuditService) {
+func InitAuditBatchProcessor(ctx context.Context, svc *service.AuditService, ipLocator iplocation.IPLocator) {
 	GlobalBatchProcessor = NewAuditBatchProcessor(ctx, svc, 100, 5*time.Second)
+	globalAuditSvc = svc
+	globalIPLocator = ipLocator
 }
 
 // StopAuditBatchProcessor 停止全局批量处理器
 func StopAuditBatchProcessor() {
 	if GlobalBatchProcessor != nil {
 		GlobalBatchProcessor.Stop()
+	}
+}
+
+// RecordAuditLog 全局审计日志记录函数，供非中间件场景手动记录（如登录/登出）。
+// 如果 req.IPLocation 为空，则尝试用全局 IP 定位器解析。
+// 优先使用批量处理器，回退到直接写入。
+func RecordAuditLog(ctx context.Context, req *dto.CreateAuditLogReq) {
+	if req.IPLocation == "" && globalIPLocator != nil && req.ClientIP != "" {
+		if loc, err := globalIPLocator.Locate(ctx, req.ClientIP); err == nil && loc != nil {
+			req.IPLocation = loc.FullText
+		}
+	}
+
+	if GlobalBatchProcessor != nil {
+		GlobalBatchProcessor.Add(req)
+	} else if globalAuditSvc != nil {
+		// 无批量处理器时直接写入
+		_, _ = globalAuditSvc.CreateLog(ctx, *req)
 	}
 }

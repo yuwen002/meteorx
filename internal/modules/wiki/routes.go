@@ -79,6 +79,26 @@ func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, cfg *config.Con
 				r.Post("/", h.AddMember)              // 添加成员
 				r.Delete("/{userId}", h.RemoveMember) // 移除成员
 			})
+
+			// 扩展路由 - Spaces（标签、模板、通知、订阅、批量操作）
+			r.Post("/tags", extH.CreateTag)
+			r.Get("/tags", extH.ListTags)
+			r.Delete("/tags/{id}", extH.DeleteTag)
+
+			r.Post("/nodes/batch", extH.BatchOperation)
+
+			r.Post("/templates", extH.CreateTemplate)
+			r.Get("/templates", extH.ListTemplates)
+			r.Get("/templates/{id}", extH.GetTemplate)
+			r.Put("/templates/{id}", extH.UpdateTemplate)
+			r.Delete("/templates/{id}", extH.DeleteTemplate)
+
+			r.Get("/notifications", extH.ListNotifications)
+			r.Put("/notifications/read-all", extH.MarkAllNotificationsAsRead)
+			r.Get("/notifications/unread-count", extH.GetUnreadNotificationCount)
+			r.Put("/notifications/{id}/read", extH.MarkNotificationAsRead)
+
+			r.Get("/subscriptions", extH.ListUserSubscriptions)
 		})
 
 		// Documents 文档管理
@@ -98,9 +118,36 @@ func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, cfg *config.Con
 			r.Post("/attachments", h.CreateAttachment)            // 创建附件
 			r.Get("/{documentId}/attachments", h.ListAttachments) // 附件列表
 			r.Delete("/attachments/{id}", h.DeleteAttachment)     // 删除附件
+
+			// 扩展路由 - Documents（标签、评论、分享、统计、访问日志）
+			r.Post("/{id}/tags/{tagId}", extH.AddDocumentTag)
+			r.Delete("/{id}/tags/{tagId}", extH.RemoveDocumentTag)
+			r.Get("/{id}/tags", extH.ListDocumentTags)
+
+			r.Post("/{id}/comments", extH.CreateComment)
+			r.Get("/{id}/comments", extH.ListComments)
+			r.Put("/comments/{id}", extH.UpdateComment)
+			r.Delete("/comments/{id}", extH.DeleteComment)
+
+			r.Post("/{id}/share", extH.CreateShareLink)
+			r.Get("/{id}/shares", extH.ListShareLinks)
+			r.Delete("/shares/{id}", extH.DeleteShareLink)
+
+			r.Get("/{id}/stats", extH.GetDocumentStats)
+			r.Get("/{id}/access-logs", extH.ListAccessLogs)
+
+			r.Post("/{id}/subscribe", extH.SubscribeDocument)
+			r.Delete("/{id}/subscribe", extH.UnsubscribeDocument)
+
+			r.Post("/{id}/edit-lock", extH.AcquireEditLock)
+			r.Delete("/{id}/edit-lock", extH.ReleaseEditLock)
+			r.Put("/{id}/edit-lock", extH.RefreshEditLock)
+			r.Get("/{id}/edit-lock", extH.GetEditLock)
+
+			r.Post("/{id}/export", extH.ExportDocument)
+			r.Post("/{id}/import", extH.ImportDocument)
+
+			r.Get("/{id}/revisions/compare", extH.CompareRevisions)
 		})
 	})
-
-	// 注册扩展路由
-	extH.RegisterExtendedRoutes(r)
 }

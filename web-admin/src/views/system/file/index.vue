@@ -98,7 +98,7 @@
         :on-change="handleFileChange"
         :on-exceed="handleExceed"
         :limit="MAX_UPLOAD_COUNT"
-        :file-list="fileList"
+        v-model:file-list="fileList"
         :on-remove="handleFileRemove"
         drag
         multiple
@@ -256,16 +256,13 @@ function handleUploadDialogClose() {
 function handleFileChange(file: UploadUserFile) {
   if (file.size && file.size > MAX_FILE_SIZE) {
     ElMessage.error(`文件 "${file.name}" 超过 ${formatFileSize(MAX_FILE_SIZE)}`)
-    // 从列表中移除超限文件
-    if (uploadRef.value) {
-      uploadRef.value.uploadFiles = uploadRef.value.uploadFiles.filter(f => f.uid !== file.uid)
-    }
+    fileList.value = fileList.value.filter(f => f.uid !== file.uid)
     return false
   }
 }
 
 function handleFileRemove() {
-  // 文件移除时的回调（可用于校验）
+  // v-model:file-list 会自动同步，无需额外操作
 }
 
 function handleExceed() {

@@ -52,9 +52,9 @@ func (s *stubAuthService) Login(_ context.Context, req dto.LoginReq) (*userModel
 	return s.loginUser, nil, s.permCodes, s.token, s.loginErr
 }
 
-func (s *stubAuthService) Logout(_ context.Context, tokenString string) error {
+func (s *stubAuthService) Logout(_ context.Context, tokenString string) (string, string, string, error) {
 	s.logoutToken = tokenString
-	return s.logoutErr
+	return "user-id", "admin", "tenant-id", s.logoutErr
 }
 
 func (s *stubAuthService) ForgotPassword(_ context.Context, email string) error {

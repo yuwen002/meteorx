@@ -5,7 +5,7 @@
       <div class="search-bar">
         <el-input
           v-model="searchUserID"
-          placeholder="输入用户ID"
+          placeholder="输入用户ID或用户名"
           clearable
           style="width: 200px"
           @keyup.enter="loadTimeline"
@@ -130,7 +130,7 @@
     </div>
 
     <!-- 未选择用户提示 -->
-    <el-empty v-else description="请输入用户ID查询操作时间线" />
+    <el-empty v-else description="输入用户ID或用户名查询操作时间线" />
 
     <!-- 详情弹窗 -->
     <el-dialog v-model="detailVisible" title="日志详情" width="960px" destroy-on-close>
@@ -202,10 +202,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { Search, Document, Calendar, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import { getUserTimeline } from '@/api/modules/audit'
 import type { TimelineItem, AuditLogItem } from '@/api/modules/audit'
+import { useUserStore } from '@/stores/user'
 
 const searchUserID = ref('')
 const dateRange = ref<string[]>([])
@@ -217,6 +218,15 @@ const total = ref(0)
 const loading = ref(false)
 const detailVisible = ref(false)
 const currentLog = ref<AuditLogItem | null>(null)
+
+// 页面加载时自动查询当前登录用户的时间线
+onMounted(() => {
+  const userStore = useUserStore()
+  if (userStore.userInfo?.username) {
+    searchUserID.value = userStore.userInfo.username
+    loadTimeline()
+  }
+})
 
 const totalStats = computed(() => {
   let total = 0, success = 0, failure = 0
@@ -480,4 +490,3 @@ function formatJSON(str: string): string {
   }
 }
 </style>
-</template>

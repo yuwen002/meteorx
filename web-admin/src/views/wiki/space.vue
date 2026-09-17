@@ -307,7 +307,7 @@
               <el-button 
                 v-if="revisions.length >= 2"
                 size="small" 
-                :icon="Difference" 
+                :icon="DataAnalysis" 
                 @click="openDiffDialog"
               >
                 版本对比
@@ -480,11 +480,10 @@ import {
   Operation,
   View,
   PriceTag,
-  Share,
-  DataAnalysis,
-  Files,
   Download,
-  Difference
+  Share,
+  Files,
+  DataAnalysis
 } from '@element-plus/icons-vue'
 import {
   getSpace,
