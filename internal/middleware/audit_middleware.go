@@ -140,6 +140,9 @@ func recordAuditLog(ctx context.Context, auditSvc *service.AuditService, ipLocat
 	// 评估风险等级
 	riskLevel := evaluateRiskLevel(r.URL.Path, r.Method, module, action)
 
+	// 自动生成标签
+	tags := buildTags(module, action, result, r.Method, r.URL.Path)
+
 	req := dto.CreateAuditLogReq{
 		UserID:      userID,
 		Username:    username,
@@ -162,6 +165,7 @@ func recordAuditLog(ctx context.Context, auditSvc *service.AuditService, ipLocat
 		TraceID:     getTraceID(r),
 		Referer:     r.Referer(),
 		RiskLevel:   riskLevel,
+		Tags:        tags,
 	}
 
 	// 尝试解析错误信息
@@ -354,6 +358,44 @@ func evaluateRiskLevel(path, method, module, action string) string {
 
 	// 默认低风险
 	return model.RiskLow
+}
+
+// buildTags 根据请求特征自动生成审计日志标签（JSON数组字符串）
+func buildTags(module, action, result, method, path string) string {
+	tags := []string{}
+	if module != "" {
+		tags = append(tags, module)
+	}
+	if action != "" {
+		tags = append(tags, action)
+	}
+	tags = append(tags, strings.ToLower(method))
+	if result == model.ResultSuccess {
+		tags = append(tags, "success")
+	} else {
+		tags = append(tags, "failure")
+	}
+	if action == model.ActionTypeLogin {
+		if result == model.ResultSuccess {
+			tags = append(tags, "login_success")
+		} else {
+			tags = append(tags, "login_failed")
+		}
+	}
+	if strings.Contains(path, "upload") {
+		tags = append(tags, "upload")
+	}
+	if strings.Contains(path, "download") || strings.Contains(path, "export") {
+		tags = append(tags, "download")
+	}
+	if strings.Contains(path, "password") && (method == "POST" || method == "PUT") {
+		tags = append(tags, "password_change")
+	}
+	if len(tags) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(tags)
+	return string(b)
 }
 
 // getSessionID 从请求中获取会话ID
