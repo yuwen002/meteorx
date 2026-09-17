@@ -1,0 +1,30 @@
+internal/modules/audit/dto/session_dto.go
+  h_a3f313f3d96276 3,8-13,16-31
+internal/modules/audit/service/session_service_test.go
+  h_a3f313f3d96276 60,62-64,73
+internal/modules/audit/handler/alert_session_test.go
+  h_a3f313f3d96276 235
+internal/modules/audit/model/audit_log.go
+  h_a3f313f3d96276 30,36-38
+internal/modules/audit/repository/mock_repository.go
+  h_a3f313f3d96276 149-151,174-179,214-216
+internal/middleware/audit_middleware.go
+  h_a3f313f3d96276 6,8,10,360,372-378,385,395-396,400,410-411
+internal/modules/audit/service/session_service.go
+  h_a3f313f3d96276 37,39,57-67,69,75-81,96-99,104-109
+internal/modules/audit/repository/audit_repository.go
+  h_a3f313f3d96276 462-464,470-474,499-501
+internal/modules/wiki/dto/wiki_dto.go
+  h_a3f313f3d96276 35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "b8ac7e56d055a1bcfbd9fadf32d487bf172af043",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
