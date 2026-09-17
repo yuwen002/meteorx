@@ -1,0 +1,20 @@
+internal/cache/redis_test.go
+  h_a3f313f3d96276 1-142
+internal/modules/oauth/service/oauth_service_test.go
+  h_a3f313f3d96276 1-123
+internal/ws/ws_test.go
+  h_a3f313f3d96276 1-156
+internal/modules/user/repository/user_repository_test.go
+  h_a3f313f3d96276 1-502
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "6cfdc80ae473a22a15f4a9e668cb5793f4e68056",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
