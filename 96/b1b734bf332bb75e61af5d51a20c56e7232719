@@ -1,0 +1,42 @@
+web-admin/src/views/system/file/index.vue
+  h_a3f313f3d96276 101,259,265
+internal/modules/auth/handler/auth_handler_test.go
+  h_a3f313f3d96276 55,57
+internal/modules/audit/repository/audit_repository.go
+  h_a3f313f3d96276 503
+web-admin/src/views/system/audit/anomaly.vue
+  h_a3f313f3d96276 118
+web-admin/src/views/wiki/space.vue
+  h_a3f313f3d96276 310,486
+internal/middleware/logger.go
+  h_a3f313f3d96276 53,61
+internal/middleware/audit_middleware.go
+  h_a3f313f3d96276 8,118,120,122,135,263-277,396-403
+internal/modules/auth/service/auth_service_test.go
+  h_a3f313f3d96276 259
+internal/modules/auth/handler/auth_handler.go
+  h_a3f313f3d96276 9,13-14,25,68-69,72-83,98-110,138,140-141,146-158
+internal/modules/wiki/routes.go
+  h_a3f313f3d96276 82-101,121-150
+web-admin/src/views/system/audit/timeline.vue
+  h_a3f313f3d96276 8,133,205,209,222-230
+internal/middleware/audit_batch.go
+  h_a3f313f3d96276 10,122-127,129,131-132,141-158
+internal/bootstrap/router.go
+  h_a3f313f3d96276 156
+.gitignore
+  h_a3f313f3d96276 32-34
+internal/modules/auth/service/auth_service.go
+  h_a3f313f3d96276 231-232,236,238-249,258,263-265,267
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "96b1b734bf332bb75e61af5d51a20c56e7232719",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
