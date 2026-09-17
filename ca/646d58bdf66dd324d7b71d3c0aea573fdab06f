@@ -1,0 +1,28 @@
+internal/modules/tenant/handler/tenant_handler.go
+  h_a3f313f3d96276 79
+pkg/logger/logger.go
+  h_a3f313f3d96276 54,496-498
+internal/middleware/permission_audit.go
+  h_a3f313f3d96276 46-49,62,72
+internal/pkg/apperrors/codes.go
+  h_a3f313f3d96276 41-53,68,71-72,76,78
+internal/modules/user/repository/user_repository_test.go
+  h_a3f313f3d96276 41-50,89,105,172,188,236,260,300,345,367,379,436,458,470
+internal/cache/redis_test.go
+  h_a3f313f3d96276 12,23,71,83,87,92,100-101,105,120,128,131,134,138,140,142
+pkg/logger/logger_test.go
+  h_a3f313f3d96276 7,22
+internal/modules/tenant/repository/tenant_repository_test.go
+  h_a3f313f3d96276 7,89-524
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "ca646d58bdf66dd324d7b71d3c0aea573fdab06f",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
