@@ -462,6 +462,7 @@ func (r *auditLogRepository) ListSessions(ctx context.Context, page, pageSize in
 		SuccessCount  int64
 		FailureCount  int64
 		TotalDuration int64
+		MaxRiskLevel  string
 		MinTime       time.Time
 		MaxTime       time.Time
 	}
@@ -471,6 +472,7 @@ func (r *auditLogRepository) ListSessions(ctx context.Context, page, pageSize in
 			"SUM(CASE WHEN result = 'success' THEN 1 ELSE 0 END) as success_count, "+
 			"SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) as failure_count, "+
 			"COALESCE(SUM(duration), 0) as total_duration, "+
+			"MAX(risk_level) as max_risk_level, "+
 			"MIN(created_at) as min_time, MAX(created_at) as max_time").
 		Where("session_id != '' AND session_id IS NOT NULL").
 		Group("session_id, user_id, username")
@@ -499,6 +501,7 @@ func (r *auditLogRepository) ListSessions(ctx context.Context, page, pageSize in
 			SuccessCount:  row.SuccessCount,
 			FailureCount:  row.FailureCount,
 			TotalDuration: row.TotalDuration,
+			MaxRiskLevel:  row.MaxRiskLevel,
 			StartTime:     row.MinTime,
 			EndTime:       row.MaxTime,
 		}

@@ -142,13 +142,13 @@ func (m *MockAuditLogRepository) ListBySessionID(ctx context.Context, sessionID 
 
 // ListSessions 获取会话摘要列表（模拟真实实现的按会话分组聚合）
 func (m *MockAuditLogRepository) ListSessions(ctx context.Context, page, pageSize int, userID string) ([]model.SessionSummary, int64, error) {
-	// 按 session_id 分组聚合
 	type agg struct {
 		sessionID, userID, username string
 		totalOps                    int64
 		successCount                int64
 		failureCount                int64
 		totalDuration               int64
+		maxRiskLevel                string
 		minTime, maxTime            time.Time
 	}
 	aggMap := make(map[string]*agg)
@@ -177,6 +177,9 @@ func (m *MockAuditLogRepository) ListSessions(ctx context.Context, page, pageSiz
 		} else {
 			a.failureCount++
 		}
+		if log.RiskLevel > a.maxRiskLevel {
+			a.maxRiskLevel = log.RiskLevel
+		}
 		if log.CreatedAt.Before(a.minTime) {
 			a.minTime = log.CreatedAt
 		}
@@ -185,7 +188,6 @@ func (m *MockAuditLogRepository) ListSessions(ctx context.Context, page, pageSiz
 		}
 	}
 
-	// 组装并按最后活跃时间倒序
 	all := make([]*agg, 0, len(aggMap))
 	for _, a := range aggMap {
 		all = append(all, a)
@@ -214,6 +216,7 @@ func (m *MockAuditLogRepository) ListSessions(ctx context.Context, page, pageSiz
 			SuccessCount:  a.successCount,
 			FailureCount:  a.failureCount,
 			TotalDuration: a.totalDuration,
+			MaxRiskLevel:  a.maxRiskLevel,
 			StartTime:     a.minTime,
 			EndTime:       a.maxTime,
 		})

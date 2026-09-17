@@ -56,12 +56,22 @@ func AuditMiddleware(auditSvc *service.AuditService, ipLocator iplocation.IPLoca
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 
+			// 1. 在入口处生成 request_id / trace_id，注入 context 和响应头
+			requestID := getRequestID(r)
+			traceID := getTraceID(r)
+			ctx := contextx.SetRequestID(r.Context(), requestID)
+			ctx = contextx.SetTraceID(ctx, traceID)
+			r = r.WithContext(ctx)
+
+			// 2. 提前设置响应头（WriteHeader 之后不能再 SetHeader，必须在 handler 之前）
+			w.Header().Set("X-Request-ID", requestID)
+			w.Header().Set("X-Trace-ID", traceID)
+
 			// 读取请求体
 			var requestBody string
 			if r.Body != nil && r.Body != http.NoBody {
 				bodyBytes, _ := io.ReadAll(r.Body)
 				requestBody = string(bodyBytes)
-				// 重新设置 body 供后续处理器读取
 				r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 			}
 
@@ -75,12 +85,11 @@ func AuditMiddleware(auditSvc *service.AuditService, ipLocator iplocation.IPLoca
 			duration := time.Since(start).Milliseconds()
 
 			// 异步记录审计日志（不阻塞响应）
-			// 使用带超时的 context，避免服务器关闭时 goroutine 泄漏
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			auditCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
 			go func() {
-				recordAuditLog(ctx, auditSvc, ipLocator, r, recorder, requestBody, duration)
+				recordAuditLog(auditCtx, auditSvc, ipLocator, r, recorder, requestBody, duration)
 			}()
 		})
 	}
@@ -161,8 +170,8 @@ func recordAuditLog(ctx context.Context, auditSvc *service.AuditService, ipLocat
 		DeviceInfo:  deviceInfo,
 		Duration:    duration,
 		SessionID:   getSessionID(r),
-		RequestID:   getRequestID(r),
-		TraceID:     getTraceID(r),
+		RequestID:   contextx.GetRequestID(r.Context()),
+		TraceID:     contextx.GetTraceID(r.Context()),
 		Referer:     r.Referer(),
 		RiskLevel:   riskLevel,
 		Tags:        tags,

@@ -2,13 +2,14 @@ package contextx
 
 import "context"
 
-// 定义私有类型，防止外部冲突
 type contextKey string
 
 const (
-	UserIDKey   contextKey = "user_id"
-	TenantIDKey contextKey = "tenant_id"
-	RolesKey    contextKey = "roles"
+	UserIDKey    contextKey = "user_id"
+	TenantIDKey  contextKey = "tenant_id"
+	RolesKey     contextKey = "roles"
+	RequestIDKey contextKey = "request_id"
+	TraceIDKey   contextKey = "trace_id"
 )
 
 // SetVars 存入核心身份信息
@@ -16,6 +17,32 @@ func SetVars(ctx context.Context, tenantID, userID string, roles []string) conte
 	ctx = context.WithValue(ctx, UserIDKey, userID)
 	ctx = context.WithValue(ctx, TenantIDKey, tenantID)
 	return context.WithValue(ctx, RolesKey, roles)
+}
+
+// SetRequestID 存入请求ID（在middleware入口生成）
+func SetRequestID(ctx context.Context, requestID string) context.Context {
+	return context.WithValue(ctx, RequestIDKey, requestID)
+}
+
+// GetRequestID 获取请求ID
+func GetRequestID(ctx context.Context) string {
+	if val, ok := ctx.Value(RequestIDKey).(string); ok {
+		return val
+	}
+	return ""
+}
+
+// SetTraceID 存入链路追踪ID
+func SetTraceID(ctx context.Context, traceID string) context.Context {
+	return context.WithValue(ctx, TraceIDKey, traceID)
+}
+
+// GetTraceID 获取链路追踪ID
+func GetTraceID(ctx context.Context) string {
+	if val, ok := ctx.Value(TraceIDKey).(string); ok {
+		return val
+	}
+	return ""
 }
 
 // GetTenantID 获取当前租户ID

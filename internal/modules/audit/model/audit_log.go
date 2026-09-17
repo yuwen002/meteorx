@@ -36,6 +36,7 @@ type SessionSummary struct {
 	SuccessCount  int64
 	FailureCount  int64
 	TotalDuration int64
+	MaxRiskLevel  string
 	StartTime     time.Time
 	EndTime       time.Time
 }

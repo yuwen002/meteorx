@@ -107,6 +107,7 @@ func (s *SessionService) ListSessions(ctx context.Context, page, pageSize int, u
 			AvgDuration:   avgDuration,
 			FirstRequest:  s.StartTime.Format("2006-01-02 15:04:05"),
 			LastRequest:   s.EndTime.Format("2006-01-02 15:04:05"),
+			MaxRisk:       s.MaxRiskLevel,
 		}
 	}
 
