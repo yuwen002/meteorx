@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -18,7 +19,7 @@ import (
 
 // 测试辅助：重置全局状态
 func resetGlobals() {
-	std = nil
+	std = slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg = Config{}
 	closeOnce = sync.Once{}
 	asyncWriterInstance = nil
@@ -435,9 +436,9 @@ func TestEmptyConfig(t *testing.T) {
 
 func TestParseLevel(t *testing.T) {
 	tests := []struct {
-		input    string
-		want     slog.Level
-		wantErr  bool
+		input   string
+		want    slog.Level
+		wantErr bool
 	}{
 		{"debug", slog.LevelDebug, false},
 		{"info", slog.LevelInfo, false},

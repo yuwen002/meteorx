@@ -76,8 +76,7 @@ func (h *TenantHandler) Register(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, service.ErrUsernameConflict):
 			response.Fail(w, http.StatusConflict, "该用户名已被使用")
 		default:
-			// 记录日志并在响应中隐藏细节
-			// log.Printf("Register Error: %v", err)
+			logger.Errorf("[TenantHandler] Register failed: %v", err)
 			response.Fail(w, http.StatusInternalServerError, "服务器开小差了，请稍后再试")
 		}
 		return

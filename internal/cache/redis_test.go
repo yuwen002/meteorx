@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newTestRedis(t *testing.T) (*Redis, func()) {
+func newTestRedis(t *testing.T) (*Redis, *miniredis.Miniredis, func()) {
 	t.Helper()
 	mr, err := miniredis.Run()
 	if err != nil {
@@ -20,7 +20,7 @@ func newTestRedis(t *testing.T) (*Redis, func()) {
 		mr.Close()
 		t.Fatalf("failed to connect to miniredis: %v", err)
 	}
-	return r, func() { mr.Close() }
+	return r, mr, func() { mr.Close() }
 }
 
 func TestNewRedis_ConnectionFailed(t *testing.T) {
@@ -68,7 +68,7 @@ func TestExists_Unavailable(t *testing.T) {
 }
 
 func TestSetAndGet(t *testing.T) {
-	r, cleanup := newTestRedis(t)
+	r, _, cleanup := newTestRedis(t)
 	defer cleanup()
 
 	err := r.Set(context.Background(), "hello", "world", time.Minute)
@@ -80,16 +80,16 @@ func TestSetAndGet(t *testing.T) {
 }
 
 func TestGet_KeyNotFound(t *testing.T) {
-	r, cleanup := newTestRedis(t)
+	r, _, cleanup := newTestRedis(t)
 	defer cleanup()
 
 	val, err := r.Get(context.Background(), "nonexistent")
-	assert.NoError(t, err)
+	assert.Error(t, err)
 	assert.Equal(t, "", val)
 }
 
 func TestDelete(t *testing.T) {
-	r, cleanup := newTestRedis(t)
+	r, _, cleanup := newTestRedis(t)
 	defer cleanup()
 
 	r.Set(context.Background(), "key", "value", time.Minute)
@@ -97,12 +97,12 @@ func TestDelete(t *testing.T) {
 	err := r.Delete(context.Background(), "key")
 	assert.NoError(t, err)
 
-	val, _ := r.Get(context.Background(), "key")
-	assert.Equal(t, "", val)
+	_, err = r.Get(context.Background(), "key")
+	assert.Error(t, err)
 }
 
 func TestExists(t *testing.T) {
-	r, cleanup := newTestRedis(t)
+	r, _, cleanup := newTestRedis(t)
 	defer cleanup()
 
 	exists, err := r.Exists(context.Background(), "key")
@@ -117,7 +117,7 @@ func TestExists(t *testing.T) {
 }
 
 func TestPing(t *testing.T) {
-	r, cleanup := newTestRedis(t)
+	r, _, cleanup := newTestRedis(t)
 	defer cleanup()
 
 	err := r.Ping(context.Background())
@@ -125,22 +125,19 @@ func TestPing(t *testing.T) {
 }
 
 func TestExpire_KeyExpired(t *testing.T) {
-	r, cleanup := newTestRedis(t)
+	r, mr, cleanup := newTestRedis(t)
 	defer cleanup()
-	ctx := context.Background()
 
-	err := r.Set(ctx, "temp", "data", 100*time.Millisecond)
+	err := r.Set(context.Background(), "temp", "data", 100*time.Millisecond)
 	assert.NoError(t, err)
 
-	val, err := r.Get(ctx, "temp")
+	val, err := r.Get(context.Background(), "temp")
 	assert.NoError(t, err)
 	assert.Equal(t, "data", val)
 
-	mr, _ := miniredis.Run()
-	mr.Close()
+	mr.FastForward(200 * time.Millisecond)
 
-	time.Sleep(200 * time.Millisecond)
-
-	val, _ = r.Get(ctx, "temp")
+	val, err = r.Get(context.Background(), "temp")
 	assert.NotEqual(t, "data", val)
+	assert.Error(t, err)
 }

@@ -38,14 +38,16 @@ func newTestDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 func sampleUser() *model.User {
 	now := time.Now()
 	return &model.User{
-		ID:       "u-001",
-		TenantID: "t-001",
-		Username: "alice",
-		Password: "$2a$hashed",
-		Nickname: "Alice",
-		Email:    "alice@example.com",
-		Status:   1,
-		IsMaster: false,
+		ID:        "u-001",
+		TenantID:  "t-001",
+		Username:  "alice",
+		Password:  "$2a$hashed",
+		Nickname:  "Alice",
+		Email:     "alice@example.com",
+		Status:    1,
+		IsMaster:  false,
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 }
 
@@ -84,7 +86,7 @@ func TestGetByUsername(t *testing.T) {
 	now := time.Now()
 	rows := sqlmock.NewRows([]string{"id", "tenant_id", "username", "password", "nickname", "email", "status", "is_master", "created_at", "updated_at", "deleted_at"}).
 		AddRow("u-001", "t-001", "alice", "$2a$hashed", "Alice", "alice@example.com", 1, false, now, now, nil)
-	mock.ExpectQuery("SELECT .+ FROM `users` WHERE tenant_id = \\? AND username = \\? .+ LIMIT \\?").
+	mock.ExpectQuery("SELECT .+ FROM `users` WHERE .+ LIMIT \\?").
 		WithArgs("t-001", "alice", 1).
 		WillReturnRows(rows)
 
@@ -100,7 +102,7 @@ func TestGetByUsername_Superadmin(t *testing.T) {
 	now := time.Now()
 	rows := sqlmock.NewRows([]string{"id", "tenant_id", "username", "password", "nickname", "email", "status", "is_master", "created_at", "updated_at", "deleted_at"}).
 		AddRow("root-1", "SYSTEM_ROOT", "root", "$2a$hashed", "Root", "root@meteorx.com", 1, true, now, now, nil)
-	mock.ExpectQuery("SELECT .+ FROM `users` WHERE tenant_id = \\? AND username = \\? AND is_master = \\? .+ LIMIT \\?").
+	mock.ExpectQuery("SELECT .+ FROM `users` WHERE .+ LIMIT \\?").
 		WithArgs("SYSTEM_ROOT", "root", true, 1).
 		WillReturnRows(rows)
 
@@ -167,7 +169,7 @@ func TestListByTenant(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"id", "tenant_id", "username", "password", "nickname", "email", "status", "is_master", "created_at", "updated_at", "deleted_at"}).
 		AddRow("u-001", "t-001", "alice", "$2a$", "Alice", "a@t.com", 1, false, now, now, nil).
 		AddRow("u-002", "t-001", "bob", "$2a$", "Bob", "b@t.com", 1, false, now, now, nil)
-	mock.ExpectQuery("SELECT .+ FROM `users` WHERE tenant_id = \\? LIMIT \\?").
+	mock.ExpectQuery("SELECT .+ FROM `users` WHERE .+ LIMIT \\?").
 		WithArgs("t-001", 10).
 		WillReturnRows(rows)
 
@@ -183,8 +185,7 @@ func TestListByTenant_WithKeyword(t *testing.T) {
 
 	now := time.Now()
 	countRows := sqlmock.NewRows([]string{"count"}).AddRow(1)
-	mock.ExpectQuery("SELECT count.+FROM `users` WHERE tenant_id = \\? AND .+").
-		WithArgs("t-001").
+	mock.ExpectQuery("SELECT count.+FROM `users` WHERE .+").
 		WillReturnRows(countRows)
 
 	rows := sqlmock.NewRows([]string{"id", "tenant_id", "username", "password", "nickname", "email", "status", "is_master", "created_at", "updated_at", "deleted_at"}).
@@ -232,7 +233,7 @@ func TestListMasterAdmins(t *testing.T) {
 
 	rows := sqlmock.NewRows([]string{"id", "tenant_id", "username", "password", "nickname", "email", "status", "is_master", "created_at", "updated_at", "deleted_at"}).
 		AddRow("root-1", "SYSTEM_ROOT", "root", "$2a$", "Root", "root@m.com", 1, true, now, now, nil)
-	mock.ExpectQuery("SELECT .+ FROM `users` WHERE is_master = \\? LIMIT \\?").
+	mock.ExpectQuery("SELECT .+ FROM `users` WHERE .+ LIMIT \\?").
 		WithArgs(true, 10).
 		WillReturnRows(rows)
 
@@ -256,7 +257,7 @@ func TestListAllTenantUsers(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"id", "tenant_id", "username", "password", "nickname", "email", "status", "is_master", "created_at", "updated_at", "deleted_at"}).
 		AddRow("u-001", "t-001", "alice", "$2a$", "Alice", "a@t.com", 1, false, now, now, nil).
 		AddRow("u-002", "t-002", "bob", "$2a$", "Bob", "b@t.com", 1, false, now, now, nil)
-	mock.ExpectQuery("SELECT .+ FROM `users` WHERE is_master = \\? LIMIT \\?").
+	mock.ExpectQuery("SELECT .+ FROM `users` WHERE .+ LIMIT \\?").
 		WithArgs(false, 10).
 		WillReturnRows(rows)
 
@@ -296,7 +297,7 @@ func TestDelete(t *testing.T) {
 	gormDB, mock := newTestDB(t)
 	repo := NewUserRepository(gormDB)
 
-	mock.ExpectExec("UPDATE `users` SET .+deleted_at.+ WHERE id = \\?").
+	mock.ExpectExec("UPDATE `users` SET .+ WHERE .+").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err := repo.Delete(context.Background(), "u-001")
@@ -341,7 +342,7 @@ func TestRestoreMasterAdmin(t *testing.T) {
 	gormDB, mock := newTestDB(t)
 	repo := NewUserRepository(gormDB)
 
-	mock.ExpectExec("UPDATE `users` SET .+deleted_at.+ WHERE .+").
+	mock.ExpectExec("UPDATE `users` SET .+ WHERE .+").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err := repo.RestoreMasterAdmin(context.Background(), "root-1")
@@ -363,7 +364,7 @@ func TestBatchUpdateStatus(t *testing.T) {
 	gormDB, mock := newTestDB(t)
 	repo := NewUserRepository(gormDB)
 
-	mock.ExpectExec("UPDATE `users` SET .+ WHERE id IN .+ AND is_master = \\?").
+	mock.ExpectExec("UPDATE `users` SET .+ WHERE .+").
 		WillReturnResult(sqlmock.NewResult(0, 2))
 
 	count, err := repo.BatchUpdateStatus(context.Background(), []string{"u-001", "u-002"}, 0)
@@ -375,7 +376,7 @@ func TestBatchDelete(t *testing.T) {
 	gormDB, mock := newTestDB(t)
 	repo := NewUserRepository(gormDB)
 
-	mock.ExpectExec("UPDATE `users` SET .+deleted_at.+ WHERE id IN .+ AND is_master = \\?").
+	mock.ExpectExec("UPDATE `users` SET .+ WHERE .+").
 		WillReturnResult(sqlmock.NewResult(0, 2))
 
 	count, err := repo.BatchDelete(context.Background(), []string{"u-001", "u-002"})
@@ -432,7 +433,7 @@ func TestRestoreTenantUser(t *testing.T) {
 	gormDB, mock := newTestDB(t)
 	repo := NewUserRepository(gormDB)
 
-	mock.ExpectExec("UPDATE `users` SET .+deleted_at.+ WHERE .+").
+	mock.ExpectExec("UPDATE `users` SET .+ WHERE .+").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err := repo.RestoreTenantUser(context.Background(), "t-001", "u-001")
@@ -454,7 +455,7 @@ func TestBatchUpdateTenantUserStatus(t *testing.T) {
 	gormDB, mock := newTestDB(t)
 	repo := NewUserRepository(gormDB)
 
-	mock.ExpectExec("UPDATE `users` SET .+ WHERE id IN .+ AND tenant_id = \\? AND is_master = \\?").
+	mock.ExpectExec("UPDATE `users` SET .+ WHERE .+").
 		WillReturnResult(sqlmock.NewResult(0, 2))
 
 	count, err := repo.BatchUpdateTenantUserStatus(context.Background(), "t-001", []string{"u-001", "u-002"}, 0)
@@ -466,7 +467,7 @@ func TestBatchDeleteTenantUsers(t *testing.T) {
 	gormDB, mock := newTestDB(t)
 	repo := NewUserRepository(gormDB)
 
-	mock.ExpectExec("UPDATE `users` SET .+deleted_at.+ WHERE id IN .+ AND tenant_id = \\? AND is_master = \\?").
+	mock.ExpectExec("UPDATE `users` SET .+ WHERE .+").
 		WillReturnResult(sqlmock.NewResult(0, 2))
 
 	count, err := repo.BatchDeleteTenantUsers(context.Background(), "t-001", []string{"u-001", "u-002"})

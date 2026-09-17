@@ -51,7 +51,7 @@ func DefaultConfig() Config {
 }
 
 var (
-	std          *slog.Logger
+	std          = slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg          Config
 	closeOnce    sync.Once
 )
@@ -493,7 +493,9 @@ func Errorf(format string, args ...any) {
 
 // Fatalf 记录致命错误并退出进程
 func Fatalf(format string, args ...any) {
-	std.Error(fmt.Sprintf(format, args...))
+	msg := fmt.Sprintf(format, args...)
+	std.Error(msg)
+	fmt.Fprintf(os.Stderr, "[FATAL] %s\n", msg)
 	os.Exit(1)
 }
 

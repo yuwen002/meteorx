@@ -43,6 +43,10 @@ func (pal *PermissionAuditLogger) LogPermissionChange(
 	ctx context.Context,
 	userID, operatorID, action, resourceType, resourceID, resourceName string,
 ) {
+	if pal == nil {
+		return
+	}
+
 	log := &PermissionAuditLog{
 		UserID:       userID,
 		OperatorID:   operatorID,
@@ -50,20 +54,22 @@ func (pal *PermissionAuditLogger) LogPermissionChange(
 		ResourceType: resourceType,
 		ResourceID:   resourceID,
 		ResourceName: resourceName,
-		IPAddress:    logger.GetRequestID(ctx), // 简化处理，实际应从 context 获取
+		IPAddress:    logger.GetRequestID(ctx),
 		CreatedAt:    time.Now(),
 	}
 
 	// 异步保存日志（不阻塞主流程）
-	go func() {
-		if err := pal.storage.SavePermissionAuditLog(context.Background(), log); err != nil {
-			logger.Error("Failed to save permission audit log",
-				"error", err,
-				"user_id", userID,
-				"action", action,
-			)
-		}
-	}()
+	if pal.storage != nil {
+		go func() {
+			if err := pal.storage.SavePermissionAuditLog(context.Background(), log); err != nil {
+				logger.Error("Failed to save permission audit log",
+					"error", err,
+					"user_id", userID,
+					"action", action,
+				)
+			}
+		}()
+	}
 
 	// 同时记录到应用日志
 	logger.Ctx(ctx).Info("Permission change audited",

@@ -38,6 +38,19 @@ const (
 	ErrWikiSpaceExist      ErrorCode = "WIKI_SPACE_ALREADY_EXISTS"
 	ErrWikiNodeTypeInvalid ErrorCode = "WIKI_NODE_TYPE_INVALID"
 
+	// Notification errors (5xxxx)
+	ErrAnnouncementNotFound       ErrorCode = "ANNOUNCEMENT_NOT_FOUND"
+	ErrAnnouncementAlreadyPublished ErrorCode = "ANNOUNCEMENT_ALREADY_PUBLISHED"
+	ErrAnnouncementAccessDenied   ErrorCode = "ANNOUNCEMENT_ACCESS_DENIED"
+
+	// Cancel request errors (6xxxx)
+	ErrCancelRequestNotFound  ErrorCode = "CANCEL_REQUEST_NOT_FOUND"
+	ErrCancelRequestDuplicate ErrorCode = "CANCEL_REQUEST_DUPLICATE"
+	ErrCancelRequestNotPending ErrorCode = "CANCEL_REQUEST_NOT_PENDING"
+
+	// Dashboard errors (7xxxx)
+	ErrDashboardStatsUnavailable ErrorCode = "DASHBOARD_STATS_UNAVAILABLE"
+
 	// Generic errors (9xxxx)
 	ErrInvalidParam     ErrorCode = "INVALID_PARAM"
 	ErrResourceNotFound ErrorCode = "RESOURCE_NOT_FOUND"
@@ -52,16 +65,17 @@ func MapToHTTPStatus(code ErrorCode) int {
 		return http.StatusUnauthorized
 	case ErrAuthInvalidCode, ErrSessionNotFound:
 		return http.StatusUnauthorized
-	case ErrPermissionDenied, ErrCrossTenantAccess:
+	case ErrPermissionDenied, ErrCrossTenantAccess, ErrAnnouncementAccessDenied:
 		return http.StatusForbidden
 	case ErrResourceNotFound, ErrTenantNotFound, ErrRoleNotFound, ErrPermissionNotFound,
-		ErrWikiSpaceNotFound, ErrWikiNodeNotFound, ErrDocumentNotFound, ErrRevisionNotFound:
+		ErrWikiSpaceNotFound, ErrWikiNodeNotFound, ErrDocumentNotFound, ErrRevisionNotFound,
+		ErrAnnouncementNotFound, ErrCancelRequestNotFound:
 		return http.StatusNotFound
 	case ErrPasswordTooWeak, ErrPasswordAlreadyUsed, ErrInvalidParam, ErrResetTokenInvalid, ErrResetTokenExpired:
 		return http.StatusBadRequest
-	case ErrPasswordMismatch, ErrTenantDisabled:
+	case ErrPasswordMismatch, ErrTenantDisabled, ErrCancelRequestNotPending, ErrCancelRequestDuplicate:
 		return http.StatusBadRequest
-	case ErrConflict, ErrWikiSpaceExist:
+	case ErrConflict, ErrWikiSpaceExist, ErrAnnouncementAlreadyPublished:
 		return http.StatusConflict
 	case ErrRateLimited:
 		return http.StatusTooManyRequests
