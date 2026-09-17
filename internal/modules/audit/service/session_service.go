@@ -34,8 +34,9 @@ func (s *SessionService) GetSessionLogs(ctx context.Context, sessionID string) (
 	logResps := make([]*dto.AuditLogResp, len(logs))
 	riskStats := make(map[string]int64)
 	var userID, username string
-	var startTime, endTime = logs[0].CreatedAt, logs[len(logs)-1].CreatedAt
+	var startTime, endTime = logs[0].CreatedAt, logs[0].CreatedAt
 	var totalDuration int64
+	var successCount, failureCount int64
 
 	for i, log := range logs {
 		logResps[i] = dto.ToAuditLogResp(log)
@@ -53,18 +54,33 @@ func (s *SessionService) GetSessionLogs(ctx context.Context, sessionID string) (
 			endTime = log.CreatedAt
 		}
 		totalDuration += log.Duration
+		if log.Result == "success" {
+			successCount++
+		} else {
+			failureCount++
+		}
 	}
 
+	totalOps := int64(len(logs))
+	avgDuration := int64(0)
+	if totalOps > 0 {
+		avgDuration = totalDuration / totalOps
+	}
+	durationMinutes := int64(endTime.Sub(startTime).Minutes())
+
 	return &dto.SessionAnalysisResp{
-		SessionID: sessionID,
-		UserID:    userID,
-		Username:  username,
-		TotalOps:  int64(len(logs)),
-		Duration:  totalDuration,
-		StartTime: startTime.Format("2006-01-02 15:04:05"),
-		EndTime:   endTime.Format("2006-01-02 15:04:05"),
-		Logs:      logResps,
-		RiskStats: riskStats,
+		SessionID:       sessionID,
+		UserID:          userID,
+		Username:        username,
+		TotalRequests:   totalOps,
+		SuccessCount:    successCount,
+		FailureCount:    failureCount,
+		AvgDuration:     avgDuration,
+		FirstRequest:    startTime.Format("2006-01-02 15:04:05"),
+		LastRequest:     endTime.Format("2006-01-02 15:04:05"),
+		DurationMinutes: durationMinutes,
+		Logs:            logResps,
+		RiskStats:       riskStats,
 	}, nil
 }
 
@@ -77,15 +93,20 @@ func (s *SessionService) ListSessions(ctx context.Context, page, pageSize int, u
 
 	resps := make([]dto.SessionSummaryResp, len(summaries))
 	for i, s := range summaries {
-		duration := s.EndTime.Sub(s.StartTime).Milliseconds()
+		avgDuration := int64(0)
+		if s.TotalOps > 0 {
+			avgDuration = s.TotalDuration / s.TotalOps
+		}
 		resps[i] = dto.SessionSummaryResp{
-			SessionID: s.SessionID,
-			UserID:    s.UserID,
-			Username:  s.Username,
-			TotalOps:  s.TotalOps,
-			Duration:  duration,
-			StartTime: s.StartTime.Format("2006-01-02 15:04:05"),
-			EndTime:   s.EndTime.Format("2006-01-02 15:04:05"),
+			SessionID:     s.SessionID,
+			UserID:        s.UserID,
+			Username:      s.Username,
+			TotalRequests: s.TotalOps,
+			SuccessCount:  s.SuccessCount,
+			FailureCount:  s.FailureCount,
+			AvgDuration:   avgDuration,
+			FirstRequest:  s.StartTime.Format("2006-01-02 15:04:05"),
+			LastRequest:   s.EndTime.Format("2006-01-02 15:04:05"),
 		}
 	}
 

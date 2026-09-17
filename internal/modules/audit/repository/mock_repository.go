@@ -146,6 +146,9 @@ func (m *MockAuditLogRepository) ListSessions(ctx context.Context, page, pageSiz
 	type agg struct {
 		sessionID, userID, username string
 		totalOps                    int64
+		successCount                int64
+		failureCount                int64
+		totalDuration               int64
 		minTime, maxTime            time.Time
 	}
 	aggMap := make(map[string]*agg)
@@ -168,6 +171,12 @@ func (m *MockAuditLogRepository) ListSessions(ctx context.Context, page, pageSiz
 			aggMap[log.SessionID] = a
 		}
 		a.totalOps++
+		a.totalDuration += log.Duration
+		if log.Result == "success" {
+			a.successCount++
+		} else {
+			a.failureCount++
+		}
 		if log.CreatedAt.Before(a.minTime) {
 			a.minTime = log.CreatedAt
 		}
@@ -198,12 +207,15 @@ func (m *MockAuditLogRepository) ListSessions(ctx context.Context, page, pageSiz
 	summaries := make([]model.SessionSummary, 0, end-start)
 	for _, a := range all[start:end] {
 		summaries = append(summaries, model.SessionSummary{
-			SessionID: a.sessionID,
-			UserID:    a.userID,
-			Username:  a.username,
-			TotalOps:  a.totalOps,
-			StartTime: a.minTime,
-			EndTime:   a.maxTime,
+			SessionID:     a.sessionID,
+			UserID:        a.userID,
+			Username:      a.username,
+			TotalOps:      a.totalOps,
+			SuccessCount:  a.successCount,
+			FailureCount:  a.failureCount,
+			TotalDuration: a.totalDuration,
+			StartTime:     a.minTime,
+			EndTime:       a.maxTime,
 		})
 	}
 	return summaries, total, nil

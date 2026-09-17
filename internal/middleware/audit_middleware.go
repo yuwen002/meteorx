@@ -3,8 +3,11 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"io"
+	"meteorx/pkg/idgen"
 	"net"
 	"net/http"
 	"strings"
@@ -354,6 +357,7 @@ func evaluateRiskLevel(path, method, module, action string) string {
 }
 
 // getSessionID 从请求中获取会话ID
+// 优先顺序: X-Session-ID 请求头 > session_id Cookie > JWT Token 哈希
 func getSessionID(r *http.Request) string {
 	// 优先从 header 获取
 	if sessionID := r.Header.Get("X-Session-ID"); sessionID != "" {
@@ -365,10 +369,20 @@ func getSessionID(r *http.Request) string {
 		return cookie.Value
 	}
 
+	// 自动从 JWT Token 生成会话ID（同一 Token 映射到同一会话）
+	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) == 2 && parts[0] == "Bearer" && parts[1] != "" {
+			hash := sha256.Sum256([]byte(parts[1]))
+			return fmt.Sprintf("ses_%x", hash[:8])
+		}
+	}
+
 	return ""
 }
 
 // getRequestID 从请求中获取请求ID
+// 优先顺序: X-Request-ID > X-Correlation-ID > 自动生成 UUID
 func getRequestID(r *http.Request) string {
 	// 优先从 header 获取
 	if requestID := r.Header.Get("X-Request-ID"); requestID != "" {
@@ -378,10 +392,12 @@ func getRequestID(r *http.Request) string {
 		return requestID
 	}
 
-	return ""
+	// 自动生成请求ID
+	return idgen.NewUUID()
 }
 
 // getTraceID 从请求中获取链路追踪ID
+// 优先顺序: X-Trace-ID > Traceparent > 自动生成 UUID
 func getTraceID(r *http.Request) string {
 	// 优先从 header 获取
 	if traceID := r.Header.Get("X-Trace-ID"); traceID != "" {
@@ -391,7 +407,8 @@ func getTraceID(r *http.Request) string {
 		return traceID
 	}
 
-	return ""
+	// 自动生成追踪ID
+	return idgen.NewUUID()
 }
 
 // stripPort 从 host:port 格式中剥离端口号，兼容 IPv4 和 IPv6

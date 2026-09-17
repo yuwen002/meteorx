@@ -57,9 +57,11 @@ func (s *SessionServiceTestSuite) TestGetSessionLogs() {
 	s.Equal(sessionID, result.SessionID)
 	s.Equal("user-001", result.UserID)
 	s.Equal("admin", result.Username)
-	s.Equal(int64(5), result.TotalOps)
+	s.Equal(int64(5), result.TotalRequests)
 	s.Equal(5, len(result.Logs))
-	s.Equal(int64(600), result.Duration)
+	s.Equal(int64(120), result.AvgDuration)
+	s.Equal(int64(5), result.SuccessCount)
+	s.Equal(int64(0), result.FailureCount)
 }
 
 // TestGetSessionLogsEmpty 测试获取空会话日志
@@ -68,7 +70,7 @@ func (s *SessionServiceTestSuite) TestGetSessionLogsEmpty() {
 
 	s.NoError(err)
 	s.NotNil(result)
-	s.Equal(int64(0), result.TotalOps)
+	s.Equal(int64(0), result.TotalRequests)
 	s.Equal(0, len(result.Logs))
 }
 

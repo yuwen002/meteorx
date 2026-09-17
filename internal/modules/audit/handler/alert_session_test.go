@@ -232,7 +232,7 @@ func TestGetSessionLogs_MissingID_Returns400(t *testing.T) {
 }
 
 func TestGetSessionLogs_Success_ForwardsSessionID(t *testing.T) {
-	stub := &stubSessionService{Analysis: &dto.SessionAnalysisResp{SessionID: "s1", UserID: "u1", TotalOps: 3}}
+	stub := &stubSessionService{Analysis: &dto.SessionAnalysisResp{SessionID: "s1", UserID: "u1", TotalRequests: 3}}
 	router := newSessionRouter(stub)
 
 	w := doReq(t, router, http.MethodGet, "/sessions/s1/logs", "", []string{"admin"})

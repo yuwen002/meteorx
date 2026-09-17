@@ -27,15 +27,17 @@ const (
 	RiskCritical = "critical" // 严重风险
 )
 
-// SessionSummary 会话摘要
+// SessionSummary 会话摘要（Repository 层查询结果）
 type SessionSummary struct {
-	SessionID string
-	UserID    string
-	Username  string
-	TotalOps  int64
-	StartTime time.Time
-	EndTime   time.Time
-	Duration  int64
+	SessionID     string
+	UserID        string
+	Username      string
+	TotalOps      int64
+	SuccessCount  int64
+	FailureCount  int64
+	TotalDuration int64
+	StartTime     time.Time
+	EndTime       time.Time
 }
 
 // AuditLog 审计日志领域模型

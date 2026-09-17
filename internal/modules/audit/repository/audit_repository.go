@@ -455,17 +455,23 @@ func (r *auditLogRepository) ListBySessionID(ctx context.Context, sessionID stri
 // ListSessions 获取会话摘要列表
 func (r *auditLogRepository) ListSessions(ctx context.Context, page, pageSize int, userID string) ([]model.SessionSummary, int64, error) {
 	type SessionRow struct {
-		SessionID string
-		UserID    string
-		Username  string
-		TotalOps  int64
-		MinTime   time.Time
-		MaxTime   time.Time
-		MaxRisk   string
+		SessionID     string
+		UserID        string
+		Username      string
+		TotalOps      int64
+		SuccessCount  int64
+		FailureCount  int64
+		TotalDuration int64
+		MinTime       time.Time
+		MaxTime       time.Time
 	}
 
 	db := r.db.WithContext(ctx).Table("audit_logs").
-		Select("session_id, user_id, username, COUNT(*) as total_ops, MIN(created_at) as min_time, MAX(created_at) as max_time").
+		Select("session_id, user_id, username, COUNT(*) as total_ops, "+
+			"SUM(CASE WHEN result = 'success' THEN 1 ELSE 0 END) as success_count, "+
+			"SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) as failure_count, "+
+			"COALESCE(SUM(duration), 0) as total_duration, "+
+			"MIN(created_at) as min_time, MAX(created_at) as max_time").
 		Where("session_id != '' AND session_id IS NOT NULL").
 		Group("session_id, user_id, username")
 
@@ -486,12 +492,15 @@ func (r *auditLogRepository) ListSessions(ctx context.Context, page, pageSize in
 	summaries := make([]model.SessionSummary, len(rows))
 	for i, row := range rows {
 		summaries[i] = model.SessionSummary{
-			SessionID: row.SessionID,
-			UserID:    row.UserID,
-			Username:  row.Username,
-			TotalOps:  row.TotalOps,
-			StartTime: row.MinTime,
-			EndTime:   row.MaxTime,
+			SessionID:     row.SessionID,
+			UserID:        row.UserID,
+			Username:      row.Username,
+			TotalOps:      row.TotalOps,
+			SuccessCount:  row.SuccessCount,
+			FailureCount:  row.FailureCount,
+			TotalDuration: row.TotalDuration,
+			StartTime:     row.MinTime,
+			EndTime:       row.MaxTime,
 		}
 	}
 

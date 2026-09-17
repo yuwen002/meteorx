@@ -32,7 +32,7 @@ type WikiSpaceResp struct {
 }
 
 type CreateWikiNodeReq struct {
-	SpaceID  string `json:"space_id" validate:"required"`
+	SpaceID  string `json:"space_id,omitempty"`
 	ParentID string `json:"parent_id,omitempty"`
 	Type     string `json:"type" validate:"required,oneof=folder document"`
 	Title    string `json:"title" validate:"required,min=1,max=500"`
