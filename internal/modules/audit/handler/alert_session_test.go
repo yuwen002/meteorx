@@ -240,7 +240,7 @@ func TestGetSessionLogs_Success_ForwardsSessionID(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Equal(t, "s1", stub.GotSessionID)
 	assert.Contains(t, w.Body.String(), `"session_id":"s1"`)
-	assert.Contains(t, w.Body.String(), `"total_ops":3`)
+	assert.Contains(t, w.Body.String(), `"total_requests":3`)
 }
 
 func TestGetSessionLogs_ServiceError_Returns500(t *testing.T) {
