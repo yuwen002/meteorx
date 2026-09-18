@@ -38,6 +38,9 @@
         <div class="sidebar-head">
           <span class="title">目录</span>
           <div v-if="canEdit" class="tree-actions">
+            <el-tooltip content="批量操作">
+              <el-button circle size="small" :icon="Finished" :type="batchMode ? 'primary' : ''" @click="batchMode = !batchMode" />
+            </el-tooltip>
             <el-tooltip content="新建文档">
               <el-button circle size="small" :icon="Plus" @click="openCreateNode('document')" />
             </el-tooltip>
@@ -45,6 +48,17 @@
               <el-button circle size="small" :icon="FolderAdd" @click="openCreateNode('folder')" />
             </el-tooltip>
           </div>
+        </div>
+        <!-- 批量操作工具栏 -->
+        <div v-if="batchMode && canEdit" class="batch-bar">
+          <el-checkbox v-model="selectAll" @change="handleSelectAll">全选</el-checkbox>
+          <span class="batch-count">已选 {{ selectedBatchNodes.length }} 项</span>
+          <el-button size="small" type="danger" :disabled="selectedBatchNodes.length === 0" @click="batchDelete">
+            批量删除
+          </el-button>
+          <el-button size="small" :disabled="selectedBatchNodes.length === 0" @click="openBatchMove">
+            批量移动
+          </el-button>
         </div>
         <el-tree
           v-if="tree.length"
@@ -55,8 +69,11 @@
           :current-node-key="selectedNodeId"
           :expand-on-click-node="false"
           :default-expanded-keys="expandedKeys"
+          :show-checkbox="batchMode"
+          :check-strictly="true"
           highlight-current
           @node-click="selectNode"
+          @check="handleBatchCheck"
         >
           <template #default="{ data }">
             <div class="tree-node">
@@ -125,6 +142,9 @@
             <el-button v-if="canEdit" :icon="PriceTag" @click="tagManagerRef?.open()">标签</el-button>
             <el-button v-if="canEdit" :icon="Share" @click="shareManagerRef?.open()">分享</el-button>
             <el-button :icon="DataAnalysis" @click="statsPanelRef?.open()">统计</el-button>
+            <el-button :icon="isSubscribed ? 'Star' : 'StarFilled'" :type="isSubscribed ? 'warning' : ''" @click="toggleSubscribe">
+              {{ isSubscribed ? '已订阅' : '订阅' }}
+            </el-button>
             <el-button v-if="canEdit" type="primary" :icon="EditPen" @click="startEditing">编辑</el-button>
             <el-button v-if="canEdit" :icon="FolderAdd" @click="membersDialogVisible = true">成员</el-button>
           </div>
@@ -444,6 +464,28 @@
       :title="permNodeTitle"
     />
     
+    <!-- 批量移动对话框 -->
+    <el-dialog v-model="batchMoveVisible" title="批量移动" width="420px">
+      <el-form label-width="80px">
+        <el-form-item label="目标目录">
+          <el-tree-select
+            v-model="batchMoveTargetId"
+            :data="tree"
+            :props="{ label: 'title', children: 'children' }"
+            node-key="id"
+            check-strictly
+            placeholder="选择目标目录（留空则移到根级）"
+            clearable
+            :render-after-expand="false"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="batchMoveVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitBatchMove">确定</el-button>
+      </template>
+    </el-dialog>
+    
     <!-- 扩展功能对话框 -->
     <TagManager ref="tagManagerRef" />
     <ShareLinkManager ref="shareManagerRef" :document-id="currentDocument?.id || ''" />
@@ -484,7 +526,10 @@ import {
   Download,
   Share,
   Files,
-  DataAnalysis
+  DataAnalysis,
+  Finished,
+  Star,
+  StarFilled
 } from '@element-plus/icons-vue'
 import {
   getSpace,
@@ -504,6 +549,11 @@ import {
   compareRevisions,
   exportDocument as exportDocumentApi,
   importDocument as importDocumentApi,
+  batchDeleteNodes,
+  batchMoveNodes,
+  subscribeDocument,
+  unsubscribeDocument,
+  listUserSubscriptions,
   type WikiSpace,
   type WikiNode,
   type WikiNodeTree,
@@ -638,11 +688,13 @@ async function loadDocument(nodeId: string) {
     await Promise.all([
       loadAttachments(),
       loadRevisions(),
-      loadDocumentTags()
+      loadDocumentTags(),
+      loadSubscriptionStatus()
     ])
   } catch {
     currentDocument.value = null
     documentTags.value = []
+    isSubscribed.value = false
   }
 }
 
@@ -1247,6 +1299,112 @@ async function handleImportFile(file: any) {
   }
 }
 
+// ============ 批量操作 ============
+const batchMode = ref(false)
+const selectAll = ref(false)
+const selectedBatchNodes = ref<string[]>([])
+const batchMoveVisible = ref(false)
+const batchMoveTargetId = ref<string>('')
+
+function handleBatchCheck(_node: any, checkedInfo: { checkedKeys: string[] }) {
+  selectedBatchNodes.value = checkedInfo.checkedKeys
+  selectAll.value = checkedInfo.checkedKeys.length === tree.value.length
+}
+
+function handleSelectAll(val: boolean) {
+  if (val) {
+    selectedBatchNodes.value = tree.value.map(n => n.id)
+    treeRef.value?.setCheckedKeys(selectedBatchNodes.value)
+  } else {
+    selectedBatchNodes.value = []
+    treeRef.value?.setCheckedKeys([])
+  }
+}
+
+async function batchDelete() {
+  if (selectedBatchNodes.value.length === 0) return
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedBatchNodes.value.length} 个节点及其子节点吗？`,
+      '批量删除',
+      { type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  submitting.value = true
+  try {
+    await batchDeleteNodes({ node_ids: selectedBatchNodes.value })
+    ElMessage.success('批量删除成功')
+    selectedBatchNodes.value = []
+    selectAll.value = false
+    await reloadTree()
+  } catch {
+    /* 拦截器已提示 */
+  } finally {
+    submitting.value = false
+  }
+}
+
+function openBatchMove() {
+  if (selectedBatchNodes.value.length === 0) return
+  batchMoveTargetId.value = ''
+  batchMoveVisible.value = true
+}
+
+async function submitBatchMove() {
+  submitting.value = true
+  try {
+    await batchMoveNodes({
+      node_ids: selectedBatchNodes.value,
+      new_parent_id: batchMoveTargetId.value
+    })
+    ElMessage.success('批量移动成功')
+    batchMoveVisible.value = false
+    selectedBatchNodes.value = []
+    selectAll.value = false
+    batchMode.value = false
+    await reloadTree()
+  } catch {
+    /* 拦截器已提示 */
+  } finally {
+    submitting.value = false
+  }
+}
+
+// ============ 订阅功能 ============
+const isSubscribed = ref(false)
+
+async function loadSubscriptionStatus() {
+  if (!currentDocument.value) return
+  try {
+    const subs = await listUserSubscriptions()
+    isSubscribed.value = subs.some(s => s.document_id === currentDocument.value!.id)
+  } catch {
+    isSubscribed.value = false
+  }
+}
+
+async function toggleSubscribe() {
+  if (!currentDocument.value) return
+  submitting.value = true
+  try {
+    if (isSubscribed.value) {
+      await unsubscribeDocument(currentDocument.value.id)
+      ElMessage.success('已取消订阅')
+      isSubscribed.value = false
+    } else {
+      await subscribeDocument(currentDocument.value.id)
+      ElMessage.success('已订阅该文档')
+      isSubscribed.value = true
+    }
+  } catch {
+    /* 拦截器已提示 */
+  } finally {
+    submitting.value = false
+  }
+}
+
 // ============ 初始化 ============
 onMounted(async () => {
   await loadSpace()
@@ -1328,6 +1486,19 @@ onMounted(async () => {
 .tree-actions {
   display: flex;
   gap: 2px;
+}
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.batch-count {
+  color: #9ca3af;
+  margin-right: auto;
 }
 .tree-node {
   display: flex;
