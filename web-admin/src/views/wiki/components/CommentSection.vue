@@ -204,6 +204,7 @@ function formatTime(time: string) {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding-right: 4px;
 }
 
 .comment-item {

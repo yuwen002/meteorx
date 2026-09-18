@@ -123,17 +123,16 @@
             </el-tag>
             <el-button v-if="canEdit" :icon="PriceTag" @click="tagManagerRef?.open()">标签</el-button>
             <el-button v-if="canEdit" :icon="Share" @click="shareManagerRef?.open()">分享</el-button>
-            <el-button :icon="DataAnalysis" @click="showStats = !showStats">统计</el-button>
+            <el-button :icon="DataAnalysis" @click="statsPanelRef?.open()">统计</el-button>
             <el-button v-if="canEdit" type="primary" :icon="EditPen" @click="startEditing">编辑</el-button>
             <el-button v-if="canEdit" :icon="FolderAdd" @click="membersDialogVisible = true">成员</el-button>
           </div>
-          <div class="doc-body article" v-html="currentDocument.content_html"></div>
-          
-          <!-- 评论区 -->
-          <CommentSection v-if="canEdit" :document-id="currentDocument.id" />
-          
-          <!-- 统计面板 -->
-          <StatsPanel v-if="showStats" :document-id="currentDocument.id" />
+          <div class="doc-scroll">
+            <div class="doc-body article" v-html="currentDocument.content_html"></div>
+
+            <!-- 评论区 -->
+            <CommentSection v-if="canEdit" :document-id="currentDocument.id" />
+          </div>
         </template>
 
         <!-- 编辑态 -->
@@ -361,7 +360,7 @@
 
           <!-- 分享面板 -->
           <div v-else-if="activePanel === 'shares'" class="panel-body">
-            <ShareLinkManager v-if="currentDocument" :document-id="currentDocument.id" />
+            <el-button type="primary" @click="shareManagerRef?.open()">打开分享链接管理</el-button>
           </div>
         </div>
       </main>
@@ -447,6 +446,7 @@
     <!-- 扩展功能对话框 -->
     <TagManager ref="tagManagerRef" />
     <ShareLinkManager ref="shareManagerRef" :document-id="currentDocument?.id || ''" />
+    <StatsPanel ref="statsPanelRef" :document-id="currentDocument?.id || ''" />
     <TemplateSelector ref="templateSelectorRef" @select="handleTemplateSelect" />
   </div>
 </template>
@@ -955,8 +955,8 @@ function openNodePermission(node: WikiNode) {
 // ============ 扩展功能 ============
 const tagManagerRef = ref<InstanceType<typeof TagManager>>()
 const shareManagerRef = ref<InstanceType<typeof ShareLinkManager>>()
+const statsPanelRef = ref<InstanceType<typeof StatsPanel>>()
 const templateSelectorRef = ref<InstanceType<typeof TemplateSelector>>()
-const showStats = ref(false)
 const documentTags = ref<any[]>([])
 const editLocked = ref(false)
 
@@ -1208,8 +1208,8 @@ function escapeHtml(text: string): string {
 async function exportDocument() {
   if (!currentDocument.value) return
   try {
-    const blob = await exportDocumentApi(currentDocument.value.id, 'markdown')
-    const url = window.URL.createObjectURL(blob)
+    const res = await exportDocumentApi(currentDocument.value.id, 'markdown')
+    const url = window.URL.createObjectURL(res.data)
     const link = document.createElement('a')
     link.href = url
     link.download = `${currentNode.value?.title || 'document'}.md`
@@ -1433,9 +1433,14 @@ onMounted(async () => {
   border-radius: 8px;
   padding: 12px 16px;
 }
-.doc-body {
+.doc-scroll {
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.doc-body {
   border: 1px solid #f0f1f3;
   border-radius: 8px;
   padding: 12px 18px;

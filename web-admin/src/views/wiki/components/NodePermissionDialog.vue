@@ -3,7 +3,7 @@
     :model-value="modelValue"
     :title="`节点权限 — ${title || '未命名'}`"
     width="600px"
-    @update:model-value="(v: boolean) => emit('update:modelValue', v)"
+    @update:modelValue="(v: boolean) => emit('update:modelValue', v)"
     @open="load"
   >
     <div v-if="canListUsers" class="perm-toolbar">
@@ -50,6 +50,9 @@
       </el-table-column>
     </el-table>
     <el-empty v-if="!loading && permissions.length === 0" description="暂无单独授权" :image-size="60" />
+    <template #footer>
+      <el-button @click="emit('update:modelValue', false)">关闭</el-button>
+    </template>
   </el-dialog>
 </template>
 

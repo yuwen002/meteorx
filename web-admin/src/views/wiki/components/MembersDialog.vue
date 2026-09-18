@@ -3,7 +3,7 @@
     :model-value="modelValue"
     title="成员管理"
     width="640px"
-    @update:model-value="(v: boolean) => emit('update:modelValue', v)"
+    @update:modelValue="(v: boolean) => emit('update:modelValue', v)"
     @open="load"
   >
     <div v-if="canManage && canListUsers" class="member-toolbar">
@@ -79,6 +79,9 @@
       </el-table-column>
     </el-table>
     <el-empty v-if="!loading && members.length === 0" description="暂无成员" :image-size="60" />
+    <template #footer>
+      <el-button @click="emit('update:modelValue', false)">关闭</el-button>
+    </template>
   </el-dialog>
 </template>
 

@@ -337,7 +337,7 @@ func (s *wikiServiceExtended) DeleteComment(ctx context.Context, id string) erro
 }
 
 func (s *wikiServiceExtended) buildCommentResp(ctx context.Context, comment *model.Comment) (*dto.CommentResp, error) {
-	return &dto.CommentResp{
+	resp := &dto.CommentResp{
 		ID:         comment.ID,
 		DocumentID: comment.DocumentID,
 		NodeID:     comment.NodeID,
@@ -348,7 +348,19 @@ func (s *wikiServiceExtended) buildCommentResp(ctx context.Context, comment *mod
 		Status:     comment.Status,
 		CreatedAt:  comment.CreatedAt,
 		UpdatedAt:  comment.UpdatedAt,
-	}, nil
+	}
+
+	// 查询用户名
+	if comment.CreatedBy != "" {
+		var user struct {
+			Username string `gorm:"column:username"`
+		}
+		if err := s.tx.DB().Table("users").Select("username").Where("id = ?", comment.CreatedBy).First(&user).Error; err == nil {
+			resp.UserName = user.Username
+		}
+	}
+
+	return resp, nil
 }
 
 func (s *wikiServiceExtended) CreateShareLink(ctx context.Context, req *dto.ShareLinkReq) (*dto.ShareLinkResp, error) {

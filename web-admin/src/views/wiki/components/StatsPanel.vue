@@ -1,5 +1,5 @@
 <template>
-  <div class="stats-panel">
+  <el-dialog v-model="visible" title="文档统计" width="800px">
     <el-row :gutter="16">
       <el-col :span="6">
         <el-card shadow="hover" class="stat-card">
@@ -103,7 +103,11 @@
         </el-card>
       </el-col>
     </el-row>
-  </div>
+
+    <template #footer>
+      <el-button @click="visible = false">关闭</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
@@ -121,6 +125,7 @@ const props = defineProps<{
   documentId: string
 }>()
 
+const visible = ref(false)
 const stats = ref<DocumentStats>({
   document_id: '',
   total_views: 0,
@@ -137,13 +142,12 @@ const logPage = ref(1)
 const logPageSize = 10
 const totalLogs = ref(0)
 
-watch(
-  () => props.documentId,
-  async () => {
+watch(visible, async (val) => {
+  if (val && props.documentId) {
+    showLogs.value = false
     await loadStats()
-  },
-  { immediate: true }
-)
+  }
+})
 
 watch(showLogs, async (val) => {
   if (val) {
@@ -193,13 +197,15 @@ function getActionLabel(action: string) {
   }
   return labels[action] || action
 }
+
+defineExpose({
+  open() {
+    visible.value = true
+  }
+})
 </script>
 
 <style scoped>
-.stats-panel {
-  padding: 16px;
-}
-
 .stat-card {
   display: flex;
   align-items: center;
