@@ -1,0 +1,28 @@
+web-admin/src/views/wiki/components/CommentSection.vue
+  h_a3f313f3d96276 207
+web-admin/src/views/wiki/components/ShareLinkManager.vue
+  h_a3f313f3d96276 4-20,24-31,70-72,87,110-115,129,182
+web-admin/src/views/wiki/components/TagManager.vue
+  h_a3f313f3d96276 21-25,81-89
+web-admin/src/views/wiki/components/StatsPanel.vue
+  h_a3f313f3d96276 2,106-110,128,145-147,200-203,205
+web-admin/src/views/wiki/components/NodePermissionDialog.vue
+  h_a3f313f3d96276 6,53-55
+web-admin/src/views/wiki/space.vue
+  h_a3f313f3d96276 126,130-135,363,449,958,1211-1212,1436,1438-1443
+internal/modules/wiki/service/wiki_service_extended.go
+  h_a3f313f3d96276 340,352-363
+web-admin/src/views/wiki/components/MembersDialog.vue
+  h_a3f313f3d96276 6,82-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "60c0daf7e5e39b08dc764849f8923253232792b9",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
