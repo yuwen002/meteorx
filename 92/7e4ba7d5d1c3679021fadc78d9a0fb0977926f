@@ -1,0 +1,16 @@
+internal/bootstrap/route_check_test.go
+  h_a3f313f3d96276 1-136
+scripts/openapi_sync.go
+  h_a3f313f3d96276 1-289
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "927e4ba7d5d1c3679021fadc78d9a0fb0977926f",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
