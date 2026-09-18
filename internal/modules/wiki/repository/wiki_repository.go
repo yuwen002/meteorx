@@ -233,7 +233,7 @@ func (r *wikiRepository) GetNodeByID(ctx context.Context, id string) (*model.Wik
 func (r *wikiRepository) ListNodesBySpace(ctx context.Context, spaceID string) ([]*model.WikiNode, error) {
 	var nodes []*model.WikiNode
 	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
-		Where("space_id = ? AND parent_id = ''", spaceID).
+		Where("space_id = ?", spaceID).
 		Order("sort ASC, created_at ASC").Find(&nodes).Error
 	return nodes, err
 }

@@ -66,14 +66,15 @@
               </el-icon>
               <span class="node-label">{{ data.title }}</span>
               <span v-if="canEdit" class="node-ops" @click.stop>
-                <el-button
-                  v-if="data.type === 'folder'"
-                  link
-                  size="small"
-                  :icon="Plus"
-                  title="在该目录下新建"
-                  @click="openCreateNode(data.type === 'folder' ? 'folder' : 'document', data)"
-                />
+                <el-dropdown v-if="data.type === 'folder'" trigger="click" @command="(cmd: string) => openCreateNode(cmd as 'folder' | 'document', data)">
+                  <el-button link size="small" :icon="Plus" title="在该目录下新建" />
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="document"><el-icon><Document /></el-icon>新建文档</el-dropdown-item>
+                      <el-dropdown-item command="folder"><el-icon><FolderAdd /></el-icon>新建目录</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
                 <el-button link size="small" :icon="EditPen" title="重命名" @click="openRename(data)" />
                 <el-button
                   link
@@ -857,13 +858,14 @@ async function submitCreateNode() {
     createVisible.value = false
     ElMessage.success(createForm.type === 'document' ? '文档已创建' : '目录已创建')
     await reloadTree()
-    // 定位并打开新建节点
+    await nextTick()
+    treeRef.value?.setCurrentKey(node.id)
+    selectedNodeId.value = node.id
     const fresh = findNodeById(tree.value, node.id)
     if (fresh) {
-      const path = collectAncestors(tree.value, node.id)
-      if (path) expandedKeys.value = path.slice(0, -1)
-      selectedNodeId.value = node.id
-      await selectNode(fresh)
+      if (fresh.type === 'document') {
+        await selectNode(fresh)
+      }
     }
   } finally {
     submitting.value = false
