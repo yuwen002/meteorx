@@ -17,6 +17,17 @@ WikiSpace (空间)
               └── DocumentRevision (历史版本)
 
 WikiSpaceMember (空间成员：协作权限)
+WikiNodePermission (节点级权限：补充授权)
+TrashItem (回收站项目)
+Attachment (文档附件)
+Tag / DocumentTag (标签系统)
+Comment (评论系统)
+ShareLink (分享链接)
+DocumentTemplate (文档模板)
+DocumentAccessLog (访问日志)
+DocumentSubscription (订阅)
+Notification (通知)
+EditLock (编辑锁)
 ```
 
 ### 层级关系
@@ -25,10 +36,21 @@ WikiSpaceMember (空间成员：协作权限)
 Space
 ├── Node (Folder)
 │   ├── Node (Document) → Document → DocumentRevision[]
+│   │   ├── Attachment[]
+│   │   ├── Comment[]
+│   │   ├── ShareLink[]
+│   │   ├── DocumentTag[]
+│   │   ├── DocumentAccessLog[]
+│   │   ├── DocumentSubscription[]
+│   │   └── EditLock
 │   └── Node (Folder)
-│       └── ...
+│       ── ...
 ├── Node (Document) → Document → DocumentRevision[]
 └── Node (Folder)
+
+TrashItem (回收站，30 天自动过期)
+DocumentTemplate (模板，独立于 Space)
+Notification (通知，按用户聚合)
 ```
 
 ---
@@ -100,7 +122,8 @@ Space
 ```json
 {
   "name": "产品文档",
-  "description": "产品相关知识库"
+  "description": "产品相关知识库",
+  "visibility": 1
 }
 ```
 
@@ -108,6 +131,7 @@ Space
 |------|------|------|------|
 | name | string | 是 | 空间名称（最多 100 字符） |
 | description | string | 否 | 空间描述（最多 500 字符） |
+| visibility | int | 否 | 可见性：`1=私有`（仅成员可见）、`2=租户内`（同租户可查看）、`3=公开`（所有人可查看），默认 1 |
 
 **响应**：
 ```json
@@ -148,9 +172,16 @@ Space
 ```json
 {
   "name": "新名称",
-  "description": "新描述"
+  "description": "新描述",
+  "visibility": 2
 }
 ```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| name | string | 否 | 空间名称 |
+| description | string | 否 | 空间描述 |
+| visibility | int | 否 | 可见性：`1=私有`、`2=租户内`、`3=公开` |
 
 ---
 
@@ -319,35 +350,7 @@ Space
 
 ---
 
-### 3.3 更新文档
-
-`PUT /api/v1/wiki/documents/{id}`
-
-**权限码**：`wiki:document:update`
-
-**请求体**：
-```json
-{
-  "title": "更新后的标题",
-  "content": "# 新内容\n\n更新后的正文"
-}
-```
-
-**描述**：更新文档内容时自动创建新的 DocumentRevision（版本号递增）
-
----
-
-### 3.4 删除文档
-
-`DELETE /api/v1/wiki/documents/{id}`
-
-**权限码**：`wiki:document:delete`
-
-**描述**：软删除文档（可通过版本历史恢复）
-
----
-
-### 3.5 Markdown 实时预览
+### 3.3 Markdown 实时预览
 
 `POST /api/v1/wiki/documents/preview`
 
@@ -374,6 +377,34 @@ Space
   "content_html": "<h1>标题</h1>\n\n<p><img src=\"http://host:8081/uploads/xxx.png?e=1788520110&s=75ec...\" alt=\"架构图\"></p>\n\n<ul>\n<li>列表项</li>\n</ul>\n"
 }
 ```
+
+---
+
+### 3.4 更新文档
+
+`PUT /api/v1/wiki/documents/{id}`
+
+**权限码**：`wiki:document:update`
+
+**请求体**：
+```json
+{
+  "title": "更新后的标题",
+  "content": "# 新内容\n\n更新后的正文"
+}
+```
+
+**描述**：更新文档内容时自动创建新的 DocumentRevision（版本号递增）
+
+---
+
+### 3.4 删除文档
+
+`DELETE /api/v1/wiki/documents/{id}`
+
+**权限码**：`wiki:document:delete`
+
+**描述**：软删除文档（可通过版本历史恢复）
 
 ---
 
@@ -843,6 +874,44 @@ Space
 | sort | int | 是 | 排序值（数值越小越靠前） |
 
 **说明**：节点树按 Sort 字段递归排序，同级节点按 Sort 值升序排列
+
+---
+
+## 13. 公开分享（免登录访问）
+
+### 13.1 访问分享文档
+
+`GET /api/v1/wiki/share/{token}`
+
+**权限码**：无需登录（公开路由，注册于 `public_routes.go`）
+
+**路径参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| token | string | 分享令牌 |
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| password | string | 否 | 分享密码（若创建时设置了密码则必填） |
+
+**描述**：免登录访问分享文档。校验 token 有效性、过期时间、最大浏览次数、密码（如有）。校验成功后自增浏览计数，返回文档内容。文档内嵌的 `/uploads/*` 图片地址会动态重签短时效签名 URL。
+
+**响应**：
+```json
+{
+  "id": "01H...",
+  "node_id": "01H...",
+  "space_id": "01H...",
+  "title": "分享文档标题",
+  "content": "# 文档内容",
+  "content_html": "<h1>文档内容</h1>",
+  "version": 3,
+  "view_count": 42,
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
 
 ---
 

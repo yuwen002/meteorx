@@ -66,6 +66,15 @@ Attachment (文档附件)
 | WikiNodePermission | wiki_node_permissions | id, node_id, user_id, permission | 节点级补充权限 |
 | TrashItem | wiki_trash | id, item_type, item_id, space_id, expires_at | 回收站项目 |
 | Attachment | wiki_attachments | id, document_id, file_name, file_url | 文档附件 |
+| Tag | wiki_tags | id, tenant_id, name, color, created_by | 空间级标签 |
+| DocumentTag | wiki_document_tags | id, document_id, tag_id | 文档-标签多对多关联 |
+| Comment | wiki_comments | id, tenant_id, document_id, node_id, parent_id, content, created_by, mention_ids | 评论（支持多级回复与 @提及） |
+| ShareLink | wiki_share_links | id, tenant_id, document_id, node_id, token, password, expire_at, max_views, view_count | 分享链接 |
+| DocumentTemplate | wiki_document_templates | id, tenant_id, name, description, content, format, category, is_public | 文档模板 |
+| DocumentAccessLog | wiki_document_access_logs | id, tenant_id, document_id, node_id, user_id, action, ip_address | 访问日志 |
+| DocumentSubscription | wiki_document_subscriptions | id, tenant_id, document_id, node_id, user_id, notify_type | 文档订阅 |
+| Notification | wiki_notifications | id, tenant_id, user_id, type, title, content, related_id, is_read | 通知 |
+| EditLock | wiki_edit_locks | id, tenant_id, document_id, user_id, locked_at, expires_at | 编辑锁（防并发编辑冲突） |
 
 ---
 
@@ -74,13 +83,13 @@ Attachment (文档附件)
 ### 树构建算法
 
 ```
-1. 从仓库获取 Space 下所有节点（扁平列表）
-2. 构建 nodeMap: map[nodeID] → TreeNode
-3. 遍历节点列表：
+1. 从仓库获取 Space 下所有节点（扁平列表，SQL: WHERE space_id = ?）
+2. 第一轮遍历 — 构建 nodeMap: map[nodeID] → TreeNode
+3. 第二轮遍历 — 挂载父子关系：
    - parent_id 为空 → 加入 roots
-   - parent_id 存在且父节点存在 → 挂载到父节点 Children
-   - parent_id 存在但父节点不存在 → 加入 roots（容错）
-4. 递归排序：按 Sort 字段对每层节点排序
+   - parent_id 存在且父节点在 nodeMap 中 → 挂载到父节点 Children
+   - parent_id 存在但父节点不存在 → 加入 roots（容错，避免孤立节点丢失）
+4. 按 Sort 字段对每层节点的 Children 排序（非递归，逐层处理）
 ```
 
 ### 树结构特点
@@ -337,7 +346,7 @@ s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
 ├── POST   /trash/{id}/restore                 → 恢复回收站
 ├── DELETE /trash/{id}                         → 永久删除
 │
-├── /spaces
+── /spaces
 │   ├── GET    /                                → 空间列表
 │   ├── POST   /                                → 创建空间
 │   ├── GET    /{id}                            → 空间详情
@@ -356,20 +365,59 @@ s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
 │   │   ├── POST   /{id}/permissions            → 设置节点权限
 │   │   └── DELETE /{id}/permissions/{uid}/{perm} → 移除节点权限
 │   │
-│   └── /{spaceId}/members
-│       ├── GET    /                            → 成员列表
-│       ├── POST   /                            → 添加成员
-│       └── DELETE /{userId}                    → 移除成员
+│   ├── /{spaceId}/members
+│   │   ├── GET    /                            → 成员列表
+│   │   ├── POST   /                            → 添加成员
+│   │   └── DELETE /{userId}                    → 移除成员
+│   │
+│   ├── POST   /tags                            → 创建标签
+│   ├── GET    /tags                            → 标签列表
+│   ├── DELETE /tags/{id}                       → 删除标签
+│   ├── POST   /nodes/batch                     → 批量操作
+│   ├── POST   /templates                       → 创建模板
+│   ├── GET    /templates                       → 模板列表
+│   ├── GET    /templates/{id}                  → 模板详情
+│   ├── PUT    /templates/{id}                  → 更新模板
+│   ├── DELETE /templates/{id}                  → 删除模板
+│   ├── GET    /notifications                   → 通知列表
+│   ├── PUT    /notifications/read-all          → 全部标记已读
+│   ├── GET    /notifications/unread-count      → 未读数
+│   ├── PUT    /notifications/{id}/read         → 标记单条已读
+│   └── GET    /subscriptions                   → 订阅列表
 │
-└── /documents
-    ├── POST   /nodes/{nodeId}                 → 创建文档
-    ├── GET    /nodes/{nodeId}                 → 获取文档
-    ├── PUT    /{id}                           → 更新文档
-    ├── DELETE /{id}                           → 删除文档
-    ├── GET    /{id}/revisions                 → 版本列表
-    ├── GET    /{id}/revisions/{version}       → 指定版本
-    ├── POST   /{id}/revisions/{version}/restore → 恢复版本
-    ├── POST   /attachments                    → 创建附件
-    ├── GET    /{documentId}/attachments       → 附件列表
-    └── DELETE /attachments/{id}               → 删除附件
+├── /documents
+│   ├── POST   /preview                        → Markdown 实时预览
+│   ├── POST   /nodes/{nodeId}                 → 创建文档
+│   ├── GET    /nodes/{nodeId}                 → 获取文档
+│   ├── PUT    /{id}                           → 更新文档
+│   ├── DELETE /{id}                           → 删除文档
+│   ├── GET    /{id}/revisions                 → 版本列表
+│   ├── GET    /{id}/revisions/{version}       → 指定版本
+│   ├── POST   /{id}/revisions/{version}/restore → 恢复版本
+│   ├── GET    /{id}/revisions/compare         → 版本对比
+│   ├── POST   /attachments                    → 创建附件
+│   ├── GET    /{documentId}/attachments       → 附件列表
+│   ├── DELETE /attachments/{id}               → 删除附件
+│   ├── POST   /{id}/tags/{tagId}              → 绑定标签
+│   ├── DELETE /{id}/tags/{tagId}              → 移除标签
+│   ├── GET    /{id}/tags                      → 文档标签列表
+│   ├── POST   /{id}/comments                  → 创建评论
+│   ├── GET    /{id}/comments                  → 评论树
+│   ├── PUT    /comments/{id}                  → 更新评论
+│   ├── DELETE /comments/{id}                  → 删除评论
+│   ├── POST   /{id}/share                     → 创建分享
+│   ├── GET    /{id}/shares                    → 分享列表
+│   ├── DELETE /shares/{id}                    → 删除分享
+│   ├── GET    /{id}/stats                     → 文档统计
+│   ├── GET    /{id}/access-logs               → 访问日志
+│   ├── POST   /{id}/subscribe                 → 订阅文档
+│   ├── DELETE /{id}/subscribe                 → 取消订阅
+│   ├── POST   /{id}/edit-lock                 → 获取编辑锁
+│   ├── DELETE /{id}/edit-lock                 → 释放编辑锁
+│   ├── PUT    /{id}/edit-lock                 → 刷新编辑锁
+│   ├── GET    /{id}/edit-lock                 → 查询锁状态
+│   ├── POST   /{id}/export                    → 导出文档
+│   └── POST   /{id}/import                    → 导入文档
+│
+└── /share/{token}                             → 公开访问分享文档（免登录，public_routes.go）
 ```
