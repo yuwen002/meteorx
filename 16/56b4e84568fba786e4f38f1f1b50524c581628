@@ -1,0 +1,16 @@
+docs/api/wiki-api.md
+  h_a3f313f3d96276 20-30,39-45,47,50-53,125-126,134,175-176,180-185,353,383-384,386,388,390-396,398,400,402,404,406,408,410,880-917
+docs/architecture/wiki.md
+  h_a3f313f3d96276 69-77,86-88,90-92,368-420,422
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "1656b4e84568fba786e4f38f1f1b50524c581628",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
