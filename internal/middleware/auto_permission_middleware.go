@@ -102,32 +102,26 @@ func AutoRequirePermission(checker PermissionChecker) func(http.Handler) http.Ha
 	}
 }
 
-// derivePermissionCode 根据 HTTP 请求推导权限码
-// 返回空字符串表示无法推导（此时中间件放行，业务层自行判断）
-func derivePermissionCode(r *http.Request) string {
-	rc := chi.RouteContext(r.Context())
-	if rc == nil || len(rc.RoutePatterns) == 0 {
+// DerivePermissionCode 公开版权限码推导：根据 HTTP Method + chi route pattern 直接推导权限码
+// pattern 示例："/api/v1/users/{id}/detail"、"/api/v1/rbac/roles/batch/permissions"
+// 无法推导时返回空字符串
+func DerivePermissionCode(method, pattern string) string {
+	// 跳过非 /api/v1 路由
+	if !strings.HasPrefix(pattern, "/api/v1/") {
 		return ""
 	}
 
-	// 使用 URL 路径作为权限码推导源（chi 已完成路由匹配，保证路径合法）
-	urlPath := strings.TrimPrefix(r.URL.Path, "/api/v1/")
+	urlPath := strings.TrimPrefix(pattern, "/api/v1/")
 	parts := strings.Split(strings.Trim(urlPath, "/"), "/")
 
 	if len(parts) == 0 {
 		return ""
 	}
 
-	// ====== Step 1: 判断命名空间前缀 ======
-	// rbac 前缀 → 生成 rbac:{resource}:{action}
-	// admin 前缀 → 生成 admin:{resource}:{action}（平台后台管理接口）
-	// audit 前缀 → 生成 audit:{resource}:{action}（审计日志接口）
-	// 其他 → 生成 {resource}:{action}
 	hasRBACPrefix := parts[0] == "rbac"
 	hasAdminPrefix := parts[0] == "admin"
 	hasAuditPrefix := parts[0] == "audit"
 
-	// 核心路径段（去掉命名空间前缀后剩余）
 	coreParts := parts
 	if hasRBACPrefix || hasAdminPrefix || hasAuditPrefix {
 		coreParts = parts[1:]
@@ -136,34 +130,76 @@ func derivePermissionCode(r *http.Request) string {
 		return ""
 	}
 
-	// 保存原始首段（用于后续特殊路由判断，如 tenants-plan）
 	originalFirstSeg := coreParts[0]
 
-	// ====== Step 2: 从核心路径中提取资源名 ======
-	// admin 前缀下的资源需要特殊映射，使其与后端权限码常量保持一致
-	// audit 前缀下的 logs → 资源名为 "log"
 	var resource string
 	if hasAuditPrefix && coreParts[0] == "logs" {
-		resource = singularize(coreParts[0]) // "log"
+		resource = singularize(coreParts[0])
 	} else if hasAdminPrefix {
 		resource = adminResourceName(coreParts[0])
 	} else {
 		resource = singularize(coreParts[0])
 	}
 
-	// ====== Step 3: 分析剩余路径段推导 action ======
-	// 注意：由于使用 URL 路径（而非 chi pattern），剩余段中不含 {xxx} 占位符，
-	// deriveAction 中对 {xxx} 的检查在非参数化路径上仍然有效（如 batch/delete、
-	// deleted、restore、detail、update 等关键字）。
-	// 对于确实依赖 {id} 占位符的逻辑（如 remove_one vs remove_all），
-	// 我们额外将参数位置替换为 {param} 以兼容。
 	remaining := strings.Join(coreParts[1:], "/")
 
-	// 规范化：将 chi URL 参数对应的段替换为 {param}
-	// 收集所有非空参数值
+	// 规范化 pattern 中的 {xxx} 占位符 → {param}
+	remaining = normalizeParams(remaining)
+
+	method = strings.ToUpper(method)
+
+	action := deriveAction(method, remaining)
+	if action == "" {
+		return ""
+	}
+
+	if originalFirstSeg == "tenants-plan" && resource == "plan" && method == "PUT" {
+		action = "assign"
+	}
+
+	if hasAdminPrefix && resource == "tenant" && strings.Contains(remaining, "plan") && method == "PUT" {
+		resource = "plan"
+		action = "assign"
+	}
+
+	if resource == "plan" && action == "list_select" {
+		action = "select"
+	}
+
+	switch {
+	case hasRBACPrefix:
+		return "rbac:" + resource + ":" + action
+	case hasAdminPrefix:
+		return "admin:" + resource + ":" + action
+	case hasAuditPrefix:
+		return "audit:" + resource + ":" + action
+	default:
+		return resource + ":" + action
+	}
+}
+
+// normalizeParams 将路径中的 {xxx} 占位符统一替换为 {param}，便于后续字符串匹配
+func normalizeParams(path string) string {
+	parts := strings.Split(path, "/")
+	for i, seg := range parts {
+		if strings.HasPrefix(seg, "{") && strings.HasSuffix(seg, "}") {
+			parts[i] = "{param}"
+		}
+	}
+	return strings.Join(parts, "/")
+}
+
+// derivePermissionCode 根据 HTTP 请求推导权限码
+// 返回空字符串表示无法推导（此时中间件放行，业务层自行判断）
+func derivePermissionCode(r *http.Request) string {
+	rc := chi.RouteContext(r.Context())
+	if rc == nil || len(rc.RoutePatterns) == 0 {
+		return ""
+	}
+
+	// 从 RoutePatterns 中收集所有 {xxx} 参数对应的真实参数值
 	paramValues := make(map[string]bool)
 	for _, p := range rc.RoutePatterns {
-		// 遍历所有 pattern，提取其中的 {xxx} 参数名
 		for {
 			start := strings.Index(p, "{")
 			if start == -1 {
@@ -182,51 +218,19 @@ func derivePermissionCode(r *http.Request) string {
 		}
 	}
 
-	// 规范化 remaining 中的参数值 → {param}
-	if len(paramValues) > 0 && remaining != "" {
-		normParts := strings.Split(remaining, "/")
-		for i, seg := range normParts {
+	// 将 URL path 中匹配到的参数值替换为 {param}，构造 pattern
+	pattern := r.URL.Path
+	if len(paramValues) > 0 {
+		parts := strings.Split(pattern, "/")
+		for i, seg := range parts {
 			if paramValues[seg] {
-				normParts[i] = "{param}"
+				parts[i] = "{param}"
 			}
 		}
-		remaining = strings.Join(normParts, "/")
+		pattern = strings.Join(parts, "/")
 	}
 
-	method := strings.ToUpper(r.Method)
-
-	action := deriveAction(method, remaining)
-	if action == "" {
-		return ""
-	}
-
-	// 特殊覆盖：admin/tenants-plan/{id} PUT → plan:assign（为租户分配套餐）
-	if originalFirstSeg == "tenants-plan" && resource == "plan" && method == "PUT" {
-		action = "assign"
-	}
-
-	// 特殊覆盖：admin/tenants/{id}/plan PUT → plan:assign（从租户管理页面分配套餐）
-	if hasAdminPrefix && resource == "tenant" && strings.Contains(remaining, "plan") && method == "PUT" {
-		resource = "plan"
-		action = "assign"
-	}
-
-	// 特殊覆盖：plan/select → select（套餐下拉列表，不用 list_select）
-	if resource == "plan" && action == "list_select" {
-		action = "select"
-	}
-
-	// ====== Step 4: 组合权限码 ======
-	switch {
-	case hasRBACPrefix:
-		return "rbac:" + resource + ":" + action
-	case hasAdminPrefix:
-		return "admin:" + resource + ":" + action
-	case hasAuditPrefix:
-		return "audit:" + resource + ":" + action
-	default:
-		return resource + ":" + action
-	}
+	return DerivePermissionCode(r.Method, pattern)
 }
 
 // singularize 将复数形式资源名转为单数

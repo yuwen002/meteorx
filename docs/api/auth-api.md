@@ -19,8 +19,7 @@
 | POST | `/auth/reset-password` | 重置密码（通过邮件令牌） | 公开 |
 
 | GET | `/auth/oauth/:provider/redirect` | 获取 OAuth2 跳转链接 | 公开 |
-| GET | `/auth/oauth/callback` | OAuth2 登录回调 | 公开 |
-| POST | `/auth/oauth/callback` | OAuth2 登录回调（POST） | 公开 |
+| POST | `/auth/oauth/callback` | OAuth2 登录回调 | 公开 |
 
 ---
 

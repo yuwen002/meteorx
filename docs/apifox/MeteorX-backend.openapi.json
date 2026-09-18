@@ -8473,26 +8473,6 @@
         ]
       }
     },
-    "/api/v1/health": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiSuccess"
-                }
-              }
-            },
-            "description": "服务正常"
-          }
-        },
-        "summary": "健康检查",
-        "tags": [
-          "系统"
-        ]
-      }
-    },
     "/api/v1/profile": {
       "get": {
         "responses": {
@@ -13046,7 +13026,7 @@
         "x-apifox-ws-messages": [
           {
             "description": "新公告通知",
-            "direction": "server-\u003eclient",
+            "direction": "server->client",
             "name": "announcement",
             "payload": {
               "properties": {
@@ -13068,7 +13048,7 @@
           },
           {
             "description": "告警通知",
-            "direction": "server-\u003eclient",
+            "direction": "server->client",
             "name": "alert",
             "payload": {
               "properties": {
@@ -13102,7 +13082,7 @@
           },
           {
             "description": "未读数量更新",
-            "direction": "server-\u003eclient",
+            "direction": "server->client",
             "name": "unread_count",
             "payload": {
               "properties": {
@@ -13116,7 +13096,7 @@
           },
           {
             "description": "服务端心跳（每30秒发送）",
-            "direction": "server-\u003eclient",
+            "direction": "server->client",
             "name": "ping",
             "payload": {
               "type": "null"
@@ -13124,13 +13104,197 @@
           },
           {
             "description": "客户端心跳响应",
-            "direction": "client-\u003eserver",
+            "direction": "client->server",
             "name": "pong",
             "payload": {
               "type": "null"
             }
           }
         ]
+      }
+    },
+    "/health": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccess"
+                }
+              }
+            },
+            "description": "服务正常"
+          }
+        },
+        "summary": "健康检查",
+        "tags": [
+          "系统"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "summary": "深度健康检查",
+        "tags": [
+          "系统"
+        ],
+        "description": "检查数据库和 Redis 连接状态，用于 K8s readiness probe",
+        "responses": {
+          "200": {
+            "description": "服务正常",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "example": "ok"
+                        },
+                        "checks": {
+                          "type": "object",
+                          "properties": {
+                            "database": {
+                              "type": "string",
+                              "example": "ok"
+                            },
+                            "redis": {
+                              "type": "string",
+                              "example": "ok"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/oauth/{provider}/redirect": {
+      "get": {
+        "summary": "获取 OAuth2 跳转链接",
+        "tags": [
+          "认证"
+        ],
+        "description": "返回第三方 OAuth2 授权页面跳转 URL，前端应直接跳转",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "description": "OAuth 提供商",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "github",
+                "google"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回跳转 URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "format": "uri",
+                          "example": "https://github.com/login/oauth/authorize?..."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/oauth/callback": {
+      "post": {
+        "summary": "OAuth2 登录回调",
+        "tags": [
+          "认证"
+        ],
+        "description": "处理第三方 OAuth2 授权码，换取 access token 并完成用户登录",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "state"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "description": "第三方返回的授权码"
+                  },
+                  "state": {
+                    "type": "string",
+                    "description": "防 CSRF 状态码"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "token": {
+                          "type": "string",
+                          "example": "eyJhbGciOi..."
+                        },
+                        "user": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   },

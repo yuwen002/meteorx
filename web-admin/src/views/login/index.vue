@@ -81,22 +81,14 @@
           <span>或</span>
         </div>
         <div class="oauth-buttons">
-          <el-button
-            class="oauth-btn oauth-google"
-            :icon="Promotion"
-            size="large"
-            @click="handleOAuthLogin('google')"
-          >
-            Google 登录
-          </el-button>
-          <el-button
-            class="oauth-btn oauth-github"
-            :icon="Monitor"
-            size="large"
-            @click="handleOAuthLogin('github')"
-          >
-            GitHub 登录
-          </el-button>
+          <div class="oauth-btn oauth-google" @click="handleOAuthLogin('google')">
+            <el-icon><Link /></el-icon>
+            <span>Google 登录</span>
+          </div>
+          <div class="oauth-btn oauth-github" @click="handleOAuthLogin('github')">
+            <el-icon><Connection /></el-icon>
+            <span>GitHub 登录</span>
+          </div>
         </div>
 
         <div class="tips">
@@ -113,7 +105,7 @@ import { reactive, ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus/es/components/message/index'
-import { InfoFilled, Warning, Avatar, OfficeBuilding, Promotion, Monitor } from '@element-plus/icons-vue'
+import { InfoFilled, Warning, Avatar, OfficeBuilding, Link, Connection } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { getOAuthRedirectURL, oauthLogin, type LoginParams, type LoginErrorData } from '@/api/auth'
 
@@ -350,7 +342,21 @@ function goForgotPassword() {
 }
 .oauth-btn {
   width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 8px;
+  border: 1px solid;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  user-select: none;
+}
+.oauth-btn .el-icon {
+  font-size: 18px;
+  flex-shrink: 0;
 }
 .oauth-google {
   border-color: #ea4335;
