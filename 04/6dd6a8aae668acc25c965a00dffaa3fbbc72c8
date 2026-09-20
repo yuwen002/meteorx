@@ -1,0 +1,44 @@
+internal/modules/tenant/repository/tenant_repository.go
+  h_a3f313f3d96276 488-501
+internal/modules/oauth/routes.go
+  h_a3f313f3d96276 15
+docs/apifox/MeteorX-backend.openapi.json
+  h_a3f313f3d96276 8026,8028,8124-8126,13271,13332-13333,13340-13341,13344-13345,13347-13352,13354-13355,13357,13361,13364,13371,13373,13376
+web-admin/src/views/login/OAuthCallback.vue
+  h_a3f313f3d96276 3-31,33-34,48,56-59,61-66,80-81,83-84,86-92,94-96,98-119,121-123,127,130-133,137-138,151,153-154,156,192-197
+internal/modules/oauth/handler/oauth_handler.go
+  h_a3f313f3d96276 19-20,63,78-89
+web-admin/src/views/register/index.vue
+  h_a3f313f3d96276 18,20,41-49,140,142-143,169,206-217
+internal/modules/oauth/dto/oauth_dto.go
+  h_a3f313f3d96276 8,33-43
+web-admin/src/views/login/index.vue
+  h_a3f313f3d96276 79-85,101-131,148,156-161,237-238,240-274,278,282-283,290-293,367-375,473-479
+scripts/openapi_sync.go
+  h_a3f313f3d96276 103
+web-admin/src/router/index.ts
+  h_a3f313f3d96276 12-16
+internal/modules/oauth/module.go
+  h_a3f313f3d96276 12,23,25
+docs/README.md
+  h_a3f313f3d96276 31
+internal/modules/oauth/service/oauth_service_test.go
+  h_a3f313f3d96276 12,110,120
+internal/modules/oauth/service/oauth_service.go
+  h_a3f313f3d96276 17,37,48,57,81,99,139-152,166,187,402-419
+web-admin/src/api/auth.ts
+  h_a3f313f3d96276 78-112,114-115
+docs/api/auth-api.md
+  h_a3f313f3d96276 22,300,302,304,324-327,329,331,344-349,375-379,384-385
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "046dd6a8aae668acc25c965a00dffaa3fbbc72c8",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
