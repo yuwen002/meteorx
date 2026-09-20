@@ -78,9 +78,18 @@
 
         <div class="register-link">
           <span>还没有账号？</span>
-          <el-link type="primary" :underline="false" @click="goRegister">
-            立即注册
-          </el-link>
+          <el-dropdown trigger="click" @command="handleRegisterCommand">
+            <el-link type="primary" :underline="false">
+              立即注册
+              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-link>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="user">用户注册（加入已有租户）</el-dropdown-item>
+                <el-dropdown-item command="tenant">租户注册（创建新租户）</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
 
         <!-- OAuth2 第三方登录 -->
@@ -143,7 +152,7 @@ import { reactive, ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus/es/components/message/index'
-import { InfoFilled, Warning, Avatar, OfficeBuilding, Link, Connection } from '@element-plus/icons-vue'
+import { InfoFilled, Warning, Avatar, OfficeBuilding, Link, Connection, ArrowDown } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { getOAuthRedirectURL, oauthLogin, getOAuthTenants, type LoginParams, type LoginErrorData } from '@/api/auth'
 
@@ -288,8 +297,12 @@ function goForgotPassword() {
   router.push('/forgot-password')
 }
 
-function goRegister() {
-  router.push('/register')
+function handleRegisterCommand(command: string) {
+  if (command === 'user') {
+    router.push('/register-user')
+  } else {
+    router.push('/register')
+  }
 }
 </script>
 

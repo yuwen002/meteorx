@@ -12,7 +12,13 @@ const routes: RouteRecordRaw[] = [
     path: '/register',
     name: 'Register',
     component: () => import('@/views/register/index.vue'),
-    meta: { title: '注册', public: true }
+    meta: { title: '租户注册', public: true }
+  },
+  {
+    path: '/register-user',
+    name: 'RegisterUser',
+    component: () => import('@/views/register-user/index.vue'),
+    meta: { title: '用户注册', public: true }
   },
   {
     path: '/forgot-password',

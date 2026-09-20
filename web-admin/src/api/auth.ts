@@ -105,6 +105,29 @@ export function register(data: RegisterParams) {
   return post<RegisterResult>('/tenants/register', data)
 }
 
+export interface RegisterUserParams {
+  tenant_id: string
+  username: string
+  password: string
+  nickname: string
+  email: string
+}
+
+export interface RegisterUserResult {
+  id: string
+  tenant_id: string
+  username: string
+  nickname: string
+  email: string
+  status: number
+  created_at: string
+}
+
+// 普通用户注册（加入已有租户）
+export function registerUser(data: RegisterUserParams) {
+  return post<RegisterUserResult>('/auth/register', data)
+}
+
 // OAuth2 获取租户列表
 export function getOAuthTenants() {
   return get<{ tenants: Array<{ id: string; name: string }> }>('/auth/oauth/tenants')
