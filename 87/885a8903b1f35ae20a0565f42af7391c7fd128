@@ -1,0 +1,16 @@
+docs/openapi-sync.md
+  h_a3f313f3d96276 1-154
+web-admin/src/views/register/index.vue
+  h_a3f313f3d96276 1-275
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "87885a8903b1f35ae20a0565f42af7391c7fd128",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
