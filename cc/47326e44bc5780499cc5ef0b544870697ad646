@@ -1,0 +1,18 @@
+web-admin/src/views/login/index.vue
+  h_a3f313f3d96276 81-82,84-92,155,300-303,305
+web-admin/src/router/index.ts
+  h_a3f313f3d96276 15-21
+web-admin/src/api/auth.ts
+  h_a3f313f3d96276 108-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "cc47326e44bc5780499cc5ef0b544870697ad646",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
