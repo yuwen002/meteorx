@@ -485,3 +485,17 @@ func (r *tenantRepository) Restore(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+// ListActive 查询所有启用状态的租户列表（用于 OAuth 登录时选择租户）
+func (r *tenantRepository) ListActive(ctx context.Context) ([]*model.Tenant, error) {
+	var pos []*TenantPO
+	if err := r.db.WithContext(ctx).Where("status = ?", model.StatusEnabled).Order("name ASC").Find(&pos).Error; err != nil {
+		return nil, err
+	}
+
+	var tenants []*model.Tenant
+	for _, po := range pos {
+		tenants = append(tenants, po.toDomain())
+	}
+	return tenants, nil
+}

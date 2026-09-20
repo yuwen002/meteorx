@@ -7993,6 +7993,192 @@
         ]
       }
     },
+    "/api/v1/auth/oauth/callback": {
+      "post": {
+        "description": "处理第三方 OAuth2 授权码，换取 access token 并完成用户登录。OAuth 登录时需要传入 tenant_id 选择所属租户",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "code": {
+                    "description": "第三方返回的授权码",
+                    "type": "string"
+                  },
+                  "provider": {
+                    "description": "OAuth 提供商",
+                    "enum": [
+                      "google",
+                      "github"
+                    ],
+                    "type": "string"
+                  },
+                  "state": {
+                    "description": "防 CSRF 状态码",
+                    "type": "string"
+                  },
+                  "tenant_id": {
+                    "description": "租户ID（OAuth登录时选择租户，可通过 GET /api/v1/auth/oauth/tenants 获取租户列表）",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "provider",
+                  "code",
+                  "tenant_id"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "example": 200,
+                      "type": "integer"
+                    },
+                    "data": {
+                      "properties": {
+                        "is_new_user": {
+                          "description": "是否首次登录（新用户）",
+                          "type": "boolean"
+                        },
+                        "permissions": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "token": {
+                          "example": "eyJhbGciOi...",
+                          "type": "string"
+                        },
+                        "user": {
+                          "type": "object"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "登录成功"
+          }
+        },
+        "summary": "OAuth2 登录回调",
+        "tags": [
+          "认证"
+        ]
+      }
+    },
+    "/api/v1/auth/oauth/tenants": {
+      "get": {
+        "description": "获取所有启用状态的租户列表，用于 OAuth 登录时选择租户",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "example": 200,
+                      "type": "integer"
+                    },
+                    "data": {
+                      "properties": {
+                        "tenants": {
+                          "items": {
+                            "properties": {
+                              "id": {
+                                "description": "租户ID",
+                                "type": "string"
+                              },
+                              "name": {
+                                "description": "租户名称",
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功返回租户列表"
+          }
+        },
+        "summary": "获取可用租户列表",
+        "tags": [
+          "认证"
+        ]
+      }
+    },
+    "/api/v1/auth/oauth/{provider}/redirect": {
+      "get": {
+        "description": "返回第三方 OAuth2 授权页面跳转 URL，前端应直接跳转",
+        "parameters": [
+          {
+            "description": "OAuth 提供商",
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "enum": [
+                "github",
+                "google"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "example": 200,
+                      "type": "integer"
+                    },
+                    "data": {
+                      "properties": {
+                        "url": {
+                          "example": "https://github.com/login/oauth/authorize?...",
+                          "format": "uri",
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功返回跳转 URL"
+          }
+        },
+        "summary": "获取 OAuth2 跳转链接",
+        "tags": [
+          "认证"
+        ]
+      }
+    },
     "/api/v1/auth/register": {
       "post": {
         "requestBody": {
@@ -13026,7 +13212,7 @@
         "x-apifox-ws-messages": [
           {
             "description": "新公告通知",
-            "direction": "server->client",
+            "direction": "server-\u003eclient",
             "name": "announcement",
             "payload": {
               "properties": {
@@ -13048,7 +13234,7 @@
           },
           {
             "description": "告警通知",
-            "direction": "server->client",
+            "direction": "server-\u003eclient",
             "name": "alert",
             "payload": {
               "properties": {
@@ -13082,7 +13268,7 @@
           },
           {
             "description": "未读数量更新",
-            "direction": "server->client",
+            "direction": "server-\u003eclient",
             "name": "unread_count",
             "payload": {
               "properties": {
@@ -13096,7 +13282,7 @@
           },
           {
             "description": "服务端心跳（每30秒发送）",
-            "direction": "server->client",
+            "direction": "server-\u003eclient",
             "name": "ping",
             "payload": {
               "type": "null"
@@ -13104,7 +13290,7 @@
           },
           {
             "description": "客户端心跳响应",
-            "direction": "client->server",
+            "direction": "client-\u003eserver",
             "name": "pong",
             "payload": {
               "type": "null"
@@ -13135,166 +13321,65 @@
     },
     "/health/ready": {
       "get": {
-        "summary": "深度健康检查",
-        "tags": [
-          "系统"
-        ],
         "description": "检查数据库和 Redis 连接状态，用于 K8s readiness probe",
         "responses": {
           "200": {
-            "description": "服务正常",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
                   "properties": {
                     "code": {
-                      "type": "integer",
-                      "example": 200
+                      "example": 200,
+                      "type": "integer"
                     },
                     "data": {
-                      "type": "object",
                       "properties": {
-                        "status": {
-                          "type": "string",
-                          "example": "ok"
-                        },
                         "checks": {
-                          "type": "object",
                           "properties": {
                             "database": {
-                              "type": "string",
-                              "example": "ok"
+                              "example": "ok",
+                              "type": "string"
                             },
                             "redis": {
-                              "type": "string",
-                              "example": "ok"
+                              "example": "ok",
+                              "type": "string"
                             }
-                          }
+                          },
+                          "type": "object"
+                        },
+                        "status": {
+                          "example": "ok",
+                          "type": "string"
                         }
-                      }
+                      },
+                      "type": "object"
                     }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/auth/oauth/{provider}/redirect": {
-      "get": {
-        "summary": "获取 OAuth2 跳转链接",
-        "tags": [
-          "认证"
-        ],
-        "description": "返回第三方 OAuth2 授权页面跳转 URL，前端应直接跳转",
-        "parameters": [
-          {
-            "name": "provider",
-            "in": "path",
-            "required": true,
-            "description": "OAuth 提供商",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "github",
-                "google"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "成功返回跳转 URL",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "integer",
-                      "example": 200
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "url": {
-                          "type": "string",
-                          "format": "uri",
-                          "example": "https://github.com/login/oauth/authorize?..."
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/auth/oauth/callback": {
-      "post": {
-        "summary": "OAuth2 登录回调",
-        "tags": [
-          "认证"
-        ],
-        "description": "处理第三方 OAuth2 授权码，换取 access token 并完成用户登录",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "code",
-                  "state"
-                ],
-                "properties": {
-                  "code": {
-                    "type": "string",
-                    "description": "第三方返回的授权码"
                   },
-                  "state": {
-                    "type": "string",
-                    "description": "防 CSRF 状态码"
-                  }
+                  "type": "object"
                 }
               }
-            }
+            },
+            "description": "服务正常"
           }
         },
+        "summary": "深度健康检查",
+        "tags": [
+          "系统"
+        ]
+      }
+    },
+    "/metrics": {
+      "get": {
+        "description": "权限码: ``",
         "responses": {
           "200": {
-            "description": "登录成功",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "integer",
-                      "example": 200
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "token": {
-                          "type": "string",
-                          "example": "eyJhbGciOi..."
-                        },
-                        "user": {
-                          "type": "object"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "成功"
           }
-        }
+        },
+        "summary": "获取metrics",
+        "tags": [
+          "System"
+        ]
       }
     }
   },

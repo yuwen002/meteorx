@@ -9,7 +9,7 @@ import (
 )
 
 func newTestOAuthService(cfg config.OAuthConfig) *OAuthService {
-	return NewOAuthService(cfg, nil, nil, nil, nil, nil)
+	return NewOAuthService(cfg, nil, nil, nil, nil, nil, nil)
 }
 
 func TestGetRedirectURL_UnsupportedProvider(t *testing.T) {
@@ -107,7 +107,7 @@ func TestBuildGitHubRedirectURL(t *testing.T) {
 func TestLogin_UnsupportedProvider(t *testing.T) {
 	svc := newTestOAuthService(config.OAuthConfig{})
 
-	_, _, _, _, _, err := svc.Login(nil, "unknown", "code123")
+	_, _, _, _, _, err := svc.Login(nil, "unknown", "code123", "tenant-id")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported provider")
 }
@@ -117,7 +117,7 @@ func TestNewOAuthService(t *testing.T) {
 		Google: config.OAuthProviderConfig{Enabled: true},
 		GitHub: config.OAuthProviderConfig{Enabled: false},
 	}
-	svc := NewOAuthService(cfg, nil, nil, nil, nil, nil)
+	svc := NewOAuthService(cfg, nil, nil, nil, nil, nil, nil)
 	assert.NotNil(t, svc)
 	assert.NotNil(t, svc.cfg)
 }

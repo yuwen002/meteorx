@@ -9,6 +9,7 @@ import (
 	"meteorx/internal/modules/oauth/handler"
 	"meteorx/internal/modules/oauth/service"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
+	tenantRepo "meteorx/internal/modules/tenant/repository"
 	userrepo "meteorx/internal/modules/user/repository"
 )
 
@@ -19,8 +20,9 @@ func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, tokenHelper *jwt.T
 	rRepo := rbacRepo.NewRoleRepository(db)
 	urRepo := rbacRepo.NewUserRoleRepository(db)
 	rpRepo := rbacRepo.NewRolePermissionRepository(db)
+	tRepo := tenantRepo.NewTenantRepository(db)
 
-	svc := service.NewOAuthService(cfg.OAuth, uRepo, rRepo, urRepo, rpRepo, tokenHelper)
+	svc := service.NewOAuthService(cfg.OAuth, uRepo, rRepo, urRepo, rpRepo, tRepo, tokenHelper)
 	h := handler.NewOAuthHandler(svc)
 
 	// 注册路由

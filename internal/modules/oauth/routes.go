@@ -12,5 +12,6 @@ func RegisterRoutes(r chi.Router, h *handler.OAuthHandler) {
 	r.Route("/auth/oauth", func(r chi.Router) {
 		r.Get("/{provider}/redirect", h.GetRedirectURL)
 		r.Post("/callback", h.Callback)
+		r.Get("/tenants", h.GetTenantList)
 	})
 }

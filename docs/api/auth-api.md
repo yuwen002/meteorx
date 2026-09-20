@@ -17,9 +17,9 @@
 | POST | `/auth/logout` | 用户登出 | 需 Token |
 | POST | `/auth/forgot-password` | 忘记密码（发送重置邮件） | 公开 |
 | POST | `/auth/reset-password` | 重置密码（通过邮件令牌） | 公开 |
-
 | GET | `/auth/oauth/:provider/redirect` | 获取 OAuth2 跳转链接 | 公开 |
 | POST | `/auth/oauth/callback` | OAuth2 登录回调 | 公开 |
+| GET | `/auth/oauth/tenants` | 获取可用租户列表（OAuth登录时选择租户） | 公开 |
 
 ---
 
@@ -297,7 +297,38 @@
 - 前端收到 `url` 后直接跳转
 - 跳转后用户授权，第三方平台回调到前端 `OAuthCallback.vue` 页面
 
-### 5.2 OAuth2 登录回调
+### 5.2 获取可用租户列表
+
+`GET /api/v1/auth/oauth/tenants`
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "tenants": [
+      {
+        "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "name": "租户A"
+      },
+      {
+        "id": "02BRZ3NDEKTSV4RRFFQ69G5FBW",
+        "name": "租户B"
+      }
+    ]
+  }
+}
+```
+
+**业务规则：**
+- 仅返回状态为启用（status=1）的租户
+- 用于 OAuth 登录前让用户选择所属租户
+- 无需认证即可访问
+
+---
+
+### 5.3 OAuth2 登录回调
 
 `POST /api/v1/auth/oauth/callback`
 
@@ -306,9 +337,16 @@
 {
   "provider": "google",
   "code": "4/0AX4XfWi...",
-  "state": "random_state_string"
+  "tenant_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 }
 ```
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| provider | string | 是 | OAuth 提供商，支持 `google`、`github` |
+| code | string | 是 | 第三方返回的授权码 |
+| state | string | 否 | 防 CSRF 状态码 |
+| tenant_id | string | 是 | 租户ID（通过 GET /api/v1/auth/oauth/tenants 获取） |
 
 **成功响应（200）：**
 ```json
@@ -328,20 +366,21 @@
       "is_master": false
     },
     "permissions": ["file:list", "user:list"],
-    "is_new": true
+    "is_new_user": true
   }
 }
 ```
 
 **业务规则：**
-- 首次登录自动创建用户（用户名自动生成：`{provider}_{provider_user_id}`）
-- 重复登录匹配已有用户（通过 provider + provider_user_id）
-- 自动分配默认角色
-- 返回 `is_new` 字段标识是否为新注册用户
+- 必须传入 `tenant_id`，否则返回错误
+- 首次登录自动创建用户并关联到指定租户（用户名自动生成：`{provider}_{email前8位}`）
+- 重复登录匹配已有用户（通过邮箱）
+- 自动分配租户默认角色（tenant_user）
+- 返回 `is_new_user` 字段标识是否为新注册用户
 
 **错误响应：**
 | 状态码 | 场景 |
 |--------|------|
-| 400 | 缺少必要参数（provider/code） |
-| 401 | 第三方授权码无效或已过期 |
+| 400 | 缺少必要参数（provider/code/tenant_id） |
+| 401 | 第三方授权码无效或已过期 / 租户不存在或已禁用 |
 | 500 | 服务器内部错误 |

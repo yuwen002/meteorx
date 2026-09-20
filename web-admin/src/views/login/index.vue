@@ -76,6 +76,13 @@
           </el-link>
         </div>
 
+        <div class="register-link">
+          <span>还没有账号？</span>
+          <el-link type="primary" :underline="false" @click="goRegister">
+            立即注册
+          </el-link>
+        </div>
+
         <!-- OAuth2 第三方登录 -->
         <div class="oauth-divider">
           <span>或</span>
@@ -90,6 +97,37 @@
             <span>GitHub 登录</span>
           </div>
         </div>
+
+        <!-- 租户选择对话框 -->
+        <el-dialog
+          v-model="showTenantDialog"
+          title="选择租户"
+          width="400px"
+          :close-on-click-modal="false"
+          :close-on-press-escape="false"
+        >
+          <p class="dialog-tip">请选择您要登录的租户</p>
+          <el-select
+            v-model="selectedTenantId"
+            placeholder="请选择租户"
+            size="large"
+            style="width: 100%"
+            filterable
+          >
+            <el-option
+              v-for="tenant in tenantList"
+              :key="tenant.id"
+              :label="tenant.name"
+              :value="tenant.id"
+            />
+          </el-select>
+          <template #footer>
+            <el-button @click="showTenantDialog = false">取消</el-button>
+            <el-button type="primary" :loading="oauthSubmitting" @click="confirmOAuthLogin">
+              确认登录
+            </el-button>
+          </template>
+        </el-dialog>
 
         <div class="tips">
           <el-icon><InfoFilled /></el-icon>
@@ -107,13 +145,20 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { InfoFilled, Warning, Avatar, OfficeBuilding, Link, Connection } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import { getOAuthRedirectURL, oauthLogin, type LoginParams, type LoginErrorData } from '@/api/auth'
+import { getOAuthRedirectURL, oauthLogin, getOAuthTenants, type LoginParams, type LoginErrorData } from '@/api/auth'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
+
+// OAuth 租户选择相关
+const showTenantDialog = ref(false)
+const oauthSubmitting = ref(false)
+const tenantList = ref<Array<{ id: string; name: string }>>([])
+const selectedTenantId = ref('')
+const currentOAuthProvider = ref('')
 
 type LoginMode = 'admin' | 'tenant'
 const loginMode = ref<LoginMode>('admin')
@@ -189,18 +234,62 @@ async function handleLogin() {
 
 async function handleOAuthLogin(provider: string) {
   try {
-    const res = await getOAuthRedirectURL(provider)
+    // 先获取租户列表
+    const res = await getOAuthTenants()
+    const data = (res as any)?.data || res
+    
+    if (data?.tenants && data.tenants.length > 0) {
+      tenantList.value = data.tenants
+      currentOAuthProvider.value = provider
+      
+      // 如果只有一个租户，直接跳转 OAuth 授权
+      if (data.tenants.length === 1) {
+        selectedTenantId.value = data.tenants[0].id
+        await confirmOAuthLogin()
+      } else {
+        // 多个租户，显示选择对话框
+        selectedTenantId.value = ''
+        showTenantDialog.value = true
+      }
+    } else {
+      ElMessage.error('没有可用的租户，请联系管理员')
+    }
+  } catch (e) {
+    ElMessage.error('获取租户列表失败，请稍后重试')
+  }
+}
+
+async function confirmOAuthLogin() {
+  if (!selectedTenantId.value) {
+    ElMessage.warning('请选择租户')
+    return
+  }
+  
+  oauthSubmitting.value = true
+  try {
+    // 保存租户 ID 到 sessionStorage，OAuth 回调时会用到
+    sessionStorage.setItem('oauth_tenant_id', selectedTenantId.value)
+    
+    // 获取 OAuth 跳转链接
+    const res = await getOAuthRedirectURL(currentOAuthProvider.value)
     const data = (res as any)?.data || res
     if (data?.url) {
       window.location.href = data.url
+      showTenantDialog.value = false
     }
   } catch (e) {
     ElMessage.error('OAuth 登录失败，请稍后重试')
+  } finally {
+    oauthSubmitting.value = false
   }
 }
 
 function goForgotPassword() {
   router.push('/forgot-password')
+}
+
+function goRegister() {
+  router.push('/register')
 }
 </script>
 
@@ -274,6 +363,15 @@ function goForgotPassword() {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 8px;
+}
+.register-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #666;
 }
 .tips {
   display: flex;
@@ -371,5 +469,12 @@ function goForgotPassword() {
 }
 .oauth-github:hover {
   background: #f6f8fa;
+}
+
+.dialog-tip {
+  color: #666;
+  font-size: 14px;
+  margin: 0 0 16px;
+  text-align: center;
 }
 </style>

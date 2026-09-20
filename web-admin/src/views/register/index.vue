@@ -15,9 +15,9 @@
       >
         <el-divider content-position="left">租户信息</el-divider>
 
-        <el-form-item label="租户名称" prop="tenant_name">
+        <el-form-item label="租户名称" prop="name">
           <el-input
-            v-model="form.tenant_name"
+            v-model="form.name"
             placeholder="请输入租户名称（企业/团队名称）"
             prefix-icon="OfficeBuilding"
             clearable
@@ -36,6 +36,16 @@
             <template #append>.meteorx.com</template>
           </el-input>
           <div class="form-tip">用于生成您的专属访问域名，如：your-domain.meteorx.com</div>
+        </el-form-item>
+
+        <el-form-item label="联系邮箱" prop="contact_email">
+          <el-input
+            v-model="form.contact_email"
+            placeholder="请输入联系邮箱（选填）"
+            prefix-icon="Message"
+            clearable
+            size="large"
+          />
         </el-form-item>
 
         <el-divider content-position="left">管理员信息</el-divider>
@@ -127,8 +137,10 @@ const formRef = ref<FormInstance>()
 const loading = ref(false)
 
 const form = reactive({
-  tenant_name: '',
+  name: '',
   domain: '',
+  description: '',
+  contact_email: '',
   username: '',
   nickname: '',
   email: '',
@@ -154,7 +166,7 @@ const validateDomain = (_rule: any, value: string, callback: any) => {
 }
 
 const formRules: FormRules = {
-  tenant_name: [
+  name: [
     { required: true, message: '请输入租户名称', trigger: 'blur' },
     { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' },
   ],
@@ -191,7 +203,18 @@ const handleRegister = async () => {
     await formRef.value.validate()
     loading.value = true
 
-    const { confirm_password, ...registerData } = form
+    const registerData = {
+      name: form.name,
+      domain: form.domain,
+      description: '',
+      contact_email: form.contact_email,
+      admin_user: {
+        username: form.username,
+        password: form.password,
+        nickname: form.nickname,
+        email: form.email,
+      },
+    }
     await register(registerData)
 
     ElMessage.success('注册成功，请登录')

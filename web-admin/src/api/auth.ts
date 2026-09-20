@@ -75,7 +75,42 @@ export function getOAuthRedirectURL(provider: string) {
   return get<OAuthRedirectResult>(`/auth/oauth/${provider}/redirect`)
 }
 
+export interface RegisterParams {
+  name: string
+  domain: string
+  description?: string
+  contact_email?: string
+  admin_user: {
+    username: string
+    password: string
+    nickname: string
+    email: string
+  }
+}
+
+export interface RegisterResult {
+  id: string
+  name: string
+  domain: string
+  admin_user: {
+    id: string
+    username: string
+    nickname: string
+    email: string
+  }
+}
+
+// 用户注册（租户自助注册）
+export function register(data: RegisterParams) {
+  return post<RegisterResult>('/tenants/register', data)
+}
+
+// OAuth2 获取租户列表
+export function getOAuthTenants() {
+  return get<{ tenants: Array<{ id: string; name: string }> }>('/auth/oauth/tenants')
+}
+
 // OAuth2 登录回调
-export function oauthLogin(provider: string, code: string, state?: string) {
-  return post<OAuthLoginResult>('/auth/oauth/callback', { provider, code, state })
+export function oauthLogin(provider: string, code: string, tenant_id: string, state?: string) {
+  return post<OAuthLoginResult>('/auth/oauth/callback', { provider, code, tenant_id, state })
 }

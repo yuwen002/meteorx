@@ -28,6 +28,7 @@
 ### 其他文档
 - [项目结构说明](project-structure.md)
 - [IP 数据库下载说明](ip2region-download.md)
+- [OpenAPI 同步工具说明](openapi-sync.md)
 - [设计文档](DESIGN.md)
 - [功能升级记录](FEATURE_UPGRADE.md)
 

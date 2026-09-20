@@ -14,6 +14,7 @@ import (
 	"meteorx/internal/config"
 	"meteorx/internal/modules/oauth/dto"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
+	tenantRepo "meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/user/model"
 	"meteorx/internal/modules/user/repository"
 	"meteorx/pkg/idgen"
@@ -33,6 +34,7 @@ type OAuthService struct {
 	roleRepo           rbacRepo.RoleRepository
 	userRoleRepo       rbacRepo.UserRoleRepository
 	rolePermissionRepo rbacRepo.RolePermissionRepository
+	tenantRepo         tenantRepo.TenantRepository
 	tokenHelper        *jwt.TokenHelper
 }
 
@@ -43,6 +45,7 @@ func NewOAuthService(
 	roleRepo rbacRepo.RoleRepository,
 	userRoleRepo rbacRepo.UserRoleRepository,
 	rolePermissionRepo rbacRepo.RolePermissionRepository,
+	tenantRepo tenantRepo.TenantRepository,
 	tokenHelper *jwt.TokenHelper,
 ) *OAuthService {
 	return &OAuthService{
@@ -51,6 +54,7 @@ func NewOAuthService(
 		roleRepo:           roleRepo,
 		userRoleRepo:       userRoleRepo,
 		rolePermissionRepo: rolePermissionRepo,
+		tenantRepo:         tenantRepo,
 		tokenHelper:        tokenHelper,
 	}
 }
@@ -74,7 +78,7 @@ func (s *OAuthService) GetRedirectURL(provider string) (string, error) {
 }
 
 // Login 通过 OAuth2 授权码登录
-func (s *OAuthService) Login(ctx context.Context, provider, code string) (*model.User, []string, []string, string, bool, error) {
+func (s *OAuthService) Login(ctx context.Context, provider, code, tenantID string) (*model.User, []string, []string, string, bool, error) {
 	var userInfo *dto.OAuthUserInfo
 	var err error
 
@@ -92,7 +96,7 @@ func (s *OAuthService) Login(ctx context.Context, provider, code string) (*model
 	}
 
 	// 查找或创建用户
-	user, isNew, err := s.findOrCreateUser(ctx, userInfo)
+	user, isNew, err := s.findOrCreateUser(ctx, userInfo, tenantID)
 	if err != nil {
 		return nil, nil, nil, "", false, err
 	}
@@ -132,7 +136,20 @@ func (s *OAuthService) Login(ctx context.Context, provider, code string) (*model
 }
 
 // findOrCreateUser 查找已关联的 OAuth 用户，或创建新用户
-func (s *OAuthService) findOrCreateUser(ctx context.Context, info *dto.OAuthUserInfo) (*model.User, bool, error) {
+func (s *OAuthService) findOrCreateUser(ctx context.Context, info *dto.OAuthUserInfo, tenantID string) (*model.User, bool, error) {
+	// 验证租户是否存在且已启用
+	if tenantID == "" {
+		return nil, false, errors.New("tenant_id is required")
+	}
+	
+	tenant, err := s.tenantRepo.GetByID(ctx, tenantID)
+	if err != nil {
+		return nil, false, fmt.Errorf("invalid tenant_id: %w", err)
+	}
+	if tenant == nil || tenant.Status != 1 {
+		return nil, false, errors.New("tenant not found or disabled")
+	}
+
 	// 先尝试通过邮箱查找用户
 	user, err := s.userRepo.GetByEmail(ctx, info.Email)
 	if err == nil && user != nil {
@@ -146,7 +163,7 @@ func (s *OAuthService) findOrCreateUser(ctx context.Context, info *dto.OAuthUser
 
 	newUser := &model.User{
 		ID:       userID,
-		TenantID: "default", // 默认租户
+		TenantID: tenantID,
 		Username: fmt.Sprintf("%s_%s", info.Provider, strings.ToLower(info.Email[:min(8, len(info.Email))])),
 		Password: "", // OAuth 用户无需密码
 		Nickname: info.Name,
@@ -167,7 +184,7 @@ func (s *OAuthService) findOrCreateUser(ctx context.Context, info *dto.OAuthUser
 
 	// 分配默认角色
 	defaultRole := "tenant_user"
-	role, err := s.roleRepo.GetByCode(ctx, "", defaultRole)
+	role, err := s.roleRepo.GetByCode(ctx, tenantID, defaultRole)
 	if err == nil && role != nil {
 		_ = s.userRoleRepo.AssignRoles(ctx, newUser.ID, []string{role.ID})
 	}
@@ -382,4 +399,22 @@ func (s *OAuthService) fetchGitHubPrimaryEmail(ctx context.Context, accessToken 
 		return emails[0].Email
 	}
 	return ""
+}
+
+// GetTenantList 获取所有启用的租户列表（用于 OAuth 登录时选择租户）
+func (s *OAuthService) GetTenantList(ctx context.Context) ([]dto.TenantOption, error) {
+	tenants, err := s.tenantRepo.ListActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tenants: %w", err)
+	}
+
+	options := make([]dto.TenantOption, 0, len(tenants))
+	for _, t := range tenants {
+		options = append(options, dto.TenantOption{
+			ID:   t.ID,
+			Name: t.Name,
+		})
+	}
+
+	return options, nil
 }

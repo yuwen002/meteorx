@@ -52,4 +52,6 @@ type TenantRepository interface {
 	FindCancelRequests(ctx context.Context, page, pageSize int, status int, keyword string) ([]*model.CancelRequest, int64, error)
 	// FindApprovedDueCancelRequests 查询所有已到期可执行的注销申请
 	FindApprovedDueCancelRequests(ctx context.Context, now time.Time) ([]*model.CancelRequest, error)
+	// ListActive 查询所有启用状态的租户列表（用于 OAuth 登录时选择租户）
+	ListActive(ctx context.Context) ([]*model.Tenant, error)
 }

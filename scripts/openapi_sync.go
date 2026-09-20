@@ -100,7 +100,7 @@ func main() {
 		}
 	}
 	for key := range openapiSet {
-		if !codeSet[key] {
+		if _, exists := codeSet[key]; !exists {
 			extraKeys = append(extraKeys, key)
 		}
 	}

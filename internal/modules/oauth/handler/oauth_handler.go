@@ -16,7 +16,8 @@ import (
 // OAuthService OAuth2 服务接口
 type OAuthService interface {
 	GetRedirectURL(provider string) (string, error)
-	Login(ctx context.Context, provider, code string) (*userModel.User, []string, []string, string, bool, error)
+	Login(ctx context.Context, provider, code, tenantID string) (*userModel.User, []string, []string, string, bool, error)
+	GetTenantList(ctx context.Context) ([]dto.TenantOption, error)
 }
 
 // OAuthHandler OAuth2 处理器
@@ -59,7 +60,7 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, _, permCodes, token, isNew, err := h.svc.Login(r.Context(), req.Provider, req.Code)
+	user, _, permCodes, token, isNew, err := h.svc.Login(r.Context(), req.Provider, req.Code, req.TenantID)
 	if err != nil {
 		response.Fail(w, http.StatusUnauthorized, "OAuth 登录失败: "+err.Error())
 		return
@@ -74,4 +75,16 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, loginResp)
+}
+
+// GetTenantList 获取租户列表（用于 OAuth 登录时选择租户）
+// GET /api/v1/auth/oauth/tenants
+func (h *OAuthHandler) GetTenantList(w http.ResponseWriter, r *http.Request) {
+	tenants, err := h.svc.GetTenantList(r.Context())
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取租户列表失败: "+err.Error())
+		return
+	}
+
+	response.Success(w, dto.TenantListResponse{Tenants: tenants})
 }
