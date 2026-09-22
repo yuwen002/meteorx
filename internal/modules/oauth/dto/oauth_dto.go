@@ -5,7 +5,7 @@ type OAuthLoginRequest struct {
 	Provider string `json:"provider" validate:"required,oneof=google github"` // 提供商
 	Code     string `json:"code" validate:"required"`                         // 授权码
 	State    string `json:"state,omitempty"`                                  // CSRF 状态码
-	TenantID string `json:"tenant_id,omitempty"`                              // 租户ID（OAuth登录时选择租户）
+	TenantID string `json:"tenant_id" validate:"required"`                    // 租户ID（OAuth登录时选择租户）
 }
 
 // OAuthRedirectResponse OAuth2 跳转链接响应

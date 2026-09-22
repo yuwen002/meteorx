@@ -12,7 +12,8 @@
 
 | 方法 | 路径 | 功能 | 认证 |
 |------|------|------|------|
-| POST | `/auth/register` | 用户注册（含租户创建） | 公开 |
+| POST | `/auth/register` | 用户注册（加入已有租户） | 公开 |
+| POST | `/tenants/register` | 租户注册（创建新租户） | 公开 |
 | POST | `/auth/login` | 用户登录 | 公开 |
 | POST | `/auth/logout` | 用户登出 | 需 Token |
 | POST | `/auth/forgot-password` | 忘记密码（发送重置邮件） | 公开 |
@@ -25,7 +26,7 @@
 
 ## 2. 数据结构
 
-### 2.1 RegisterUserReq（注册请求）
+### 2.1 RegisterUserReq（用户注册请求）
 
 | 字段 | 类型 | 必填 | 校验规则 | 说明 |
 |------|------|------|----------|------|
@@ -35,7 +36,25 @@
 | nickname | string | 是 | - | 昵称 |
 | email | string | 是 | 邮箱格式 | 邮箱 |
 
-### 2.2 LoginReq（登录请求）
+### 2.2 RegisterTenantReq（租户注册请求）
+
+| 字段 | 类型 | 必填 | 校验规则 | 说明 |
+|------|------|------|----------|------|
+| name | string | 是 | 2-50 字符 | 租户名称 |
+| domain | string | 是 | 小写字母/数字/连字符 | 租户域名标识 |
+| contact_email | string | 否 | 邮箱格式 | 联系邮箱 |
+| admin_user | object | 是 | - | 管理员信息（见 2.3） |
+
+### 2.3 AdminUserInfo（管理员信息）
+
+| 字段 | 类型 | 必填 | 校验规则 | 说明 |
+|------|------|------|----------|------|
+| username | string | 是 | 4-20 字符 | 管理员用户名 |
+| password | string | 是 | 6-32 字符 | 管理员密码 |
+| nickname | string | 是 | - | 管理员昵称 |
+| email | string | 是 | 邮箱格式 | 管理员邮箱 |
+
+### 2.4 LoginReq（登录请求）
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -43,7 +62,7 @@
 | username | string | 是 | 用户名 |
 | password | string | 是 | 密码 |
 
-### 2.3 LoginResp（登录成功响应）
+### 2.5 LoginResp（登录成功响应）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -51,7 +70,7 @@
 | user | UserResp | 用户信息（参见用户模块） |
 | permissions | []string | 用户拥有的所有权限码列表（前端用于按钮/菜单权限控制） |
 
-### 2.4 LoginErrorResp（登录失败响应）
+### 2.6 LoginErrorResp（登录失败响应）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -60,13 +79,13 @@
 | locked | bool | 账户是否已锁定 |
 | lockout_duration | int64 | 锁定剩余时间（秒） |
 
-### 2.5 ForgotPasswordReq（忘记密码请求）
+### 2.7 ForgotPasswordReq（忘记密码请求）
 
 | 字段 | 类型 | 必填 | 校验规则 | 说明 |
 |------|------|------|----------|------|
 | email | string | 是 | 邮箱格式 | 用户注册时使用的邮箱 |
 
-### 2.6 ResetPasswordReq（重置密码请求）
+### 2.8 ResetPasswordReq（重置密码请求）
 
 | 字段 | 类型 | 必填 | 校验规则 | 说明 |
 |------|------|------|----------|------|
@@ -117,6 +136,65 @@
 |--------|------|
 | 400 | 参数校验失败 |
 | 409 | 用户名已存在 |
+| 500 | 服务器内部错误 |
+
+---
+
+### 3.1.1 租户注册
+
+`POST /api/v1/tenants/register`
+
+**请求体：**
+```json
+{
+  "name": "示例公司",
+  "domain": "example-corp",
+  "contact_email": "admin@example.com",
+  "admin_user": {
+    "username": "admin",
+    "password": "123456",
+    "nickname": "管理员",
+    "email": "admin@example.com"
+  }
+}
+```
+
+**业务规则：**
+- 租户名称 2-50 字符
+- 域名标识仅允许小写字母、数字、连字符
+- 域名全局唯一
+- 管理员用户名 4-20 字符
+- 密码 6-32 字符
+- 邮箱格式校验
+- 注册成功后自动创建租户和初始管理员账号
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "tenant": {
+      "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "name": "示例公司",
+      "domain": "example-corp",
+      "status": 1
+    },
+    "admin_user": {
+      "id": "02BRZ3NDEKTSV4RRFFQ69G5FBW",
+      "username": "admin",
+      "nickname": "管理员",
+      "email": "admin@example.com"
+    }
+  }
+}
+```
+
+**错误响应：**
+| 状态码 | 场景 |
+|--------|------|
+| 400 | 参数校验失败 |
+| 409 | 域名已存在 |
 | 500 | 服务器内部错误 |
 
 ---
@@ -375,7 +453,7 @@
 - 必须传入 `tenant_id`，否则返回错误
 - 首次登录自动创建用户并关联到指定租户（用户名自动生成：`{provider}_{email前8位}`）
 - 重复登录匹配已有用户（通过邮箱）
-- 自动分配租户默认角色（tenant_user）
+- 自动分配租户默认角色（tenant_admin）
 - 返回 `is_new_user` 字段标识是否为新注册用户
 
 **错误响应：**
