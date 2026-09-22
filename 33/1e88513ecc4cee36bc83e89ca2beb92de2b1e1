@@ -1,0 +1,16 @@
+docs/api/auth-api.md
+  h_a3f313f3d96276 15-16,29,39-57,65,73,82,88,143-201,456
+internal/modules/oauth/dto/oauth_dto.go
+  h_a3f313f3d96276 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "331e88513ecc4cee36bc83e89ca2beb92de2b1e1",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
