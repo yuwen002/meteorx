@@ -1,0 +1,18 @@
+web-admin/src/api/modules/user.ts
+  h_a3f313f3d96276 78,98
+internal/modules/user/dto/user_dto.go
+  h_a3f313f3d96276 3,9,37,60
+internal/modules/user/service/mock_repositories_test.go
+  h_a3f313f3d96276 276-279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "de00741723b7c1353c384e38ebde62fbe8f01e01",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
