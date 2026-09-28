@@ -58,6 +58,9 @@ func LoadConfig() (*config.Config, error) {
 		{"search.host", "METEORX_SEARCH_HOST"},
 		{"search.api_key", "METEORX_SEARCH_API_KEY"},
 		{"search.index_prefix", "METEORX_SEARCH_INDEX_PREFIX"},
+		// OAuth
+		{"oauth.refresh_token_ttl", "METEORX_OAUTH_REFRESH_TOKEN_TTL"},
+		{"oauth.state_ttl", "METEORX_OAUTH_STATE_TTL"},
 	}
 	for _, b := range envBindings {
 		if err := mustBindEnv(v, b.key, b.env); err != nil {

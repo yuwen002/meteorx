@@ -70,8 +70,26 @@ type OTelConfig struct {
 
 // OAuthConfig OAuth2 登录配置
 type OAuthConfig struct {
-	Google  OAuthProviderConfig `mapstructure:"google"`
-	GitHub  OAuthProviderConfig `mapstructure:"github"`
+	Google          OAuthProviderConfig `mapstructure:"google"`
+	GitHub          OAuthProviderConfig `mapstructure:"github"`
+	RefreshTokenTTL time.Duration      `mapstructure:"refresh_token_ttl"`
+	StateTTL        time.Duration      `mapstructure:"state_ttl"`
+}
+
+// GetRefreshTokenTTL 返回刷新令牌有效期，未配置时默认 7 天
+func (c OAuthConfig) GetRefreshTokenTTL() time.Duration {
+	if c.RefreshTokenTTL > 0 {
+		return c.RefreshTokenTTL
+	}
+	return 7 * 24 * time.Hour
+}
+
+// GetStateTTL 返回 CSRF state 有效期，未配置时默认 10 分钟
+func (c OAuthConfig) GetStateTTL() time.Duration {
+	if c.StateTTL > 0 {
+		return c.StateTTL
+	}
+	return 10 * time.Minute
 }
 
 // OAuthProviderConfig OAuth2 提供商配置

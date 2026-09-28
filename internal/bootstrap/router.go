@@ -134,7 +134,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			tenant.InitPublicModule(r, db)
 
 			// 3. OAuth2 第三方登录（免登录，公开接口）
-			oauth.InitModule(r, db, *cfg, tokenHelper)
+			oauth.InitModule(r, db, *cfg, tokenHelper, rdb)
 
 			// 4. Wiki 文档公开分享（免登录，凭 token/密码访问）
 			wiki.RegisterPublicShareRoute(r, db, txManager, cfg)
@@ -177,16 +177,19 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 4.1 当前用户个人信息接口
 			user.InitProfileModule(r, db)
 
-			// 4.2 租户侧当前套餐查询
+			// 4.2 OAuth2 账号管理（需登录：查看绑定、解绑、绑定新账号）
+			oauth.InitProtectedModule(r, db, *cfg, tokenHelper, rdb)
+
+			// 4.3 租户侧当前套餐查询
 			plan.InitPrivateModule(r, db)
 
-			// 4.3 文件管理接口
+			// 4.4 文件管理接口
 			file.RegisterRoutes(r, db, cfg)
 
-			// 4.4 Wiki 知识库接口
+			// 4.5 Wiki 知识库接口
 			wiki.InitModule(r, db, txManager, cfg)
 
-			// 4.5 租户端公告查看接口
+			// 4.6 租户端公告查看接口
 			notification.InitTenantModule(r, db)
 
 			// ========================================================

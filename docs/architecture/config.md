@@ -81,6 +81,20 @@ email:
 
 client:
   base_url: http://localhost:5173
+
+oauth:
+  refresh_token_ttl: 168h    # 刷新令牌有效期，默认 168h（7 天）
+  state_ttl: 10m             # CSRF state 有效期，默认 10m
+  google:
+    enabled: false
+    client_id: ""
+    client_secret: ""
+    redirect_url: "http://localhost:5173/auth/google/callback"
+  github:
+    enabled: false
+    client_id: ""
+    client_secret: ""
+    redirect_url: "http://localhost:5173/auth/github/callback"
 ```
 
 ### 环境变量覆盖
@@ -92,6 +106,8 @@ METEORX_DATABASE_PASSWORD=prod_secret
 METEORX_REDIS_PASSWORD=redis_secret
 METEORX_JWT_SECRET=production_jwt_secret
 METEORX_EMAIL_ENABLED=true
+METEORX_OAUTH_REFRESH_TOKEN_TTL=72h
+METEORX_OAUTH_STATE_TTL=5m
 ```
 
 ### 加载优先级
@@ -299,6 +315,8 @@ func InitRedis(cfg *config.Config) (*redis.Client, error) {
 | 权限缓存 | 每次请求查数据库 | Redis 缓存 + TTL |
 | 会话存储 | 仅 JWT | JWT + Redis 黑名单 |
 | 登录锁定追踪 | 内存 | Redis 共享 |
+| OAuth CSRF state | 跳过校验（不安全） | Redis 存储 + TTL（`oauth.state_ttl`） |
+| OAuth 刷新令牌 | 不支持 | Redis 存储 + 轮转（`oauth.refresh_token_ttl`） |
 
 ### 数据库启动失败策略
 

@@ -113,6 +113,8 @@ ip_location:
 
 # OAuth2 第三方登录配置
 oauth:
+  refresh_token_ttl: 168h    # 刷新令牌有效期，默认 168h（7 天）；改短可增强安全性
+  state_ttl: 10m             # CSRF state 有效期，默认 10m；一般无需修改
   google:
     enabled: false
     client_id: ""
