@@ -1,0 +1,26 @@
+web-admin/src/api/auth.ts
+  h_a3f313f3d96276 141-169
+web-admin/src/views/profile/index.vue
+  h_a3f313f3d96276 125-170,242-243,245-247,250-256,334,338,489-540,583,608-609,612,614,638,677-699,701-733
+web-admin/src/api/modules/audit.ts
+  h_a3f313f3d96276 211-232
+web-admin/src/views/login/OAuthCallback.vue
+  h_a3f313f3d96276 48,83-98
+scripts/openapi_sync.go
+  h_a3f313f3d96276 252-277
+internal/modules/oauth/handler/oauth_handler.go
+  h_a3f313f3d96276 17,28,33,38-39,60-61,94-95,106-107,124-125,150-151,180-181
+web-admin/src/views/system/audit/alert.vue
+  h_a3f313f3d96276 39,51-52,59-101,106,308,392-401,403-407,409-437,442,695-782
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "11063c8c9e6bb0da121a1b5e7638c65baeb3153b",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
