@@ -273,6 +273,10 @@ func (m *mockTenantRepo) FindApprovedDueCancelRequests(_ context.Context, _ time
 	return nil, nil
 }
 
+func (m *mockTenantRepo) ListActive(_ context.Context) ([]*tenantModel.Tenant, error) {
+	return nil, nil
+}
+
 var _ tenantRepo.TenantRepository = (*mockTenantRepo)(nil)
 
 // ---------- 内存 mock：RoleRepository ----------

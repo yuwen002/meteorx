@@ -75,7 +75,7 @@ export function getUserList(params: UserListParams) {
 
 // 用户详情
 export function getUserDetail(id: string) {
-  return get<UserItem>(`/users/${id}`)
+  return get<UserItem>(`/users/${id}/detail`)
 }
 
 // 创建用户
@@ -95,7 +95,7 @@ export function resetUserPassword(id: string, data: { new_password: string; conf
 
 // 删除用户
 export function deleteUser(id: string) {
-  return del(`/users/${id}`)
+  return del(`/users/${id}/delete`)
 }
 
 // ==================== 个人中心接口 ====================

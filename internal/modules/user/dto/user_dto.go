@@ -1,11 +1,12 @@
 package dto
 
-// UserListResp 如果你以后需要用户列表的分页显示，也可以在这里预留
+// UserListResp 用户列表分页响应
 type UserListResp struct {
 	Items []*UserResp `json:"items"`
 	Total int64       `json:"total"`
 }
 
+// CreateUserReq 创建租户用户请求
 type CreateUserReq struct {
 	Username string   `json:"username" validate:"required,alphanum,min=4,max=50"`
 	Password string   `json:"password" validate:"required,min=6,max=32"`
@@ -33,6 +34,7 @@ type AdminCreateTenantUserReq struct {
 	RoleIDs  []string `json:"role_ids" validate:"required,min=1" label:"角色"` // 角色ID列表
 }
 
+// UpdateUserReq 更新租户用户请求
 type UpdateUserReq struct {
 	Nickname string   `json:"nickname,omitempty" validate:"max=50"`
 	Email    string   `json:"email,omitempty" validate:"omitempty,email"`
@@ -55,6 +57,7 @@ type UserRoleInfo struct {
 	Code string `json:"code"`
 }
 
+// UserResp 用户信息响应
 type UserResp struct {
 	ID         string         `json:"id"`
 	TenantID   string         `json:"tenant_id"`
