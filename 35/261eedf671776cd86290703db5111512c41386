@@ -1,0 +1,56 @@
+.env.example
+  h_a3f313f3d96276 67-70
+internal/modules/oauth/service/oauth_service.go
+  h_a3f313f3d96276 43,56,81,90,99,107,119,129,147,152,182,236,267,285,304,313,349,355,373,399
+internal/middleware/auth_test.go
+  h_a3f313f3d96276 30,115
+internal/modules/wiki/repository/wiki_repository_extended.go
+  h_a3f313f3d96276 16,89,94,101,106,115,123,134,139,150,155,162,171,179,194,204,213,455
+docs/architecture/config.md
+  h_a3f313f3d96276 324
+internal/modules/auth/routes.go
+  h_a3f313f3d96276 18-25
+internal/bootstrap/config.go
+  h_a3f313f3d96276 64-65
+internal/modules/auth/dto/api_token_dto.go
+  h_a3f313f3d96276 5,11,20,30
+internal/modules/auth/module.go
+  h_a3f313f3d96276 11-12,30-43
+internal/config/config.go
+  h_a3f313f3d96276 20,96-108
+internal/modules/auth/service/api_token_service.go
+  h_a3f313f3d96276 19,40,43,50,53,69,122,136,157,188,193,208,232,253,270,279,285,290,296
+internal/modules/tenant/repository/cancel_request_repository.go
+  h_a3f313f3d96276 5,101
+internal/bootstrap/router.go
+  h_a3f313f3d96276 24-25,32,150,152-154,189-192,195,198,201
+internal/modules/auth/service/auth_service.go
+  h_a3f313f3d96276 50,65,87,146,268,282,288,310,321,329,359
+internal/modules/plan/repository/plan_repository.go
+  h_a3f313f3d96276 7,91,115,120,139,148,153-154,162,189,194,223,236,249,254,262-263,271,292,297,313
+pkg/security/login_lockout.go
+  h_a3f313f3d96276 1,6,43,54-55,64-65,85-86,95-96,103,111-112,119,126-127
+internal/modules/oauth/routes.go
+  h_a3f313f3d96276 9,12-15,19,21-23
+internal/modules/auth/handler/api_token_handler.go
+  h_a3f313f3d96276 4,15,22,27,32-33,63-64,81-82
+internal/config/config.yaml
+  h_a3f313f3d96276 129-132
+internal/middleware/auth.go
+  h_a3f313f3d96276 5,14,19-27,44,50,55,68,71-86,89-91,95,98,114-115,122-123
+pkg/security/rate_limiter.go
+  h_a3f313f3d96276 1,6,33,38-39,53-54,69-70
+docs/api/auth-api.md
+  h_a3f313f3d96276 28-30,352,620,622,624,626,628,630,632,634,636,644-647,649,664,666-670,672-678,680,682,684,686,688,715,717,719,721,723,725,732-734,736,745-748,750-755,757,759,761,770-776,778-786
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "35261eedf671776cd86290703db5111512c41386",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
