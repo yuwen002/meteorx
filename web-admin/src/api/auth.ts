@@ -138,6 +138,35 @@ export function oauthLogin(provider: string, code: string, tenant_id: string, st
   return post<OAuthLoginResult>('/auth/oauth/callback', { provider, code, tenant_id, state })
 }
 
+// ========== OAuth 账号管理 ==========
+
+export interface OAuthAccountItem {
+  id: string
+  provider: string
+  email: string
+  created_at: string
+}
+
+// 查看已绑定的第三方账号列表
+export function listOAuthAccounts() {
+  return get<{ accounts: OAuthAccountItem[] }>('/auth/oauth/accounts')
+}
+
+// 绑定第三方账号
+export function bindOAuth(provider: string, code: string, state: string) {
+  return post('/auth/oauth/bind', { provider, code, state })
+}
+
+// 解绑第三方账号
+export function unbindOAuth(provider: string) {
+  return post('/auth/oauth/unbind', { provider })
+}
+
+// 刷新 OAuth Token
+export function refreshOAuthToken(refresh_token: string) {
+  return post<{ token: string; refresh_token: string }>('/auth/oauth/token/refresh', { refresh_token })
+}
+
 // ========== API Token 管理 ==========
 
 export interface CreateAPITokenParams {

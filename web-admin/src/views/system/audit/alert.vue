@@ -36,7 +36,7 @@
             </div>
             <div class="stat-info">
               <div class="stat-label">今日告警</div>
-              <div class="stat-value">{{ todayAlertsCount }}</div>
+              <div class="stat-value">{{ alertStats.today_alerts }}</div>
             </div>
           </div>
         </el-card>
@@ -48,9 +48,57 @@
               <el-icon><Message /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">已通知</div>
-              <div class="stat-value">{{ notifiedAlertsCount }}</div>
+              <div class="stat-label">已通知 / 待处理</div>
+              <div class="stat-value">{{ alertStats.notified_count }} / {{ alertStats.pending_count }}</div>
             </div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 告警趋势 + 风险分布 -->
+    <el-row :gutter="16" class="charts-row">
+      <el-col :span="16">
+        <el-card shadow="hover" class="chart-card">
+          <template #header>
+            <div class="chart-header">
+              <span>告警趋势（近{{ statsDays }}天）</span>
+              <el-radio-group v-model="statsDays" size="small" @change="loadAlertStats">
+                <el-radio-button :label="7">7天</el-radio-button>
+                <el-radio-button :label="14">14天</el-radio-button>
+                <el-radio-button :label="30">30天</el-radio-button>
+              </el-radio-group>
+            </div>
+          </template>
+          <div class="trend-chart">
+            <div class="trend-y-axis">
+              <span class="y-max">{{ trendMax }}</span>
+              <span class="y-mid">{{ Math.round(trendMax / 2) }}</span>
+              <span class="y-min">0</span>
+            </div>
+            <div class="trend-bars">
+              <div v-for="point in alertStats.trend" :key="point.date" class="trend-bar-item">
+                <div class="bar" :style="{ height: trendBarHeight(point.count) }"></div>
+                <div class="label">{{ point.date.slice(5) }}</div>
+              </div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="8">
+        <el-card shadow="hover" class="chart-card">
+          <template #header><span>风险等级分布</span></template>
+          <div class="risk-dist">
+            <div v-for="(count, level) in alertStats.risk_level_stats" :key="level" class="risk-item">
+              <span class="risk-label">{{ getRiskLevelLabel(level) }}</span>
+              <el-progress
+                :percentage="riskPercentage(count)"
+                :stroke-width="18"
+                :color="getRiskColor(level)"
+              />
+              <span class="risk-count">{{ count }}</span>
+            </div>
+            <el-empty v-if="Object.keys(alertStats.risk_level_stats).length === 0" description="暂无数据" :image-size="40" />
           </div>
         </el-card>
       </el-col>
@@ -257,6 +305,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Bell, CircleCheck, Warning, Message, Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { get, post, put, del } from '@/api/request'
+import { getAlertStats, type AlertStatsResult } from '@/api/modules/audit'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
 
@@ -340,15 +389,57 @@ const ruleForm = reactive({
 })
 
 const enabledRulesCount = computed(() => rules.value.filter(r => r.enabled).length)
-const todayAlertsCount = computed(() => {
-  const today = new Date().toISOString().slice(0, 10)
-  return alerts.value.filter(a => a.created_at.startsWith(today)).length
+
+const alertStats = reactive<AlertStatsResult>({
+  total_alerts: 0,
+  today_alerts: 0,
+  notified_count: 0,
+  pending_count: 0,
+  risk_level_stats: {},
+  rule_stats: {},
+  trend: [],
+  top_rules: []
 })
-const notifiedAlertsCount = computed(() => alerts.value.filter(a => a.notified).length)
+const statsDays = ref(7)
+
+const trendMax = computed(() => {
+  const max = Math.max(...alertStats.trend.map(p => p.count), 0)
+  return max || 1
+})
+
+function trendBarHeight(count: number): string {
+  const pct = (count / trendMax.value) * 100
+  return `${Math.max(pct, 0)}%`
+}
+
+function riskPercentage(count: number): number {
+  const total = alertStats.total_alerts || 1
+  return Math.round((count / total) * 100)
+}
+
+function getRiskColor(level: string): string {
+  const map: Record<string, string> = {
+    low: '#52c41a',
+    medium: '#faad14',
+    high: '#ff4d4f',
+    critical: '#cf1322'
+  }
+  return map[level] || '#1890ff'
+}
+
+async function loadAlertStats() {
+  try {
+    const data = await getAlertStats(statsDays.value)
+    Object.assign(alertStats, data)
+  } catch (e) {
+    console.error('加载告警统计失败', e)
+  }
+}
 
 onMounted(() => {
   loadRules()
   loadAlerts()
+  loadAlertStats()
 })
 
 async function loadRules() {
@@ -600,5 +691,93 @@ function getRiskLevelLabel(level: string): string {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+.charts-row {
+  margin-bottom: 16px;
+}
+
+.chart-card {
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+.trend-chart {
+  display: flex;
+  height: 200px;
+  gap: 8px;
+
+  .trend-y-axis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    text-align: right;
+    font-size: 12px;
+    color: #8c8c8c;
+    padding: 4px 0;
+    min-width: 32px;
+  }
+
+  .trend-bars {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    padding-bottom: 24px;
+    position: relative;
+  }
+
+  .trend-bar-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    justify-content: flex-end;
+
+    .bar {
+      width: 100%;
+      max-width: 40px;
+      background: linear-gradient(180deg, #ff4d4f, #ff7875);
+      border-radius: 4px 4px 0 0;
+      transition: height 0.3s;
+    }
+
+    .label {
+      font-size: 11px;
+      color: #8c8c8c;
+      margin-top: 4px;
+      white-space: nowrap;
+    }
+  }
+}
+
+.risk-dist {
+  .risk-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+
+    .risk-label {
+      width: 36px;
+      font-size: 13px;
+      color: #595959;
+    }
+
+    .risk-count {
+      font-size: 13px;
+      color: #8c8c8c;
+      min-width: 32px;
+      text-align: right;
+    }
+
+    .el-progress {
+      flex: 1;
+    }
+  }
 }
 </style>

@@ -45,7 +45,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { Loading } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import { oauthLogin, getOAuthTenants } from '@/api/auth'
+import { oauthLogin, getOAuthTenants, bindOAuth } from '@/api/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -79,6 +79,22 @@ onMounted(async () => {
 
   // 保存 OAuth 参数
   oauthParams.value = { provider, code, state }
+
+  // 检查是否为绑定模式
+  const isBindMode = sessionStorage.getItem('oauth_bind_mode') === 'true'
+  if (isBindMode) {
+    sessionStorage.removeItem('oauth_bind_mode')
+    statusMessage.value = '正在绑定第三方账号...'
+    try {
+      await bindOAuth(provider, code, state)
+      ElMessage.success('绑定成功')
+      router.push('/profile')
+    } catch (e: any) {
+      ElMessage.error(e?.message || '绑定失败')
+      router.push('/profile')
+    }
+    return
+  }
 
   // 从 sessionStorage 获取租户 ID
   const storedTenantId = sessionStorage.getItem('oauth_tenant_id')

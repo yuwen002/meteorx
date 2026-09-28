@@ -14,6 +14,7 @@ import (
 	userModel "meteorx/internal/modules/user/model"
 )
 
+// OAuthService OAuth 服务接口（handler 依赖的最小业务面，便于测试注入桩）
 type OAuthService interface {
 	GetRedirectURL(ctx context.Context, provider string) (string, string, error)
 	Login(ctx context.Context, provider, code, state, tenantID string) (*userModel.User, []string, []string, string, string, bool, error)
@@ -24,14 +25,18 @@ type OAuthService interface {
 	RefreshToken(ctx context.Context, refreshToken string) (string, string, error)
 }
 
+// OAuthHandler OAuth 处理器
 type OAuthHandler struct {
 	svc OAuthService
 }
 
+// NewOAuthHandler 创建 OAuth 处理器
 func NewOAuthHandler(svc OAuthService) *OAuthHandler {
 	return &OAuthHandler{svc: svc}
 }
 
+// GetRedirectURL 获取第三方 OAuth2 授权跳转地址
+// GET /api/v1/auth/oauth/{provider}/redirect
 func (h *OAuthHandler) GetRedirectURL(w http.ResponseWriter, r *http.Request) {
 	provider := r.PathValue("provider")
 	if provider == "" {
@@ -52,6 +57,8 @@ func (h *OAuthHandler) GetRedirectURL(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, dto.OAuthRedirectResponse{URL: redirectURL, State: state})
 }
 
+// Callback 处理第三方 OAuth2 授权回调，完成登录或注册
+// POST /api/v1/auth/oauth/callback
 func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	var req dto.OAuthLoginRequest
 	if !validator.ValidateJSON(w, r, &req) {
@@ -84,6 +91,8 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, loginResp)
 }
 
+// GetTenantList 获取 OAuth 登录可用的租户列表
+// GET /api/v1/auth/oauth/tenants
 func (h *OAuthHandler) GetTenantList(w http.ResponseWriter, r *http.Request) {
 	tenants, err := h.svc.GetTenantList(r.Context())
 	if err != nil {
@@ -94,6 +103,8 @@ func (h *OAuthHandler) GetTenantList(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, dto.TenantListResponse{Tenants: tenants})
 }
 
+// ListAccounts 查看当前用户已绑定的第三方账号列表
+// GET /api/v1/auth/oauth/accounts
 func (h *OAuthHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 	userID := contextx.GetUserID(r.Context())
 	if userID == "" {
@@ -110,6 +121,8 @@ func (h *OAuthHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, dto.OAuthAccountListResponse{Accounts: accounts})
 }
 
+// Unbind 解绑指定的第三方账号
+// POST /api/v1/auth/oauth/unbind
 func (h *OAuthHandler) Unbind(w http.ResponseWriter, r *http.Request) {
 	userID := contextx.GetUserID(r.Context())
 	if userID == "" {
@@ -134,6 +147,8 @@ func (h *OAuthHandler) Unbind(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
+// Bind 绑定新的第三方账号（已登录用户绑定新 provider）
+// POST /api/v1/auth/oauth/bind
 func (h *OAuthHandler) Bind(w http.ResponseWriter, r *http.Request) {
 	userID := contextx.GetUserID(r.Context())
 	if userID == "" {
@@ -162,6 +177,8 @@ func (h *OAuthHandler) Bind(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
+// RefreshToken 使用刷新令牌获取新的 access token
+// POST /api/v1/auth/oauth/token/refresh
 func (h *OAuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	var req dto.RefreshTokenRequest
 	if !validator.ValidateJSON(w, r, &req) {

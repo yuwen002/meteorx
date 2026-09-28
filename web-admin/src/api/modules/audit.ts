@@ -209,3 +209,25 @@ export function getAnomalyLogs(params?: {
 }): Promise<AnomalyLogItem[]> {
   return get('/audit/anomalies', params)
 }
+
+// 告警统计
+export interface AlertRuleCount {
+  rule_id: string
+  rule_name: string
+  count: number
+}
+
+export interface AlertStatsResult {
+  total_alerts: number
+  today_alerts: number
+  notified_count: number
+  pending_count: number
+  risk_level_stats: Record<string, number>
+  rule_stats: Record<string, number>
+  trend: TrendPoint[]
+  top_rules: AlertRuleCount[]
+}
+
+export function getAlertStats(days?: number): Promise<AlertStatsResult> {
+  return get('/audit/alerts/stats', { days: days || 7 })
+}

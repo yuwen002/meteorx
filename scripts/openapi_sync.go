@@ -249,6 +249,32 @@ func inferTags(pattern string) []string {
 }
 
 func inferSummary(method, pattern string) string {
+	knownSummaries := map[string]string{
+		"GET /health":                                "健康检查",
+		"GET /health/ready":                          "就绪检查",
+		"GET /metrics":                               "Prometheus 指标",
+		"GET /api/v1/ws":                             "WebSocket 连接",
+		"POST /api/v1/auth/register":                 "用户注册",
+		"POST /api/v1/auth/login":                    "用户登录",
+		"POST /api/v1/auth/logout":                   "用户登出",
+		"POST /api/v1/auth/forgot-password":          "忘记密码（发送重置邮件）",
+		"POST /api/v1/auth/reset-password":           "重置密码（通过邮件令牌）",
+		"GET /api/v1/auth/tokens":                    "API Token 列表",
+		"POST /api/v1/auth/tokens":                   "创建 API Token",
+		"POST /api/v1/auth/tokens/revoke":            "撤销 API Token",
+		"GET /api/v1/auth/oauth/{provider}/redirect": "获取 OAuth2 跳转链接",
+		"POST /api/v1/auth/oauth/callback":           "OAuth2 登录回调",
+		"GET /api/v1/auth/oauth/tenants":             "获取可用租户列表",
+		"GET /api/v1/auth/oauth/accounts":            "已绑定的第三方账号列表",
+		"POST /api/v1/auth/oauth/bind":               "绑定第三方账号",
+		"POST /api/v1/auth/oauth/unbind":             "解绑第三方账号",
+		"POST /api/v1/auth/oauth/token/refresh":      "刷新 OAuth Token",
+	}
+	key := method + " " + pattern
+	if s, ok := knownSummaries[key]; ok {
+		return s
+	}
+
 	methodCN := map[string]string{
 		"GET": "获取", "POST": "创建", "PUT": "更新", "DELETE": "删除", "PATCH": "部分更新",
 	}

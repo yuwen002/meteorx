@@ -122,6 +122,52 @@
       </el-col>
     </el-row>
 
+    <!-- OAuth 第三方账号管理卡片 -->
+    <el-card shadow="never" style="margin-top: 20px;">
+      <template #header>
+        <div class="card-header">
+          <span>第三方账号绑定</span>
+          <el-button type="primary" @click="bindOAuthDialogVisible = true">
+            <el-icon><Link /></el-icon>绑定账号
+          </el-button>
+        </div>
+      </template>
+      <el-table v-loading="oauthLoading" :data="oauthAccounts" stripe style="width: 100%;">
+        <el-table-column label="提供商" min-width="120">
+          <template #default="{ row }">
+            <el-tag size="small">{{ row.provider }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="email" label="邮箱" min-width="200" />
+        <el-table-column prop="created_at" label="绑定时间" min-width="160" />
+        <el-table-column label="操作" width="100" align="center">
+          <template #default="{ row }">
+            <el-button type="danger" link size="small" @click="handleUnbindOAuth(row)">解绑</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="!oauthLoading && oauthAccounts.length === 0" description="暂无绑定的第三方账号" :image-size="60" />
+    </el-card>
+
+    <!-- 绑定第三方账号弹窗 -->
+    <el-dialog v-model="bindOAuthDialogVisible" title="绑定第三方账号" width="400px">
+      <p style="color: #606266; margin-bottom: 16px;">选择要绑定的第三方账号，将跳转至对应平台进行授权。</p>
+      <div class="oauth-bind-buttons">
+        <div class="oauth-bind-btn oauth-google" @click="handleBindOAuth('google')">
+          <el-icon size="20"><Connection /></el-icon>
+          <span>Google</span>
+        </div>
+        <div class="oauth-bind-btn oauth-github" @click="handleBindOAuth('github')">
+          <el-icon size="20"><Connection /></el-icon>
+          <span>GitHub</span>
+        </div>
+      </div>
+      <div v-if="bindOAuthLoading" style="text-align: center; margin-top: 12px;">
+        <el-icon class="is-loading"><Loading /></el-icon>
+        <span style="margin-left: 4px; color: #909399;">正在跳转...</span>
+      </div>
+    </el-dialog>
+
     <!-- API Token 管理卡片 -->
     <el-card shadow="never" style="margin-top: 20px;">
       <template #header>
@@ -193,8 +239,21 @@
         style="margin-bottom: 16px;"
       />
       <div v-if="newTokenValue" class="token-display">
-        <el-input :model-value="newTokenValue" readonly type="textarea" :rows="2" />
-        <el-button type="primary" style="margin-top: 8px;" @click="copyToken">复制令牌</el-button>
+        <div class="token-value-row">
+          <el-input :model-value="newTokenValue" readonly type="textarea" :rows="2" class="token-input" />
+          <el-button
+            :type="tokenCopied ? 'success' : 'primary'"
+            :icon="tokenCopied ? Check : CopyDocument"
+            style="margin-top: 8px; min-width: 120px;"
+            @click="copyToken"
+          >
+            {{ tokenCopied ? '已复制' : '复制令牌' }}
+          </el-button>
+        </div>
+        <div class="token-hint">
+          <el-icon><InfoFilled /></el-icon>
+          <span>建议将令牌保存到密码管理器中，如 1Password / Bitwarden 等</span>
+        </div>
       </div>
       <el-form
         v-else
@@ -272,11 +331,11 @@
 import { reactive, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Edit, Plus } from '@element-plus/icons-vue'
+import { Edit, Plus, Link, CopyDocument, Check, InfoFilled, Connection, Loading } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { getProfile, updateProfile, changePassword } from '@/api/modules/user'
 import { getUserRoles } from '@/api/modules/role'
-import { createAPIToken, listAPITokens, revokeAPIToken, type APITokenItem } from '@/api/auth'
+import { createAPIToken, listAPITokens, revokeAPIToken, type APITokenItem, listOAuthAccounts, unbindOAuth, type OAuthAccountItem, getOAuthRedirectURL } from '@/api/auth'
 
 const userStore = useUserStore()
 
@@ -427,6 +486,58 @@ async function submitPassword() {
   })
 }
 
+// OAuth 第三方账号管理
+const oauthAccounts = ref<OAuthAccountItem[]>([])
+const oauthLoading = ref(false)
+
+async function loadOAuthAccounts() {
+  oauthLoading.value = true
+  try {
+    const data = await listOAuthAccounts()
+    oauthAccounts.value = data?.accounts || []
+  } catch (e) {
+    console.error('加载第三方账号失败', e)
+  } finally {
+    oauthLoading.value = false
+  }
+}
+
+const bindOAuthDialogVisible = ref(false)
+const bindOAuthLoading = ref(false)
+
+async function handleBindOAuth(provider: string) {
+  bindOAuthLoading.value = true
+  try {
+    sessionStorage.setItem('oauth_bind_mode', 'true')
+    const res = await getOAuthRedirectURL(provider)
+    const data = (res as any)?.data || res
+    if (data?.url) {
+      window.location.href = data.url
+    } else {
+      ElMessage.error('获取授权链接失败')
+    }
+  } catch (e) {
+    ElMessage.error('获取授权链接失败，请稍后重试')
+  } finally {
+    bindOAuthLoading.value = false
+  }
+}
+
+async function handleUnbindOAuth(row: OAuthAccountItem) {
+  try {
+    await ElMessageBox.confirm(`确定要解绑 ${row.provider} 账号吗？`, '解绑确认', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await unbindOAuth(row.provider)
+    ElMessage.success('解绑成功')
+    await loadOAuthAccounts()
+  } catch {
+    // 用户取消
+  }
+}
+
 // API Token 管理
 const apiTokens = ref<APITokenItem[]>([])
 const tokensLoading = ref(false)
@@ -469,6 +580,7 @@ function openCreateTokenDialog() {
 function closeCreateTokenDialog() {
   createTokenDialogVisible.value = false
   newTokenValue.value = ''
+  tokenCopied.value = false
 }
 
 async function submitCreateToken() {
@@ -493,9 +605,13 @@ async function submitCreateToken() {
   })
 }
 
+const tokenCopied = ref(false)
+
 function copyToken() {
   navigator.clipboard.writeText(newTokenValue.value).then(() => {
+    tokenCopied.value = true
     ElMessage.success('已复制到剪贴板')
+    setTimeout(() => { tokenCopied.value = false }, 3000)
   }).catch(() => {
     ElMessage.error('复制失败，请手动复制')
   })
@@ -519,6 +635,7 @@ async function handleRevokeToken(row: APITokenItem) {
 onMounted(() => {
   loadUserInfo()
   loadUserRoles()
+  loadOAuthAccounts()
   loadAPITokens()
 })
 </script>
@@ -557,5 +674,62 @@ onMounted(() => {
 
 .token-display {
   margin-top: 8px;
+
+  .token-value-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .token-input {
+    :deep(.el-textarea__inner) {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+    }
+  }
+
+  .token-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #909399;
+  }
+}
+
+.oauth-bind-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.oauth-bind-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 160px;
+  height: 44px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+  transition: all 0.2s;
+
+  &.oauth-google {
+    background: #fff;
+    border: 1px solid #d9d9d9;
+    color: #333;
+    &:hover { border-color: #40a9ff; box-shadow: 0 2px 8px rgba(24, 144, 255, 0.15); }
+  }
+
+  &.oauth-github {
+    background: #24292e;
+    border: 1px solid #24292e;
+    color: #fff;
+    &:hover { background: #2f363d; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
+  }
 }
 </style>
