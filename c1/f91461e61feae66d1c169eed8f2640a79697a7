@@ -1,0 +1,28 @@
+internal/modules/auth/model/api_token.go
+  h_a3f313f3d96276 11
+internal/modules/auth/service/api_token_service.go
+  h_a3f313f3d96276 8,97,109,115,161-162,164,169,171,176,180,183,186,188,190,238,243,258-259,261,266,268-270,272-275,277,311,324-344
+internal/middleware/auth.go
+  h_a3f313f3d96276 21,73,78-82,91-93,135-145
+internal/common/contextx/contextx.go
+  h_a3f313f3d96276 11,81-89
+web-admin/src/views/profile/index.vue
+  h_a3f313f3d96276 125-178,180-241,273,275,279,430-447,449-459,461-467,469-472,474-494,496-502,504-517,522,558-560
+internal/modules/auth/dto/api_token_dto.go
+  h_a3f313f3d96276 9,17,26
+internal/modules/auth/service/api_token_service_test.go
+  h_a3f313f3d96276 182,192,209
+web-admin/src/api/auth.ts
+  h_a3f313f3d96276 139-184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "c1f91461e61feae66d1c169eed8f2640a79697a7",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
