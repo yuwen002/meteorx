@@ -137,3 +137,49 @@ export function getOAuthTenants() {
 export function oauthLogin(provider: string, code: string, tenant_id: string, state?: string) {
   return post<OAuthLoginResult>('/auth/oauth/callback', { provider, code, tenant_id, state })
 }
+
+// ========== API Token 管理 ==========
+
+export interface CreateAPITokenParams {
+  name: string
+  expires_in?: string
+  allowed_paths?: string[]
+}
+
+export interface CreateAPITokenResult {
+  id: string
+  name: string
+  token: string
+  allowed_paths?: string[]
+  expires_at?: string
+  created_at: string
+}
+
+export interface APITokenItem {
+  id: string
+  name: string
+  allowed_paths?: string[]
+  last_used_at?: string
+  expires_at?: string
+  created_at: string
+  revoked: boolean
+}
+
+export interface RevokeAPITokenParams {
+  id: string
+}
+
+// 创建 API Token
+export function createAPIToken(data: CreateAPITokenParams) {
+  return post<CreateAPITokenResult>('/auth/tokens', data)
+}
+
+// 查询 API Token 列表
+export function listAPITokens() {
+  return get<{ tokens: APITokenItem[] }>('/auth/tokens')
+}
+
+// 撤销 API Token
+export function revokeAPIToken(data: RevokeAPITokenParams) {
+  return post('/auth/tokens/revoke', data)
+}

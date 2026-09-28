@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -88,13 +89,14 @@ func (s *APITokenService) Create(ctx context.Context, userID, tenantID string, r
 
 	now := time.Now()
 	t := &model.APIToken{
-		ID:        idgen.New(),
-		Name:      req.Name,
-		TokenHash: tokenHash,
-		UserID:    userID,
-		TenantID:  tenantID,
-		ExpiresAt: expiresAt,
-		CreatedAt: now,
+		ID:           idgen.New(),
+		Name:         req.Name,
+		TokenHash:    tokenHash,
+		UserID:       userID,
+		TenantID:     tenantID,
+		AllowedPaths: serializeAllowedPaths(req.AllowedPaths),
+		ExpiresAt:    expiresAt,
+		CreatedAt:    now,
 	}
 
 	if err := s.apiTokenRepo.Create(ctx, t); err != nil {
@@ -104,13 +106,14 @@ func (s *APITokenService) Create(ctx context.Context, userID, tenantID string, r
 		return nil, err
 	}
 
-	s.cacheToken(ctx, tokenHash, userID, tenantID, expiresAt)
+	s.cacheToken(ctx, tokenHash, userID, tenantID, req.AllowedPaths, expiresAt)
 
 	resp := &dto.CreateAPITokenResp{
-		ID:        t.ID,
-		Name:      t.Name,
-		Token:     plainToken,
-		CreatedAt: t.CreatedAt,
+		ID:           t.ID,
+		Name:         t.Name,
+		Token:        plainToken,
+		AllowedPaths: req.AllowedPaths,
+		CreatedAt:    t.CreatedAt,
 	}
 	if expiresAt != nil {
 		s := expiresAt.Format(time.RFC3339)
@@ -155,34 +158,36 @@ func (s *APITokenService) Revoke(ctx context.Context, userID, tokenID string) er
 }
 
 // Validate 验证 API Token 有效性，优先查缓存，缓存未命中则查数据库
-func (s *APITokenService) Validate(ctx context.Context, tokenString string) (userID, tenantID string, err error) {
+// 返回 userID, tenantID, allowedPaths；allowedPaths 为空表示不限制
+func (s *APITokenService) Validate(ctx context.Context, tokenString string) (userID, tenantID string, allowedPaths []string, err error) {
 	if !strings.HasPrefix(tokenString, apiTokenPrefix) {
-		return "", "", ErrAPITokenInvalid
+		return "", "", nil, ErrAPITokenInvalid
 	}
 
 	tokenHash := hashAPIToken(tokenString)
 
-	userID, tenantID, err = s.lookupCache(ctx, tokenHash)
+	userID, tenantID, allowedPaths, err = s.lookupCache(ctx, tokenHash)
 	if err == nil && userID != "" {
-		return userID, tenantID, nil
+		return userID, tenantID, allowedPaths, nil
 	}
 
 	t, err := s.apiTokenRepo.GetByTokenHash(ctx, tokenHash)
 	if err != nil {
-		return "", "", ErrAPITokenInvalid
+		return "", "", nil, ErrAPITokenInvalid
 	}
 
 	if t.RevokedAt != nil {
-		return "", "", ErrAPITokenRevoked
+		return "", "", nil, ErrAPITokenRevoked
 	}
 	if t.ExpiresAt != nil && t.ExpiresAt.Before(time.Now()) {
-		return "", "", ErrAPITokenExpired
+		return "", "", nil, ErrAPITokenExpired
 	}
 
+	parsedPaths := deserializeAllowedPaths(t.AllowedPaths)
 	_ = s.apiTokenRepo.UpdateLastUsedAt(ctx, t.ID)
-	s.cacheToken(ctx, tokenHash, t.UserID, t.TenantID, t.ExpiresAt)
+	s.cacheToken(ctx, tokenHash, t.UserID, t.TenantID, parsedPaths, t.ExpiresAt)
 
-	return t.UserID, t.TenantID, nil
+	return t.UserID, t.TenantID, parsedPaths, nil
 }
 
 // GetUserRoles 获取用户的角色编码列表
@@ -230,12 +235,12 @@ func (s *APITokenService) parseExpiresIn(expiresIn string) (*time.Time, error) {
 }
 
 // cacheToken 将 token 信息缓存到 Redis，TTL 取缓存默认值与剩余有效期的较小值
-func (s *APITokenService) cacheToken(ctx context.Context, tokenHash, userID, tenantID string, expiresAt *time.Time) {
+func (s *APITokenService) cacheToken(ctx context.Context, tokenHash, userID, tenantID string, allowedPaths []string, expiresAt *time.Time) {
 	if s.redis == nil || !s.redis.IsAvailable() {
 		return
 	}
 	key := apiTokenCachePrefix + tokenHash
-	data := fmt.Sprintf("%s:%s", userID, tenantID)
+	data := fmt.Sprintf("%s:%s:%s", userID, tenantID, serializeAllowedPaths(allowedPaths))
 
 	ttl := apiTokenCacheTTL
 	if expiresAt != nil {
@@ -250,21 +255,26 @@ func (s *APITokenService) cacheToken(ctx context.Context, tokenHash, userID, ten
 	_ = s.redis.Set(ctx, key, data, ttl)
 }
 
-// lookupCache 从 Redis 缓存中查找 token 对应的用户和租户
-func (s *APITokenService) lookupCache(ctx context.Context, tokenHash string) (userID, tenantID string, err error) {
+// lookupCache 从 Redis 缓存中查找 token 对应的用户、租户和可访问路径
+func (s *APITokenService) lookupCache(ctx context.Context, tokenHash string) (userID, tenantID string, allowedPaths []string, err error) {
 	if s.redis == nil || !s.redis.IsAvailable() {
-		return "", "", fmt.Errorf("cache unavailable")
+		return "", "", nil, fmt.Errorf("cache unavailable")
 	}
 	key := apiTokenCachePrefix + tokenHash
 	val, err := s.redis.Get(ctx, key)
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
-	parts := strings.SplitN(val, ":", 2)
-	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid cache value")
+	parts := strings.SplitN(val, ":", 3)
+	if len(parts) < 2 {
+		return "", "", nil, fmt.Errorf("invalid cache value")
 	}
-	return parts[0], parts[1], nil
+	userID = parts[0]
+	tenantID = parts[1]
+	if len(parts) == 3 {
+		allowedPaths = deserializeAllowedPaths(parts[2])
+	}
+	return userID, tenantID, allowedPaths, nil
 }
 
 // invalidateCache 使 Redis 中的 token 缓存失效
@@ -296,10 +306,11 @@ func hashAPIToken(token string) string {
 // toAPITokenResp 将领域模型转换为 DTO 响应
 func toAPITokenResp(t *model.APIToken) *dto.APITokenResp {
 	resp := &dto.APITokenResp{
-		ID:        t.ID,
-		Name:      t.Name,
-		CreatedAt: t.CreatedAt,
-		Revoked:   t.RevokedAt != nil,
+		ID:           t.ID,
+		Name:         t.Name,
+		AllowedPaths: deserializeAllowedPaths(t.AllowedPaths),
+		CreatedAt:    t.CreatedAt,
+		Revoked:      t.RevokedAt != nil,
 	}
 	if t.LastUsedAt != nil {
 		s := t.LastUsedAt.Format(time.RFC3339)
@@ -310,4 +321,25 @@ func toAPITokenResp(t *model.APIToken) *dto.APITokenResp {
 		resp.ExpiresAt = &s
 	}
 	return resp
+}
+
+// serializeAllowedPaths 将路径列表序列化为 JSON 字符串，空列表返回空字符串
+func serializeAllowedPaths(paths []string) string {
+	if len(paths) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(paths)
+	return string(b)
+}
+
+// deserializeAllowedPaths 将 JSON 字符串反序列化为路径列表
+func deserializeAllowedPaths(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var paths []string
+	if err := json.Unmarshal([]byte(s), &paths); err != nil {
+		return nil
+	}
+	return paths
 }

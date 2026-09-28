@@ -5,11 +5,12 @@ import "context"
 type contextKey string
 
 const (
-	UserIDKey    contextKey = "user_id"
-	TenantIDKey  contextKey = "tenant_id"
-	RolesKey     contextKey = "roles"
-	RequestIDKey contextKey = "request_id"
-	TraceIDKey   contextKey = "trace_id"
+	UserIDKey      contextKey = "user_id"
+	TenantIDKey    contextKey = "tenant_id"
+	RolesKey       contextKey = "roles"
+	AllowedPathsKey contextKey = "allowed_paths"
+	RequestIDKey   contextKey = "request_id"
+	TraceIDKey     contextKey = "trace_id"
 )
 
 // SetVars 存入核心身份信息
@@ -77,4 +78,13 @@ func HasRole(ctx context.Context, requiredRole string) bool {
 		}
 	}
 	return false
+}
+
+// GetAllowedPaths 获取 API Token 的可访问路径列表
+// 返回 nil 表示不限制（默认权限，或为 JWT 认证）
+func GetAllowedPaths(ctx context.Context) []string {
+	if val, ok := ctx.Value(AllowedPathsKey).([]string); ok {
+		return val
+	}
+	return nil
 }

@@ -179,7 +179,7 @@ func TestValidateAPIToken_InvalidPrefix(t *testing.T) {
 	repo := new(mockAPITokenRepo)
 	svc := newTestAPITokenSvc(repo)
 
-	_, _, err := svc.Validate(context.Background(), "invalid-token")
+	_, _, _, err := svc.Validate(context.Background(), "invalid-token")
 	assert.ErrorIs(t, err, ErrAPITokenInvalid)
 }
 
@@ -189,7 +189,7 @@ func TestValidateAPIToken_NotInDB(t *testing.T) {
 
 	repo.On("GetByTokenHash", mock.Anything, mock.AnythingOfType("string")).Return(nil, ErrAPITokenNotFound)
 
-	_, _, err := svc.Validate(context.Background(), "mxat_abcdef1234567890")
+	_, _, _, err := svc.Validate(context.Background(), "mxat_abcdef1234567890")
 	assert.ErrorIs(t, err, ErrAPITokenInvalid)
 }
 
@@ -206,7 +206,7 @@ func TestValidateAPIToken_Expired(t *testing.T) {
 	}, nil)
 	repo.On("UpdateLastUsedAt", mock.Anything, "tok-1").Return(nil)
 
-	_, _, err := svc.Validate(context.Background(), "mxat_abcdef1234567890")
+	_, _, _, err := svc.Validate(context.Background(), "mxat_abcdef1234567890")
 	assert.ErrorIs(t, err, ErrAPITokenExpired)
 }
 

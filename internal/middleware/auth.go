@@ -18,7 +18,7 @@ type TokenBlacklistChecker interface {
 
 // APITokenValidator API Token 验证接口，用于长期令牌认证
 type APITokenValidator interface {
-	Validate(ctx context.Context, tokenString string) (userID, tenantID string, err error)
+	Validate(ctx context.Context, tokenString string) (userID, tenantID string, allowedPaths []string, err error)
 	GetUserRoles(ctx context.Context, userID string) ([]string, error)
 }
 
@@ -70,9 +70,14 @@ func Auth(helper *jwt.TokenHelper, checker TokenBlacklistChecker, appMode string
 				if err != nil {
 					// JWT 解析失败，尝试 API Token 验证（仅对 mxat_ 前缀的 token）
 					if apiTokenValidator != nil && strings.HasPrefix(tokenString, "mxat_") {
-						uid, tid, verr := apiTokenValidator.Validate(r.Context(), tokenString)
+						uid, tid, allowedPaths, verr := apiTokenValidator.Validate(r.Context(), tokenString)
 						if verr != nil {
 							http.Error(w, "令牌失效或已过期", http.StatusUnauthorized)
+							return
+						}
+						// 校验路径权限：若令牌配置了 allowedPaths，则请求路径必须匹配其中之一
+						if len(allowedPaths) > 0 && !matchAllowedPath(r.URL.Path, allowedPaths) {
+							http.Error(w, "该令牌无权访问此路径", http.StatusForbidden)
 							return
 						}
 						tokenRoles, rerr := apiTokenValidator.GetUserRoles(r.Context(), uid)
@@ -83,6 +88,9 @@ func Auth(helper *jwt.TokenHelper, checker TokenBlacklistChecker, appMode string
 						userID = uid
 						tenantID = tid
 						roles = tokenRoles
+						ctx := r.Context()
+						ctx = context.WithValue(ctx, contextx.AllowedPathsKey, allowedPaths)
+						r = r.WithContext(ctx)
 					} else {
 						http.Error(w, "令牌失效或已过期", http.StatusUnauthorized)
 						return
@@ -124,4 +132,15 @@ func (c *RedisBlacklistChecker) IsTokenBlacklisted(ctx context.Context, tokenStr
 		return false, nil
 	}
 	return result, err
+}
+
+// matchAllowedPath 检查请求路径是否匹配允许的路径前缀列表
+// 路径前缀匹配：如 /users 会匹配 /users、/users/、/users/abc 等
+func matchAllowedPath(requestPath string, allowedPaths []string) bool {
+	for _, prefix := range allowedPaths {
+		if strings.HasPrefix(requestPath, prefix) {
+			return true
+		}
+	}
+	return false
 }
