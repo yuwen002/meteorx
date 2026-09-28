@@ -1,0 +1,24 @@
+internal/modules/auth/service/api_token_service.go
+  h_a3f313f3d96276 1-298
+internal/modules/auth/service/api_token_service_test.go
+  h_a3f313f3d96276 1-253
+internal/modules/auth/handler/api_token_handler.go
+  h_a3f313f3d96276 1-99
+internal/modules/auth/repository/api_token_repository.go
+  h_a3f313f3d96276 1-64
+internal/modules/auth/model/api_token.go
+  h_a3f313f3d96276 1-19
+internal/modules/auth/dto/api_token_dto.go
+  h_a3f313f3d96276 1-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "88aed5effb0d4341d5cc19968861fb1d8e0b27b3",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
