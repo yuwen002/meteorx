@@ -1,0 +1,14 @@
+internal/modules/auth/handler/api_token_handler_test.go
+  h_a3f313f3d96276 1-265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "44ea672e89af0fe82551cd6443bf133622c4d3f8",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
