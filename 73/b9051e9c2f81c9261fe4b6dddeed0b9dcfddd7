@@ -1,0 +1,38 @@
+internal/bootstrap/config.go
+  h_a3f313f3d96276 61-63
+internal/modules/oauth/handler/oauth_handler.go
+  h_a3f313f3d96276 8,18-19,21-24,42,52,61,63-70,78,95-184
+internal/config/config.yaml
+  h_a3f313f3d96276 116-117
+internal/bootstrap/router.go
+  h_a3f313f3d96276 137,180-183,186,189,192
+docs/architecture/config.md
+  h_a3f313f3d96276 85-97,110,318-319
+docs/api/auth-api.md
+  h_a3f313f3d96276 24-27,345-347,382-383,385,435,463,466-467,469,474,476,478,480,482,484,491,503-507,509-514,516,518,520,522,524,548,550,552,554,556,563,572-576,578,580,582,584,586,595-598,600,609-613
+internal/modules/oauth/dto/oauth_dto.go
+  h_a3f313f3d96276 3-4,9,16,22,47-82
+.env.example
+  h_a3f313f3d96276 61-66
+internal/modules/oauth/routes.go
+  h_a3f313f3d96276 14-22
+internal/modules/oauth/service/oauth_service.go
+  h_a3f313f3d96276 5-6,11,15-16,19,31-35,38-40,50,52,62,64,73,75-89,91-92,95-116,118-120,123-150,154,156,159,161,163,165-167,169-170,173-177,187,191,194-195,200-204,213,217-255,261,269-320,322-327,330-331,334-366,378-389,393,410,439,447,452,457
+internal/modules/oauth/module.go
+  h_a3f313f3d96276 7,11-12,19-21,27,29,33-46
+internal/config/config.go
+  h_a3f313f3d96276 75-92
+internal/modules/oauth/service/oauth_service_test.go
+  h_a3f313f3d96276 12,18,26,34,50,55-56,70,74-75,78,87-88,95,98,107-108,112,118,128,131-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "73b9051e9c2f81c9261fe4b6dddeed0b9dcfddd7",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
