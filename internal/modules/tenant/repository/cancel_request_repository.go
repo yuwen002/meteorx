@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"meteorx/internal/modules/tenant/model"
@@ -97,7 +98,7 @@ func (r *tenantRepository) GetPendingCancelRequestByTenant(ctx context.Context, 
 		Order("created_at DESC").
 		First(&po).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err

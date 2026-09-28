@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"meteorx/internal/modules/plan/model"
@@ -87,6 +88,7 @@ func (p PlanPO) toDomain() *model.Plan {
 	return plan
 }
 
+// toDomain 将订阅持久化模型转换为领域模型
 func (s SubscriptionPO) toDomain() *model.TenantSubscription {
 	sub := &model.TenantSubscription{
 		ID:        s.ID,
@@ -110,10 +112,12 @@ type planRepository struct {
 	db *gorm.DB
 }
 
+// NewPlanRepository 创建套餐仓库实例
 func NewPlanRepository(db *gorm.DB) PlanRepository {
 	return &planRepository{db: db}
 }
 
+// Create 新增套餐
 func (r *planRepository) Create(ctx context.Context, plan *model.Plan) error {
 	po := &PlanPO{
 		ID:          plan.ID,
@@ -132,6 +136,7 @@ func (r *planRepository) Create(ctx context.Context, plan *model.Plan) error {
 	return nil
 }
 
+// GetByID 根据ID获取套餐
 func (r *planRepository) GetByID(ctx context.Context, id string) (*model.Plan, error) {
 	var po PlanPO
 	if err := r.db.WithContext(ctx).First(&po, "id = ?", id).Error; err != nil {
@@ -140,11 +145,13 @@ func (r *planRepository) GetByID(ctx context.Context, id string) (*model.Plan, e
 	return po.toDomain(), nil
 }
 
+// GetByCode 根据编码获取套餐，不存在时返回 nil
 func (r *planRepository) GetByCode(ctx context.Context, code string) (*model.Plan, error) {
 	var po PlanPO
 	err := r.db.WithContext(ctx).Where("code = ?", code).First(&po).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		// 未找到记录时返回 nil 而非错误，便于上层判断"不存在"
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
@@ -152,6 +159,7 @@ func (r *planRepository) GetByCode(ctx context.Context, code string) (*model.Pla
 	return po.toDomain(), nil
 }
 
+// Update 更新套餐，仅更新非零值字段
 func (r *planRepository) Update(ctx context.Context, id string, plan *model.Plan) error {
 	updates := map[string]interface{}{}
 	if plan.Name != "" {
@@ -178,10 +186,12 @@ func (r *planRepository) Update(ctx context.Context, id string, plan *model.Plan
 	return r.db.WithContext(ctx).Model(&PlanPO{}).Where("id = ?", id).Updates(updates).Error
 }
 
+// Delete 软删除套餐
 func (r *planRepository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&PlanPO{}, "id = ?", id).Error
 }
 
+// FindPage 分页查询套餐，支持关键词和状态过滤
 func (r *planRepository) FindPage(ctx context.Context, page, pageSize int, keyword string, status *int) ([]*model.Plan, int64, error) {
 	var pos []*PlanPO
 	var total int64
@@ -210,6 +220,7 @@ func (r *planRepository) FindPage(ctx context.Context, page, pageSize int, keywo
 	return plans, total, nil
 }
 
+// ListAllEnabled 获取所有启用的套餐
 func (r *planRepository) ListAllEnabled(ctx context.Context) ([]*model.Plan, error) {
 	var pos []*PlanPO
 	if err := r.db.WithContext(ctx).Where("status = ?", model.StatusEnabled).Order("created_at ASC").Find(&pos).Error; err != nil {
@@ -222,6 +233,7 @@ func (r *planRepository) ListAllEnabled(ctx context.Context) ([]*model.Plan, err
 	return plans, nil
 }
 
+// CountByID 统计指定ID列表中存在的套餐数量
 func (r *planRepository) CountByID(ctx context.Context, ids []string) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Model(&PlanPO{}).Where("id IN ?", ids).Count(&count).Error
@@ -234,10 +246,12 @@ type subscriptionRepository struct {
 	db *gorm.DB
 }
 
+// NewSubscriptionRepository 创建订阅仓库实例
 func NewSubscriptionRepository(db *gorm.DB) SubscriptionRepository {
 	return &subscriptionRepository{db: db}
 }
 
+// GetActiveByTenant 获取租户当前生效的订阅，不存在时返回 nil
 func (r *subscriptionRepository) GetActiveByTenant(ctx context.Context, tenantID string) (*model.TenantSubscription, error) {
 	var po SubscriptionPO
 	err := r.db.WithContext(ctx).
@@ -245,7 +259,8 @@ func (r *subscriptionRepository) GetActiveByTenant(ctx context.Context, tenantID
 		Order("created_at DESC").
 		First(&po).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		// 未找到记录时返回 nil 而非错误，便于上层判断"不存在"
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
@@ -253,6 +268,7 @@ func (r *subscriptionRepository) GetActiveByTenant(ctx context.Context, tenantID
 	return po.toDomain(), nil
 }
 
+// Create 新增订阅
 func (r *subscriptionRepository) Create(ctx context.Context, sub *model.TenantSubscription) error {
 	po := &SubscriptionPO{
 		ID:        sub.ID,
@@ -273,10 +289,12 @@ func (r *subscriptionRepository) Create(ctx context.Context, sub *model.TenantSu
 	return nil
 }
 
+// UpdateStatus 更新订阅状态
 func (r *subscriptionRepository) UpdateStatus(ctx context.Context, id string, status int) error {
 	return r.db.WithContext(ctx).Model(&SubscriptionPO{}).Where("id = ?", id).Update("status", status).Error
 }
 
+// FindExpiredActive 查找所有已过期但仍为生效状态的订阅
 func (r *subscriptionRepository) FindExpiredActive(ctx context.Context) ([]*model.TenantSubscription, error) {
 	var pos []*SubscriptionPO
 	err := r.db.WithContext(ctx).
@@ -292,6 +310,7 @@ func (r *subscriptionRepository) FindExpiredActive(ctx context.Context) ([]*mode
 	return subs, nil
 }
 
+// CountByPlan 统计指定套餐的生效订阅数量
 func (r *subscriptionRepository) CountByPlan(ctx context.Context, planID string) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Model(&SubscriptionPO{}).

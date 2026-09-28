@@ -126,7 +126,6 @@ func TestRevokeAPIToken_Success(t *testing.T) {
 	repo := new(mockAPITokenRepo)
 	svc := newTestAPITokenSvc(repo)
 
-	now := time.Now()
 	repo.On("GetByID", mock.Anything, "tok-1").Return(&model.APIToken{
 		ID:     "tok-1",
 		UserID: "user-1",

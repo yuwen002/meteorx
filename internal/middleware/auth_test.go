@@ -27,7 +27,7 @@ func newAuthTestHandler(t *testing.T, appMode string, allowTestBypass bool, capt
 		}
 		w.WriteHeader(http.StatusOK)
 	})
-	return Auth(helper, nil, appMode, allowTestBypass)(next)
+	return Auth(helper, nil, appMode, allowTestBypass, nil)(next)
 }
 
 func authTestRequest(h http.Handler, token string) *httptest.ResponseRecorder {
@@ -112,7 +112,7 @@ func TestAuthInjectsContext(t *testing.T) {
 		tenantID, _ = ctx.Value(contextx.TenantIDKey).(string)
 		w.WriteHeader(http.StatusOK)
 	})
-	h := Auth(helper, nil, "debug", false)(next)
+	h := Auth(helper, nil, "debug", false, nil)(next)
 
 	token, err := helper.GenerateToken("user-7", "tenant-9", []string{"editor"})
 	if err != nil {

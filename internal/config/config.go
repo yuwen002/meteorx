@@ -17,6 +17,7 @@ type Config struct {
 	Client     ClientConfig     `mapstructure:"client"`
 	IPLocation IPLocationConfig `mapstructure:"ip_location"`
 	OAuth      OAuthConfig      `mapstructure:"oauth"`
+	Auth       AuthConfig       `mapstructure:"auth"`
 	WS         WSConfig         `mapstructure:"ws"`
 	Notify     NotifyConfig     `mapstructure:"notify"`
 	OTel       OTelConfig       `mapstructure:"otel"`
@@ -90,6 +91,19 @@ func (c OAuthConfig) GetStateTTL() time.Duration {
 		return c.StateTTL
 	}
 	return 10 * time.Minute
+}
+
+// AuthConfig 认证模块通用配置
+type AuthConfig struct {
+	APITokenMaxTTL time.Duration `mapstructure:"api_token_max_ttl"`
+}
+
+// GetAPITokenMaxTTL 返回 API Token 最长有效期，未配置时默认 2160h（90 天）
+func (c AuthConfig) GetAPITokenMaxTTL() time.Duration {
+	if c.APITokenMaxTTL > 0 {
+		return c.APITokenMaxTTL
+	}
+	return 2160 * time.Hour
 }
 
 // OAuthProviderConfig OAuth2 提供商配置

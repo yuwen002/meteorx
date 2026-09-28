@@ -47,6 +47,7 @@ func (e *LoginError) Error() string {
 	return e.Message
 }
 
+// AuthService 认证服务，处理注册、登录、登出、密码重置等业务逻辑
 type AuthService struct {
 	userRepo           repository.UserRepository
 	roleRepo           rbacRepo.RoleRepository
@@ -61,6 +62,7 @@ type AuthService struct {
 	emailEnabled       bool
 }
 
+// NewAuthService 创建认证服务实例
 func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, urr rbacRepo.UserRoleRepository, rpr rbacRepo.RolePermissionRepository, th *jwt.TokenHelper, redis *cache.Redis, securityCfg config.SecurityConfig, emailCfg config.EmailConfig, clientCfg config.ClientConfig) *AuthService {
 	var em *emailer.Emailer
 	if emailCfg.Enabled {
@@ -82,6 +84,7 @@ func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, ur
 	}
 }
 
+// Register 用户注册，校验密码策略并分配默认角色
 func (s *AuthService) Register(ctx context.Context, req dto.RegisterUserReq) (*model.User, error) {
 	// 校验密码策略
 	if err := security.ValidatePassword(req.Password, s.securityCfg.PasswordPolicy); err != nil {
@@ -140,6 +143,7 @@ type LoginResult struct {
 	Error             error
 }
 
+// Login 用户登录，包含锁定检查、密码验证、角色/权限收集和 token 生成
 func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User, []string, []string, string, error) {
 	lockoutKey := req.Username + ":" + req.TenantID
 
@@ -261,7 +265,7 @@ func (s *AuthService) Logout(ctx context.Context, tokenString string) (userID, u
 	// 将 token 加入黑名单，有效期与 token 剩余有效期相同
 	key := fmt.Sprintf("%s%s", tokenBlacklistPrefix, tokenString)
 	e := s.redis.Set(ctx, key, "1", expiration)
-	if e == cache.ErrRedisUnavailable {
+	if errors.Is(e, cache.ErrRedisUnavailable) {
 		return userID, username, tenantID, nil
 	}
 	return userID, username, tenantID, e
@@ -275,12 +279,13 @@ func (s *AuthService) IsTokenBlacklisted(ctx context.Context, tokenString string
 
 	key := fmt.Sprintf("%s%s", tokenBlacklistPrefix, tokenString)
 	result, err := s.redis.Exists(ctx, key)
-	if err == cache.ErrRedisUnavailable {
+	if errors.Is(err, cache.ErrRedisUnavailable) {
 		return false, nil
 	}
 	return result, err
 }
 
+// ForgotPassword 发起密码重置，生成重置令牌并通过邮件发送
 func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
@@ -302,7 +307,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 
 	key := fmt.Sprintf("%s%s", passwordResetPrefix, token)
 	if err := s.redis.Set(ctx, key, user.ID, resetTokenExpire); err != nil {
-		if err == cache.ErrRedisUnavailable {
+		if errors.Is(err, cache.ErrRedisUnavailable) {
 			return errors.New("reset token storage unavailable")
 		}
 		return err
@@ -313,6 +318,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 	return s.emailer.SendResetPasswordEmail(user.Email, resetLink, user.Username)
 }
 
+// ResetPassword 通过重置令牌设置新密码
 func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
 	if s.redis == nil || !s.redis.IsAvailable() {
 		return errors.New("redis not initialized")
@@ -320,7 +326,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 
 	key := fmt.Sprintf("%s%s", passwordResetPrefix, token)
 	userID, err := s.redis.Get(ctx, key)
-	if err == cache.ErrRedisUnavailable {
+	if errors.Is(err, cache.ErrRedisUnavailable) {
 		return errors.New("reset token storage unavailable")
 	}
 	if err != nil || userID == "" {
@@ -350,7 +356,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 		return err
 	}
 
-	if err := s.redis.Delete(ctx, key); err != nil && err != cache.ErrRedisUnavailable {
+	if err := s.redis.Delete(ctx, key); err != nil && !errors.Is(err, cache.ErrRedisUnavailable) {
 		return err
 	}
 

@@ -25,6 +25,9 @@
 | GET | `/auth/oauth/accounts` | 获取已绑定的第三方账号列表 | 需 Token |
 | POST | `/auth/oauth/unbind` | 解绑第三方账号 | 需 Token |
 | POST | `/auth/oauth/bind` | 绑定新的第三方账号 | 需 Token |
+| GET | `/auth/tokens` | 获取 API Token 列表 | 需 Token |
+| POST | `/auth/tokens` | 创建 API Token | 需 Token |
+| POST | `/auth/tokens/revoke` | 撤销 API Token | 需 Token |
 
 ---
 
@@ -346,6 +349,7 @@
 | Refresh Token | 有效期由 `oauth.refresh_token_ttl` 控制，默认 168h（7 天），一次性使用，轮转机制 |
 | OAuth CSRF State | 有效期由 `oauth.state_ttl` 控制，默认 10m，一次性使用 |
 | Token 黑名单 | 登出后 Token 加入 Redis 黑名单 |
+| API Token | 长期令牌（`mxat_` 前缀），SHA256 哈希存储，明文仅创建时返回一次，最长有效期由 `auth.api_token_max_ttl` 控制（默认 2160h/90天），每用户上限 10 个，支持撤销 |
 | XSS 防护 | 用户名/昵称等输出时自动转义 |
 | SQL 注入防护 | 使用参数化查询（GORM） |
 | 密码重置令牌 | Redis 存储，30 分钟过期，一次性使用 |
@@ -612,3 +616,171 @@
 | 400 | CSRF state 验证失败 |
 | 409 | 该提供商已绑定到当前账号 |
 | 500 | 服务器内部错误 |
+
+---
+
+## 6. API Token（长期令牌）
+
+API Token 用于 CI/CD 脚本、自动化工具、第三方系统集成等场景，无需通过浏览器登录即可调用 API。
+
+**鉴权方式：** 与 JWT 相同，使用 `Authorization: Bearer <api_token>` 头。中间件先尝试 JWT 解析，失败后自动 fallback 查 API Token（`mxat_` 前缀识别），对调用方完全透明。
+
+**存储方式：** 数据库存储 SHA256 哈希值，Redis 缓存加速查询。撤销时同时删除 DB 和 Redis，立即生效。
+
+### 6.1 创建 API Token
+
+`POST /api/v1/auth/tokens`
+
+**请求头：** `Authorization: Bearer <token>`
+
+**请求体：**
+```json
+{
+  "name": "ci-deploy-token",
+  "expires_in": "720h"
+}
+```
+
+| 字段 | 类型 | 必填 | 校验规则 | 说明 |
+|------|------|------|----------|------|
+| name | string | 是 | 1-64 字符 | 令牌名称（便于识别用途） |
+| expires_in | string | 否 | Go Duration 格式 | 有效期，如 `720h`（30天）、`2160h`（90天）；空则使用默认最长有效期 |
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "name": "ci-deploy-token",
+    "token": "mxat_vKx8mN2pQ5rT7wY9aB3cD6fG0hJ4kL",
+    "expires_at": "2026-12-28T10:00:00Z",
+    "created_at": "2026-09-28T10:00:00Z"
+  }
+}
+```
+
+**⚠️ 重要：** `token` 字段仅在创建时返回一次，后续无法再查看明文。请立即保存。
+
+**业务规则：**
+- 每用户最多 10 个有效 API Token
+- 有效期不能超过 `auth.api_token_max_ttl`（默认 2160h/90天）
+- Token 以 `mxat_` 前缀标识，便于区分 JWT
+- 数据库仅存储 SHA256 哈希值，不存明文
+
+**错误响应：**
+| 状态码 | 场景 |
+|--------|------|
+| 400 | 参数校验失败 / expires_in 格式错误 / 超过最大有效期 |
+| 401 | 未授权 |
+| 409 | 同名令牌已存在 / 已达到数量上限 |
+| 500 | 服务器内部错误 |
+
+---
+
+### 6.2 获取 API Token 列表
+
+`GET /api/v1/auth/tokens`
+
+**请求头：** `Authorization: Bearer <token>`
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "tokens": [
+      {
+        "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "name": "ci-deploy-token",
+        "expires_at": "2026-12-28T10:00:00Z",
+        "last_used_at": "2026-09-27T08:15:00Z",
+        "created_at": "2026-09-28T10:00:00Z",
+        "revoked": false
+      },
+      {
+        "id": "02BRZ3NDEKTSV4RRFFQ69G5FBW",
+        "name": "old-token",
+        "expires_at": "2026-06-15T10:00:00Z",
+        "created_at": "2026-03-15T10:00:00Z",
+        "revoked": true
+      }
+    ]
+  }
+}
+```
+
+**说明：** 列表按创建时间倒序排列，包含已撤销和已过期的令牌（`revoked: true`）。不返回令牌明文。
+
+---
+
+### 6.3 撤销 API Token
+
+`POST /api/v1/auth/tokens/revoke`
+
+**请求头：** `Authorization: Bearer <token>`
+
+**请求体：**
+```json
+{
+  "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| id | string | 是 | 要撤销的 API Token ID |
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": null
+}
+```
+
+**业务规则：**
+- 撤销后立即生效（删除 Redis 缓存 + DB 标记 revoked_at）
+- 只能撤销自己的 Token
+- 已撤销的 Token 再次撤销返回错误
+
+**错误响应：**
+| 状态码 | 场景 |
+|--------|------|
+| 400 | 令牌已被撤销 |
+| 404 | 令牌不存在 |
+| 500 | 服务器内部错误 |
+
+---
+
+### 6.4 使用 API Token 调用 API
+
+API Token 的使用方式与 JWT 完全相同：
+
+```bash
+# 示例：使用 API Token 调用文件上传接口
+curl -X POST https://api.example.com/api/v1/files/upload \
+  -H "Authorization: Bearer mxat_vKx8mN2pQ5rT7wY9aB3cD6fG0hJ4kL" \
+  -F "file=@document.pdf"
+```
+
+**鉴权流程：**
+1. 中间件收到 `Authorization: Bearer <token>` 头
+2. 先尝试 JWT 解析
+3. JWT 解析失败 且 token 以 `mxat_` 开头 → 查 API Token
+4. Redis 缓存命中 → 直接注入 Context（<1ms）
+5. Redis 未命中 → 查 DB → 回填 Redis → 注入 Context
+6. API Token 验证通过后，注入 userID、tenantID、roles，后续逻辑与 JWT 完全一致
+
+**与 JWT 的区别：**
+| 维度 | JWT | API Token |
+|------|-----|-----------|
+| 前缀 | 无 | `mxat_` |
+| 有效期 | 24h（可配） | 最长 90 天（可配） |
+| 轮转 | 无 | 无 |
+| 撤销 | 加入黑名单 | 标记 revoked_at + 删缓存 |
+| 体积 | ~500 字节 | ~48 字节 |
+| 权限 | 自包含 roles | 查 DB 获取当前 roles（实时） |

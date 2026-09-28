@@ -95,6 +95,9 @@ oauth:
     client_id: ""
     client_secret: ""
     redirect_url: "http://localhost:5173/auth/github/callback"
+
+auth:
+  api_token_max_ttl: 2160h   # API Token 最长有效期，默认 2160h（90 天）
 ```
 
 ### 环境变量覆盖
@@ -107,6 +110,7 @@ METEORX_REDIS_PASSWORD=redis_secret
 METEORX_JWT_SECRET=production_jwt_secret
 METEORX_EMAIL_ENABLED=true
 METEORX_OAUTH_REFRESH_TOKEN_TTL=72h
+METEORX_AUTH_API_TOKEN_MAX_TTL=4320h
 METEORX_OAUTH_STATE_TTL=5m
 ```
 
@@ -317,6 +321,7 @@ func InitRedis(cfg *config.Config) (*redis.Client, error) {
 | 登录锁定追踪 | 内存 | Redis 共享 |
 | OAuth CSRF state | 跳过校验（不安全） | Redis 存储 + TTL（`oauth.state_ttl`） |
 | OAuth 刷新令牌 | 不支持 | Redis 存储 + 轮转（`oauth.refresh_token_ttl`） |
+| API Token 缓存 | 降级为纯 DB 查询 | Redis 缓存加速（TTL 1h） |
 
 ### 数据库启动失败策略
 

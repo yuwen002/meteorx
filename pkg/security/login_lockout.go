@@ -1,7 +1,9 @@
+// Package security 提供安全相关工具：登录锁定、限流等
 package security
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"meteorx/internal/cache"
 	"meteorx/internal/config"
@@ -38,6 +40,7 @@ func (l *LoginLockout) getLockKey(identifier string) string {
 }
 
 // IsLocked 检查账号是否被锁定
+// Redis 不可用时视为未锁定，放行请求
 func (l *LoginLockout) IsLocked(ctx context.Context, identifier string) (bool, error) {
 	if !l.config.Enabled {
 		return false, nil
@@ -48,7 +51,8 @@ func (l *LoginLockout) IsLocked(ctx context.Context, identifier string) (bool, e
 	}
 
 	locked, err := l.redis.Exists(ctx, l.getLockKey(identifier))
-	if err == cache.ErrRedisUnavailable {
+	// Redis 不可用时视为未锁定，放行请求
+	if errors.Is(err, cache.ErrRedisUnavailable) {
 		return false, nil
 	}
 	if err != nil {
@@ -57,7 +61,8 @@ func (l *LoginLockout) IsLocked(ctx context.Context, identifier string) (bool, e
 	return locked, nil
 }
 
-// RecordFailedAttempt 记录一次登录失败
+// RecordFailedAttempt 记录一次登录失败，达到最大尝试次数时锁定账号
+// Redis 不可用时静默忽略，不阻塞登录流程
 func (l *LoginLockout) RecordFailedAttempt(ctx context.Context, identifier string) error {
 	if !l.config.Enabled || l.redis == nil || !l.redis.IsAvailable() {
 		return nil
@@ -77,7 +82,8 @@ func (l *LoginLockout) RecordFailedAttempt(ctx context.Context, identifier strin
 	// 如果达到最大尝试次数，锁定账号
 	if int(attempts) >= l.config.MaxAttempts {
 		lockKey := l.getLockKey(identifier)
-		if err := l.redis.Set(ctx, lockKey, "1", l.config.LockoutDuration); err != nil && err != cache.ErrRedisUnavailable {
+		// Redis 不可用时静默忽略，不阻塞登录流程
+		if err := l.redis.Set(ctx, lockKey, "1", l.config.LockoutDuration); err != nil && !errors.Is(err, cache.ErrRedisUnavailable) {
 			return err
 		}
 		// 删除尝试计数
@@ -86,14 +92,15 @@ func (l *LoginLockout) RecordFailedAttempt(ctx context.Context, identifier strin
 	}
 
 	// 更新尝试次数，设置过期时间
-	if err := l.redis.Set(ctx, key, strconv.FormatInt(attempts, 10), l.config.ResetAfter); err != nil && err != cache.ErrRedisUnavailable {
+	// Redis 不可用时静默忽略
+	if err := l.redis.Set(ctx, key, strconv.FormatInt(attempts, 10), l.config.ResetAfter); err != nil && !errors.Is(err, cache.ErrRedisUnavailable) {
 		return err
 	}
 
 	return nil
 }
 
-// RecordSuccessAttempt 记录登录成功，清除失败计数
+// RecordSuccessAttempt 登录成功，清除失败计数
 func (l *LoginLockout) RecordSuccessAttempt(ctx context.Context, identifier string) error {
 	if !l.config.Enabled || l.redis == nil || !l.redis.IsAvailable() {
 		return nil
@@ -101,20 +108,23 @@ func (l *LoginLockout) RecordSuccessAttempt(ctx context.Context, identifier stri
 
 	key := l.getAttemptKey(identifier)
 	err := l.redis.Delete(ctx, key)
-	if err == cache.ErrRedisUnavailable {
+	// Redis 不可用时静默忽略
+	if errors.Is(err, cache.ErrRedisUnavailable) {
 		return nil
 	}
 	return err
 }
 
 // GetRemainingAttempts 获取剩余可尝试次数
+// Redis 不可用或读取失败时返回最大尝试次数，即不做限制
 func (l *LoginLockout) GetRemainingAttempts(ctx context.Context, identifier string) int {
 	if !l.config.Enabled || l.redis == nil || !l.redis.IsAvailable() {
 		return l.config.MaxAttempts
 	}
 
 	val, err := l.redis.Get(ctx, l.getAttemptKey(identifier))
-	if err == cache.ErrRedisUnavailable || err != nil || val == "" {
+	// Redis 不可用或读取失败时返回最大尝试次数，即不做限制
+	if errors.Is(err, cache.ErrRedisUnavailable) || err != nil || val == "" {
 		return l.config.MaxAttempts
 	}
 

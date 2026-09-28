@@ -40,6 +40,7 @@ const (
 	refreshTokenPrefix = "oauth:refresh:"
 )
 
+// OAuthService OAuth 认证服务，处理第三方登录、账号绑定和令牌刷新
 type OAuthService struct {
 	cfg                config.OAuthConfig
 	userRepo           repository.UserRepository
@@ -52,6 +53,7 @@ type OAuthService struct {
 	redis              *cache.Redis
 }
 
+// NewOAuthService 创建 OAuth 服务实例
 func NewOAuthService(
 	cfg config.OAuthConfig,
 	userRepo repository.UserRepository,
@@ -76,6 +78,7 @@ func NewOAuthService(
 	}
 }
 
+// generateState 生成随机 CSRF state 令牌
 func generateState() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -84,6 +87,7 @@ func generateState() (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
+// saveState 将 OAuth state 令牌存入 Redis，用于 CSRF 防护
 func (s *OAuthService) saveState(ctx context.Context, state string) error {
 	if s.redis == nil || !s.redis.IsAvailable() {
 		return nil
@@ -92,6 +96,7 @@ func (s *OAuthService) saveState(ctx context.Context, state string) error {
 	return s.redis.Set(ctx, key, "1", s.cfg.GetStateTTL())
 }
 
+// validateAndConsumeState 验证并消费 OAuth state 令牌，一次性使用
 func (s *OAuthService) validateAndConsumeState(ctx context.Context, state string) error {
 	if s.redis == nil || !s.redis.IsAvailable() {
 		return nil
@@ -99,7 +104,7 @@ func (s *OAuthService) validateAndConsumeState(ctx context.Context, state string
 	key := oauthStatePrefix + state
 	val, err := s.redis.Get(ctx, key)
 	if err != nil {
-		if err == cache.ErrRedisUnavailable {
+		if errors.Is(err, cache.ErrRedisUnavailable) {
 			return nil
 		}
 		return ErrOAuthInvalidState
@@ -111,6 +116,7 @@ func (s *OAuthService) validateAndConsumeState(ctx context.Context, state string
 	return nil
 }
 
+// storeRefreshToken 将 refresh token 存入 Redis，关联用户和租户
 func (s *OAuthService) storeRefreshToken(ctx context.Context, refreshToken, userID, tenantID string) error {
 	if s.redis == nil || !s.redis.IsAvailable() {
 		return nil
@@ -120,6 +126,7 @@ func (s *OAuthService) storeRefreshToken(ctx context.Context, refreshToken, user
 	return s.redis.Set(ctx, key, data, s.cfg.GetRefreshTokenTTL())
 }
 
+// consumeRefreshToken 消费 refresh token，一次性使用，返回关联的用户和租户
 func (s *OAuthService) consumeRefreshToken(ctx context.Context, refreshToken string) (userID, tenantID string, err error) {
 	if s.redis == nil || !s.redis.IsAvailable() {
 		return "", "", ErrRefreshTokenInvalid
@@ -137,10 +144,12 @@ func (s *OAuthService) consumeRefreshToken(ctx context.Context, refreshToken str
 	return parts[0], parts[1], nil
 }
 
+// generateRefreshToken 生成新的 refresh token
 func (s *OAuthService) generateRefreshToken() string {
 	return idgen.NewUUID()
 }
 
+// GetRedirectURL 获取 OAuth 提供商的授权重定向 URL
 func (s *OAuthService) GetRedirectURL(ctx context.Context, provider string) (string, string, error) {
 	state, err := generateState()
 	if err != nil {
@@ -170,6 +179,7 @@ func (s *OAuthService) GetRedirectURL(ctx context.Context, provider string) (str
 	return redirectURL, state, nil
 }
 
+// Login OAuth 登录流程：验证 state → 交换 code → 查找或创建用户 → 生成令牌
 func (s *OAuthService) Login(ctx context.Context, provider, code, state, tenantID string) (*userModel.User, []string, []string, string, string, bool, error) {
 	if err := s.validateAndConsumeState(ctx, state); err != nil {
 		return nil, nil, nil, "", "", false, err
@@ -223,6 +233,7 @@ func (s *OAuthService) Login(ctx context.Context, provider, code, state, tenantI
 	return user, roleCodes, permCodes, token, refreshToken, isNew, nil
 }
 
+// RefreshToken 使用 refresh token 换取新的 access token 和 refresh token
 func (s *OAuthService) RefreshToken(ctx context.Context, refreshToken string) (string, string, error) {
 	userID, _, err := s.consumeRefreshToken(ctx, refreshToken)
 	if err != nil {
@@ -253,6 +264,7 @@ func (s *OAuthService) RefreshToken(ctx context.Context, refreshToken string) (s
 	return newToken, newRefreshToken, nil
 }
 
+// GetTenantList 获取所有活跃租户列表，供 OAuth 登录时选择
 func (s *OAuthService) GetTenantList(ctx context.Context) ([]dto.TenantOption, error) {
 	tenants, err := s.tenantRepo.ListActive(ctx)
 	if err != nil {
@@ -270,6 +282,7 @@ func (s *OAuthService) GetTenantList(ctx context.Context) ([]dto.TenantOption, e
 	return options, nil
 }
 
+// ListOAuthAccounts 列出用户已绑定的所有 OAuth 账号
 func (s *OAuthService) ListOAuthAccounts(ctx context.Context, userID string) ([]dto.OAuthAccountResp, error) {
 	accounts, err := s.oauthAccountRepo.ListByUserID(ctx, userID)
 	if err != nil {
@@ -288,6 +301,7 @@ func (s *OAuthService) ListOAuthAccounts(ctx context.Context, userID string) ([]
 	return result, nil
 }
 
+// UnbindOAuth 解绑指定 OAuth 提供商
 func (s *OAuthService) UnbindOAuth(ctx context.Context, userID, provider string) error {
 	account, err := s.oauthAccountRepo.GetByUserIDAndProvider(ctx, userID, provider)
 	if err != nil {
@@ -296,6 +310,7 @@ func (s *OAuthService) UnbindOAuth(ctx context.Context, userID, provider string)
 	return s.oauthAccountRepo.DeleteByID(ctx, account.ID)
 }
 
+// BindOAuth 绑定 OAuth 提供商到已有用户
 func (s *OAuthService) BindOAuth(ctx context.Context, userID, provider, code, state string) error {
 	if err := s.validateAndConsumeState(ctx, state); err != nil {
 		return err
@@ -331,11 +346,13 @@ func (s *OAuthService) BindOAuth(ctx context.Context, userID, provider, code, st
 	return nil
 }
 
+// needsOAuthAccountBinding 检查用户是否需要绑定指定 OAuth 提供商
 func (s *OAuthService) needsOAuthAccountBinding(ctx context.Context, userID, provider string) bool {
 	_, err := s.oauthAccountRepo.GetByUserIDAndProvider(ctx, userID, provider)
 	return err != nil
 }
 
+// bindOAuthAccount 绑定 OAuth 账号到用户，若已存在则跳过
 func (s *OAuthService) bindOAuthAccount(ctx context.Context, userID string, info *dto.OAuthUserInfo) {
 	existing, _ := s.oauthAccountRepo.GetByProviderAndProviderID(ctx, info.Provider, info.ProviderID)
 	if existing != nil {
@@ -353,6 +370,7 @@ func (s *OAuthService) bindOAuthAccount(ctx context.Context, userID string, info
 	_ = s.oauthAccountRepo.Create(ctx, account)
 }
 
+// collectPermissionCodes 收集用户的所有权限码，系统管理员返回空数组（前端通过 is_master 判断）
 func (s *OAuthService) collectPermissionCodes(ctx context.Context, userID string, isMaster bool) []string {
 	permCodes := make([]string, 0)
 	if isMaster {
@@ -378,6 +396,7 @@ func (s *OAuthService) collectPermissionCodes(ctx context.Context, userID string
 	return permCodes
 }
 
+// findOrCreateUser 查找已有 OAuth 账号对应用户，不存在则创建新用户并分配默认角色
 func (s *OAuthService) findOrCreateUser(ctx context.Context, info *dto.OAuthUserInfo, tenantID string) (*userModel.User, bool, error) {
 	existingAccount, err := s.oauthAccountRepo.GetByProviderAndProviderID(ctx, info.Provider, info.ProviderID)
 	if err == nil && existingAccount != nil {

@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/base64url"
 	"errors"
 	"fmt"
 	"strings"
@@ -17,7 +16,7 @@ import (
 	"meteorx/internal/modules/auth/model"
 	"meteorx/internal/modules/auth/repository"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
-	"meteorx/internal/modules/user/repository"
+	userRepo "meteorx/internal/modules/user/repository"
 	"meteorx/pkg/idgen"
 )
 
@@ -38,18 +37,20 @@ const (
 	apiTokenCacheTTL   = 1 * time.Hour
 )
 
+// APITokenService API Token 服务，处理长期令牌的创建、验证、撤销等业务逻辑
 type APITokenService struct {
 	apiTokenRepo   repository.APITokenRepository
-	userRepo       repository.UserRepository
+	userRepo       userRepo.UserRepository
 	userRoleRepo   rbacRepo.UserRoleRepository
 	rolePermRepo   rbacRepo.RolePermissionRepository
 	redis          *cache.Redis
 	authCfg        config.AuthConfig
 }
 
+// NewAPITokenService 创建 API Token 服务实例
 func NewAPITokenService(
 	apiTokenRepo repository.APITokenRepository,
-	userRepo repository.UserRepository,
+	userRepo userRepo.UserRepository,
 	userRoleRepo rbacRepo.UserRoleRepository,
 	rolePermRepo rbacRepo.RolePermissionRepository,
 	redis *cache.Redis,
@@ -65,6 +66,7 @@ func NewAPITokenService(
 	}
 }
 
+// Create 创建 API Token，返回明文令牌（仅此一次可见）
 func (s *APITokenService) Create(ctx context.Context, userID, tenantID string, req dto.CreateAPITokenReq) (*dto.CreateAPITokenResp, error) {
 	count, err := s.countActiveByUserID(ctx, userID)
 	if err != nil {
@@ -117,6 +119,7 @@ func (s *APITokenService) Create(ctx context.Context, userID, tenantID string, r
 	return resp, nil
 }
 
+// ListByUserID 列出用户的所有 API Token
 func (s *APITokenService) ListByUserID(ctx context.Context, userID string) ([]*dto.APITokenResp, error) {
 	tokens, err := s.apiTokenRepo.ListByUserID(ctx, userID)
 	if err != nil {
@@ -130,6 +133,7 @@ func (s *APITokenService) ListByUserID(ctx context.Context, userID string) ([]*d
 	return result, nil
 }
 
+// Revoke 撤销 API Token，使其立即失效
 func (s *APITokenService) Revoke(ctx context.Context, userID, tokenID string) error {
 	t, err := s.apiTokenRepo.GetByID(ctx, tokenID)
 	if err != nil {
@@ -150,6 +154,7 @@ func (s *APITokenService) Revoke(ctx context.Context, userID, tokenID string) er
 	return nil
 }
 
+// Validate 验证 API Token 有效性，优先查缓存，缓存未命中则查数据库
 func (s *APITokenService) Validate(ctx context.Context, tokenString string) (userID, tenantID string, err error) {
 	if !strings.HasPrefix(tokenString, apiTokenPrefix) {
 		return "", "", ErrAPITokenInvalid
@@ -180,10 +185,12 @@ func (s *APITokenService) Validate(ctx context.Context, tokenString string) (use
 	return t.UserID, t.TenantID, nil
 }
 
+// GetUserRoles 获取用户的角色编码列表
 func (s *APITokenService) GetUserRoles(ctx context.Context, userID string) ([]string, error) {
 	return s.userRoleRepo.GetRoleCodesByUserID(ctx, userID)
 }
 
+// countActiveByUserID 统计用户未撤销的 API Token 数量
 func (s *APITokenService) countActiveByUserID(ctx context.Context, userID string) (int, error) {
 	tokens, err := s.apiTokenRepo.ListByUserID(ctx, userID)
 	if err != nil {
@@ -198,6 +205,7 @@ func (s *APITokenService) countActiveByUserID(ctx context.Context, userID string
 	return count, nil
 }
 
+// parseExpiresIn 解析过期时间字符串，校验不超过最大允许 TTL
 func (s *APITokenService) parseExpiresIn(expiresIn string) (*time.Time, error) {
 	maxTTL := s.authCfg.GetAPITokenMaxTTL()
 
@@ -221,6 +229,7 @@ func (s *APITokenService) parseExpiresIn(expiresIn string) (*time.Time, error) {
 	return &expiresAt, nil
 }
 
+// cacheToken 将 token 信息缓存到 Redis，TTL 取缓存默认值与剩余有效期的较小值
 func (s *APITokenService) cacheToken(ctx context.Context, tokenHash, userID, tenantID string, expiresAt *time.Time) {
 	if s.redis == nil || !s.redis.IsAvailable() {
 		return
@@ -241,6 +250,7 @@ func (s *APITokenService) cacheToken(ctx context.Context, tokenHash, userID, ten
 	_ = s.redis.Set(ctx, key, data, ttl)
 }
 
+// lookupCache 从 Redis 缓存中查找 token 对应的用户和租户
 func (s *APITokenService) lookupCache(ctx context.Context, tokenHash string) (userID, tenantID string, err error) {
 	if s.redis == nil || !s.redis.IsAvailable() {
 		return "", "", fmt.Errorf("cache unavailable")
@@ -257,6 +267,7 @@ func (s *APITokenService) lookupCache(ctx context.Context, tokenHash string) (us
 	return parts[0], parts[1], nil
 }
 
+// invalidateCache 使 Redis 中的 token 缓存失效
 func (s *APITokenService) invalidateCache(ctx context.Context, tokenHash string) {
 	if s.redis == nil || !s.redis.IsAvailable() {
 		return
@@ -265,21 +276,24 @@ func (s *APITokenService) invalidateCache(ctx context.Context, tokenHash string)
 	_ = s.redis.Delete(ctx, key)
 }
 
+// generateAPIToken 生成随机 API Token 明文和 SHA-256 哈希值
 func generateAPIToken() (plainText, hash string, err error) {
 	b := make([]byte, apiTokenBytes)
 	if _, err := rand.Read(b); err != nil {
 		return "", "", err
 	}
-	plainText = apiTokenPrefix + base64url.EncodeToString(b)
+	plainText = apiTokenPrefix + base64.RawURLEncoding.EncodeToString(b)
 	hash = hashAPIToken(plainText)
 	return plainText, hash, nil
 }
 
+// hashAPIToken 对 token 进行 SHA-256 哈希
 func hashAPIToken(token string) string {
 	h := sha256.Sum256([]byte(token))
 	return base64.StdEncoding.EncodeToString(h[:])
 }
 
+// toAPITokenResp 将领域模型转换为 DTO 响应
 func toAPITokenResp(t *model.APIToken) *dto.APITokenResp {
 	resp := &dto.APITokenResp{
 		ID:        t.ID,

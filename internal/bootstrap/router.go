@@ -21,12 +21,15 @@ import (
 	auditRepo "meteorx/internal/modules/audit/repository"
 	auditSvc "meteorx/internal/modules/audit/service"
 	"meteorx/internal/modules/auth"
+	authRepo "meteorx/internal/modules/auth/repository"
+	authSvc "meteorx/internal/modules/auth/service"
 	"meteorx/internal/modules/file"
 	"meteorx/internal/modules/oauth"
 	"meteorx/internal/modules/plan"
 	planRepo "meteorx/internal/modules/plan/repository"
 	planSvc "meteorx/internal/modules/plan/service"
 	"meteorx/internal/modules/rbac"
+	rbacRepo "meteorx/internal/modules/rbac/repository"
 	"meteorx/internal/modules/tenant"
 	"meteorx/internal/modules/user"
 	userRepo "meteorx/internal/modules/user/repository"
@@ -144,8 +147,11 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 		r.Group(func(r chi.Router) {
 			// 【第一层防线】挂载认证中间件，解析 Token 并注入 UserID, TenantID, Role
 			// 同时检查 token 是否在黑名单中（已登出的 token）
+			// JWT 解析失败时 fallback 查 API Token（mxat_ 前缀）
 			blacklistChecker := &middleware.RedisBlacklistChecker{Redis: rdb}
-			r.Use(middleware.Auth(tokenHelper, blacklistChecker, cfg.Server.Mode, cfg.Server.TestBypass))
+			apiTokenRepo := authRepo.NewAPITokenRepository(db)
+			apiTokenValidator := authSvc.NewAPITokenService(apiTokenRepo, userRepo.NewUserRepository(db), rbacRepo.NewUserRoleRepository(db), rbacRepo.NewRolePermissionRepository(db), rdb, cfg.Auth)
+			r.Use(middleware.Auth(tokenHelper, blacklistChecker, cfg.Server.Mode, cfg.Server.TestBypass, apiTokenValidator))
 
 			// 审计日志中间件：自动记录所有请求（挂载在认证之后，确保能获取用户信息）
 			repo := auditRepo.NewAuditLogRepository(db)
@@ -180,16 +186,19 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 4.2 OAuth2 账号管理（需登录：查看绑定、解绑、绑定新账号）
 			oauth.InitProtectedModule(r, db, *cfg, tokenHelper, rdb)
 
-			// 4.3 租户侧当前套餐查询
+			// 4.3 API Token 管理（需登录：创建、查看、撤销长期令牌）
+			auth.InitAPITokenModule(r, db, *cfg, rdb)
+
+			// 4.4 租户侧当前套餐查询
 			plan.InitPrivateModule(r, db)
 
-			// 4.4 文件管理接口
+			// 4.5 文件管理接口
 			file.RegisterRoutes(r, db, cfg)
 
-			// 4.5 Wiki 知识库接口
+			// 4.6 Wiki 知识库接口
 			wiki.InitModule(r, db, txManager, cfg)
 
-			// 4.6 租户端公告查看接口
+			// 4.7 租户端公告查看接口
 			notification.InitTenantModule(r, db)
 
 			// ========================================================

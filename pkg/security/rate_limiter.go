@@ -1,7 +1,9 @@
+// Package security 提供安全相关工具：登录锁定、限流等
 package security
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -28,12 +30,13 @@ func NewRateLimiter(redis *cache.Redis, cfg config.RateLimitConfig) *RateLimiter
 	}
 }
 
-// getKey 获取限流 Redis key
+// getKey 生成限流 Redis key，包含时间窗口信息
 func (r *RateLimiter) getKey(identifier string) string {
 	return fmt.Sprintf("%s%s:%d", rateLimitPrefix, identifier, time.Now().Unix()/int64(r.config.Window.Seconds()))
 }
 
-// Allow 检查是否允许请求通过
+// Allow 检查请求是否允许通过，基于 Redis 滑动窗口计数
+// Redis 不可用时默认放行，避免因基础设施故障阻塞正常流量
 func (r *RateLimiter) Allow(ctx context.Context, identifier string) (bool, error) {
 	if !r.config.Enabled {
 		return true, nil
@@ -47,7 +50,8 @@ func (r *RateLimiter) Allow(ctx context.Context, identifier string) (bool, error
 
 	// 获取当前窗口的请求数
 	val, err := r.redis.Get(ctx, key)
-	if err == cache.ErrRedisUnavailable {
+	// Redis 不可用时放行请求，避免因基础设施故障阻塞正常流量
+	if errors.Is(err, cache.ErrRedisUnavailable) {
 		return true, nil
 	}
 	var count int64 = 0
@@ -62,7 +66,8 @@ func (r *RateLimiter) Allow(ctx context.Context, identifier string) (bool, error
 
 	// 增加计数
 	count++
-	if err := r.redis.Set(ctx, key, strconv.FormatInt(count, 10), r.config.Window); err != nil && err != cache.ErrRedisUnavailable {
+	// Redis 不可用时静默忽略
+	if err := r.redis.Set(ctx, key, strconv.FormatInt(count, 10), r.config.Window); err != nil && !errors.Is(err, cache.ErrRedisUnavailable) {
 		return false, err
 	}
 

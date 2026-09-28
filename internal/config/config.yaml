@@ -126,6 +126,10 @@ oauth:
     client_secret: ""
     redirect_url: "http://localhost:5173/auth/github/callback"
 
+# 认证模块通用配置
+auth:
+  api_token_max_ttl: 2160h   # API Token 最长有效期，默认 2160h（90 天）
+
 # WebSocket 实时推送配置
 ws:
   enabled: true

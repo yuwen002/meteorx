@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -11,20 +12,25 @@ import (
 	"meteorx/internal/modules/auth/service"
 )
 
+// APITokenService API Token 服务接口（handler 依赖的最小业务面，便于测试注入桩）
 type APITokenService interface {
 	Create(ctx context.Context, userID, tenantID string, req dto.CreateAPITokenReq) (*dto.CreateAPITokenResp, error)
 	ListByUserID(ctx context.Context, userID string) ([]*dto.APITokenResp, error)
 	Revoke(ctx context.Context, userID, tokenID string) error
 }
 
+// APITokenHandler API Token 处理器
 type APITokenHandler struct {
 	svc APITokenService
 }
 
+// NewAPITokenHandler 创建 API Token 处理器
 func NewAPITokenHandler(svc APITokenService) *APITokenHandler {
 	return &APITokenHandler{svc: svc}
 }
 
+// Create 创建 API Token
+// POST /api/v1/auth/tokens
 func (h *APITokenHandler) Create(w http.ResponseWriter, r *http.Request) {
 	userID := contextx.GetUserID(r.Context())
 	tenantID := contextx.GetTenantID(r.Context())
@@ -54,6 +60,8 @@ func (h *APITokenHandler) Create(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, result)
 }
 
+// List 查询当前用户的 API Token 列表
+// GET /api/v1/auth/tokens
 func (h *APITokenHandler) List(w http.ResponseWriter, r *http.Request) {
 	userID := contextx.GetUserID(r.Context())
 	if userID == "" {
@@ -70,6 +78,8 @@ func (h *APITokenHandler) List(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, map[string]interface{}{"tokens": tokens})
 }
 
+// Revoke 撤销指定的 API Token
+// POST /api/v1/auth/tokens/revoke
 func (h *APITokenHandler) Revoke(w http.ResponseWriter, r *http.Request) {
 	userID := contextx.GetUserID(r.Context())
 	if userID == "" {

@@ -61,6 +61,8 @@ func LoadConfig() (*config.Config, error) {
 		// OAuth
 		{"oauth.refresh_token_ttl", "METEORX_OAUTH_REFRESH_TOKEN_TTL"},
 		{"oauth.state_ttl", "METEORX_OAUTH_STATE_TTL"},
+		// Auth
+		{"auth.api_token_max_ttl", "METEORX_AUTH_API_TOKEN_MAX_TTL"},
 	}
 	for _, b := range envBindings {
 		if err := mustBindEnv(v, b.key, b.env); err != nil {

@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// WikiRepositoryExtended Wiki 扩展仓库接口，包含标签、评论、分享、模板、订阅、通知、编辑锁等
 type WikiRepositoryExtended interface {
 	WikiRepository
 
@@ -85,20 +86,24 @@ type WikiRepositoryExtended interface {
 	GenerateDiff(ctx context.Context, oldContent, newContent string) string
 }
 
+// wikiRepositoryExtended Wiki 扩展仓库实现
 type wikiRepositoryExtended struct {
 	wikiRepository
 }
 
+// NewWikiRepositoryExtended 创建 Wiki 扩展仓库实例
 func NewWikiRepositoryExtended(database *gorm.DB) WikiRepositoryExtended {
 	return &wikiRepositoryExtended{
 		wikiRepository: wikiRepository{db: database},
 	}
 }
 
+// getDB 获取带租户过滤的数据库连接
 func (r *wikiRepositoryExtended) getDB(ctx context.Context) *gorm.DB {
 	return r.wikiRepository.getDB(ctx)
 }
 
+// CreateTag 创建标签
 func (r *wikiRepositoryExtended) CreateTag(ctx context.Context, tag *model.Tag) error {
 	tag.ID = idgen.NewULID()
 	if tag.TenantID == "" {
@@ -107,6 +112,7 @@ func (r *wikiRepositoryExtended) CreateTag(ctx context.Context, tag *model.Tag) 
 	return r.getDB(ctx).Create(tag).Error
 }
 
+// ListTags 列出指定租户的所有标签
 func (r *wikiRepositoryExtended) ListTags(ctx context.Context, tenantID string) ([]*model.Tag, error) {
 	var tags []*model.Tag
 	query := tenantctx.FilterQuery(ctx, r.getDB(ctx), "tenant_id")
@@ -114,6 +120,7 @@ func (r *wikiRepositoryExtended) ListTags(ctx context.Context, tenantID string) 
 	return tags, err
 }
 
+// GetTagByID 根据ID获取标签
 func (r *wikiRepositoryExtended) GetTagByID(ctx context.Context, id string) (*model.Tag, error) {
 	var tag model.Tag
 	query := tenantctx.FilterQuery(ctx, r.getDB(ctx), "tenant_id")
@@ -124,10 +131,12 @@ func (r *wikiRepositoryExtended) GetTagByID(ctx context.Context, id string) (*mo
 	return &tag, nil
 }
 
+// DeleteTag 删除标签
 func (r *wikiRepositoryExtended) DeleteTag(ctx context.Context, id string) error {
 	return r.getDB(ctx).Where("id = ?", id).Delete(&model.Tag{}).Error
 }
 
+// AddDocumentTag 为文档添加标签关联
 func (r *wikiRepositoryExtended) AddDocumentTag(ctx context.Context, documentID, tagID string) error {
 	dt := &model.DocumentTag{
 		ID:         idgen.NewULID(),
@@ -138,16 +147,19 @@ func (r *wikiRepositoryExtended) AddDocumentTag(ctx context.Context, documentID,
 	return r.getDB(ctx).Create(dt).Error
 }
 
+// RemoveDocumentTag 移除文档标签关联
 func (r *wikiRepositoryExtended) RemoveDocumentTag(ctx context.Context, documentID, tagID string) error {
 	return r.getDB(ctx).Where("document_id = ? AND tag_id = ?", documentID, tagID).Delete(&model.DocumentTag{}).Error
 }
 
+// ListDocumentTags 列出文档的所有标签关联（含标签详情）
 func (r *wikiRepositoryExtended) ListDocumentTags(ctx context.Context, documentID string) ([]*model.DocumentTag, error) {
 	var tags []*model.DocumentTag
 	err := r.getDB(ctx).Preload("Tag").Where("document_id = ?", documentID).Find(&tags).Error
 	return tags, err
 }
 
+// CreateComment 创建评论
 func (r *wikiRepositoryExtended) CreateComment(ctx context.Context, comment *model.Comment) error {
 	comment.ID = idgen.NewULID()
 	if comment.TenantID == "" {
@@ -156,6 +168,7 @@ func (r *wikiRepositoryExtended) CreateComment(ctx context.Context, comment *mod
 	return r.getDB(ctx).Create(comment).Error
 }
 
+// ListComments 列出文档的活跃评论
 func (r *wikiRepositoryExtended) ListComments(ctx context.Context, documentID string) ([]*model.Comment, error) {
 	var comments []*model.Comment
 	err := r.getDB(ctx).Where("document_id = ? AND status = ?", documentID, model.CommentStatusActive).
@@ -163,6 +176,7 @@ func (r *wikiRepositoryExtended) ListComments(ctx context.Context, documentID st
 	return comments, err
 }
 
+// UpdateComment 更新评论
 func (r *wikiRepositoryExtended) UpdateComment(ctx context.Context, comment *model.Comment) error {
 	return r.getDB(ctx).Save(comment).Error
 }
@@ -177,6 +191,7 @@ func (r *wikiRepositoryExtended) DeleteComment(ctx context.Context, id string) e
 		}).Error
 }
 
+// GetComment 根据ID获取评论
 func (r *wikiRepositoryExtended) GetComment(ctx context.Context, id string) (*model.Comment, error) {
 	var comment model.Comment
 	err := r.getDB(ctx).Where("id = ?", id).First(&comment).Error
@@ -186,6 +201,7 @@ func (r *wikiRepositoryExtended) GetComment(ctx context.Context, id string) (*mo
 	return &comment, nil
 }
 
+// CreateShareLink 创建分享链接
 func (r *wikiRepositoryExtended) CreateShareLink(ctx context.Context, link *model.ShareLink) error {
 	link.ID = idgen.NewULID()
 	if link.TenantID == "" {
@@ -194,6 +210,7 @@ func (r *wikiRepositoryExtended) CreateShareLink(ctx context.Context, link *mode
 	return r.getDB(ctx).Create(link).Error
 }
 
+// GetShareLinkByToken 根据分享令牌获取分享链接
 func (r *wikiRepositoryExtended) GetShareLinkByToken(ctx context.Context, token string) (*model.ShareLink, error) {
 	var link model.ShareLink
 	err := r.getDB(ctx).Where("token = ?", token).First(&link).Error
@@ -435,7 +452,7 @@ func (r *wikiRepositoryExtended) GetEditLock(ctx context.Context, documentID str
 func (r *wikiRepositoryExtended) IsDocumentLocked(ctx context.Context, documentID string) (bool, error) {
 	var lock model.EditLock
 	err := r.getDB(ctx).Where("document_id = ? AND expires_at > ?", documentID, time.Now()).First(&lock).Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
 	}
 	if err != nil {
