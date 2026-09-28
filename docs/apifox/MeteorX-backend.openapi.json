@@ -7993,6 +7993,34 @@
         ]
       }
     },
+    "/api/v1/auth/oauth/accounts": {
+      "get": {
+        "description": "权限码: `auth:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "获取accounts",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/oauth/bind": {
+      "post": {
+        "description": "权限码: `auth:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "创建bind",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/auth/oauth/callback": {
       "post": {
         "description": "处理第三方 OAuth2 授权码，换取 access token 并完成用户登录。OAuth 登录时需要传入 tenant_id 选择所属租户",
@@ -8127,6 +8155,34 @@
         ]
       }
     },
+    "/api/v1/auth/oauth/token/refresh": {
+      "post": {
+        "description": "权限码: `auth:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "创建refresh",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/oauth/unbind": {
+      "post": {
+        "description": "权限码: `auth:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "创建unbind",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/auth/oauth/{provider}/redirect": {
       "get": {
         "description": "返回第三方 OAuth2 授权页面跳转 URL，前端应直接跳转",
@@ -8256,6 +8312,46 @@
         "summary": "重置密码（通过邮件令牌）",
         "tags": [
           "认证"
+        ]
+      }
+    },
+    "/api/v1/auth/tokens": {
+      "get": {
+        "description": "权限码: `auth:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "获取tokens",
+        "tags": [
+          "Auth"
+        ]
+      },
+      "post": {
+        "description": "权限码: `auth:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "创建tokens",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/tokens/revoke": {
+      "post": {
+        "description": "权限码: `auth:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "创建revoke",
+        "tags": [
+          "Auth"
         ]
       }
     },

@@ -12,10 +12,10 @@ import (
 	"strings"
 
 	"meteorx/internal/middleware"
-	auth "meteorx/internal/modules/auth"
-	authHandler "meteorx/internal/modules/auth/handler"
 	audit "meteorx/internal/modules/audit"
 	auditHandler "meteorx/internal/modules/audit/handler"
+	auth "meteorx/internal/modules/auth"
+	authHandler "meteorx/internal/modules/auth/handler"
 	dashboard "meteorx/internal/modules/dashboard"
 	dashboardHandler "meteorx/internal/modules/dashboard/handler"
 	notification "meteorx/internal/modules/notification"
@@ -35,15 +35,22 @@ import (
 )
 
 func main() {
-	applyFlag := flag.Bool("apply", false, "自动修复 OpenAPI 文件（添加缺失路由 / 删除多余路由）")
+	applyFlag := flag.Bool("apply", false, "自动修复文档（添加缺失路由 / 删除多余路由）")
 	flag.Parse()
 
-	r := buildRouter()
+	codeSet := buildCodeRouteSet()
 
-	type routeEntry struct {
-		method  string
-		pattern string
-	}
+	syncOpenAPI(codeSet, *applyFlag)
+	syncApifox(codeSet, *applyFlag)
+}
+
+type routeEntry struct {
+	method  string
+	pattern string
+}
+
+func buildCodeRouteSet() map[string]routeEntry {
+	r := buildRouter()
 	var entries []routeEntry
 	validMethods := map[string]bool{"GET": true, "POST": true, "PUT": true, "DELETE": true, "PATCH": true}
 
@@ -64,7 +71,10 @@ func main() {
 		key := e.method + " " + normalizePattern(e.pattern)
 		codeSet[key] = routeEntry{method: e.method, pattern: normalizePattern(e.pattern)}
 	}
+	return codeSet
+}
 
+func syncOpenAPI(codeSet map[string]routeEntry, apply bool) {
 	data, err := os.ReadFile("docs/apifox/MeteorX-backend.openapi.json")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "读取 OpenAPI 文件失败: %v\n", err)
@@ -136,7 +146,7 @@ func main() {
 		return
 	}
 
-	if *applyFlag {
+	if apply {
 		fmt.Println("\n===== 应用修复 =====")
 
 		for _, key := range missingKeys {
@@ -281,6 +291,8 @@ func buildRouter() *chi.Mux {
 		r.Group(func(r chi.Router) {
 			r.Get("/ws", noop())
 
+			auth.RegisterAPITokenRoutes(r, &authHandler.APITokenHandler{})
+			oauth.RegisterProtectedRoutes(r, &oauthHandler.OAuthHandler{})
 			tenant.RegisterPrivateRoutes(r, &tenantHandler.TenantHandler{})
 			tenant.RegisterTenantSettingsRoutes(r, &tenantHandler.TenantSettingsHandler{})
 			user.RegisterRoutes(r, &userHandler.UserHandler{}, nil)
@@ -406,6 +418,392 @@ func registerWikiRoutes(r chi.Router) {
 			r.Get("/{id}/revisions/compare", noop())
 		})
 	})
+}
+
+func syncApifox(codeSet map[string]routeEntry, apply bool) {
+	data, err := os.ReadFile("docs/apifox/MeteorX-backend.apifox.json")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "读取 Apifox 文件失败: %v\n", err)
+		os.Exit(1)
+	}
+
+	var doc map[string]interface{}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		fmt.Fprintf(os.Stderr, "解析 Apifox JSON 失败: %v\n", err)
+		os.Exit(1)
+	}
+
+	collection, _ := doc["apiCollection"].([]interface{})
+	apifoxSet := make(map[string]bool)
+	groupMap := make(map[string]map[string]interface{})
+
+	var collectRoutes func(items []interface{}, groupID string)
+	collectRoutes = func(items []interface{}, groupID string) {
+		for _, item := range items {
+			obj, _ := item.(map[string]interface{})
+			if api, ok := obj["api"].(map[string]interface{}); ok {
+				method := strings.ToUpper(api["method"].(string))
+				path := api["path"].(string)
+				key := method + " " + normalizePattern(path)
+				apifoxSet[key] = true
+				if groupID != "" {
+					groupMap[key] = obj
+				}
+			} else if subItems, ok := obj["items"].([]interface{}); ok {
+				subID := fmt.Sprintf("%v", obj["id"])
+				collectRoutes(subItems, subID)
+			}
+		}
+	}
+
+	for _, item := range collection {
+		obj, _ := item.(map[string]interface{})
+		rootID := fmt.Sprintf("%v", obj["id"])
+		items, _ := obj["items"].([]interface{})
+		collectRoutes(items, rootID)
+	}
+
+	fmt.Println("\n======== 代码路由 vs Apifox 对比 ========\n")
+
+	var missingKeys []string
+	var extraKeys []string
+
+	for key := range codeSet {
+		if !apifoxSet[key] {
+			missingKeys = append(missingKeys, key)
+		}
+	}
+	for key := range apifoxSet {
+		if _, exists := codeSet[key]; !exists {
+			extraKeys = append(extraKeys, key)
+		}
+	}
+
+	sort.Strings(missingKeys)
+	sort.Strings(extraKeys)
+
+	fmt.Printf("代码路由总数: %d\n", len(codeSet))
+	fmt.Printf("Apifox 路由总数: %d\n\n", len(apifoxSet))
+
+	if len(missingKeys) > 0 {
+		fmt.Printf("⚠️  Apifox 缺失 %d 个路由：\n", len(missingKeys))
+		for _, k := range missingKeys {
+			fmt.Printf("  + %s\n", k)
+		}
+		fmt.Println()
+	} else {
+		fmt.Println("✅ Apifox 无缺失路由")
+	}
+
+	if len(extraKeys) > 0 {
+		fmt.Printf("⚠️  Apifox 多出 %d 个路由：\n", len(extraKeys))
+		for _, k := range extraKeys {
+			fmt.Printf("  - %s\n", k)
+		}
+		fmt.Println()
+	} else {
+		fmt.Println("✅ Apifox 无多余路由")
+	}
+
+	if len(missingKeys) == 0 && len(extraKeys) == 0 {
+		fmt.Println("\n🎉 完美匹配！")
+		return
+	}
+
+	if apply {
+		fmt.Println("\n===== 应用修复 =====")
+
+		addedCount := 0
+		for _, key := range missingKeys {
+			e := codeSet[key]
+			newItem := buildApifoxAPIItem(e.method, e.pattern)
+			targetGroup := findApifoxGroup(collection, e.pattern)
+			if targetGroup != nil {
+				items, _ := targetGroup["items"].([]interface{})
+				targetGroup["items"] = append(items, newItem)
+				addedCount++
+				fmt.Printf("+ 添加 %s %s -> 分组 %s\n", e.method, e.pattern, targetGroup["name"])
+			} else {
+				fmt.Printf("⚠️  无法确定 %s %s 的分组，跳过\n", e.method, e.pattern)
+			}
+		}
+
+		removedCount := 0
+		for _, key := range extraKeys {
+			parts := strings.SplitN(key, " ", 2)
+			method := parts[0]
+			path := parts[1]
+			if removeApifoxRoute(collection, method, path) {
+				removedCount++
+				fmt.Printf("- 删除 %s %s\n", method, path)
+			}
+		}
+
+		out, err := json.MarshalIndent(doc, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "序列化失败: %v\n", err)
+			os.Exit(1)
+		}
+		if err := os.WriteFile("docs/apifox/MeteorX-backend.apifox.json", out, 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "写入失败: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("\n✅ 已修复：+%d / -%d\n", addedCount, removedCount)
+	} else {
+		fmt.Println("\n💡 加 -apply 参数可自动修复")
+	}
+}
+
+func findApifoxGroup(collection []interface{}, pattern string) map[string]interface{} {
+	groupName := inferApifoxGroupName(pattern)
+
+	for _, item := range collection {
+		obj, _ := item.(map[string]interface{})
+		items, _ := obj["items"].([]interface{})
+		for _, sub := range items {
+			subObj, _ := sub.(map[string]interface{})
+			name, _ := subObj["name"].(string)
+			if name == groupName {
+				return subObj
+			}
+		}
+	}
+	return nil
+}
+
+func inferApifoxGroupName(pattern string) string {
+	if strings.HasPrefix(pattern, "/health") || strings.HasPrefix(pattern, "/metrics") {
+		return "系统"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/auth/tokens") {
+		return "认证"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/auth/oauth") || strings.HasPrefix(pattern, "/api/v1/oauth") {
+		return "认证"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/auth") {
+		return "认证"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/profile") {
+		return "个人中心"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/admin/tenants-plan") || strings.HasPrefix(pattern, "/api/v1/admin/cancel-requests") {
+		return "租户管理"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/admin/tenants") {
+		return "租户管理"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/tenants") {
+		return "租户管理"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/tenant-settings") {
+		return "租户独立配置"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/admin/tenant-users") {
+		return "跨租户用户管理"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/admin/users") {
+		return "管理员用户管理"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/users") {
+		return "租户用户管理"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/admin/stats") || strings.HasPrefix(pattern, "/api/v1/admin/dashboard") {
+		return "运营看板"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/rbac") {
+		return "角色与权限"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/audit/alert") {
+		return "告警管理"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/audit/sessions") {
+		return "会话分析"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/audit") {
+		return "审计日志"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/files") {
+		return "文件管理"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/plan") || strings.HasPrefix(pattern, "/api/v1/admin/plans") || strings.HasPrefix(pattern, "/api/v1/admin/subscriptions") {
+		return "套餐管理"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/admin/announcements") || strings.HasPrefix(pattern, "/api/v1/announcements") {
+		return "通知公告"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/wiki") {
+		return "知识库"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/ws") {
+		return "系统"
+	}
+	return "认证"
+}
+
+var apifoxIDCounter int64 = 900000000
+
+func nextApifoxID() string {
+	apifoxIDCounter++
+	return fmt.Sprintf("%d", apifoxIDCounter)
+}
+
+func buildApifoxAPIItem(method, pattern string) map[string]interface{} {
+	methodLower := strings.ToLower(method)
+	tags := inferTags(pattern)
+	perm := middleware.DerivePermissionCode(method, pattern)
+	summary := inferSummary(method, pattern)
+
+	apiID := nextApifoxID()
+	respID := nextApifoxID()
+	caseID := nextApifoxID()
+
+	tagStrs := make([]interface{}, len(tags))
+	for i, t := range tags {
+		tagStrs[i] = t
+	}
+
+	return map[string]interface{}{
+		"name": summary,
+		"api": map[string]interface{}{
+			"id":       apiID,
+			"method":   methodLower,
+			"path":     pattern,
+			"parameters": map[string]interface{}{
+				"path":   []interface{}{},
+				"query":  []interface{}{},
+				"cookie": []interface{}{},
+				"header": []interface{}{},
+			},
+			"auth":            map[string]interface{}{},
+			"securityScheme":  map[string]interface{}{},
+			"commonParameters": map[string]interface{}{},
+			"responses": []interface{}{
+				map[string]interface{}{
+					"id":          respID,
+					"code":        "200",
+					"headers":     []interface{}{},
+					"jsonSchema":  map[string]interface{}{"type": "object", "properties": map[string]interface{}{}},
+					"itemSchema":  map[string]interface{}{},
+					"description": "成功",
+					"contentType": "json",
+					"mediaType":   "application/json",
+					"oasExtensions": "",
+				},
+			},
+			"responseExamples": []interface{}{},
+			"requestBody": map[string]interface{}{
+				"type":                   "application/json",
+				"parameters":             []interface{}{},
+				"jsonSchema":             map[string]interface{}{"type": "object", "properties": map[string]interface{}{}},
+				"mediaType":              "application/json",
+				"oasExtensions":          "",
+				"required":               true,
+				"additionalContentTypes": []interface{}{},
+			},
+			"description":  fmt.Sprintf("权限码: `%s`", perm),
+			"tags":         tagStrs,
+			"status":       "released",
+			"serverId":     "",
+			"operationId":  "",
+			"sourceUrl":    "",
+			"ordering":     100,
+			"cases": []interface{}{
+				map[string]interface{}{
+					"id":         caseID,
+					"type":       "DEBUG_CASE",
+					"path":       nil,
+					"name":       "成功",
+					"responseId": respID,
+					"parameters": map[string]interface{}{
+						"path":   []interface{}{},
+						"query":  []interface{}{},
+						"cookie": []interface{}{},
+						"header": []interface{}{},
+					},
+					"commonParameters": map[string]interface{}{},
+					"requestBody": map[string]interface{}{
+						"parameters":   []interface{}{},
+						"data":         "",
+						"type":         "application/json",
+						"generateMode": "normal",
+					},
+					"auth":           map[string]interface{}{},
+					"securityScheme": map[string]interface{}{},
+					"advancedSettings": map[string]interface{}{
+						"disabledSystemHeaders": map[string]interface{}{},
+					},
+					"requestResult": nil,
+					"visibility":    "INHERITED",
+					"moduleId":      7675120,
+					"categoryId":    0,
+					"tagIds":        []interface{}{},
+					"apiTestDataList": []interface{}{},
+					"preProcessors":  []interface{}{},
+					"postProcessors": []interface{}{},
+					"inheritPostProcessors": map[string]interface{}{
+						"enable":        map[string]interface{}{},
+						"defaultEnable": map[string]interface{}{},
+					},
+					"inheritPreProcessors": map[string]interface{}{
+						"enable":        map[string]interface{}{},
+						"defaultEnable": map[string]interface{}{},
+					},
+				},
+			},
+			"mocks":              []interface{}{},
+			"customApiFields":    "{}",
+			"advancedSettings":   map[string]interface{}{"disabledSystemHeaders": map[string]interface{}{}},
+			"mockScript":         map[string]interface{}{},
+			"codeSamples":        []interface{}{},
+			"commonResponseStatus": map[string]interface{}{},
+			"responseChildren":   []interface{}{},
+			"visibility":         "INHERITED",
+			"moduleId":           7675120,
+			"oasExtensions":      "",
+			"type":               "http",
+			"preProcessors":      []interface{}{},
+			"postProcessors":     []interface{}{},
+			"inheritPostProcessors": map[string]interface{}{},
+			"inheritPreProcessors":  map[string]interface{}{},
+		},
+	}
+}
+
+func removeApifoxRoute(collection []interface{}, method, pattern string) bool {
+	methodLower := strings.ToLower(method)
+	normalizedPath := normalizePattern(pattern)
+
+	var removeFromItems func(items []interface{}) bool
+	removeFromItems = func(items []interface{}) bool {
+		for i, item := range items {
+			obj, _ := item.(map[string]interface{})
+			if api, ok := obj["api"].(map[string]interface{}); ok {
+				apiMethod := api["method"].(string)
+				apiPath := api["path"].(string)
+				if apiMethod == methodLower && normalizePattern(apiPath) == normalizedPath {
+					items = append(items[:i], items[i+1:]...)
+					return true
+				}
+			} else if subItems, ok := obj["items"].([]interface{}); ok {
+				if removeFromItems(subItems) {
+					obj["items"] = subItems
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	for _, item := range collection {
+		obj, _ := item.(map[string]interface{})
+		items, _ := obj["items"].([]interface{})
+		if removeFromItems(items) {
+			obj["items"] = items
+			return true
+		}
+	}
+	return false
 }
 
 func registerWikiPublicShare(r chi.Router) {
