@@ -4892,6 +4892,182 @@
           }
         },
         "type": "object"
+      },
+      "CreateAPITokenReq": {
+        "properties": {
+          "name": {
+            "description": "令牌名称",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "expires_in": {
+            "description": "有效期，Go Duration 格式，如 720h（30天）；空表示使用默认值",
+            "type": "string"
+          },
+          "allowed_paths": {
+            "description": "可访问的 URL 路径前缀列表；空表示不限制（默认权限）",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "CreateAPITokenResp": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "token": {
+            "description": "明文令牌，仅创建时返回一次",
+            "type": "string"
+          },
+          "allowed_paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "APITokenResp": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "allowed_paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "last_used_at": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "RevokeAPITokenReq": {
+        "properties": {
+          "id": {
+            "description": "令牌ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "OAuthAccountResp": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "provider": {
+            "description": "OAuth 提供商",
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UnbindOAuthReq": {
+        "properties": {
+          "provider": {
+            "description": "OAuth 提供商",
+            "enum": [
+              "google",
+              "github"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "type": "object"
+      },
+      "BindOAuthReq": {
+        "properties": {
+          "provider": {
+            "description": "OAuth 提供商",
+            "enum": [
+              "google",
+              "github"
+            ],
+            "type": "string"
+          },
+          "code": {
+            "description": "授权码",
+            "type": "string"
+          },
+          "state": {
+            "description": "CSRF 状态码",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "code",
+          "state"
+        ],
+        "type": "object"
+      },
+      "RefreshTokenReq": {
+        "properties": {
+          "refresh_token": {
+            "description": "刷新令牌",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ],
+        "type": "object"
+      },
+      "RefreshTokenResp": {
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "refresh_token": {
+            "type": "string"
+          }
+        },
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -7995,29 +8171,76 @@
     },
     "/api/v1/auth/oauth/accounts": {
       "get": {
-        "description": "权限码: `auth:list`",
+        "description": "查看当前用户已绑定的第三方账号列表，权限码: `auth:list`",
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "example": 200,
+                      "type": "integer"
+                    },
+                    "data": {
+                      "properties": {
+                        "accounts": {
+                          "items": {
+                            "$ref": "#/components/schemas/OAuthAccountResp"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
             "description": "成功"
           }
         },
-        "summary": "获取accounts",
+        "summary": "已绑定的第三方账号列表",
         "tags": [
-          "Auth"
+          "认证"
         ]
       }
     },
     "/api/v1/auth/oauth/bind": {
       "post": {
-        "description": "权限码: `auth:create`",
+        "description": "已登录用户绑定新的第三方账号，权限码: `auth:create`",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindOAuthReq"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "成功"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "example": 200,
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "绑定成功"
           }
         },
-        "summary": "创建bind",
+        "summary": "绑定第三方账号",
         "tags": [
-          "Auth"
+          "认证"
         ]
       }
     },
@@ -8157,29 +8380,78 @@
     },
     "/api/v1/auth/oauth/token/refresh": {
       "post": {
-        "description": "权限码: `auth:create`",
+        "description": "使用刷新令牌获取新的 access token，权限码: `auth:create`",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenReq"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "成功"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "example": 200,
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RefreshTokenResp"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "刷新成功"
           }
         },
-        "summary": "创建refresh",
+        "summary": "刷新 OAuth Token",
         "tags": [
-          "Auth"
+          "认证"
         ]
       }
     },
     "/api/v1/auth/oauth/unbind": {
       "post": {
-        "description": "权限码: `auth:create`",
+        "description": "解绑指定的第三方账号，权限码: `auth:create`",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnbindOAuthReq"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "成功"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "example": 200,
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "解绑成功"
           }
         },
-        "summary": "创建unbind",
+        "summary": "解绑第三方账号",
         "tags": [
-          "Auth"
+          "认证"
         ]
       }
     },
@@ -8317,41 +8589,133 @@
     },
     "/api/v1/auth/tokens": {
       "get": {
-        "description": "权限码: `auth:list`",
+        "description": "获取当前用户的 API Token 列表，权限码: `auth:list`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "example": 200,
+                      "type": "integer"
+                    },
+                    "data": {
+                      "properties": {
+                        "items": {
+                          "items": {
+                            "$ref": "#/components/schemas/APITokenResp"
+                          },
+                          "type": "array"
+                        },
+                        "total": {
+                          "type": "integer"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
             "description": "成功"
           }
         },
-        "summary": "获取tokens",
+        "summary": "API Token 列表",
         "tags": [
-          "Auth"
+          "认证"
         ]
       },
       "post": {
-        "description": "权限码: `auth:create`",
+        "description": "创建新的 API Token，权限码: `auth:create`",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAPITokenReq"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "成功"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "example": 200,
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CreateAPITokenResp"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "创建成功，响应中包含明文令牌（仅此一次返回）"
           }
         },
-        "summary": "创建tokens",
+        "summary": "创建 API Token",
         "tags": [
-          "Auth"
+          "认证"
         ]
       }
     },
     "/api/v1/auth/tokens/revoke": {
       "post": {
-        "description": "权限码: `auth:create`",
+        "description": "撤销指定的 API Token，使其立即失效，权限码: `auth:create`",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeAPITokenReq"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "成功"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "example": 200,
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "撤销成功"
           }
         },
-        "summary": "创建revoke",
+        "summary": "撤销 API Token",
         "tags": [
-          "Auth"
+          "认证"
         ]
       }
     },

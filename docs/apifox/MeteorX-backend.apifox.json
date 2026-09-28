@@ -694,7 +694,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `auth:list`",
+                "description": "查看当前用户已绑定的第三方账号列表，权限码: `auth:list`",
                 "id": "900000013",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -737,7 +737,38 @@
                     "id": "900000014",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "code": {
+                          "example": 200,
+                          "type": "integer"
+                        },
+                        "data": {
+                          "properties": {
+                            "accounts": {
+                              "items": {
+                                "properties": {
+                                  "created_at": {
+                                    "type": "string"
+                                  },
+                                  "email": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "description": "OAuth 提供商",
+                                    "type": "string"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -749,12 +780,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "Auth"
+                  "认证"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "获取accounts"
+              "name": "已绑定的第三方账号列表"
             },
             {
               "api": {
@@ -809,7 +840,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `auth:list`",
+                "description": "获取所有启用状态的租户列表，用于 OAuth 登录时选择租户",
                 "id": "900000016",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -852,7 +883,33 @@
                     "id": "900000017",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "code": {
+                          "example": 200,
+                          "type": "integer"
+                        },
+                        "data": {
+                          "properties": {
+                            "tenants": {
+                              "items": {
+                                "properties": {
+                                  "id": {
+                                    "description": "租户ID",
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "description": "租户名称",
+                                    "type": "string"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -864,12 +921,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "Auth"
+                  "认证"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "获取tenants"
+              "name": "获取可用租户列表"
             },
             {
               "api": {
@@ -924,7 +981,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `auth:list`",
+                "description": "返回第三方 OAuth2 授权页面跳转 URL，前端应直接跳转",
                 "id": "900000019",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -967,7 +1024,26 @@
                     "id": "900000020",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "code": {
+                          "example": 200,
+                          "type": "integer"
+                        },
+                        "data": {
+                          "properties": {
+                            "state": {
+                              "description": "CSRF 状态码，前端需保存并在回调时回传",
+                              "type": "string"
+                            },
+                            "url": {
+                              "example": "https://github.com/login/oauth/authorize?...",
+                              "format": "uri",
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -979,12 +1055,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "Auth"
+                  "认证"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "获取redirect"
+              "name": "获取 OAuth2 跳转链接"
             },
             {
               "api": {
@@ -1039,7 +1115,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `auth:list`",
+                "description": "获取当前用户的 API Token 列表，权限码: `auth:list`",
                 "id": "900000022",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -1082,7 +1158,52 @@
                     "id": "900000023",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "code": {
+                          "example": 200,
+                          "type": "integer"
+                        },
+                        "data": {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "properties": {
+                                  "allowed_paths": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "created_at": {
+                                    "type": "string"
+                                  },
+                                  "expires_at": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "last_used_at": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "revoked": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -1094,12 +1215,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "Auth"
+                  "认证"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "获取tokens"
+              "name": "API Token 列表"
             },
             {
               "api": {
@@ -1154,7 +1275,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `auth:create`",
+                "description": "已登录用户绑定新的第三方账号，权限码: `auth:create`",
                 "id": "900000037",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -1177,7 +1298,29 @@
                 "requestBody": {
                   "additionalContentTypes": [],
                   "jsonSchema": {
-                    "properties": {},
+                    "properties": {
+                      "code": {
+                        "description": "授权码",
+                        "type": "string"
+                      },
+                      "provider": {
+                        "description": "OAuth 提供商",
+                        "enum": [
+                          "google",
+                          "github"
+                        ],
+                        "type": "string"
+                      },
+                      "state": {
+                        "description": "CSRF 状态码",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "provider",
+                      "code",
+                      "state"
+                    ],
                     "type": "object"
                   },
                   "mediaType": "application/json",
@@ -1197,7 +1340,12 @@
                     "id": "900000038",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "code": {
+                          "example": 200,
+                          "type": "integer"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -1209,12 +1357,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "Auth"
+                  "认证"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "创建bind"
+              "name": "绑定第三方账号"
             },
             {
               "api": {
@@ -1269,7 +1417,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `auth:create`",
+                "description": "处理第三方 OAuth2 授权码，换取 access token 并完成用户登录。OAuth 登录时需要传入 tenant_id 选择所属租户",
                 "id": "900000040",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -1292,7 +1440,33 @@
                 "requestBody": {
                   "additionalContentTypes": [],
                   "jsonSchema": {
-                    "properties": {},
+                    "properties": {
+                      "code": {
+                        "description": "第三方返回的授权码",
+                        "type": "string"
+                      },
+                      "provider": {
+                        "description": "OAuth 提供商",
+                        "enum": [
+                          "google",
+                          "github"
+                        ],
+                        "type": "string"
+                      },
+                      "state": {
+                        "description": "防 CSRF 状态码",
+                        "type": "string"
+                      },
+                      "tenant_id": {
+                        "description": "租户ID（OAuth登录时选择租户，可通过 GET /api/v1/auth/oauth/tenants 获取租户列表）",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "provider",
+                      "code",
+                      "tenant_id"
+                    ],
                     "type": "object"
                   },
                   "mediaType": "application/json",
@@ -1312,7 +1486,34 @@
                     "id": "900000041",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "code": {
+                          "example": 200,
+                          "type": "integer"
+                        },
+                        "data": {
+                          "properties": {
+                            "is_new_user": {
+                              "description": "是否首次登录（新用户）",
+                              "type": "boolean"
+                            },
+                            "permissions": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "token": {
+                              "example": "eyJhbGciOi...",
+                              "type": "string"
+                            },
+                            "user": {
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -1324,12 +1525,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "Auth"
+                  "认证"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "创建callback"
+              "name": "OAuth2 登录回调"
             },
             {
               "api": {
@@ -1384,7 +1585,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `auth:create`",
+                "description": "使用刷新令牌获取新的 access token，权限码: `auth:create`",
                 "id": "900000043",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -1407,7 +1608,15 @@
                 "requestBody": {
                   "additionalContentTypes": [],
                   "jsonSchema": {
-                    "properties": {},
+                    "properties": {
+                      "refresh_token": {
+                        "description": "刷新令牌",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "refresh_token"
+                    ],
                     "type": "object"
                   },
                   "mediaType": "application/json",
@@ -1427,7 +1636,23 @@
                     "id": "900000044",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "code": {
+                          "example": 200,
+                          "type": "integer"
+                        },
+                        "data": {
+                          "properties": {
+                            "refresh_token": {
+                              "type": "string"
+                            },
+                            "token": {
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -1439,12 +1664,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "Auth"
+                  "认证"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "创建refresh"
+              "name": "刷新 OAuth Token"
             },
             {
               "api": {
@@ -1499,7 +1724,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `auth:create`",
+                "description": "解绑指定的第三方账号，权限码: `auth:create`",
                 "id": "900000046",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -1522,7 +1747,19 @@
                 "requestBody": {
                   "additionalContentTypes": [],
                   "jsonSchema": {
-                    "properties": {},
+                    "properties": {
+                      "provider": {
+                        "description": "OAuth 提供商",
+                        "enum": [
+                          "google",
+                          "github"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "provider"
+                    ],
                     "type": "object"
                   },
                   "mediaType": "application/json",
@@ -1542,7 +1779,12 @@
                     "id": "900000047",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "code": {
+                          "example": 200,
+                          "type": "integer"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -1554,12 +1796,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "Auth"
+                  "认证"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "创建unbind"
+              "name": "解绑第三方账号"
             },
             {
               "api": {
@@ -1614,7 +1856,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `auth:create`",
+                "description": "创建新的 API Token，权限码: `auth:create`",
                 "id": "900000049",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -1637,7 +1879,28 @@
                 "requestBody": {
                   "additionalContentTypes": [],
                   "jsonSchema": {
-                    "properties": {},
+                    "properties": {
+                      "allowed_paths": {
+                        "description": "可访问的 URL 路径前缀列表；空表示不限制（默认权限）",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "expires_in": {
+                        "description": "有效期，Go Duration 格式，如 720h（30天）；空表示使用默认值",
+                        "type": "string"
+                      },
+                      "name": {
+                        "description": "令牌名称",
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
                     "type": "object"
                   },
                   "mediaType": "application/json",
@@ -1657,7 +1920,39 @@
                     "id": "900000050",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "code": {
+                          "example": 200,
+                          "type": "integer"
+                        },
+                        "data": {
+                          "properties": {
+                            "allowed_paths": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "created_at": {
+                              "type": "string"
+                            },
+                            "expires_at": {
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "token": {
+                              "description": "明文令牌，仅创建时返回一次",
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -1669,12 +1964,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "Auth"
+                  "认证"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "创建tokens"
+              "name": "创建 API Token"
             },
             {
               "api": {
@@ -1729,7 +2024,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `auth:create`",
+                "description": "撤销指定的 API Token，使其立即失效，权限码: `auth:create`",
                 "id": "900000052",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -1752,7 +2047,15 @@
                 "requestBody": {
                   "additionalContentTypes": [],
                   "jsonSchema": {
-                    "properties": {},
+                    "properties": {
+                      "id": {
+                        "description": "令牌ID",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id"
+                    ],
                     "type": "object"
                   },
                   "mediaType": "application/json",
@@ -1772,7 +2075,12 @@
                     "id": "900000053",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "code": {
+                          "example": 200,
+                          "type": "integer"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -1784,12 +2092,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "Auth"
+                  "认证"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "创建revoke"
+              "name": "撤销 API Token"
             }
           ],
           "moduleId": 7675120,
@@ -19148,7 +19456,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `audit:anomalies:list`",
+                "description": "获取异常行为检测列表，权限码: `audit:list`",
                 "id": "900000004",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -19191,7 +19499,26 @@
                     "id": "900000005",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "code": {
+                          "example": 200,
+                          "type": "integer"
+                        },
+                        "data": {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -19203,12 +19530,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "Audit"
+                  "审计"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "获取anomalies"
+              "name": "异常行为列表"
             },
             {
               "api": {
@@ -19263,7 +19590,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `audit:detailed-stats:list`",
+                "description": "获取审计详细统计数据，权限码: `audit:list`",
                 "id": "900000007",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -19306,7 +19633,15 @@
                     "id": "900000008",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "code": {
+                          "example": 200,
+                          "type": "integer"
+                        },
+                        "data": {
+                          "type": "object"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -19318,12 +19653,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "Audit"
+                  "审计"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "获取detailed-stats"
+              "name": "审计详细统计"
             },
             {
               "api": {
@@ -19378,7 +19713,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `audit:user-timeline:list`",
+                "description": "获取指定用户的活动时间线，权限码: `audit:list`",
                 "id": "900000010",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -19421,7 +19756,26 @@
                     "id": "900000011",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "code": {
+                          "example": 200,
+                          "type": "integer"
+                        },
+                        "data": {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "total": {
+                              "type": "integer"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -19433,12 +19787,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "Audit"
+                  "审计"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "获取user-timeline"
+              "name": "用户活动时间线"
             }
           ],
           "moduleId": 7675120,
@@ -29254,7 +29608,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `ws:list`",
+                "description": "建立 WebSocket 长连接，用于实时消息推送",
                 "id": "900000025",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -29309,12 +29663,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "API"
+                  "System"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "获取ws"
+              "name": "WebSocket 连接"
             },
             {
               "api": {
@@ -29369,7 +29723,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: ``",
+                "description": "服务健康检查端点",
                 "id": "900000028",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -29412,7 +29766,12 @@
                     "id": "900000029",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "status": {
+                          "example": "ok",
+                          "type": "string"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -29429,7 +29788,7 @@
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "获取health"
+              "name": "健康检查"
             },
             {
               "api": {
@@ -29484,7 +29843,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: ``",
+                "description": "服务就绪检查端点，确认服务可接受请求",
                 "id": "900000031",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -29527,7 +29886,12 @@
                     "id": "900000032",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "status": {
+                          "example": "ready",
+                          "type": "string"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -29544,7 +29908,7 @@
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "获取ready"
+              "name": "就绪检查"
             },
             {
               "api": {
@@ -29599,7 +29963,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: ``",
+                "description": "Prometheus 格式的监控指标端点",
                 "id": "900000034",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -29659,7 +30023,7 @@
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "获取metrics"
+              "name": "Prometheus 指标"
             },
             {
               "api": {
@@ -29714,7 +30078,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: ``",
+                "description": "Prometheus 格式的监控指标端点",
                 "id": "900000034",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -29774,7 +30138,7 @@
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "获取metrics"
+              "name": "Prometheus 指标"
             }
           ],
           "moduleId": 7675120,
@@ -30963,7 +31327,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `audit:alerts:list`",
+                "description": "获取告警统计数据，权限码: `audit:list`",
                 "id": "900000001",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},
@@ -31006,7 +31370,29 @@
                     "id": "900000002",
                     "itemSchema": {},
                     "jsonSchema": {
-                      "properties": {},
+                      "properties": {
+                        "code": {
+                          "example": 200,
+                          "type": "integer"
+                        },
+                        "data": {
+                          "properties": {
+                            "critical": {
+                              "type": "integer"
+                            },
+                            "info": {
+                              "type": "integer"
+                            },
+                            "total": {
+                              "type": "integer"
+                            },
+                            "warning": {
+                              "type": "integer"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
                       "type": "object"
                     },
                     "mediaType": "application/json",
@@ -31018,12 +31404,12 @@
                 "sourceUrl": "",
                 "status": "released",
                 "tags": [
-                  "Audit"
+                  "审计"
                 ],
                 "type": "http",
                 "visibility": "INHERITED"
               },
-              "name": "获取stats"
+              "name": "告警统计"
             }
           ],
           "moduleId": 7675120,
