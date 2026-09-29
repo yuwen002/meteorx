@@ -86,3 +86,51 @@ func (r *Redis) Close() error {
 	}
 	return r.Client.Close()
 }
+
+func (r *Redis) SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error) {
+	if !r.IsAvailable() {
+		return false, ErrRedisUnavailable
+	}
+	return r.Client.SetNX(ctx, key, value, expiration).Result()
+}
+
+func (r *Redis) GetSet(ctx context.Context, key string, value interface{}) (string, error) {
+	if !r.IsAvailable() {
+		return "", ErrRedisUnavailable
+	}
+	return r.Client.GetSet(ctx, key, value).Result()
+}
+
+func (r *Redis) TTL(ctx context.Context, key string) (time.Duration, error) {
+	if !r.IsAvailable() {
+		return 0, ErrRedisUnavailable
+	}
+	return r.Client.TTL(ctx, key).Result()
+}
+
+func (r *Redis) Expire(ctx context.Context, key string, expiration time.Duration) error {
+	if !r.IsAvailable() {
+		return ErrRedisUnavailable
+	}
+	return r.Client.Expire(ctx, key, expiration).Err()
+}
+
+func (r *Redis) Incr(ctx context.Context, key string) (int64, error) {
+	if !r.IsAvailable() {
+		return 0, ErrRedisUnavailable
+	}
+	return r.Client.Incr(ctx, key).Result()
+}
+
+func (r *Redis) DeleteByPattern(ctx context.Context, pattern string) error {
+	if !r.IsAvailable() {
+		return ErrRedisUnavailable
+	}
+	iter := r.Client.Scan(ctx, 0, pattern, 100).Iterator()
+	for iter.Next(ctx) {
+		if err := r.Client.Del(ctx, iter.Val()).Err(); err != nil {
+			logger.Warn("failed to delete cache key", "key", iter.Val(), "error", err)
+		}
+	}
+	return iter.Err()
+}

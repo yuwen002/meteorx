@@ -254,9 +254,27 @@ async function handleCommand(cmd: string) {
   background-color: #1f2937;
   transition: width 0.25s;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
+
 .sidebar :deep(.el-menu) {
   border-right: none;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.sidebar :deep(.el-menu::-webkit-scrollbar) {
+  width: 4px;
+}
+
+.sidebar :deep(.el-menu::-webkit-scrollbar-thumb) {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+
+.sidebar :deep(.el-menu::-webkit-scrollbar-thumb:hover) {
+  background: rgba(255, 255, 255, 0.25);
 }
 .logo {
   height: 56px;

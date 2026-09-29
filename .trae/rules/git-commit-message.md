@@ -7,7 +7,9 @@ scene: git_message
 
 ### 格式要求
 
-提交信息必须采用**标题行 + 空行 + 编号正文**的多行格式，**scope（模块名）必填**，不允许裸 type。
+提交信息必须采用**标题行 + 空行 + 编号正文**的多行格式。
+
+**硬性要求：任何 type（包括 `test`、`docs`、`chore`、`style`、`ci`、`revert`）都必须带 `(scope)`，不允许裸 type。**
 
 结构如下：
 
@@ -90,6 +92,21 @@ fix(user): 修复重置密码链接过期判断不准的问题
 ```
 
 ```
+test(rbac): 新增 RBAC 权限与角色关联的仓储层单元测试
+
+1. 新增 permission_repository 的 GetByCode、ListByRole 等方法测试。
+2. 新增 role_permission_repository 的批量绑定与解绑测试。
+3. 补充 user_role_repository 在软删后的查询过滤逻辑测试。
+```
+
+```
+docs(wiki): 补充 Wiki 节点权限接口的文档说明
+
+1. 在 wiki-api.md 中补充节点权限查询与更新接口的请求/响应示例。
+2. 修正原文档中 path 参数描述与实际路由不一致的问题。
+```
+
+```
 chore(deploy): 更新 Docker Compose 镜像版本
 
 1. 升级 meteorx 后端镜像到最新补丁版本。
@@ -98,6 +115,8 @@ chore(deploy): 更新 Docker Compose 镜像版本
 
 ❌ **错误**：
 - `feat: 新增功能`（缺少 scope 且无正文）
+- `test: 新增单元测试`（缺少 scope，即便 type 是 test 也必须带 scope）
+- `docs: 更新文档`（缺少 scope，docs 同样必须带 scope）
 - `fix: bugfix`（缺少 scope、无正文且描述不清晰）
 - `feat(MAAS): 新功能`（scope 不是约定值）
 - 只有标题行没有正文（不满足编号正文要求）

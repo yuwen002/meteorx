@@ -51,22 +51,20 @@ const AGGREGATED_MODULES: Record<string, string> = {
 
 const elementPlusResolvers = [
   {
-    type: 'component',
+    type: 'component' as const,
     resolve(name: string) {
       if (!/^El[A-Z]/.test(name) || name === 'ElAutoResizer') return
-      // 样式目录始终用组件自身 kebab 名；JS 模块从聚合父目录导出
       const styleDir = toKebabCase(name.slice(2))
       const module = AGGREGATED_MODULES[name] ?? styleDir
       return {
         name,
-        // 显式带 /index 以命中 element-plus 的 exports 映射
         from: `element-plus/es/components/${module}/index`,
         sideEffects: epSideEffects(styleDir)
       }
     }
   },
   {
-    type: 'directive',
+    type: 'directive' as const,
     resolve(name: string) {
       const map: Record<string, { importName: string; dir: string }> = {
         Loading: { importName: 'ElLoadingDirective', dir: 'loading' },
@@ -108,11 +106,18 @@ export default defineConfig(({ mode }) => {
       })
     ],
     build: {
-      // Element Plus 组件覆盖较广，按需后 vendor 仍有约 500KB，调高阈值避免误报
       chunkSizeWarningLimit: 550,
+      cssCodeSplit: true,
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: true,
+          drop_debugger: true,
+          pure_funcs: ['console.log', 'console.info', 'console.debug']
+        }
+      },
       rollupOptions: {
         output: {
-          // 第三方依赖按功能拆分 chunk，利用浏览器缓存，降低首屏加载主 chunk 体积
           manualChunks(id) {
             if (!id.includes('node_modules')) return
             if (id.includes('element-plus')) return 'vendor-element'
@@ -121,6 +126,8 @@ export default defineConfig(({ mode }) => {
             if (id.includes('pinia') || id.includes('vue-router') || id.includes('vue') || id.includes('@vue')) {
               return 'vendor-vue'
             }
+            if (id.includes('echarts') || id.includes('chart.js') || id.includes('d3')) return 'vendor-charts'
+            if (id.includes('markdown-it') || id.includes('highlight.js') || id.includes('shiki')) return 'vendor-markdown'
             return 'vendor'
           }
         }

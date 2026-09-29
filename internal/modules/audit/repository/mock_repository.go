@@ -280,15 +280,17 @@ func (m *MockAuditLogRepository) GetAnomalyLogs(ctx context.Context, threshold i
 
 // MockAlertRuleRepository 告警规则仓库的内存实现（用于测试）
 type MockAlertRuleRepository struct {
-	rules  []*model.AlertRule
-	alerts []*model.AuditAlert
+	rules       []*model.AlertRule
+	alerts      []*model.AuditAlert
+	lastAlertAt map[string]time.Time
 }
 
 // NewMockAlertRuleRepository 创建 Mock 告警规则仓库
 func NewMockAlertRuleRepository() *MockAlertRuleRepository {
 	return &MockAlertRuleRepository{
-		rules:  make([]*model.AlertRule, 0),
-		alerts: make([]*model.AuditAlert, 0),
+		rules:       make([]*model.AlertRule, 0),
+		alerts:      make([]*model.AuditAlert, 0),
+		lastAlertAt: make(map[string]time.Time),
 	}
 }
 
@@ -342,6 +344,7 @@ func (m *MockAlertRuleRepository) GetEnabledRules(ctx context.Context) ([]*model
 
 func (m *MockAlertRuleRepository) CreateAlert(ctx context.Context, alert *model.AuditAlert) error {
 	m.alerts = append(m.alerts, alert)
+	m.lastAlertAt[alert.RuleID] = time.Now()
 	return nil
 }
 
@@ -382,7 +385,11 @@ func (m *MockAlertRuleRepository) GetAlertByID(ctx context.Context, id string) (
 }
 
 func (m *MockAlertRuleRepository) IsInCooldown(ctx context.Context, ruleID string, cooldownMinutes int) (bool, error) {
-	return false, nil
+	lastAt, ok := m.lastAlertAt[ruleID]
+	if !ok {
+		return false, nil
+	}
+	return time.Since(lastAt) < time.Duration(cooldownMinutes)*time.Minute, nil
 }
 
 func (m *MockAlertRuleRepository) GetAlertStats(ctx context.Context, days int) (*model.AlertStats, error) {

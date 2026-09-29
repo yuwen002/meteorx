@@ -1,7 +1,6 @@
 package handler_test
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -13,28 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type stubSessionService struct {
-	Err      error
-	Result   *dto.SessionAnalysisResp
-	Sessions []dto.SessionSummaryResp
-	Total    int64
-
-	GotSessionID string
-	GotUserID    string
-	GotPage      int
-	GotPageSize  int
-}
-
-func (s *stubSessionService) GetSessionLogs(_ context.Context, sessionID string) (*dto.SessionAnalysisResp, error) {
-	s.GotSessionID = sessionID
-	return s.Result, s.Err
-}
-
-func (s *stubSessionService) ListSessions(_ context.Context, page, pageSize int, userID string) ([]dto.SessionSummaryResp, int64, error) {
-	s.GotPage, s.GotPageSize, s.GotUserID = page, pageSize, userID
-	return s.Sessions, s.Total, s.Err
-}
 
 func newSessionRouter(stub *stubSessionService) http.Handler {
 	h := handler.NewSessionHandler(stub)

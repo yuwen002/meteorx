@@ -17,13 +17,15 @@ type stubAuditService struct {
 	Dashboard   *dto.DashboardResp
 	Affected    int64
 
-	GotID      string
-	GotTenant  string
-	GotDays    int
-	GotQuery   *dto.ListAuditLogsQuery
+	GotID         string
+	GotTenant     string
+	GotDays       int
+	GotQuery      *dto.ListAuditLogsQuery
+	GotCreateReq  *dto.CreateAuditLogReq
 }
 
 func (s *stubAuditService) CreateLog(_ context.Context, req dto.CreateAuditLogReq) (*model.AuditLog, error) {
+	s.GotCreateReq = &req
 	return s.Created, s.Err
 }
 
@@ -105,6 +107,9 @@ func (s *stubAlertService) GetRule(_ context.Context, id string) (*model.AlertRu
 
 func (s *stubAlertService) GetAlert(_ context.Context, id string) (*model.AuditAlert, error) {
 	s.GotID = id
+	if len(s.Alerts) == 0 {
+		return nil, s.Err
+	}
 	return s.Alerts[0], s.Err
 }
 
@@ -126,7 +131,7 @@ func (s *stubAlertService) GetAlertStats(_ context.Context, days int) (*model.Al
 // stubSessionService 桩实现 handler.SessionService
 type stubSessionService struct {
 	Err      error
-	Analysis *dto.SessionAnalysisResp
+	Result   *dto.SessionAnalysisResp
 	Sessions []dto.SessionSummaryResp
 	Total    int64
 
@@ -138,7 +143,7 @@ type stubSessionService struct {
 
 func (s *stubSessionService) GetSessionLogs(_ context.Context, sessionID string) (*dto.SessionAnalysisResp, error) {
 	s.GotSessionID = sessionID
-	return s.Analysis, s.Err
+	return s.Result, s.Err
 }
 
 func (s *stubSessionService) ListSessions(_ context.Context, page, pageSize int, userID string) ([]dto.SessionSummaryResp, int64, error) {

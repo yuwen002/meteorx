@@ -44,7 +44,7 @@ func TestRoleRepo_Create(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err := repo.Create(context.Background(), &model.Role{
-		ID: "r-001", Name: "Admin", Code4: "admin", TenantID: "t-001", Scope: "tenant", Status: 1,
+		ID: "r-001", Name: "Admin", Code: "admin", TenantID: "t-001", Scope: "tenant", Status: 1,
 	})
 	assert.NoError(t, err)
 }
@@ -54,11 +54,11 @@ func TestRoleRepo_GetByID(t *testing.T) {
 	repo := NewRoleRepository(gormDB)
 
 	now := time.Now()
-	rows'ows := sqlmock.NewRows([]string{
+	rows := sqlmock.NewRows([]string{
 		"id", "name", "code", "description", "tenant_id", "is_system", "scope", "status", "created_at", "updated_at", "deleted_at",
 	}).AddRow("r-001", "Admin", "admin", "Administrator role", "t-001", true, "system", 1, now, now, nil)
 
-	mock.ExpectQuery("SELECT .+ FROM `roles` WHERE id>id = \\? .+ LIMIT \\?").
+	mock.ExpectQuery("SELECT .+ FROM `roles` WHERE id = \\? .+ LIMIT \\?").
 		WithArgs("r-001", 1).
 		WillReturnRows(rows)
 
@@ -90,12 +90,11 @@ func TestRoleRepo_Update(t *testing.T) {
 	gormDB, mock := newRoleTestDB(t)
 	repo := NewRoleRepository(gormDB)
 
-	mock.ExpectExec("UPDATE `roles` SET .+ WHERE id = \\?").
-		WithArgs("r-001").
+	mock.ExpectExec("UPDATE `roles` SET .+ WHERE id = \\? AND `roles`\\.\\`deleted_at\\` IS NULL").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err := repo.Update(context.Background(), &model.Role{
-		ID: "r-001", Name: "Admin Updated", Code4: "admin", Description: "updated", Scope: "tenant", Status: 1,
+		ID: "r-001", Name: "Admin Updated", Code: "admin", Description: "updated", Scope: "tenant", Status: 1,
 	})
 	assert.NoError(t, err)
 }
@@ -104,8 +103,7 @@ func TestRoleRepo_UpdateStatus(t *testing.T) {
 	gormDB, mock := newRoleTestDB(t)
 	repo := NewRoleRepository(gormDB)
 
-	mock.ExpectExec("UPDATE `roles` SET .+ WHERE id = \\?").
-		WithArgs("r-001").
+	mock.ExpectExec("UPDATE `roles` SET .+ WHERE id = \\? AND `roles`\\.\\`deleted_at\\` IS NULL").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err := repo.UpdateStatus(context.Background(), "r-001", 0)
