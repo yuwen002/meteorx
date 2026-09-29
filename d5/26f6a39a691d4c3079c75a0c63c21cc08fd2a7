@@ -1,0 +1,16 @@
+internal/modules/wiki/service/wiki_publish_service.go
+  h_a3f313f3d96276 1-326
+internal/modules/wiki/service/wiki_publish_service_test.go
+  h_a3f313f3d96276 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "d526f6a39a691d4c3079c75a0c63c21cc08fd2a7",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
