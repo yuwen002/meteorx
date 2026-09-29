@@ -9,13 +9,13 @@
 | 模块 | 特性 |
 | --- | --- |
 | **多租户架构** | 基于 `tenant_id` 行级隔离；支持域名自动识别租户；独立管理员体系；统一 `tenantctx` 上下文管理 |
-| **认证鉴权** | JWT（HS256）双 Token；注册 / 登录 / 登出 / 忘记密码 / 重置密码；Token 自动注入用户上下文；登出黑名单；邮件找回密码 |
+| **认证鉴权** | JWT（HS256）双 Token；注册 / 登录 / 登出 / 忘记密码 / 重置密码 / 邮箱验证；Token 自动注入用户上下文；登出黑名单；邮件找回密码 |
 | **RBAC 权限** | 角色 + 权限 + 角色-权限绑定 + 用户角色分配；支持作用域（`system` / `tenant` / `all`）；自动权限推导中间件 + 显式权限覆盖 |
 | **统一错误/响应** | 集中式错误码 (`apperrors`)；`AppError` 结构体；统一成功/分页/错误响应信封；全局异常恢复 |
 | **统一分页/排序** | 泛型 `PageRequest` / `PageResult[T]`；Sort 字段白名单防 SQL 注入；关键字多字段搜索 |
 | **事务管理** | `TxManager` 统一事务入口；Service 层事务边界；Repository 透明 tx 感知 |
 | **统一 ID 生成** | `pkg/idgen` 单一入口；ULID 时间有序；替代分散的 `ulid` / `uuid` 调用 |
-| **用户管理** | 个人中心 / 租户内用户 / 跨租户用户三类独立 API；密码加密（bcrypt） |
+| **用户管理** | 个人中心 / 租户内用户 / 跨租户用户三类独立 API；密码加密（bcrypt）；邮箱验证状态 / 手机号 / 头像 |
 | **租户管理** | 自主注册开户；后台手动建租户；启用/禁用；软删除/恢复；批量操作 |
 | **租户独立配置** | 租户独立 Logo / 主题色 / 语言 / 时区 / 联系方式等设置，实时生效 |
 | **文件管理** | 上传/下载/重命名/删除；回收站恢复+永久删除；MD5 去重；租户隔离；本地/云存储可扩展 |
@@ -27,6 +27,8 @@
 | **运营看板** | 平台运营数据总览：租户/用户/订阅/审计多维统计，实时掌握平台健康状况 |
 | **通知公告** | 平台公告 CRUD + 发布/下架；支持全平台或指定租户范围定向推送 |
 | **注销审批** | 租户注销申请 → 平台审批（通过/驳回）→ 到期自动执行注销的完整闭环 |
+| **邮箱验证** | 用户邮箱验证链接发送（Redis 令牌 24h 有效）；一次性令牌；验证状态标记；防止信息泄露的静默响应 |
+| **成员邀请** | 管理员邀请新成员加入租户；邮件通知含邀请链接；被邀请人自助注册并自动分配角色；邀请状态管理（pending/accepted/cancelled/expired）；7 天有效期；重发/取消/删除 |
 | **安全增强** | 登录失败锁定（显示剩余次数）；密码复杂度策略；接口限流（基于 Redis）；邮件找回密码 |
 | **回收站** | 用户 / 租户 / 角色 / 文件 均支持软删除 → 回收站查询 → 恢复 → 永久删除的完整闭环 |
 | **批量操作** | 批量删除 / 批量更新状态；幂等返回影响行数 |
@@ -85,8 +87,8 @@ meteorx/
 │   │   └── middleware.go        # 中间件装配
 │   │
 │   ├── modules/                 # ⭐ 业务模块（核心代码）
-│   │   ├── auth/                # 认证：注册、登录、JWT、忘记密码/重置密码
-│   │   ├── user/                # 用户：3 层接口 + 回收站 + 批量
+│   │   ├── auth/                # 认证：注册、登录、JWT、忘记密码/重置密码、邮箱验证
+│   │   ├── user/                # 用户：3 层接口 + 回收站 + 批量 + 邮箱验证/手机号/头像
 │   │   ├── tenant/              # 租户：自助开户 + 后台管理 + 注销审批 + 独立配置
 │   │   ├── rbac/                # 角色权限：角色、权限、绑定、自动权限推导
 │   │   ├── file/                # 文件：上传、下载、回收站、存储抽象
@@ -94,7 +96,8 @@ meteorx/
 │   │   ├── audit/               # 审计日志：自动记录 + 统计 + 导出 + 可视化仪表盘
 │   │   ├── wiki/                # ⭐ Wiki 知识库：空间/节点/文档/版本/成员
 │   │   ├── dashboard/           # 运营看板：平台数据总览统计
-│   │   └── notification/        # 通知公告：公告 CRUD + 发布/下架 + 定向推送
+│   │   ├── notification/        # 通知公告：公告 CRUD + 发布/下架 + 定向推送
+│   │   └── invitation/          # 成员邀请：创建/邮件通知/接受注册/状态管理
 │   │
 │   ├── middleware/              # HTTP 中间件
 │   │   ├── auth.go              # JWT 认证
@@ -138,6 +141,7 @@ meteorx/
 │   │   ├── apperrors/           # ⭐ 集中式错误码 + AppError 结构体
 │   │   │   ├── codes.go         # 错误码常量 + HTTP 状态映射
 │   │   │   └── app_error.go     # AppError{Code,Message,StatusCode,RequestID,Details}
+│   │   ├── emailer/             # ⭐ 邮件发送（SMTP + 模板：密码重置/邮箱验证/邀请通知）
 │   │   └── db/
 │   │       └── transaction.go   # ⭐ TxManager 事务管理器（WithTx/GetTx/GetDB）
 │   │
@@ -186,6 +190,7 @@ meteorx/
 │   ├── wiki-api.md              # ⭐ Wiki 知识库接口
 │   ├── dashboard-api.md         # 运营看板接口
 │   ├── announcement-api.md      # 通知公告接口
+│   ├── invitation-api.md        # 成员邀请接口
 │   └── FEATURE_UPGRADE.md       # 功能升级说明
 │
 ├── web-admin/                   # ⭐ 前端管理后台（Vue 3）
@@ -226,6 +231,8 @@ meteorx/
 | `POST` | `/auth/logout` | 登出（Token 加入黑名单） |
 | `POST` | `/auth/forgot-password` | 忘记密码（发送重置邮件） |
 | `POST` | `/auth/reset-password` | 重置密码（通过邮件令牌） |
+| `POST` | `/auth/email/send-verification` | 发送邮箱验证链接（需登录） |
+| `POST` | `/auth/email/verify` | 验证邮箱（通过令牌，需登录） |
 
 ### 2. 用户个人中心（需登录）
 
@@ -497,6 +504,25 @@ meteorx/
 | `PUT` | `/admin/announcements/{id}/status` | 发布 / 下架公告 |
 | `DELETE` | `/admin/announcements/{id}` | 删除公告 |
 
+### 14. 成员邀请
+
+**认证接口（需登录 + 权限）**
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/invitations` | 当前租户邀请列表 |
+| `POST` | `/invitations` | 创建邀请（邀请新成员） |
+| `PUT` | `/invitations/{id}/cancel` | 取消邀请 |
+| `PUT` | `/invitations/{id}/resend` | 重发邀请邮件 |
+| `DELETE` | `/invitations/{id}/delete` | 删除邀请记录 |
+
+**公开接口（无需登录）**
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/invitations/info?token=xxx` | 通过令牌查询邀请信息 |
+| `POST` | `/invitations/accept` | 接受邀请并注册 |
+
 ---
 
 ## 🚀 快速开始
@@ -660,7 +686,7 @@ HTTP 204 No Content
 | `email.password` | — | `your-email-password` | SMTP 密码 |
 | `email.from` | — | `noreply@example.com` | 发件人邮箱 |
 | `email.from_name` | — | `MeteorX 平台` | 发件人名称 |
-| `client.base_url` | — | `http://localhost:5173` | 前端 Base URL（用于密码重置链接） |
+| `client.base_url` | — | `http://localhost:5173` | 前端 Base URL（用于密码重置/邮箱验证/邀请链接） |
 
 ---
 
@@ -676,6 +702,8 @@ HTTP 204 No Content
 - **接口限流**：每个 IP 每分钟最多 100 个请求
 - **审计日志**：异步批量写入，支持 CSV 导出
 - **Redis 降级**：Redis 不可用时应用仍可运行（限流/锁定功能降级）
+- **邮箱验证**：令牌一次性使用，24h 过期，验证后立即失效；邮箱不存在时静默返回成功（防信息泄露）
+- **成员邀请**：邀请令牌 7 天有效期；同租户内同邮箱不重复邀请；接受后自动标记邮箱已验证
 - **优雅关闭**：支持 SIGTERM/SIGINT 信号，确保资源清理完成
 
 ---
@@ -707,8 +735,8 @@ go test -bench=. ./pkg/security/...
 
 | 文档 | 说明 |
 |------|------|
-| [认证 API](docs/api/auth-api.md) | 认证模块接口（注册/登录/登出/忘记密码/重置密码） |
-| [用户 API](docs/api/user-api.md) | 用户管理接口（个人中心/租户用户/管理员） |
+| [认证 API](docs/api/auth-api.md) | 认证模块接口（注册/登录/登出/忘记密码/重置密码/邮箱验证） |
+| [用户 API](docs/api/user-api.md) | 用户管理接口（个人中心/租户用户/管理员/邮箱验证/手机号/头像） |
 | [租户 API](docs/api/tenant-api.md) | 租户管理接口（注册/后台管理/注销审批） |
 | [RBAC API](docs/api/rbac-api.md) | RBAC 权限接口（角色/权限/绑定） |
 | [文件 API](docs/api/file-module-api.md) | 文件管理接口（上传/下载/回收站） |
@@ -717,7 +745,8 @@ go test -bench=. ./pkg/security/...
 | [Wiki API](docs/api/wiki-api.md) | ⭐ Wiki 知识库接口（空间/节点/文档/版本/成员） |
 | [运营看板 API](docs/api/dashboard-api.md) | 运营看板接口（平台数据总览） |
 | [公告 API](docs/api/announcement-api.md) | 通知公告接口（CRUD/发布/定向推送） |
-| [功能升级记录](docs/FEATURE_UPGRADE.md) | 功能升级说明（看板/公告/注销审批） |
+| [邀请 API](docs/api/invitation-api.md) | 成员邀请接口（创建/取消/重发/接受/状态管理） |
+| [功能升级记录](docs/FEATURE_UPGRADE.md) | 功能升级说明（看板/公告/注销审批/邮箱验证/成员邀请） |
 
 **架构设计文档**（`docs/architecture/`）：
 
@@ -773,6 +802,9 @@ OpenAPI 规范文件位于 `docs/apifox/`：
 | 租户设置 | `/tenant-settings` | 租户独立配置（Logo/主题色/语言等） |
 | 通知公告 | `/system/announcement` | 公告 CRUD / 发布 / 下架 |
 | 注销审批 | `/system/cancel-request` | 租户注销申请审批（通过/驳回） |
+| 成员邀请 | `/system/invitation` | 邀请管理（创建/列表/取消/重发/删除） |
+| 邮箱验证 | `/verify-email` | 邮箱验证结果页面（公开，通过令牌验证） |
+| 接受邀请 | `/accept-invitation` | 接受邀请并注册（公开，被邀请人填写信息） |
 
 ### 权限控制
 

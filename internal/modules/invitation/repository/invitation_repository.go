@@ -1,3 +1,5 @@
+// Package repository 实现邀请模块的 GORM 仓储层。
+// 提供邀请数据的 CRUD、按令牌/租户/邮箱查询等操作。
 package repository
 
 import (

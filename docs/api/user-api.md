@@ -82,6 +82,9 @@
 | username | string | 用户名 |
 | nickname | string | 昵称 |
 | email | string | 邮箱 |
+| email_verified | bool | 邮箱是否已验证 |
+| phone | string | 手机号 |
+| avatar | string | 头像 URL |
 | roles | []string | 角色编码列表（兼容） |
 | role_ids | []string | 角色 ID 列表 |
 | role_list | []UserRoleInfo | 角色详细信息列表 |
@@ -115,6 +118,8 @@
 |------|------|------|----------|------|
 | nickname | string | 否 | max=50 | 昵称 |
 | email | string | 否 | 邮箱格式 | 邮箱 |
+| phone | string | 否 | max=20 | 手机号 |
+| avatar | string | 否 | max=500 | 头像 URL |
 | role_ids | []string | 否 | min=1 | 角色 ID 列表（覆盖式更新） |
 | status | *int | 否 | 0 或 1 | 启用/禁用 |
 

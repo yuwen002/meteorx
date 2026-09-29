@@ -1,3 +1,6 @@
+// Package invitation 租户成员邀请模块入口。
+// 提供邀请创建、邮件通知、接受注册、状态管理等功能。
+// 路由分为认证路由（需登录+权限）和公开路由（接受邀请页面）两部分。
 package invitation
 
 import (
@@ -46,6 +49,8 @@ func InitPublicModule(r chi.Router, db *gorm.DB, cfg config.Config) {
 	RegisterPublicRoutes(r, h)
 }
 
+// RegisterRoutes 注册认证路由（需登录 + 自动权限校验）。
+// 包含邀请的 CRUD、取消、重发等管理接口。
 func RegisterRoutes(r chi.Router, h *handler.InvitationHandler, checker middleware.PermissionChecker) {
 	r.Route("/invitations", func(r chi.Router) {
 		r.Use(middleware.AutoRequirePermission(checker))
@@ -57,6 +62,8 @@ func RegisterRoutes(r chi.Router, h *handler.InvitationHandler, checker middlewa
 	})
 }
 
+// RegisterPublicRoutes 注册公开路由（无需登录）。
+// 包含邀请信息查询和接受邀请接口，供被邀请人从邮件链接访问。
 func RegisterPublicRoutes(r chi.Router, h *handler.InvitationHandler) {
 	r.Route("/invitations", func(r chi.Router) {
 		r.Post("/accept", h.Accept)

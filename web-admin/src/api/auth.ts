@@ -226,10 +226,12 @@ export interface VerifyEmailReq {
   token: string
 }
 
+/** 发送邮箱验证链接，系统向用户邮箱发送包含验证令牌的邮件 */
 export function sendEmailVerification(email: string) {
   return post<{ message: string }>('/auth/email/send-verification', { email })
 }
 
+/** 验证邮箱，通过邮件中的令牌确认邮箱有效性 */
 export function verifyEmail(token: string) {
   return post<{ message: string }>('/auth/email/verify', { token })
 }

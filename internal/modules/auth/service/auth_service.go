@@ -22,8 +22,10 @@ import (
 const (
 	passwordResetPrefix = "password:reset:"
 	resetTokenExpire    = 30 * time.Minute
-	emailVerifyPrefix   = "email:verify:"
-	emailVerifyExpire   = 24 * time.Hour
+	// emailVerifyPrefix 邮箱验证令牌的 Redis 键前缀
+	emailVerifyPrefix = "email:verify:"
+	// emailVerifyExpire 邮箱验证令牌有效期（24 小时）
+	emailVerifyExpire = 24 * time.Hour
 )
 
 const (

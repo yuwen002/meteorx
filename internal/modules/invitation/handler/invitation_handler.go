@@ -1,3 +1,5 @@
+// Package handler 实现邀请模块的 HTTP 接口处理器。
+// 提供邀请的 CRUD、取消、重发、接受等 RESTful API。
 package handler
 
 import (
@@ -17,14 +19,17 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// InvitationHandler 邀请模块 HTTP 处理器。
 type InvitationHandler struct {
-	svc *service.InvitationService
+	svc *service.InvitationService // 邀请业务服务
 }
 
 func NewInvitationHandler(svc *service.InvitationService) *InvitationHandler {
 	return &InvitationHandler{svc: svc}
 }
 
+// Create 创建邀请。POST /api/v1/invitations
+// 需登录，自动校验 invitation:create 权限。
 func (h *InvitationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	userID := contextx.GetUserID(r.Context())
@@ -55,6 +60,8 @@ func (h *InvitationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, toResp(inv))
 }
 
+// List 获取当前租户邀请列表。GET /api/v1/invitations
+// 需登录，自动校验 invitation:list 权限。
 func (h *InvitationHandler) List(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	if tenantID == "" {
@@ -85,6 +92,8 @@ func (h *InvitationHandler) List(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, result)
 }
 
+// Cancel 取消邀请。PUT /api/v1/invitations/{id}/cancel
+// 仅 pending 状态的邀请可取消。
 func (h *InvitationHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	invitationID := chi.URLParam(r, "id")
@@ -109,6 +118,8 @@ func (h *InvitationHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
+// Resend 重发邀请邮件。PUT /api/v1/invitations/{id}/resend
+// 仅 pending 状态的邀请可重发，使用原令牌，不重置过期时间。
 func (h *InvitationHandler) Resend(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	invitationID := chi.URLParam(r, "id")
@@ -134,6 +145,8 @@ func (h *InvitationHandler) Resend(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, toResp(inv))
 }
 
+// Delete 删除邀请记录。DELETE /api/v1/invitations/{id}/delete
+// 物理删除，不可恢复。
 func (h *InvitationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	invitationID := chi.URLParam(r, "id")
@@ -154,6 +167,8 @@ func (h *InvitationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, nil)
 }
 
+// Accept 接受邀请并注册。POST /api/v1/invitations/accept
+// 公开接口，无需登录。被邀请人填写注册信息后调用。
 func (h *InvitationHandler) Accept(w http.ResponseWriter, r *http.Request) {
 	var req dto.AcceptInvitationReq
 	if !validator.ValidateJSON(w, r, &req) {
@@ -182,6 +197,8 @@ func (h *InvitationHandler) Accept(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetByToken 通过令牌查询邀请信息。GET /api/v1/invitations/info?token=xxx
+// 公开接口，无需登录。被邀请人打开邮件链接时调用。
 func (h *InvitationHandler) GetByToken(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	if token == "" {

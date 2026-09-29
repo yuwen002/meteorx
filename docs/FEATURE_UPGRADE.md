@@ -574,3 +574,128 @@ Span #1
 
 > 提示：需重新启动后端服务并执行数据库迁移（AutoMigrate 会自动创建 `announcements`、`cancel_requests` 两张新表）。
 > 提示：OTel stdout 模式开机即用；生产环境需 `docker-compose -f docker-compose.prod.yml up -d opentelemetry-collector jaeger` 启动追踪后端。
+
+---
+
+## 十四、邮箱验证与成员邀请
+
+### 14.1 邮箱验证
+
+**后端新增 `auth` 模块扩展**
+
+| 文件 | 变更 |
+|------|------|
+| `internal/modules/auth/service/auth_service.go` | 新增 `SendEmailVerification` 和 `VerifyEmail` 方法 |
+| `internal/modules/auth/handler/auth_handler.go` | 新增 `SendEmailVerification` 和 `VerifyEmail` HTTP handler |
+| `internal/modules/auth/routes.go` | 注册 `/auth/email/send-verification` 和 `/auth/email/verify` 路由 |
+| `internal/modules/auth/dto/auth_dto.go` | 新增 `SendEmailVerificationReq/Resp` 和 `VerifyEmailReq/Resp` |
+| `internal/pkg/emailer/emailer.go` | 新增 `SendEmailVerificationLink` 邮件模板方法 |
+| `internal/modules/user/model/user.go` | User 模型新增 `EmailVerified` 字段 |
+| `internal/modules/user/repository/user_repository.go` | 新增 `UpdateEmailVerified` 和 `GetByPhone` 方法 |
+
+**业务流程：**
+1. 用户在个人中心点击"发送验证邮件"
+2. 系统生成 UUID 令牌，存入 Redis（前缀 `email:verify:`，有效期 24 小时）
+3. 通过邮件发送验证链接：`{client.base_url}/verify-email?token={token}`
+4. 用户点击链接，前端调用 `POST /auth/email/verify` 验证
+5. 验证成功：更新 `email_verified = true`，删除 Redis 令牌
+
+**安全机制：**
+- 令牌一次性使用，验证后立即失效
+- 令牌有效期 24 小时，过期自动失效
+- 邮箱已验证时返回 `409` 错误
+- 邮箱不存在时静默返回成功（防止信息泄露）
+
+**前端新增：**
+- `web-admin/src/views/verify-email/index.vue` — 邮箱验证结果页面（公开路由 `/verify-email`）
+- `web-admin/src/api/auth.ts` — 新增 `sendEmailVerification` 和 `verifyEmail` API
+- `web-admin/src/views/profile/index.vue` — 邮箱旁显示验证状态标签 + "发送验证邮件"按钮
+
+---
+
+### 14.2 租户成员邀请
+
+**后端新增 `internal/modules/invitation` 模块**
+
+| 文件 | 说明 |
+|------|------|
+| `model/invitation.go` | 邀请数据模型，含 pending/accepted/cancelled/expired 四种状态 |
+| `repository/interface.go` | 仓储接口定义 |
+| `repository/invitation_repository.go` | GORM 实现：CRUD + 按租户/令牌/邮箱查询 |
+| `service/invitation_service.go` | 业务逻辑：创建→发邮件→接受→创建用户→分配角色 |
+| `handler/invitation_handler.go` | RESTful API handler |
+| `dto/invitation_dto.go` | 请求/响应 DTO |
+| `module.go` | 模块初始化 + 路由注册（认证路由 + 公开路由） |
+
+**路由注册：**
+
+| 方法 | 路径 | 功能 | 认证 |
+|------|------|------|------|
+| GET | `/invitations` | 邀请列表 | 需 Token |
+| POST | `/invitations` | 创建邀请 | 需 Token |
+| PUT | `/invitations/{id}/cancel` | 取消邀请 | 需 Token |
+| PUT | `/invitations/{id}/resend` | 重发邀请邮件 | 需 Token |
+| DELETE | `/invitations/{id}/delete` | 删除邀请 | 需 Token |
+| GET | `/invitations/info?token=xxx` | 查询邀请信息 | 公开 |
+| POST | `/invitations/accept` | 接受邀请并注册 | 公开 |
+
+**业务流程：**
+1. 管理员在"成员邀请"页面填写邮箱和角色，点击"发送邀请"
+2. 系统校验邮箱不重复（同租户无待处理邀请、非已有成员）
+3. 生成 UUID 令牌，创建邀请记录（状态 `pending`，有效期 7 天）
+4. 发送邀请邮件：`{client.base_url}/accept-invitation?token={token}`
+5. 被邀请人打开链接，查看邀请详情（租户名、邮箱）
+6. 填写用户名、昵称、密码，点击"接受邀请并注册"
+7. 系统创建用户（`email_verified = true`）、分配角色、标记邀请 `accepted`
+
+**状态流转：**
+```
+pending → accepted  （被邀请人接受）
+pending → cancelled （管理员取消）
+pending → expired   （超过有效期）
+```
+
+**前端新增：**
+- `web-admin/src/api/modules/invitation.ts` — 邀请 API 模块
+- `web-admin/src/views/invitation/index.vue` — 邀请管理页面（列表/创建/取消/重发/删除）
+- `web-admin/src/views/accept-invitation/index.vue` — 接受邀请公开页面
+- `web-admin/src/router/index.ts` — 新增 `/invitation` 管理路由 + `/accept-invitation` 公开路由
+
+---
+
+### 14.3 用户模型扩展
+
+User 模型新增以下字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `email_verified` | bool | 邮箱是否已验证，默认 `false` |
+| `phone` | string | 手机号（最长 20 字符） |
+| `avatar` | string | 头像 URL（最长 500 字符） |
+
+**前端个人中心增强：**
+- 编辑资料弹窗新增手机号字段
+- 个人信息展示新增邮箱验证状态标签、手机号
+- `LoginUserInfo` 类型新增 `email_verified`、`phone`、`avatar` 字段
+
+---
+
+### 14.4 配置依赖
+
+邮箱验证和成员邀请均依赖邮件服务配置：
+
+```yaml
+email:
+  enabled: true
+  host: "smtp.example.com"
+  port: 587
+  username: "noreply@example.com"
+  password: "smtp-password"
+  from: "noreply@example.com"
+  from_name: "MeteorX"
+
+client:
+  base_url: "https://app.example.com"
+```
+
+> 如果 `email.enabled = false`，邀请仍可创建（记录写入数据库），但不会发送邮件。可在配置邮件后通过"重发"功能补发。

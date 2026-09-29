@@ -28,6 +28,8 @@
 | GET | `/auth/tokens` | 获取 API Token 列表 | 需 Token |
 | POST | `/auth/tokens` | 创建 API Token | 需 Token |
 | POST | `/auth/tokens/revoke` | 撤销 API Token | 需 Token |
+| POST | `/auth/email/send-verification` | 发送邮箱验证链接 | 需 Token |
+| POST | `/auth/email/verify` | 验证邮箱（通过令牌） | 需 Token |
 
 ---
 
@@ -784,3 +786,127 @@ curl -X POST https://api.example.com/api/v1/files/upload \
 | 撤销 | 加入黑名单 | 标记 revoked_at + 删缓存 |
 | 体积 | ~500 字节 | ~48 字节 |
 | 权限 | 自包含 roles | 查 DB 获取当前 roles（实时） |
+
+---
+
+## 7. 邮箱验证
+
+邮箱验证功能允许用户验证其绑定的邮箱地址，确保邮箱真实有效。验证通过后 `email_verified` 字段标记为 `true`。
+
+### 7.1 数据结构
+
+#### SendEmailVerificationReq（发送验证请求）
+
+| 字段 | 类型 | 必填 | 校验规则 | 说明 |
+|------|------|------|----------|------|
+| email | string | 是 | 邮箱格式 | 需要验证的邮箱地址 |
+
+#### SendEmailVerificationResp（发送验证响应）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| message | string | 提示信息 |
+
+#### VerifyEmailReq（验证邮箱请求）
+
+| 字段 | 类型 | 必填 | 校验规则 | 说明 |
+|------|------|------|----------|------|
+| token | string | 是 | - | 邮件中携带的验证令牌 |
+
+#### VerifyEmailResp（验证邮箱响应）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| message | string | 提示信息 |
+
+### 7.2 发送邮箱验证链接
+
+`POST /api/v1/auth/email/send-verification`
+
+**请求头：** `Authorization: Bearer <token>`
+
+**请求体：**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**业务规则：**
+- 邮箱必须为当前登录用户的邮箱
+- 如果邮箱已验证，返回 `409` 错误
+- 系统生成唯一验证令牌，存入 Redis（有效期 24 小时）
+- 通过邮件发送验证链接，格式为 `{client.base_url}/verify-email?token={token}`
+- 为防止信息泄露，如果邮箱不存在也返回成功响应
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "message": "验证邮件已发送"
+  }
+}
+```
+
+**错误响应：**
+| 状态码 | 场景 |
+|--------|------|
+| 409 | 邮箱已验证 |
+| 500 | 邮件服务未配置 / Redis 不可用 |
+
+### 7.3 验证邮箱
+
+`POST /api/v1/auth/email/verify`
+
+**请求体：**
+```json
+{
+  "token": "8f1a3c5d-e2b4-4f6a-9c8d-1e2f3a4b5c6d"
+}
+```
+
+**业务规则：**
+- 从 Redis 中查找令牌对应的用户 ID
+- 令牌有效期为 24 小时，过期自动失效
+- 验证成功后：将用户 `email_verified` 字段更新为 `true`，并删除 Redis 中的令牌
+- 令牌一次性使用，验证后立即失效
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "message": "邮箱验证成功"
+  }
+}
+```
+
+**错误响应：**
+| 状态码 | 场景 |
+|--------|------|
+| 400 | 令牌无效或已过期 |
+| 500 | Redis 不可用 |
+
+### 7.4 前端流程
+
+```
+用户点击"发送验证邮件"
+        │
+        ▼
+POST /auth/email/send-verification { email }
+        │
+        ▼
+用户收到邮件 → 点击验证链接
+        │
+        ▼
+前端 /verify-email?token=xxx 页面
+        │
+        ▼
+POST /auth/email/verify { token }
+        │
+        ▼
+验证成功 → 显示成功页面 → 跳转登录
+```

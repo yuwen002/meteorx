@@ -48,18 +48,22 @@ type ResetPasswordResp struct {
 	Message string `json:"message"`
 }
 
+// SendEmailVerificationReq 发送邮箱验证链接请求
 type SendEmailVerificationReq struct {
-	Email string `json:"email" validate:"required,email" label:"邮箱"`
+	Email string `json:"email" validate:"required,email" label:"邮箱"` // 需要验证的邮箱地址
 }
 
+// SendEmailVerificationResp 发送邮箱验证链接响应
 type SendEmailVerificationResp struct {
-	Message string `json:"message"`
+	Message string `json:"message"` // 提示信息
 }
 
+// VerifyEmailReq 验证邮箱请求（通过邮件中的令牌）
 type VerifyEmailReq struct {
-	Token string `json:"token" validate:"required" label:"验证令牌"`
+	Token string `json:"token" validate:"required" label:"验证令牌"` // 邮件链接中携带的验证令牌
 }
 
+// VerifyEmailResp 验证邮箱响应
 type VerifyEmailResp struct {
-	Message string `json:"message"`
+	Message string `json:"message"` // 提示信息
 }
