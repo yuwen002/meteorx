@@ -54,20 +54,32 @@ func (WikiNode) TableName() string {
 }
 
 type Document struct {
-	ID           string `gorm:"primaryKey"`
-	TenantID     string `gorm:"index;size:26;not null"`
-	NodeID       string `gorm:"size:26;uniqueIndex;not null"`
-	Content      string `gorm:"type:mediumtext"`
-	ContentHTML  string `gorm:"type:mediumtext"`
-	Format       string `gorm:"not null;default:'markdown';size:50"`
-	CurrentVer   int    `gorm:"not null;default:1"`
-	ViewCount    int64  `gorm:"not null;default:0"`
-	LastEditedBy string `gorm:"index;size:26"`
-	LastEditedAt *time.Time
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	DeletedAt    *time.Time
+	ID             string     `gorm:"primaryKey"`
+	TenantID       string     `gorm:"index;size:26;not null"`
+	NodeID         string     `gorm:"size:26;uniqueIndex;not null"`
+	Content        string     `gorm:"type:mediumtext"`
+	ContentHTML    string     `gorm:"type:mediumtext"`
+	Format         string     `gorm:"not null;default:'markdown';size:50"`
+	CurrentVer     int        `gorm:"not null;default:1"`
+	ViewCount      int64      `gorm:"not null;default:0"`
+	LastEditedBy   string     `gorm:"index;size:26"`
+	LastEditedAt   *time.Time
+	PublishStatus  string     `gorm:"not null;default:'draft';size:30;index"`
+	PublishedAt    *time.Time `gorm:"index"`
+	ReviewedBy     string     `gorm:"size:26"`
+	ReviewedAt     *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      *time.Time
 }
+
+const (
+	PublishStatusDraft         = "draft"
+	PublishStatusPendingReview = "pending_review"
+	PublishStatusPublished     = "published"
+	PublishStatusArchived      = "archived"
+	PublishStatusRejected      = "rejected"
+)
 
 func (Document) TableName() string {
 	return "wiki_documents"
@@ -352,4 +364,27 @@ type DocumentStats struct {
 	TotalShares    int64     `json:"total_shares"`
 	UniqueViewers  int64     `json:"unique_viewers"`
 	LastViewedAt   time.Time `json:"last_viewed_at"`
+}
+
+type ReviewComment struct {
+	ID         string    `gorm:"primaryKey"`
+	TenantID   string    `gorm:"index;size:26;not null"`
+	DocumentID string    `gorm:"index;size:26;not null"`
+	NodeID     string    `gorm:"index;size:26;not null"`
+	Action     string    `gorm:"not null;size:30"`
+	Content    string    `gorm:"type:text"`
+	ReviewerID string    `gorm:"index;size:26;not null"`
+	CreatedAt  time.Time `gorm:"index"`
+}
+
+const (
+	ReviewActionSubmit  = "submit"
+	ReviewActionApprove = "approve"
+	ReviewActionReject  = "reject"
+	ReviewActionPublish = "publish"
+	ReviewActionArchive = "archive"
+)
+
+func (ReviewComment) TableName() string {
+	return "wiki_review_comments"
 }

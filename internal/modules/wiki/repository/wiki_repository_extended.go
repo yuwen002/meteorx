@@ -79,11 +79,16 @@ type WikiRepositoryExtended interface {
 	BatchMoveNodes(ctx context.Context, nodeIDs []string, newParentID string) error
 
 	CompareRevisions(ctx context.Context, documentID string, version1, version2 int) (string, string, error)
-	
+
 	GetDocumentByIDWithNode(ctx context.Context, id string) (*model.Document, *model.WikiNode, error)
 	GetUserSubscriptions(ctx context.Context, userID string) ([]*model.DocumentSubscription, error)
 	ListNodesByIDs(ctx context.Context, nodeIDs []string) ([]*model.WikiNode, error)
 	GenerateDiff(ctx context.Context, oldContent, newContent string) string
+
+	UpdateDocumentPublishStatus(ctx context.Context, documentID string, status string, reviewedBy string, reviewedAt *time.Time, publishedAt *time.Time) error
+	CreateReviewComment(ctx context.Context, comment *model.ReviewComment) error
+	ListReviewComments(ctx context.Context, documentID string) ([]*model.ReviewComment, error)
+	ListPendingReviewDocuments(ctx context.Context, tenantID string, page, pageSize int) ([]*model.Document, int64, error)
 }
 
 // wikiRepositoryExtended Wiki 扩展仓库实现
@@ -684,4 +689,57 @@ func (r *wikiRepositoryExtended) GenerateDiff(ctx context.Context, oldContent, n
 	}
 
 	return diff.String()
+}
+
+func (r *wikiRepositoryExtended) UpdateDocumentPublishStatus(ctx context.Context, documentID string, status string, reviewedBy string, reviewedAt *time.Time, publishedAt *time.Time) error {
+	updates := map[string]interface{}{
+		"publish_status": status,
+	}
+	if reviewedBy != "" {
+		updates["reviewed_by"] = reviewedBy
+	}
+	if reviewedAt != nil {
+		updates["reviewed_at"] = reviewedAt
+	}
+	if publishedAt != nil {
+		updates["published_at"] = publishedAt
+	}
+	if status == model.PublishStatusDraft {
+		updates["reviewed_by"] = ""
+		updates["reviewed_at"] = nil
+		updates["published_at"] = nil
+	}
+	return r.getDB(ctx).Model(&model.Document{}).Where("id = ?", documentID).Updates(updates).Error
+}
+
+func (r *wikiRepositoryExtended) CreateReviewComment(ctx context.Context, comment *model.ReviewComment) error {
+	comment.ID = idgen.NewULID()
+	if comment.TenantID == "" {
+		comment.TenantID = tenantctx.TenantID(ctx)
+	}
+	return r.getDB(ctx).Create(comment).Error
+}
+
+func (r *wikiRepositoryExtended) ListReviewComments(ctx context.Context, documentID string) ([]*model.ReviewComment, error) {
+	var comments []*model.ReviewComment
+	err := r.getDB(ctx).Where("document_id = ?", documentID).Order("created_at DESC").Find(&comments).Error
+	return comments, err
+}
+
+func (r *wikiRepositoryExtended) ListPendingReviewDocuments(ctx context.Context, tenantID string, page, pageSize int) ([]*model.Document, int64, error) {
+	var docs []*model.Document
+	var total int64
+
+	query := r.getDB(ctx).Model(&model.Document{}).Where("tenant_id = ? AND publish_status IN ? AND deleted_at IS NULL", tenantID, []string{model.PublishStatusPendingReview, model.PublishStatusRejected})
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	if err := query.Order("updated_at DESC").Offset(offset).Limit(pageSize).Find(&docs).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return docs, total, nil
 }

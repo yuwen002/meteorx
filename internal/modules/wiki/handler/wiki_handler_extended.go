@@ -511,6 +511,118 @@ func (h *WikiHandlerExtended) ImportDocument(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+func (h *WikiHandlerExtended) SubmitForReview(w http.ResponseWriter, r *http.Request) {
+	documentID := chi.URLParam(r, "id")
+	var req dto.SubmitForReviewReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	resp, err := h.svc.SubmitForReview(r.Context(), documentID, &req)
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, resp)
+}
+
+func (h *WikiHandlerExtended) ApproveDocument(w http.ResponseWriter, r *http.Request) {
+	documentID := chi.URLParam(r, "id")
+	var req dto.ReviewActionReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	resp, err := h.svc.ApproveDocument(r.Context(), documentID, &req)
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, resp)
+}
+
+func (h *WikiHandlerExtended) RejectDocument(w http.ResponseWriter, r *http.Request) {
+	documentID := chi.URLParam(r, "id")
+	var req dto.ReviewActionReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	resp, err := h.svc.RejectDocument(r.Context(), documentID, &req)
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, resp)
+}
+
+func (h *WikiHandlerExtended) PublishDocument(w http.ResponseWriter, r *http.Request) {
+	documentID := chi.URLParam(r, "id")
+
+	resp, err := h.svc.PublishDocument(r.Context(), documentID)
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, resp)
+}
+
+func (h *WikiHandlerExtended) UnpublishDocument(w http.ResponseWriter, r *http.Request) {
+	documentID := chi.URLParam(r, "id")
+
+	resp, err := h.svc.UnpublishDocument(r.Context(), documentID)
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, resp)
+}
+
+func (h *WikiHandlerExtended) ArchiveDocument(w http.ResponseWriter, r *http.Request) {
+	documentID := chi.URLParam(r, "id")
+
+	resp, err := h.svc.ArchiveDocument(r.Context(), documentID)
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, resp)
+}
+
+func (h *WikiHandlerExtended) ListReviewComments(w http.ResponseWriter, r *http.Request) {
+	documentID := chi.URLParam(r, "id")
+
+	resp, err := h.svc.ListReviewComments(r.Context(), documentID)
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, resp)
+}
+
+func (h *WikiHandlerExtended) ListPendingReviews(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+
+	resp, total, err := h.svc.ListPendingReviews(r.Context(), page, pageSize)
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, map[string]interface{}{
+		"items": resp,
+		"total": total,
+		"page":  page,
+		"page_size": pageSize,
+	})
+}
+
 func (h *WikiHandlerExtended) RegisterExtendedRoutes(r chi.Router) {
 	r.Route("/wiki", func(r chi.Router) {
 		// 注意：免登录分享 GET /wiki/share/{token} 已在公开分组注册（见 public_routes.go），
@@ -565,6 +677,16 @@ func (h *WikiHandlerExtended) RegisterExtendedRoutes(r chi.Router) {
 			r.Post("/{id}/import", h.ImportDocument)
 
 			r.Get("/{id}/revisions/compare", h.CompareRevisions)
+
+			r.Post("/{id}/submit-review", h.SubmitForReview)
+			r.Post("/{id}/approve", h.ApproveDocument)
+			r.Post("/{id}/reject", h.RejectDocument)
+			r.Post("/{id}/publish", h.PublishDocument)
+			r.Post("/{id}/unpublish", h.UnpublishDocument)
+			r.Post("/{id}/archive", h.ArchiveDocument)
+			r.Get("/{id}/review-comments", h.ListReviewComments)
 		})
+
+		r.Get("/pending-reviews", h.ListPendingReviews)
 	})
 }

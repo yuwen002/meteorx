@@ -148,6 +148,16 @@ func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, cfg *config.Con
 			r.Post("/{id}/import", extH.ImportDocument)
 
 			r.Get("/{id}/revisions/compare", extH.CompareRevisions)
+
+			r.Post("/{id}/submit-review", extH.SubmitForReview)
+			r.Post("/{id}/approve", extH.ApproveDocument)
+			r.Post("/{id}/reject", extH.RejectDocument)
+			r.Post("/{id}/publish", extH.PublishDocument)
+			r.Post("/{id}/unpublish", extH.UnpublishDocument)
+			r.Post("/{id}/archive", extH.ArchiveDocument)
+			r.Get("/{id}/review-comments", extH.ListReviewComments)
 		})
+
+		r.Get("/pending-reviews", extH.ListPendingReviews)
 	})
 }

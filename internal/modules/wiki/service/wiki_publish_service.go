@@ -309,7 +309,10 @@ func (s *wikiServiceExtended) ListPendingReviews(ctx context.Context, page, page
 			DocumentID:    doc.ID,
 			NodeID:        doc.NodeID,
 			PublishStatus: doc.PublishStatus,
-			SubmittedAt:   doc.UpdatedAt,
+		}
+		if !doc.UpdatedAt.IsZero() {
+			t := doc.UpdatedAt
+			resp.SubmittedAt = &t
 		}
 
 		if node, err := s.getExtendedRepo().GetNodeByID(ctx, doc.NodeID); err == nil {

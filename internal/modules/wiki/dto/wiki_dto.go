@@ -83,18 +83,22 @@ type UpdateDocumentReq struct {
 }
 
 type DocumentResp struct {
-	ID           string     `json:"id"`
-	NodeID       string     `json:"node_id"`
-	Title        string     `json:"title"`
-	Content      string     `json:"content"`
-	ContentHTML  string     `json:"content_html"`
-	Format       string     `json:"format"`
-	CurrentVer   int        `json:"current_ver"`
-	ViewCount    int64      `json:"view_count"`
-	LastEditedBy string     `json:"last_edited_by"`
-	LastEditedAt *time.Time `json:"last_edited_at"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID             string     `json:"id"`
+	NodeID         string     `json:"node_id"`
+	Title          string     `json:"title"`
+	Content        string     `json:"content"`
+	ContentHTML    string     `json:"content_html"`
+	Format         string     `json:"format"`
+	CurrentVer     int        `json:"current_ver"`
+	ViewCount      int64      `json:"view_count"`
+	LastEditedBy   string     `json:"last_edited_by"`
+	LastEditedAt   *time.Time `json:"last_edited_at"`
+	PublishStatus  string     `json:"publish_status"`
+	PublishedAt    *time.Time `json:"published_at,omitempty"`
+	ReviewedBy     string     `json:"reviewed_by,omitempty"`
+	ReviewedAt     *time.Time `json:"reviewed_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 type DocumentRevisionResp struct {
@@ -406,4 +410,45 @@ type AcquireEditLockReq struct {
 
 type ReleaseEditLockReq struct {
 	DocumentID string `json:"document_id" validate:"required"`
+}
+
+type SubmitForReviewReq struct {
+	Comment string `json:"comment"`
+}
+
+type ReviewActionReq struct {
+	Comment string `json:"comment"`
+}
+
+type ReviewCommentResp struct {
+	ID         string    `json:"id"`
+	DocumentID string    `json:"document_id"`
+	NodeID     string    `json:"node_id"`
+	Action     string    `json:"action"`
+	Content    string    `json:"content"`
+	ReviewerID string    `json:"reviewer_id"`
+	ReviewerName string  `json:"reviewer_name"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type DocumentPublishStatusResp struct {
+	DocumentID    string     `json:"document_id"`
+	NodeID        string     `json:"node_id"`
+	Title         string     `json:"title"`
+	PublishStatus string     `json:"publish_status"`
+	PublishedAt   *time.Time `json:"published_at,omitempty"`
+	ReviewedBy    string     `json:"reviewed_by,omitempty"`
+	ReviewedAt    *time.Time `json:"reviewed_at,omitempty"`
+}
+
+type ListPendingReviewsResp struct {
+	ID            string     `json:"id"`
+	DocumentID    string     `json:"document_id"`
+	NodeID        string     `json:"node_id"`
+	Title         string     `json:"title"`
+	SpaceID       string     `json:"space_id"`
+	SpaceName     string     `json:"space_name"`
+	PublishStatus string     `json:"publish_status"`
+	SubmittedBy   string     `json:"submitted_by"`
+	SubmittedAt   *time.Time `json:"submitted_at"`
 }

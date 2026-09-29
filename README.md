@@ -23,7 +23,7 @@
 | **审计日志** | 自动记录所有请求；`auditctx` Service 层丰富（before/after）；批量异步写入；多维度筛选查询；可视化仪表盘；用户操作时间线；异常行为检测；详细统计（小时级/风险等级/用户活跃度） |
 | **告警管理** | 基于审计日志的实时告警；支持风险等级/操作类型/特定用户触发；邮件/钉钉/企业微信/Webhook 通知；冷却机制防告警风暴 |
 | **会话分析** | 用户会话追踪；操作时间线分析；会话统计（请求数/成功率/平均耗时）；IP 地理位置自动解析 |
-| **Wiki 知识库** | 空间/节点/文档/版本/成员 五层模型；分栏 Markdown 编辑 + 实时预览；版本历史与回滚；附件与内嵌图片（带签名 URL 防盗链）；节点移动/排序/节点权限；成员协作；回收站与全局搜索；完整租户隔离 |
+| **Wiki 知识库** | 空间/节点/文档/版本/成员 五层模型；分栏 Markdown 编辑 + 实时预览；版本历史与回滚；附件与内嵌图片（带签名 URL 防盗链）；节点移动/排序/节点权限；成员协作；回收站与全局搜索；**文档发布工作流（草稿→待审核→已发布→归档）**；审核评论；完整租户隔离 |
 | **运营看板** | 平台运营数据总览：租户/用户/订阅/审计多维统计，实时掌握平台健康状况 |
 | **通知公告** | 平台公告 CRUD + 发布/下架；支持全平台或指定租户范围定向推送 |
 | **注销审批** | 租户注销申请 → 平台审批（通过/驳回）→ 到期自动执行注销的完整闭环 |
@@ -486,6 +486,14 @@ meteorx/
 | `GET` | `/wiki/trash` | 回收站列表（按 space_id/item_type 过滤） |
 | `POST` | `/wiki/trash/{id}/restore` | 从回收站恢复 |
 | `DELETE` | `/wiki/trash/{id}` | 永久删除回收站项目 |
+| `POST` | `/wiki/documents/{id}/submit-review` | 提交审核（draft → pending_review） |
+| `POST` | `/wiki/documents/{id}/approve` | 审核通过（pending_review → published） |
+| `POST` | `/wiki/documents/{id}/reject` | 驳回（pending_review → rejected） |
+| `POST` | `/wiki/documents/{id}/publish` | 直接发布（Owner/Admin 跳过审核） |
+| `POST` | `/wiki/documents/{id}/unpublish` | 取消发布（published → draft） |
+| `POST` | `/wiki/documents/{id}/archive` | 归档（published → archived） |
+| `GET` | `/wiki/documents/{id}/review-comments` | 审核评论列表 |
+| `GET` | `/wiki/pending-reviews` | 待审核文档列表（分页） |
 
 ### 12. 运营看板（管理员）
 

@@ -199,18 +199,22 @@ func (s *wikiService) buildDocumentResp(ctx context.Context, node *model.WikiNod
 	}
 
 	return &dto.DocumentResp{
-		ID:           doc.ID,
-		NodeID:       doc.NodeID,
-		Title:        title,
-		Content:      doc.Content,
-		ContentHTML:  s.rewriteImageSrc(doc.ContentHTML),
-		Format:       doc.Format,
-		CurrentVer:   doc.CurrentVer,
-		ViewCount:    doc.ViewCount,
-		LastEditedBy: doc.LastEditedBy,
-		LastEditedAt: doc.LastEditedAt,
-		CreatedAt:    doc.CreatedAt,
-		UpdatedAt:    doc.UpdatedAt,
+		ID:             doc.ID,
+		NodeID:         doc.NodeID,
+		Title:          title,
+		Content:        doc.Content,
+		ContentHTML:    s.rewriteImageSrc(doc.ContentHTML),
+		Format:         doc.Format,
+		CurrentVer:     doc.CurrentVer,
+		ViewCount:      doc.ViewCount,
+		LastEditedBy:   doc.LastEditedBy,
+		LastEditedAt:   doc.LastEditedAt,
+		PublishStatus:  doc.PublishStatus,
+		PublishedAt:    doc.PublishedAt,
+		ReviewedBy:     doc.ReviewedBy,
+		ReviewedAt:     doc.ReviewedAt,
+		CreatedAt:      doc.CreatedAt,
+		UpdatedAt:      doc.UpdatedAt,
 	}, nil
 }
 

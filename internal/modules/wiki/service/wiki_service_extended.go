@@ -72,6 +72,15 @@ type WikiServiceExtended interface {
 	ExportDocument(ctx context.Context, documentID, format string) ([]byte, string, error)
 
 	ImportDocument(ctx context.Context, documentID string, content []byte, format string) (*dto.DocumentResp, error)
+
+	SubmitForReview(ctx context.Context, documentID string, req *dto.SubmitForReviewReq) (*dto.DocumentPublishStatusResp, error)
+	ApproveDocument(ctx context.Context, documentID string, req *dto.ReviewActionReq) (*dto.DocumentPublishStatusResp, error)
+	RejectDocument(ctx context.Context, documentID string, req *dto.ReviewActionReq) (*dto.DocumentPublishStatusResp, error)
+	PublishDocument(ctx context.Context, documentID string) (*dto.DocumentPublishStatusResp, error)
+	UnpublishDocument(ctx context.Context, documentID string) (*dto.DocumentPublishStatusResp, error)
+	ArchiveDocument(ctx context.Context, documentID string) (*dto.DocumentPublishStatusResp, error)
+	ListReviewComments(ctx context.Context, documentID string) ([]*dto.ReviewCommentResp, error)
+	ListPendingReviews(ctx context.Context, page, pageSize int) ([]*dto.ListPendingReviewsResp, int64, error)
 }
 
 type wikiServiceExtended struct {
