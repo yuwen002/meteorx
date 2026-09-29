@@ -14,6 +14,9 @@ export interface UserItem {
   username: string
   nickname?: string
   email?: string
+  email_verified?: boolean
+  phone?: string
+  avatar?: string
   status?: number
   is_master?: boolean
   roles?: string[]        // 角色编码列表（兼容旧版）
@@ -106,7 +109,7 @@ export function getProfile() {
 }
 
 // 更新当前用户个人信息
-export function updateProfile(data: { nickname?: string; email?: string }) {
+export function updateProfile(data: { nickname?: string; email?: string; phone?: string; avatar?: string }) {
   return put<UserItem>('/profile', data)
 }
 

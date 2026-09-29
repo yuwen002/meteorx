@@ -45,6 +45,18 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '第三方登录', public: true }
   },
   {
+    path: '/verify-email',
+    name: 'VerifyEmail',
+    component: () => import('@/views/verify-email/index.vue'),
+    meta: { title: '邮箱验证', public: true }
+  },
+  {
+    path: '/accept-invitation',
+    name: 'AcceptInvitation',
+    component: () => import('@/views/accept-invitation/index.vue'),
+    meta: { title: '接受邀请', public: true }
+  },
+  {
     path: '/',
     component: () => import('@/layouts/DefaultLayout.vue'),
     redirect: '/dashboard',
@@ -66,6 +78,12 @@ const routes: RouteRecordRaw[] = [
         name: 'TenantSettings',
         component: () => import('@/views/tenant/settings/index.vue'),
         meta: { title: '租户设置', icon: 'Setting' }
+      },
+      {
+        path: 'invitation',
+        name: 'Invitation',
+        component: () => import('@/views/invitation/index.vue'),
+        meta: { title: '成员邀请', icon: 'Message', permission: 'user:list' }
       },
       {
         path: 'wiki',

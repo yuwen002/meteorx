@@ -12,17 +12,19 @@ func (c *UserConverter) ToResponse(user *model.User) *UserResp {
 		return nil
 	}
 	return &UserResp{
-		ID:       user.ID,
-		TenantID: user.TenantID,
-		Username: user.Username,
-		Nickname: user.Nickname,
-		Email:    user.Email,
-		Roles:    user.Roles,
-		Status:   user.Status,
-		IsMaster: user.IsMaster,
-		// 转换时间格式，前端更友好
-		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+		ID:            user.ID,
+		TenantID:      user.TenantID,
+		Username:      user.Username,
+		Nickname:      user.Nickname,
+		Email:         user.Email,
+		EmailVerified: user.EmailVerified,
+		Phone:         user.Phone,
+		Avatar:        user.Avatar,
+		Roles:         user.Roles,
+		Status:        user.Status,
+		IsMaster:      user.IsMaster,
+		CreatedAt:     user.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:     user.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}
 }
 

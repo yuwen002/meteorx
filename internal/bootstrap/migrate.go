@@ -10,6 +10,7 @@ import (
 
 	"meteorx/internal/modules/audit/repository"
 	"meteorx/internal/modules/file"
+	invitationrepo "meteorx/internal/modules/invitation/repository"
 	notificationrepo "meteorx/internal/modules/notification/repository"
 	planrepo "meteorx/internal/modules/plan/repository"
 	rbacrepo "meteorx/internal/modules/rbac/repository"
@@ -55,6 +56,7 @@ func AutoMigrate(db *gorm.DB) error {
 		{"audit", repository.AutoMigrate},
 		{"files", file.AutoMigrate},
 		{"notifications", notificationrepo.AutoMigrate},
+		{"invitations", invitationrepo.AutoMigrate},
 		{"wiki", wikirepo.AutoMigrate},
 	}
 

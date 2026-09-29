@@ -24,6 +24,7 @@ import (
 	authRepo "meteorx/internal/modules/auth/repository"
 	authSvc "meteorx/internal/modules/auth/service"
 	"meteorx/internal/modules/file"
+	"meteorx/internal/modules/invitation"
 	"meteorx/internal/modules/oauth"
 	"meteorx/internal/modules/plan"
 	planRepo "meteorx/internal/modules/plan/repository"
@@ -139,6 +140,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 3. OAuth2 第三方登录（免登录，公开接口）
 			oauth.InitModule(r, db, *cfg, tokenHelper, rdb)
 
+			// 3.1 邀请接受公开接口（免登录，凭 token 接受邀请）
+			invitation.InitPublicModule(r, db, *cfg)
+
 			// 4. Wiki 文档公开分享（免登录，凭 token/密码访问）
 			wiki.RegisterPublicShareRoute(r, db, txManager, cfg)
 		})
@@ -200,6 +204,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 
 			// 4.7 租户端公告查看接口
 			notification.InitTenantModule(r, db)
+
+			// 4.8 邀请管理接口（租户管理员邀请成员）
+			invitation.InitModule(r, db, *cfg)
 
 			// ========================================================
 			// 🔥 新增分组三：MaaS 平台运营后台特权接口 (Platform Admin Only)

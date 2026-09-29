@@ -114,3 +114,79 @@ func (e *Emailer) SendVerificationEmail(to, verificationCode, username string) e
 
 	return e.Send(to, subject, body)
 }
+
+func (e *Emailer) SendEmailVerificationLink(to, verifyLink, username string) error {
+	subject := "【MeteorX】验证您的邮箱地址"
+	body := fmt.Sprintf(`
+		<div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;">
+			<div style="background: linear-gradient(135deg, #11998e 0%%, #38ef7d 100%%); padding: 30px; border-radius: 10px 10px 0 0;">
+				<h1 style="color: white; margin: 0; text-align: center;">MeteorX 多租户平台</h1>
+			</div>
+			<div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef; border-top: none;">
+				<h2 style="color: #333; margin-top: 0;">验证您的邮箱地址</h2>
+				<p style="color: #666; line-height: 1.6;">
+					您好 <strong>%s</strong>，
+				</p>
+				<p style="color: #666; line-height: 1.6;">
+					请点击下方链接验证您的邮箱地址：
+				</p>
+				<p style="text-align: center; margin: 30px 0;">
+					<a href="%s" style="display: inline-block; padding: 15px 40px; background: linear-gradient(135deg, #11998e 0%%, #38ef7d 100%%); color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+						验证邮箱
+					</a>
+				</p>
+				<p style="color: #999; font-size: 14px; line-height: 1.6;">
+					<strong>注意：</strong>此链接将在 24 小时内有效。如果您没有注册 MeteorX 账号，请忽略此邮件。
+				</p>
+				<p style="color: #999; font-size: 14px; line-height: 1.6;">
+					如果链接无法点击，请复制以下链接到浏览器中访问：<br/>
+					<a href="%s" style="color: #11998e; word-break: break-all;">%s</a>
+				</p>
+				<hr style="border: none; border-top: 1px solid #e9ecef; margin: 30px 0;">
+				<p style="color: #999; font-size: 12px; text-align: center;">
+					此邮件由 MeteorX 系统自动发送，请勿直接回复。
+				</p>
+			</div>
+		</div>
+	`, username, verifyLink, verifyLink, verifyLink)
+
+	return e.Send(to, subject, body)
+}
+
+func (e *Emailer) SendInvitationEmail(to, inviteLink, inviterName, tenantName string) error {
+	subject := fmt.Sprintf("【MeteorX】%s 邀请您加入 %s", inviterName, tenantName)
+	body := fmt.Sprintf(`
+		<div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;">
+			<div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; border-radius: 10px 10px 0 0;">
+				<h1 style="color: white; margin: 0; text-align: center;">MeteorX 多租户平台</h1>
+			</div>
+			<div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef; border-top: none;">
+				<h2 style="color: #333; margin-top: 0;">加入团队邀请</h2>
+				<p style="color: #666; line-height: 1.6;">
+					您好，
+				</p>
+				<p style="color: #666; line-height: 1.6;">
+					<strong>%s</strong> 邀请您加入租户 <strong>%s</strong>。
+				</p>
+				<p style="text-align: center; margin: 30px 0;">
+					<a href="%s" style="display: inline-block; padding: 15px 40px; background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+						接受邀请
+					</a>
+				</p>
+				<p style="color: #999; font-size: 14px; line-height: 1.6;">
+					<strong>注意：</strong>此邀请链接将在 7 天内有效。如果您不认识邀请人，请忽略此邮件。
+				</p>
+				<p style="color: #999; font-size: 14px; line-height: 1.6;">
+					如果链接无法点击，请复制以下链接到浏览器中访问：<br/>
+					<a href="%s" style="color: #667eea; word-break: break-all;">%s</a>
+				</p>
+				<hr style="border: none; border-top: 1px solid #e9ecef; margin: 30px 0;">
+				<p style="color: #999; font-size: 12px; text-align: center;">
+					此邮件由 MeteorX 系统自动发送，请勿直接回复。
+				</p>
+			</div>
+		</div>
+	`, inviterName, tenantName, inviteLink, inviteLink, inviteLink)
+
+	return e.Send(to, subject, body)
+}

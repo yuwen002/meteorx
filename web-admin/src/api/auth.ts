@@ -12,6 +12,9 @@ export interface LoginUserInfo {
   username: string
   nickname?: string
   email?: string
+  email_verified?: boolean
+  phone?: string
+  avatar?: string
   status?: number
   is_master?: boolean
   created_at?: string
@@ -211,4 +214,22 @@ export function listAPITokens() {
 // 撤销 API Token
 export function revokeAPIToken(data: RevokeAPITokenParams) {
   return post('/auth/tokens/revoke', data)
+}
+
+// ========== 邮箱验证 ==========
+
+export interface SendEmailVerificationReq {
+  email: string
+}
+
+export interface VerifyEmailReq {
+  token: string
+}
+
+export function sendEmailVerification(email: string) {
+  return post<{ message: string }>('/auth/email/send-verification', { email })
+}
+
+export function verifyEmail(token: string) {
+  return post<{ message: string }>('/auth/email/verify', { token })
 }

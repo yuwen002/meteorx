@@ -40,6 +40,9 @@ type stubAuthService struct {
 	resetToken   string
 	resetNewPass string
 	resetErr     error
+
+	sendEmailVerifyErr error
+	verifyEmailErr    error
 }
 
 func (s *stubAuthService) Register(_ context.Context, req dto.RegisterUserReq) (*userModel.User, error) {
@@ -66,6 +69,14 @@ func (s *stubAuthService) ResetPassword(_ context.Context, token, newPassword st
 	s.resetToken = token
 	s.resetNewPass = newPassword
 	return s.resetErr
+}
+
+func (s *stubAuthService) SendEmailVerification(_ context.Context, email string) error {
+	return s.sendEmailVerifyErr
+}
+
+func (s *stubAuthService) VerifyEmail(_ context.Context, token string) error {
+	return s.verifyEmailErr
 }
 
 func newAuthRouter(stub *stubAuthService) http.Handler {

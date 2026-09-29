@@ -38,6 +38,8 @@ type AdminCreateTenantUserReq struct {
 type UpdateUserReq struct {
 	Nickname string   `json:"nickname,omitempty" validate:"max=50"`
 	Email    string   `json:"email,omitempty" validate:"omitempty,email"`
+	Phone    string   `json:"phone,omitempty" validate:"omitempty,max=20"`
+	Avatar   string   `json:"avatar,omitempty" validate:"omitempty,max=500"`
 	RoleIDs  []string `json:"role_ids,omitempty" validate:"omitempty,min=1"` // 可选，用于单独更新角色
 	Status   *int     `json:"status,omitempty" validate:"omitempty,oneof=0 1"`
 }
@@ -59,20 +61,23 @@ type UserRoleInfo struct {
 
 // UserResp 用户信息响应
 type UserResp struct {
-	ID         string         `json:"id"`
-	TenantID   string         `json:"tenant_id"`
-	TenantName string         `json:"tenant_name"`
-	Username   string         `json:"username"`
-	Nickname   string         `json:"nickname"`
-	Email      string         `json:"email"`
-	Roles      []string       `json:"roles"`     // 角色编码列表（兼容旧版）
-	RoleIDs    []string       `json:"role_ids"`  // 角色ID列表
-	RoleList   []UserRoleInfo `json:"role_list"` // 角色详细信息列表
-	Status     int            `json:"status"`
-	IsMaster   bool           `json:"is_master"` // 是否系统管理员
-	CreatedAt  string         `json:"created_at"`
-	UpdatedAt  string         `json:"updated_at"`
-	DeletedAt  string         `json:"deleted_at,omitempty"` // 删除时间，仅已删除记录返回
+	ID            string         `json:"id"`
+	TenantID      string         `json:"tenant_id"`
+	TenantName    string         `json:"tenant_name"`
+	Username      string         `json:"username"`
+	Nickname      string         `json:"nickname"`
+	Email         string         `json:"email"`
+	EmailVerified bool           `json:"email_verified"`
+	Phone         string         `json:"phone"`
+	Avatar        string         `json:"avatar"`
+	Roles         []string       `json:"roles"`     // 角色编码列表（兼容旧版）
+	RoleIDs       []string       `json:"role_ids"`  // 角色ID列表
+	RoleList      []UserRoleInfo `json:"role_list"` // 角色详细信息列表
+	Status        int            `json:"status"`
+	IsMaster      bool           `json:"is_master"` // 是否系统管理员
+	CreatedAt     string         `json:"created_at"`
+	UpdatedAt     string         `json:"updated_at"`
+	DeletedAt     string         `json:"deleted_at,omitempty"` // 删除时间，仅已删除记录返回
 }
 
 // AssignUserRolesReq 为用户分配角色

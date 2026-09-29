@@ -177,6 +177,14 @@ func (m *mockUserRepo) CountAllUsers(_ context.Context) (int64, error) {
 	return int64(len(m.users)), nil
 }
 
+func (m *mockUserRepo) GetByPhone(_ context.Context, _ string) (*userModel.User, error) {
+	return nil, nil
+}
+
+func (m *mockUserRepo) UpdateEmailVerified(_ context.Context, _ string, _ bool) error {
+	return nil
+}
+
 var _ userRepo.UserRepository = (*mockUserRepo)(nil)
 
 // ---------- 内存 mock：TenantRepository ----------

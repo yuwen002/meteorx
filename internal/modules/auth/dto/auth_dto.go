@@ -47,3 +47,19 @@ type ResetPasswordReq struct {
 type ResetPasswordResp struct {
 	Message string `json:"message"`
 }
+
+type SendEmailVerificationReq struct {
+	Email string `json:"email" validate:"required,email" label:"邮箱"`
+}
+
+type SendEmailVerificationResp struct {
+	Message string `json:"message"`
+}
+
+type VerifyEmailReq struct {
+	Token string `json:"token" validate:"required" label:"验证令牌"`
+}
+
+type VerifyEmailResp struct {
+	Message string `json:"message"`
+}

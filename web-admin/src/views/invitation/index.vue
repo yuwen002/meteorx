@@ -102,7 +102,7 @@ const roleList = ref<{ id: string; name: string; code: string }[]>([])
 async function loadRoles() {
   try {
     const data = await getRoleList({ page: 1, page_size: 100 })
-    roleList.value = data?.items || []
+    roleList.value = data?.list || []
   } catch (e) {
     console.error('加载角色失败', e)
   }
@@ -132,7 +132,7 @@ async function loadList() {
       keyword: keyword.value,
       status: statusFilter.value || undefined
     })
-    list.value = data?.items || []
+    list.value = data?.list || []
     total.value = data?.total || 0
   } catch (e) {
     ElMessage.error('获取邀请列表失败')

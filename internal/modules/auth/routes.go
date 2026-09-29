@@ -13,6 +13,8 @@ func RegisterRoutes(r chi.Router, h *handler.AuthHandler) {
 		r.Post("/logout", h.Logout)
 		r.Post("/forgot-password", h.ForgotPassword)
 		r.Post("/reset-password", h.ResetPassword)
+		r.Post("/email/send-verification", h.SendEmailVerification)
+		r.Post("/email/verify", h.VerifyEmail)
 	})
 }
 

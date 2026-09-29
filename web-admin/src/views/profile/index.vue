@@ -28,6 +28,24 @@
             <div class="info-item">
               <label>邮箱：</label>
               <span>{{ userInfo.email || '-' }}</span>
+              <el-tag v-if="userInfo.email" :type="userInfo.email_verified ? 'success' : 'warning'" size="small" style="margin-left: 8px;">
+                {{ userInfo.email_verified ? '已验证' : '未验证' }}
+              </el-tag>
+              <el-button
+                v-if="userInfo.email && !userInfo.email_verified"
+                type="primary"
+                link
+                size="small"
+                :loading="sendVerifyLoading"
+                @click="handleSendEmailVerification"
+                style="margin-left: 4px;"
+              >
+                发送验证邮件
+              </el-button>
+            </div>
+            <div class="info-item">
+              <label>手机号：</label>
+              <span>{{ userInfo.phone || '-' }}</span>
             </div>
             <div class="info-item">
               <label>租户ID：</label>
@@ -318,6 +336,9 @@
         <el-form-item label="邮箱" prop="email">
           <el-input v-model="editForm.email" placeholder="请输入邮箱" />
         </el-form-item>
+        <el-form-item label="手机号" prop="phone">
+          <el-input v-model="editForm.phone" placeholder="请输入手机号" maxlength="20" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
@@ -335,7 +356,7 @@ import { Edit, Plus, Link, CopyDocument, Check, InfoFilled, Connection, Loading 
 import { useUserStore } from '@/stores/user'
 import { getProfile, updateProfile, changePassword } from '@/api/modules/user'
 import { getUserRoles } from '@/api/modules/role'
-import { createAPIToken, listAPITokens, revokeAPIToken, type APITokenItem, listOAuthAccounts, unbindOAuth, type OAuthAccountItem, getOAuthRedirectURL } from '@/api/auth'
+import { createAPIToken, listAPITokens, revokeAPIToken, type APITokenItem, listOAuthAccounts, unbindOAuth, type OAuthAccountItem, getOAuthRedirectURL, sendEmailVerification } from '@/api/auth'
 
 const userStore = useUserStore()
 
@@ -345,6 +366,9 @@ const userInfo = reactive({
   username: '',
   nickname: '',
   email: '',
+  email_verified: false,
+  phone: '',
+  avatar: '',
   tenant_id: '',
   status: 1,
   is_master: false,
@@ -362,7 +386,8 @@ const editFormRef = ref<FormInstance>()
 const editLoading = ref(false)
 const editForm = reactive({
   nickname: '',
-  email: ''
+  email: '',
+  phone: ''
 })
 const editRules: FormRules = {
   email: [{ type: 'email', message: '请输入正确的邮箱', trigger: 'blur' }]
@@ -427,10 +452,26 @@ async function loadUserRoles() {
   }
 }
 
+const sendVerifyLoading = ref(false)
+
+async function handleSendEmailVerification() {
+  if (!userInfo.email) return
+  sendVerifyLoading.value = true
+  try {
+    await sendEmailVerification(userInfo.email)
+    ElMessage.success('验证邮件已发送，请检查您的邮箱')
+  } catch (e: any) {
+    ElMessage.error(e.message || '发送验证邮件失败')
+  } finally {
+    sendVerifyLoading.value = false
+  }
+}
+
 // 打开编辑弹窗
 function openEditDialog() {
   editForm.nickname = userInfo.nickname || ''
   editForm.email = userInfo.email || ''
+  editForm.phone = userInfo.phone || ''
   editDialogVisible.value = true
 }
 
@@ -443,11 +484,10 @@ async function submitEdit() {
     try {
       await updateProfile(editForm)
       ElMessage.success('更新成功')
-      // 更新本地信息
       userInfo.nickname = editForm.nickname
       userInfo.email = editForm.email
-      // 更新 store
-      userStore.updateUserInfo({ nickname: editForm.nickname, email: editForm.email })
+      userInfo.phone = editForm.phone
+      userStore.updateUserInfo({ nickname: editForm.nickname, email: editForm.email, phone: editForm.phone })
       editDialogVisible.value = false
     } catch (e: any) {
       ElMessage.error(e.message || '更新失败')

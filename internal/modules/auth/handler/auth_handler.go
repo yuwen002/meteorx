@@ -25,6 +25,8 @@ type AuthService interface {
 	Logout(ctx context.Context, tokenString string) (userID, username, tenantID string, err error)
 	ForgotPassword(ctx context.Context, email string) error
 	ResetPassword(ctx context.Context, token, newPassword string) error
+	SendEmailVerification(ctx context.Context, email string) error
+	VerifyEmail(ctx context.Context, token string) error
 }
 
 // AuthHandler 认证处理器
@@ -207,5 +209,59 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 
 	response.Success(w, dto.ResetPasswordResp{
 		Message: "密码重置成功，请使用新密码登录",
+	})
+}
+
+// SendEmailVerification 发送邮箱验证链接
+// POST /api/v1/auth/email/send-verification
+func (h *AuthHandler) SendEmailVerification(w http.ResponseWriter, r *http.Request) {
+	var req dto.SendEmailVerificationReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	err := h.svc.SendEmailVerification(r.Context(), req.Email)
+	if err != nil {
+		if errors.Is(err, service.ErrEmailNotConfigured) {
+			response.Fail(w, http.StatusInternalServerError, "邮件服务未配置")
+			return
+		}
+		if errors.Is(err, service.ErrEmailAlreadyVerified) {
+			response.Fail(w, http.StatusBadRequest, "邮箱已验证，无需重复验证")
+			return
+		}
+		response.Fail(w, http.StatusInternalServerError, "发送验证邮件失败")
+		return
+	}
+
+	response.Success(w, dto.SendEmailVerificationResp{
+		Message: "如果该邮箱已注册，验证链接已发送至您的邮箱",
+	})
+}
+
+// VerifyEmail 验证邮箱
+// POST /api/v1/auth/email/verify
+func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
+	var req dto.VerifyEmailReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	err := h.svc.VerifyEmail(r.Context(), req.Token)
+	if err != nil {
+		if errors.Is(err, service.ErrInvalidResetToken) {
+			response.Fail(w, http.StatusBadRequest, "验证链接已失效，请重新请求")
+			return
+		}
+		if errors.Is(err, service.ErrUserNotFound) {
+			response.Fail(w, http.StatusNotFound, "用户不存在")
+			return
+		}
+		response.Fail(w, http.StatusInternalServerError, "邮箱验证失败")
+		return
+	}
+
+	response.Success(w, dto.VerifyEmailResp{
+		Message: "邮箱验证成功",
 	})
 }

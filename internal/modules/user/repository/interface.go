@@ -56,4 +56,8 @@ type UserRepository interface {
 	CountByTenant(ctx context.Context, tenantID string) (int64, error)
 	// CountAllUsers 统计所有用户总数（跨租户）
 	CountAllUsers(ctx context.Context) (int64, error)
+	// UpdateEmailVerified 更新用户邮箱验证状态
+	UpdateEmailVerified(ctx context.Context, userID string, verified bool) error
+	// GetByPhone 根据手机号查询用户
+	GetByPhone(ctx context.Context, phone string) (*model.User, error)
 }

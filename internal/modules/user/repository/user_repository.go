@@ -11,18 +11,20 @@ import (
 
 // UserPO 内部数据库模型（角色由 user_roles 关联表管理）
 type UserPO struct {
-	ID       string `gorm:"primaryKey;size:26;comment:用户ID"`
-	TenantID string `gorm:"index;size:26;not null;comment:租户ID"`
-	// 注意复合唯一索引：同一个租户下用户名唯一
-	Username  string         `gorm:"size:50;not null;uniqueIndex:idx_tenant_username;comment:用户名"`
-	Password  string         `gorm:"size:255;not null;comment:密码"`
-	Nickname  string         `gorm:"size:50;comment:昵称"`
-	Email     string         `gorm:"size:100;comment:邮箱"`
-	Status    int            `gorm:"default:1;comment:状态"`
-	IsMaster  bool           `gorm:"default:false;comment:是否为主管理员"`
-	CreatedAt time.Time      `gorm:"autoCreateTime;comment:创建时间"`
-	UpdatedAt time.Time      `gorm:"autoUpdateTime;comment:更新时间"`
-	DeletedAt gorm.DeletedAt `gorm:"index;comment:删除时间"`
+	ID            string `gorm:"primaryKey;size:26;comment:用户ID"`
+	TenantID      string `gorm:"index;size:26;not null;comment:租户ID"`
+	Username      string         `gorm:"size:50;not null;uniqueIndex:idx_tenant_username;comment:用户名"`
+	Password      string         `gorm:"size:255;not null;comment:密码"`
+	Nickname      string         `gorm:"size:50;comment:昵称"`
+	Email         string         `gorm:"size:100;comment:邮箱"`
+	EmailVerified bool           `gorm:"default:false;comment:邮箱是否已验证"`
+	Phone         string         `gorm:"size:20;comment:手机号"`
+	Avatar        string         `gorm:"size:500;comment:头像URL"`
+	Status        int            `gorm:"default:1;comment:状态"`
+	IsMaster      bool           `gorm:"default:false;comment:是否为主管理员"`
+	CreatedAt     time.Time      `gorm:"autoCreateTime;comment:创建时间"`
+	UpdatedAt     time.Time      `gorm:"autoUpdateTime;comment:更新时间"`
+	DeletedAt     gorm.DeletedAt `gorm:"index;comment:删除时间"`
 }
 
 func (UserPO) TableName() string {
@@ -32,16 +34,19 @@ func (UserPO) TableName() string {
 // 转换逻辑（角色从 user_roles 关联查询，不在此处填充）
 func (record UserPO) toDomain() *model.User {
 	u := &model.User{
-		ID:        record.ID,
-		TenantID:  record.TenantID,
-		Username:  record.Username,
-		Password:  record.Password,
-		Nickname:  record.Nickname,
-		Email:     record.Email,
-		Status:    record.Status,
-		IsMaster:  record.IsMaster,
-		CreatedAt: record.CreatedAt,
-		UpdatedAt: record.UpdatedAt,
+		ID:            record.ID,
+		TenantID:      record.TenantID,
+		Username:      record.Username,
+		Password:      record.Password,
+		Nickname:      record.Nickname,
+		Email:         record.Email,
+		EmailVerified: record.EmailVerified,
+		Phone:         record.Phone,
+		Avatar:        record.Avatar,
+		Status:        record.Status,
+		IsMaster:      record.IsMaster,
+		CreatedAt:     record.CreatedAt,
+		UpdatedAt:     record.UpdatedAt,
 	}
 	if record.DeletedAt.Valid {
 		u.DeletedAt = &record.DeletedAt.Time
@@ -64,14 +69,17 @@ func NewUserRepository(db *gorm.DB) UserRepository {
 
 func (r *userRepository) Create(ctx context.Context, u *model.User) error {
 	record := UserPO{
-		ID:       u.ID,
-		TenantID: u.TenantID,
-		Username: u.Username,
-		Password: u.Password,
-		Nickname: u.Nickname,
-		Email:    u.Email,
-		Status:   u.Status,
-		IsMaster: u.IsMaster,
+		ID:            u.ID,
+		TenantID:      u.TenantID,
+		Username:      u.Username,
+		Password:      u.Password,
+		Nickname:      u.Nickname,
+		Email:         u.Email,
+		EmailVerified: u.EmailVerified,
+		Phone:         u.Phone,
+		Avatar:        u.Avatar,
+		Status:        u.Status,
+		IsMaster:      u.IsMaster,
 	}
 	return r.db.WithContext(ctx).Create(&record).Error
 }
@@ -179,9 +187,12 @@ func (r *userRepository) ListByTenant(ctx context.Context, tenantID string, page
 // Update 更新用户信息（角色由 user_roles 关联表管理，此处不处理）
 func (r *userRepository) Update(ctx context.Context, user *model.User) error {
 	updates := map[string]interface{}{
-		"nickname": user.Nickname,
-		"email":    user.Email,
-		"status":   user.Status,
+		"nickname":       user.Nickname,
+		"email":          user.Email,
+		"email_verified": user.EmailVerified,
+		"phone":          user.Phone,
+		"avatar":         user.Avatar,
+		"status":         user.Status,
 	}
 	if user.Password != "" {
 		updates["password"] = user.Password
@@ -513,4 +524,24 @@ func (r *userRepository) CountAllUsers(ctx context.Context) (int64, error) {
 	var total int64
 	err := r.db.WithContext(ctx).Model(&UserPO{}).Count(&total).Error
 	return total, err
+}
+
+// UpdateEmailVerified 更新用户邮箱验证状态
+func (r *userRepository) UpdateEmailVerified(ctx context.Context, userID string, verified bool) error {
+	return r.db.WithContext(ctx).Model(&UserPO{}).
+		Where("id = ?", userID).
+		Updates(map[string]interface{}{
+			"email_verified": verified,
+			"updated_at":     time.Now(),
+		}).Error
+}
+
+// GetByPhone 根据手机号查询用户
+func (r *userRepository) GetByPhone(ctx context.Context, phone string) (*model.User, error) {
+	var record UserPO
+	err := r.db.WithContext(ctx).Where("phone = ?", phone).First(&record).Error
+	if err != nil {
+		return nil, err
+	}
+	return record.toDomain(), nil
 }

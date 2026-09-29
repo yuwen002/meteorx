@@ -22,17 +22,19 @@ import (
 const (
 	passwordResetPrefix = "password:reset:"
 	resetTokenExpire    = 30 * time.Minute
+	emailVerifyPrefix   = "email:verify:"
+	emailVerifyExpire   = 24 * time.Hour
 )
 
 const (
 	tokenBlacklistPrefix = "token:blacklist:"
 )
 
-// 哨兵错误：Handler 层通过 errors.Is 精确判定，避免字符串比对
 var (
 	ErrEmailNotConfigured = errors.New("email service not configured")
 	ErrInvalidResetToken  = errors.New("invalid or expired token")
 	ErrUserNotFound       = errors.New("user not found")
+	ErrEmailAlreadyVerified = errors.New("email already verified")
 )
 
 // LoginError 登录错误（包含安全信息）
@@ -353,6 +355,75 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 
 	user.Password = hashedPassword
 	if err := s.userRepo.Update(ctx, user); err != nil {
+		return err
+	}
+
+	if err := s.redis.Delete(ctx, key); err != nil && !errors.Is(err, cache.ErrRedisUnavailable) {
+		return err
+	}
+
+	return nil
+}
+
+// SendEmailVerification 发送邮箱验证链接
+func (s *AuthService) SendEmailVerification(ctx context.Context, email string) error {
+	if !s.emailEnabled {
+		return ErrEmailNotConfigured
+	}
+
+	if s.redis == nil || !s.redis.IsAvailable() {
+		return errors.New("verification token storage unavailable")
+	}
+
+	user, err := s.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		return nil
+	}
+	if user == nil {
+		return nil
+	}
+
+	if user.EmailVerified {
+		return ErrEmailAlreadyVerified
+	}
+
+	token := idgen.NewUUID()
+	key := fmt.Sprintf("%s%s", emailVerifyPrefix, token)
+	if err := s.redis.Set(ctx, key, user.ID, emailVerifyExpire); err != nil {
+		if errors.Is(err, cache.ErrRedisUnavailable) {
+			return errors.New("verification token storage unavailable")
+		}
+		return err
+	}
+
+	verifyLink := fmt.Sprintf("%s/verify-email?token=%s", s.clientBaseURL, token)
+	return s.emailer.SendEmailVerificationLink(email, verifyLink, user.Nickname)
+}
+
+// VerifyEmail 通过验证令牌确认邮箱
+func (s *AuthService) VerifyEmail(ctx context.Context, token string) error {
+	if s.redis == nil || !s.redis.IsAvailable() {
+		return errors.New("redis not initialized")
+	}
+
+	key := fmt.Sprintf("%s%s", emailVerifyPrefix, token)
+	userID, err := s.redis.Get(ctx, key)
+	if errors.Is(err, cache.ErrRedisUnavailable) {
+		return errors.New("verification token storage unavailable")
+	}
+	if err != nil || userID == "" {
+		return ErrInvalidResetToken
+	}
+
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return ErrUserNotFound
+	}
+	if user == nil {
+		return ErrUserNotFound
+	}
+
+	if err := s.userRepo.UpdateEmailVerified(ctx, userID, true); err != nil {
 		return err
 	}
 
