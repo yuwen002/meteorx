@@ -1,0 +1,36 @@
+internal/cache/memory_test.go
+  h_a3f313f3d96276 1-76
+web-admin/src/composables/useI18n.test.ts
+  h_a3f313f3d96276 1-76
+internal/modules/audit/service/alert_integration_test.go
+  h_a3f313f3d96276 1-210
+web-admin/src/api/modules/audit.test.ts
+  h_a3f313f3d96276 1-121
+internal/modules/rbac/repository/permission_repo_test.go
+  h_a3f313f3d96276 1-111
+web-admin/src/composables/useI18n.ts
+  h_a3f313f3d96276 1-218
+internal/modules/audit/repository/alert_repo_test.go
+  h_a3f313f3d96276 1-179
+internal/modules/audit/handler/session_handler_test.go
+  h_a3f313f3d96276 1-107
+internal/modules/rbac/repository/user_role_repo_test.go
+  h_a3f313f3d96276 1-121
+internal/modules/audit/repository/audit_repository_test.go
+  h_a3f313f3d96276 1-114
+internal/modules/rbac/repository/role_repo_test.go
+  h_a3f313f3d96276 1-111
+internal/cache/memory.go
+  h_a3f313f3d96276 1-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "f1bdb317c209569beb9314a4c3b24626523abf1d",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
