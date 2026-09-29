@@ -1,0 +1,28 @@
+internal/modules/oauth/repository/oauth_repo_test.go
+  h_a3f313f3d96276 1-122
+web-admin/src/layouts/DefaultLayout.vue
+  h_a3f313f3d96276 257-258,260,263-277
+internal/modules/audit/service/alert_integration_test.go
+  h_a3f313f3d96276 57-64,133,139,207-208
+internal/modules/rbac/repository/role_repo_test.go
+  h_a3f313f3d96276 47,57,61,93,97,106
+internal/modules/audit/handler/stub_service_test.go
+  h_a3f313f3d96276 24,28,110-112,134,146
+internal/cache/redis.go
+  h_a3f313f3d96276 89-136
+web-admin/vite.config.ts
+  h_a3f313f3d96276 54,67,110-118,129-130
+internal/modules/audit/repository/mock_repository.go
+  h_a3f313f3d96276 285,293,347,388-392
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "d73a784bcf4e2e0c6341a632d232b3bc60479d9c",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
