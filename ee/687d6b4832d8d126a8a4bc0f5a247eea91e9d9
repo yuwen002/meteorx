@@ -1,0 +1,14 @@
+docs/api/invitation-api.md
+  h_a3f313f3d96276 1-424
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "ee687d6b4832d8d126a8a4bc0f5a247eea91e9d9",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
