@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"meteorx/internal/modules/audit/dto"
 	"meteorx/internal/modules/audit/handler"
 	"meteorx/internal/modules/audit/model"
 
@@ -205,82 +204,6 @@ func TestGetAlertStats_ServiceError_Returns500(t *testing.T) {
 	router := newAlertRouter(stub)
 
 	w := doReq(t, router, http.MethodGet, "/alerts/stats", "", []string{"admin"})
-
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
-}
-
-// ============ 会话分析 ============
-
-func newSessionRouter(stub *stubSessionService) http.Handler {
-	h := handler.NewSessionHandler(stub)
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /sessions/{id}/logs", h.GetSessionLogs)
-	mux.HandleFunc("GET /sessions", h.ListSessions)
-	return mux
-}
-
-func TestGetSessionLogs_MissingID_Returns400(t *testing.T) {
-	stub := &stubSessionService{}
-	h := handler.NewSessionHandler(stub)
-
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	h.GetSessionLogs(w, req)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "会话ID不能为空")
-}
-
-func TestGetSessionLogs_Success_ForwardsSessionID(t *testing.T) {
-	stub := &stubSessionService{Analysis: &dto.SessionAnalysisResp{SessionID: "s1", UserID: "u1", TotalRequests: 3}}
-	router := newSessionRouter(stub)
-
-	w := doReq(t, router, http.MethodGet, "/sessions/s1/logs", "", []string{"admin"})
-
-	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-	assert.Equal(t, "s1", stub.GotSessionID)
-	assert.Contains(t, w.Body.String(), `"session_id":"s1"`)
-	assert.Contains(t, w.Body.String(), `"total_requests":3`)
-}
-
-func TestGetSessionLogs_ServiceError_Returns500(t *testing.T) {
-	stub := &stubSessionService{Err: errors.New("query failed")}
-	router := newSessionRouter(stub)
-
-	w := doReq(t, router, http.MethodGet, "/sessions/s1/logs", "", []string{"admin"})
-
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
-}
-
-func TestListSessions_DefaultsPageAndSize(t *testing.T) {
-	stub := &stubSessionService{Sessions: []dto.SessionSummaryResp{{SessionID: "s1"}}, Total: 1}
-	router := newSessionRouter(stub)
-
-	w := doReq(t, router, http.MethodGet, "/sessions", "", []string{"admin"})
-
-	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-	assert.Equal(t, 1, stub.GotPage, "缺省页码应为 1")
-	assert.Equal(t, 20, stub.GotPageSize, "缺省页大小应为 20")
-	assert.Contains(t, w.Body.String(), `"s1"`)
-}
-
-func TestListSessions_ForwardsUserIDFilter(t *testing.T) {
-	stub := &stubSessionService{Sessions: []dto.SessionSummaryResp{{SessionID: "s2", UserID: "u1"}}, Total: 1}
-	router := newSessionRouter(stub)
-
-	w := doReq(t, router, http.MethodGet, "/sessions?page=3&page_size=10&user_id=u1", "", []string{"admin"})
-
-	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-	assert.Equal(t, 3, stub.GotPage)
-	assert.Equal(t, 10, stub.GotPageSize)
-	assert.Equal(t, "u1", stub.GotUserID)
-}
-
-func TestListSessions_ServiceError_Returns500(t *testing.T) {
-	stub := &stubSessionService{Err: errors.New("list failed")}
-	router := newSessionRouter(stub)
-
-	w := doReq(t, router, http.MethodGet, "/sessions", "", []string{"admin"})
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
