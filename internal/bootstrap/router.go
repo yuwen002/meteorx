@@ -21,6 +21,7 @@ import (
 	auditRepo "meteorx/internal/modules/audit/repository"
 	auditSvc "meteorx/internal/modules/audit/service"
 	"meteorx/internal/modules/auth"
+	authHandler "meteorx/internal/modules/auth/handler"
 	authRepo "meteorx/internal/modules/auth/repository"
 	authSvc "meteorx/internal/modules/auth/service"
 	"meteorx/internal/modules/file"
@@ -126,13 +127,15 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 
 	r.Route("/api/v1", func(r chi.Router) {
 
+		var authH *authHandler.AuthHandler
+
 		// --- 分组一：公开接口 (Public) ---
 		r.Group(func(r chi.Router) {
 			// 全局接口限流
 			r.Use(middleware.RateLimitMiddleware(rateLimiter))
 
 			// 1. 认证模块（登录、签发 Token）
-			auth.InitModule(r, db, *cfg, rdb)
+			authH = auth.InitModule(r, db, *cfg, rdb)
 
 			// 2. 租户公开接口（仅限注册）
 			tenant.InitPublicModule(r, db)
@@ -192,6 +195,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 
 			// 4.3 API Token 管理（需登录：创建、查看、撤销长期令牌）
 			auth.InitAPITokenModule(r, db, *cfg, rdb)
+
+			// 4.3.1 邮箱验证（需登录：发送验证链接、验证邮箱）
+			auth.RegisterEmailVerificationRoutes(r, authH)
 
 			// 4.4 租户侧当前套餐查询
 			plan.InitPrivateModule(r, db)

@@ -231,7 +231,7 @@ meteorx/
 | `POST` | `/auth/logout` | 登出（Token 加入黑名单） |
 | `POST` | `/auth/forgot-password` | 忘记密码（发送重置邮件） |
 | `POST` | `/auth/reset-password` | 重置密码（通过邮件令牌） |
-| `POST` | `/auth/email/send-verification` | 发送邮箱验证链接（需登录） |
+| `POST` | `/auth/email/send-verification` | 发送邮箱验证链接（需登录，只能验证自己的邮箱） |
 | `POST` | `/auth/email/verify` | 验证邮箱（通过令牌，需登录） |
 
 ### 2. 用户个人中心（需登录）

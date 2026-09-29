@@ -71,7 +71,7 @@ func (s *stubAuthService) ResetPassword(_ context.Context, token, newPassword st
 	return s.resetErr
 }
 
-func (s *stubAuthService) SendEmailVerification(_ context.Context, email string) error {
+func (s *stubAuthService) SendEmailVerification(_ context.Context, email string, _ string) error {
 	return s.sendEmailVerifyErr
 }
 

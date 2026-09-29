@@ -15,7 +15,7 @@ import (
 	userrepo "meteorx/internal/modules/user/repository"
 )
 
-func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, rdb *cache.Redis) {
+func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, rdb *cache.Redis) *handler.AuthHandler {
 	tokenHelper := jwt.NewTokenHelper(cfg.JWT)
 
 	uRepo := userrepo.NewUserRepository(db)
@@ -26,6 +26,7 @@ func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, rdb *cache.Redis) 
 	h := handler.NewAuthHandler(svc)
 
 	RegisterRoutes(r, h)
+	return h
 }
 
 func InitAPITokenModule(r chi.Router, db *gorm.DB, cfg config.Config, rdb *cache.Redis) {

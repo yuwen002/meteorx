@@ -33,10 +33,11 @@ const (
 )
 
 var (
-	ErrEmailNotConfigured = errors.New("email service not configured")
-	ErrInvalidResetToken  = errors.New("invalid or expired token")
-	ErrUserNotFound       = errors.New("user not found")
+	ErrEmailNotConfigured  = errors.New("email service not configured")
+	ErrInvalidResetToken   = errors.New("invalid or expired token")
+	ErrUserNotFound        = errors.New("user not found")
 	ErrEmailAlreadyVerified = errors.New("email already verified")
+	ErrEmailNotOwned       = errors.New("email does not belong to current user")
 )
 
 // LoginError 登录错误（包含安全信息）
@@ -368,7 +369,8 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 }
 
 // SendEmailVerification 发送邮箱验证链接
-func (s *AuthService) SendEmailVerification(ctx context.Context, email string) error {
+// currentUserID 用于验证邮箱归属，只能验证当前登录用户自己的邮箱。
+func (s *AuthService) SendEmailVerification(ctx context.Context, email string, currentUserID string) error {
 	if !s.emailEnabled {
 		return ErrEmailNotConfigured
 	}
@@ -383,6 +385,10 @@ func (s *AuthService) SendEmailVerification(ctx context.Context, email string) e
 	}
 	if user == nil {
 		return nil
+	}
+
+	if user.ID != currentUserID {
+		return ErrEmailNotOwned
 	}
 
 	if user.EmailVerified {

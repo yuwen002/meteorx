@@ -28,7 +28,7 @@
 | GET | `/auth/tokens` | 获取 API Token 列表 | 需 Token |
 | POST | `/auth/tokens` | 创建 API Token | 需 Token |
 | POST | `/auth/tokens/revoke` | 撤销 API Token | 需 Token |
-| POST | `/auth/email/send-verification` | 发送邮箱验证链接 | 需 Token |
+| POST | `/auth/email/send-verification` | 发送邮箱验证链接 | 需 Token（只能验证自己的邮箱） |
 | POST | `/auth/email/verify` | 验证邮箱（通过令牌） | 需 Token |
 
 ---
@@ -833,7 +833,7 @@ curl -X POST https://api.example.com/api/v1/files/upload \
 ```
 
 **业务规则：**
-- 邮箱必须为当前登录用户的邮箱
+- 邮箱必须为当前登录用户的邮箱（系统会校验邮箱归属，非本人邮箱返回 `403`）
 - 如果邮箱已验证，返回 `409` 错误
 - 系统生成唯一验证令牌，存入 Redis（有效期 24 小时）
 - 通过邮件发送验证链接，格式为 `{client.base_url}/verify-email?token={token}`
@@ -853,6 +853,7 @@ curl -X POST https://api.example.com/api/v1/files/upload \
 **错误响应：**
 | 状态码 | 场景 |
 |--------|------|
+| 403 | 邮箱不属于当前登录用户 |
 | 409 | 邮箱已验证 |
 | 500 | 邮件服务未配置 / Redis 不可用 |
 
