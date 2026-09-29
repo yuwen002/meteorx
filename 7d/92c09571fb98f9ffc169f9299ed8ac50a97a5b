@@ -1,0 +1,28 @@
+internal/modules/auth/routes.go
+  h_a3f313f3d96276 16-24
+docs/api/auth-api.md
+  h_a3f313f3d96276 31,836,856
+internal/modules/auth/handler/auth_handler_test.go
+  h_a3f313f3d96276 74
+README.md
+  h_a3f313f3d96276 234
+internal/modules/auth/module.go
+  h_a3f313f3d96276 18,29
+internal/modules/auth/service/auth_service.go
+  h_a3f313f3d96276 40,372-373,390-391
+internal/bootstrap/router.go
+  h_a3f313f3d96276 24,130-131,138,199-201
+internal/modules/auth/handler/auth_handler.go
+  h_a3f313f3d96276 11,29,218,225-231,241-242,250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "7d92c09571fb98f9ffc169f9299ed8ac50a97a5b",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
