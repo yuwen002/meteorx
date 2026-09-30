@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"meteorx/internal/modules/plan/model"
 )
@@ -28,6 +29,8 @@ type SubscriptionRepository interface {
 	UpdateStatus(ctx context.Context, id string, status int) error
 	// FindExpiredActive 查询所有已到期但仍处于 active 状态的订阅
 	FindExpiredActive(ctx context.Context) ([]*model.TenantSubscription, error)
+	// FindExpiringSoon 查询 within 时间内即将到期且仍生效的订阅（用于到期提醒）
+	FindExpiringSoon(ctx context.Context, within time.Duration) ([]*model.TenantSubscription, error)
 	// CountByPlan 统计使用某套餐的生效订阅数
 	CountByPlan(ctx context.Context, planID string) (int64, error)
 	// ListActiveByPlans 按套餐ID批量查询生效订阅

@@ -180,17 +180,18 @@ meteorx/
 │   │   ├── pagination.md        # 分页/排序/过滤架构
 │   │   ├── config.md            # 配置/启动架构
 │   │   └── idgen.md             # ID/ULID 统一架构
-│   ├── auth-api.md              # 认证接口
-│   ├── user-api.md              # 用户管理接口
-│   ├── tenant-api.md            # 租户管理接口
-│   ├── rbac-api.md              # RBAC 权限接口
-│   ├── file-module-api.md       # 文件管理接口
-│   ├── plan-api.md              # 套餐管理接口
-│   ├── audit-api.md             # 审计日志接口
-│   ├── wiki-api.md              # ⭐ Wiki 知识库接口
-│   ├── dashboard-api.md         # 运营看板接口
-│   ├── announcement-api.md      # 通知公告接口
-│   ├── invitation-api.md        # 成员邀请接口
+│   ├── api/                     # ⭐ 各模块接口文档
+│   │   ├── auth-api.md          # 认证接口（含 OAuth）
+│   │   ├── user-api.md          # 用户管理接口
+│   │   ├── tenant-api.md        # 租户管理接口
+│   │   ├── rbac-api.md          # RBAC 权限接口
+│   │   ├── file-module-api.md   # 文件管理接口
+│   │   ├── plan-api.md          # 套餐管理接口
+│   │   ├── audit-api.md         # 审计日志接口
+│   │   ├── wiki-api.md          # ⭐ Wiki 知识库接口
+│   │   ├── dashboard-api.md     # 运营看板接口
+│   │   ├── announcement-api.md  # 通知公告接口
+│   │   └── invitation-api.md    # 成员邀请接口
 │   └── FEATURE_UPGRADE.md       # 功能升级说明
 │
 ├── web-admin/                   # ⭐ 前端管理后台（Vue 3）

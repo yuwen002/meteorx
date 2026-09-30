@@ -50,6 +50,20 @@ func (m *MockSubscriptionRepository) FindExpiredActive(_ context.Context) ([]*mo
 	return result, nil
 }
 
+// FindExpiringSoon 返回 within 时间内即将到期且仍生效的订阅
+func (m *MockSubscriptionRepository) FindExpiringSoon(_ context.Context, within time.Duration) ([]*model.TenantSubscription, error) {
+	now := nowFunc()
+	limit := now.Add(within)
+	var result []*model.TenantSubscription
+	for _, s := range m.subs {
+		if s.Status == model.SubscriptionActive && s.ExpiresAt != nil &&
+			!s.ExpiresAt.Before(now) && s.ExpiresAt.Before(limit) {
+			result = append(result, s)
+		}
+	}
+	return result, nil
+}
+
 func (m *MockSubscriptionRepository) CountByPlan(_ context.Context, planID string) (int64, error) {
 	var count int64
 	for _, s := range m.subs {

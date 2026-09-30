@@ -92,6 +92,11 @@ func NewInvitationService(
 	}
 }
 
+// ExpireOutdatedInvitations 批量将过期仍为 pending 的邀请置为 expired（供定时任务调用）
+func (s *InvitationService) ExpireOutdatedInvitations(ctx context.Context) (int64, error) {
+	return s.invRepo.ExpireOutdated(ctx, time.Now())
+}
+
 // Create 创建租户邀请。
 // 1. 检查邮箱是否已存在待处理邀请（同租户内不重复）
 // 2. 检查邮箱是否已是租户成员

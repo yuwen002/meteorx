@@ -3,6 +3,8 @@ package repository
 
 import (
 	"context"
+	"time"
+
 	"meteorx/internal/modules/invitation/model"
 )
 
@@ -24,4 +26,6 @@ type InvitationRepository interface {
 	CountPendingByTenant(ctx context.Context, tenantID string) (int64, error)
 	// FindByEmailAndTenant 按邮箱和租户查询邀请（用于重复邀请校验）
 	FindByEmailAndTenant(ctx context.Context, email, tenantID string) (*model.Invitation, error)
+	// ExpireOutdated 将所有超过有效期仍为 pending 的邀请置为 expired，返回受影响行数
+	ExpireOutdated(ctx context.Context, now time.Time) (int64, error)
 }

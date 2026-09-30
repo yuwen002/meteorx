@@ -447,8 +447,8 @@ type Message struct {
 |------|------|----------|------|
 | **通知公告** | 公告发布 | WebSocket + Webhook | 推送给所有在线用户 |
 | **审计告警** | 告警触发 | Email + Webhook + WebSocket | 发送给规则配置的目标 |
-| **租户注销** | 审批通过/驳回 | Email + WebSocket | 通知租户管理员（预留） |
-| **订阅到期** | 即将到期 | Email + WebSocket（预留） | 通知租户管理员（预留） |
+| **租户注销** | 审批通过/驳回 | Email + WebSocket | ✅ 已落地：`ApproveCancellation`/`RejectCancellation` 调用 `notify.NotifyCancelRequestStatus` |
+| **订阅到期** | 即将到期 | Email + WebSocket | ✅ 已落地：`ExpiryJob` 扫描 7 天内到期订阅并调用 `notify.NotifySubscriptionExpiry` |
 
 ### 配置说明 (`config.yaml`)
 
@@ -699,3 +699,43 @@ client:
 ```
 
 > 如果 `email.enabled = false`，邀请仍可创建（记录写入数据库），但不会发送邮件。可在配置邮件后通过"重发"功能补发。
+
+---
+
+## 十五、通知预留项落地与邀请过期清理
+
+本节将此前标注为「预留」的通知能力真正接入业务链路，并补齐邀请过期自动清理。
+
+### 15.1 租户注销审批结果通知
+
+- `internal/modules/tenant/service/tenant_service.go`
+  - 新增私有方法 `notifyCancelRequest`，通过 `notify.GetGlobalManager()` 投递 `NotifyCancelRequestStatus`（Email + WebSocket）
+  - `ApproveCancellation` 审批通过后（含立即执行与延迟执行两种）通知租户管理员，状态 `approved`
+  - `RejectCancellation` 驳回后通知租户管理员，状态 `rejected`
+  - 管理员邮箱取自租户 `ContactEmail`；通知器未初始化或查询失败时静默跳过，不影响主流程
+
+### 15.2 订阅到期提醒
+
+- `internal/modules/plan/repository/interface.go` + `plan_repository.go` + `mock_subscription_repository.go`
+  - 新增 `FindExpiringSoon(ctx, within)`：查询 `within` 时间内即将到期且仍生效的订阅
+- `internal/modules/plan/expiry_job.go`
+  - `ExpiryJob` 在禁用已到期订阅后，扫描 7 天内到期订阅并调用 `notify.NotifySubscriptionExpiry`
+  - 进程内 `notified` 集合按「订阅ID + 到期日」去重，避免周期任务重复提醒
+
+### 15.3 邀请过期清理定时任务
+
+- `internal/modules/invitation/repository/{interface.go,invitation_repository.go}`：新增 `ExpireOutdated(ctx, now)`，将过期 `pending` 邀请批量置为 `expired`
+- `internal/modules/invitation/service/invitation_service.go`：新增 `ExpireOutdatedInvitations`
+- `internal/modules/invitation/expiry_job.go`：新增 `InvitationExpiryJob`（结构对齐 `CancelCleanupJob`）
+- `internal/bootstrap/{router.go,app.go}`：注册并在启动时拉起 `StartInvitationExpiryJob`（间隔 1 小时，绑定 app context 支持优雅取消）
+
+### 15.4 前端测试补充
+
+- `web-admin/src/api/modules/role.test.ts`：角色 CRUD / 批量 / 回收站接口 14 个用例
+- `web-admin/src/api/modules/invitation.test.ts`：邀请管理与公开端接口 7 个用例
+
+### 验证状态
+
+- ✅ `go build ./...` / `go vet ./internal/...` 全量通过
+- ✅ `go test ./internal/...` 全量通过（新增邀请过期单测）
+- ✅ 前端 `vitest run` 新增 21 个用例全部通过

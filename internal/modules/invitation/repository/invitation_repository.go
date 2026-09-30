@@ -160,3 +160,14 @@ func (r *invitationRepository) FindByEmailAndTenant(ctx context.Context, email, 
 	}
 	return record.toDomain(), nil
 }
+
+// ExpireOutdated 批量将超过有效期仍为 pending 的邀请置为 expired
+func (r *invitationRepository) ExpireOutdated(ctx context.Context, now time.Time) (int64, error) {
+	res := r.db.WithContext(ctx).Model(&InvitationPO{}).
+		Where("status = ? AND expires_at < ?", model.InvitationStatusPending, now).
+		Updates(map[string]interface{}{
+			"status":     model.InvitationStatusExpired,
+			"updated_at": now,
+		})
+	return res.RowsAffected, res.Error
+}

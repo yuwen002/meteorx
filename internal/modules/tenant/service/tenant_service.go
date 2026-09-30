@@ -13,6 +13,7 @@ import (
 	"meteorx/internal/modules/tenant/repository"
 	userModel "meteorx/internal/modules/user/model"
 	userRepo "meteorx/internal/modules/user/repository"
+	"meteorx/internal/notify"
 	"meteorx/pkg/crypto"
 	"meteorx/pkg/idgen"
 	"meteorx/pkg/logger"
@@ -536,7 +537,10 @@ func (s *TenantService) ApproveCancellation(ctx context.Context, requestID, appr
 		return nil, err
 	}
 
-	// 4. 若立即生效，直接执行注销
+	// 4. 通知租户管理员审批结果（尽力而为，失败不影响主流程）
+	s.notifyCancelRequest(ctx, cancelReq.TenantID, cancelReq.TenantName, "approved", req.ReviewRemark)
+
+	// 5. 若立即生效，直接执行注销
 	if req.EffectiveDays == 0 {
 		if err := s.ExecuteCancellation(ctx, cancelReq); err != nil {
 			return nil, err
@@ -544,6 +548,20 @@ func (s *TenantService) ApproveCancellation(ctx context.Context, requestID, appr
 	}
 
 	return toCancelRequestResp(cancelReq), nil
+}
+
+// notifyCancelRequest 向租户管理员发送注销审批结果通知
+// 通过全局通知管理器投递 Email + WebSocket，通知器未初始化或查询失败时静默跳过
+func (s *TenantService) notifyCancelRequest(ctx context.Context, tenantID, tenantName, status, remark string) {
+	m := notify.GetGlobalManager()
+	if m == nil {
+		return
+	}
+	adminEmail := ""
+	if t, err := s.repo.GetByID(ctx, tenantID); err == nil && t != nil {
+		adminEmail = t.ContactEmail
+	}
+	m.NotifyCancelRequestStatus(ctx, tenantName, status, remark, adminEmail)
 }
 
 // RejectCancellation 驳回注销申请（平台管理员）
@@ -568,6 +586,9 @@ func (s *TenantService) RejectCancellation(ctx context.Context, requestID, appro
 	if err := s.repo.UpdateCancelRequest(ctx, cancelReq); err != nil {
 		return nil, err
 	}
+
+	// 3. 通知租户管理员驳回结果
+	s.notifyCancelRequest(ctx, cancelReq.TenantID, cancelReq.TenantName, "rejected", req.ReviewRemark)
 
 	return toCancelRequestResp(cancelReq), nil
 }

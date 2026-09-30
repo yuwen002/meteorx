@@ -91,6 +91,9 @@ func StartApp() {
 	// 7.2 启动租户注销定时执行任务（执行已到期的注销申请）
 	StartCancelCleanupJob(ctx, db)
 
+	// 7.3 启动邀请过期清理定时任务（将过期 pending 邀请置为 expired）
+	StartInvitationExpiryJob(ctx, db)
+
 	// 7. 构造 http.Server 以支持优雅关闭
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	srv := &http.Server{

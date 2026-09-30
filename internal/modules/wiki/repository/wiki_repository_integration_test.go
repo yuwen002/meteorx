@@ -111,11 +111,12 @@ func TestIntegration_NodeCRUD(t *testing.T) {
 	}
 	require.NoError(t, repo.CreateNode(ctx, child))
 
-	// 3. 查询节点列表（ListNodesBySpace 只返回根节点）
+	// 3. 查询节点列表（ListNodesBySpace 返回空间内全部节点，按 sort 排序）
 	nodes, err := repo.ListNodesBySpace(ctx, space.ID)
 	require.NoError(t, err)
-	assert.Len(t, nodes, 1)
+	assert.Len(t, nodes, 2)
 	assert.Equal(t, node.ID, nodes[0].ID)
+	assert.Equal(t, child.ID, nodes[1].ID)
 
 	// 查询子节点
 	children, err := repo.ListChildNodes(ctx, node.ID)

@@ -310,6 +310,23 @@ func (r *subscriptionRepository) FindExpiredActive(ctx context.Context) ([]*mode
 	return subs, nil
 }
 
+// FindExpiringSoon 查找 within 时间内即将到期且仍生效的订阅
+func (r *subscriptionRepository) FindExpiringSoon(ctx context.Context, within time.Duration) ([]*model.TenantSubscription, error) {
+	now := time.Now()
+	var pos []*SubscriptionPO
+	err := r.db.WithContext(ctx).
+		Where("status = ? AND expires_at IS NOT NULL AND expires_at >= ? AND expires_at < ?", model.SubscriptionActive, now, now.Add(within)).
+		Find(&pos).Error
+	if err != nil {
+		return nil, err
+	}
+	var subs []*model.TenantSubscription
+	for _, po := range pos {
+		subs = append(subs, po.toDomain())
+	}
+	return subs, nil
+}
+
 // CountByPlan 统计指定套餐的生效订阅数量
 func (r *subscriptionRepository) CountByPlan(ctx context.Context, planID string) (int64, error) {
 	var count int64

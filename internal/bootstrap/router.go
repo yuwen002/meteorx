@@ -272,6 +272,13 @@ func StartCancelCleanupJob(ctx context.Context, db *gorm.DB) {
 	job.Start(ctx, 5*time.Minute)
 }
 
+// StartInvitationExpiryJob 启动邀请过期清理定时任务
+// 将超过有效期仍为 pending 的邀请自动置为 expired
+func StartInvitationExpiryJob(ctx context.Context, db *gorm.DB) {
+	job := invitation.NewInvitationExpiryJob(db)
+	job.Start(ctx, time.Hour)
+}
+
 // initIPLocator 根据配置初始化 IP 地理位置解析器
 func initIPLocator(cfg *config.Config) iplocation.IPLocator {
 	provider := cfg.IPLocation.Provider

@@ -98,6 +98,17 @@ func (r *stubInvRepo) FindByEmailAndTenant(_ context.Context, email, tenantID st
 	return nil, errors.New("not found")
 }
 
+func (r *stubInvRepo) ExpireOutdated(_ context.Context, now time.Time) (int64, error) {
+	var n int64
+	for _, inv := range r.invitations {
+		if inv.Status == model.InvitationStatusPending && inv.ExpiresAt.Before(now) {
+			inv.Status = model.InvitationStatusExpired
+			n++
+		}
+	}
+	return n, nil
+}
+
 type stubUserRepo struct {
 	users   map[string]*userModel.User
 	byEmail map[string]*userModel.User
@@ -681,6 +692,34 @@ func TestResend_EmailNotConfigured(t *testing.T) {
 
 	_, err := svc.Resend(context.Background(), "tenant-1", "inv-1")
 	assert.ErrorIs(t, err, ErrEmailNotConfigured)
+}
+
+// TestExpireOutdatedInvitations 验证定时过期：仅 pending 且已过有效期的邀请会被置为 expired
+func TestExpireOutdatedInvitations(t *testing.T) {
+	invRepo := newStubInvRepo()
+	userRepo := newStubUserRepo()
+	svc := newTestService(invRepo, userRepo)
+
+	now := time.Now()
+	invRepo.invitations["expired-1"] = &model.Invitation{
+		ID: "expired-1", TenantID: "tenant-1", Status: model.InvitationStatusPending,
+		ExpiresAt: now.Add(-1 * time.Hour),
+	}
+	invRepo.invitations["valid-1"] = &model.Invitation{
+		ID: "valid-1", TenantID: "tenant-1", Status: model.InvitationStatusPending,
+		ExpiresAt: now.Add(24 * time.Hour),
+	}
+	invRepo.invitations["accepted-1"] = &model.Invitation{
+		ID: "accepted-1", TenantID: "tenant-1", Status: model.InvitationStatusAccepted,
+		ExpiresAt: now.Add(-1 * time.Hour),
+	}
+
+	n, err := svc.ExpireOutdatedInvitations(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), n)
+	assert.Equal(t, model.InvitationStatusExpired, invRepo.invitations["expired-1"].Status)
+	assert.Equal(t, model.InvitationStatusPending, invRepo.invitations["valid-1"].Status)
+	assert.Equal(t, model.InvitationStatusAccepted, invRepo.invitations["accepted-1"].Status)
 }
 
 var _ userRepo.UserRepository = (*stubUserRepo)(nil)
