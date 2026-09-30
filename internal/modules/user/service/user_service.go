@@ -1,3 +1,4 @@
+// Package service 实现用户模块的业务逻辑，包括用户 CRUD、密码管理和配额校验。
 package service
 
 import (
@@ -25,6 +26,7 @@ var (
 	ErrWrongOldPassword   = errors.New("原密码错误")
 )
 
+// UserService 用户模块业务服务，聚合用户/租户/角色仓库与套餐配额校验。
 type UserService struct {
 	repo          repository.UserRepository
 	tenantRepo    tenantRepository.TenantRepository
@@ -33,6 +35,7 @@ type UserService struct {
 	quotaVerifier planRepo.QuotaVerifier
 }
 
+// NewUserService 创建用户服务实例。
 func NewUserService(
 	repo repository.UserRepository,
 	tenantRepo tenantRepository.TenantRepository,
@@ -236,6 +239,7 @@ func (s *UserService) buildUserRespList(ctx context.Context, users []*model.User
 
 // ============ 租户用户管理 ============
 
+// ListByTenant 分页查询指定租户的用户，可按状态过滤。
 func (s *UserService) ListByTenant(ctx context.Context, tenantID string, page, pageSize int, keyword string, status *int) ([]*dto.UserResp, int64, error) {
 	users, total, err := s.repo.ListByTenant(ctx, tenantID, page, pageSize, keyword, status)
 	if err != nil {
@@ -248,6 +252,7 @@ func (s *UserService) ListByTenant(ctx context.Context, tenantID string, page, p
 	return resp, total, nil
 }
 
+// GetByID 按 ID 获取用户详情。
 func (s *UserService) GetByID(ctx context.Context, userID string) (*dto.UserResp, error) {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -256,6 +261,7 @@ func (s *UserService) GetByID(ctx context.Context, userID string) (*dto.UserResp
 	return s.buildUserResp(ctx, user)
 }
 
+// Create 在指定租户下创建用户（校验用户名唯一、配额、角色并加密密码）。
 func (s *UserService) Create(ctx context.Context, tenantID string, req dto.CreateUserReq) (*dto.UserResp, error) {
 	exists, err := s.repo.UsernameExists(ctx, req.Username)
 	if err != nil {
@@ -303,6 +309,7 @@ func (s *UserService) Create(ctx context.Context, tenantID string, req dto.Creat
 	return s.buildUserResp(ctx, user)
 }
 
+// Update 更新用户基本信息，可选重新分配角色。
 func (s *UserService) Update(ctx context.Context, userID string, req dto.UpdateUserReq) (*dto.UserResp, error) {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -362,6 +369,7 @@ func (s *UserService) GetUserRoles(ctx context.Context, userID string) ([]string
 	return roleIDs, roleCodes, nil
 }
 
+// Delete 软删除用户，删除前先解除所有角色绑定。
 func (s *UserService) Delete(ctx context.Context, userID string) error {
 	// 删除用户前先解除所有角色绑定
 	if err := s.userRoleRepo.DeleteByUserID(ctx, userID); err != nil {

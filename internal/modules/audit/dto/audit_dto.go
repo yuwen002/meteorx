@@ -1,3 +1,4 @@
+// Package dto 定义审计模块的请求与响应数据结构。
 package dto
 
 import (
@@ -227,6 +228,7 @@ type AuditLogStatsResp struct {
 	ResultStats map[string]int64 `json:"result_stats"` // 按结果统计
 }
 
+// TrendPoint 趋势数据点（按日聚合的总数/成功/失败）。
 type TrendPoint struct {
 	Date    string `json:"date"`
 	Count   int64  `json:"count"`
@@ -234,6 +236,7 @@ type TrendPoint struct {
 	Failure int64  `json:"failure"`
 }
 
+// ModuleCount 模块及其对应的日志数量。
 type ModuleCount struct {
 	Module string `json:"module"`
 	Count  int64  `json:"count"`
@@ -282,18 +285,18 @@ type UserTimelineReq struct {
 
 // TimelineItem 时间线条目（按天聚合）
 type TimelineItem struct {
-	Date    string            `json:"date"`
-	Count   int64             `json:"count"`
-	Success int64             `json:"success"`
-	Failure int64             `json:"failure"`
-	Logs    []*AuditLogResp   `json:"logs"`
+	Date    string          `json:"date"`
+	Count   int64           `json:"count"`
+	Success int64           `json:"success"`
+	Failure int64           `json:"failure"`
+	Logs    []*AuditLogResp `json:"logs"`
 }
 
 // UserTimelineResp 用户时间线响应
 type UserTimelineResp struct {
-	Items   []*TimelineItem   `json:"items"`
-	Total   int64             `json:"total"`
-	Pages   int               `json:"pages"`
+	Items []*TimelineItem `json:"items"`
+	Total int64           `json:"total"`
+	Pages int             `json:"pages"`
 }
 
 // DetailedStatsResp 详细统计数据

@@ -1,3 +1,4 @@
+// Package repository 提供公告数据访问的 GORM 实现，支持多租户范围与发布状态过滤。
 package repository
 
 import (
@@ -24,6 +25,7 @@ type AnnouncementPO struct {
 	DeletedAt      gorm.DeletedAt `gorm:"index;comment:删除时间"`
 }
 
+// TableName 返回公告表名 announcements。
 func (AnnouncementPO) TableName() string {
 	return "announcements"
 }
@@ -77,11 +79,13 @@ func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&AnnouncementPO{})
 }
 
+// Create 新建公告记录。
 func (r *announcementRepository) Create(ctx context.Context, a *model.Announcement) error {
 	po := announcementFromDomain(a)
 	return r.db.WithContext(ctx).Create(po).Error
 }
 
+// Update 仅更新公告的标题/内容/范围/状态/发布与过期时间等字段。
 func (r *announcementRepository) Update(ctx context.Context, a *model.Announcement) error {
 	po := announcementFromDomain(a)
 	return r.db.WithContext(ctx).Model(&AnnouncementPO{}).
@@ -90,6 +94,7 @@ func (r *announcementRepository) Update(ctx context.Context, a *model.Announceme
 		Updates(po).Error
 }
 
+// GetByID 按主键查询公告。
 func (r *announcementRepository) GetByID(ctx context.Context, id string) (*model.Announcement, error) {
 	var po AnnouncementPO
 	if err := r.db.WithContext(ctx).First(&po, "id = ?", id).Error; err != nil {
@@ -98,10 +103,12 @@ func (r *announcementRepository) GetByID(ctx context.Context, id string) (*model
 	return po.toDomain(), nil
 }
 
+// Delete 软删除指定公告。
 func (r *announcementRepository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&AnnouncementPO{}, "id = ?", id).Error
 }
 
+// List 按关键词/状态/范围过滤并分页返回公告列表及总数（状态 -1 表示不限）。
 func (r *announcementRepository) List(ctx context.Context, query *AnnouncementQuery) ([]*model.Announcement, int64, error) {
 	db := r.db.WithContext(ctx).Model(&AnnouncementPO{})
 
@@ -133,6 +140,7 @@ func (r *announcementRepository) List(ctx context.Context, query *AnnouncementQu
 	return items, total, nil
 }
 
+// ListForTenant 查询租户可见的已发布且未过期公告（包含全局公告与定向本租户的公告）。
 func (r *announcementRepository) ListForTenant(ctx context.Context, tenantID string, page, pageSize int) ([]*model.Announcement, int64, error) {
 	now := time.Now()
 	db := r.db.WithContext(ctx).Model(&AnnouncementPO{}).

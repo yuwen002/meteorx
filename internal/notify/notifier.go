@@ -26,6 +26,7 @@ const (
 	PriorityUrgent                 // 紧急（如安全告警）
 )
 
+// String 返回优先级的可读名称。
 func (p Priority) String() string {
 	switch p {
 	case PriorityLow:
@@ -45,22 +46,22 @@ func (p Priority) String() string {
 type ChannelType string
 
 const (
-	ChannelEmail    ChannelType = "email"
-	ChannelWebhook  ChannelType = "webhook"
+	ChannelEmail     ChannelType = "email"
+	ChannelWebhook   ChannelType = "webhook"
 	ChannelWebSocket ChannelType = "websocket"
 )
 
 // Message 统一通知消息结构
 type Message struct {
-	ID          string                 // 消息唯一ID
-	Title       string                 // 消息标题
-	Content     string                 // 消息正文（纯文本或HTML）
-	Channel     ChannelType            // 目标渠道
-	Priority    Priority               // 优先级
-	Recipients  []string               // 收件人列表（邮箱/用户ID/Webhook URL）
-	TemplateID  string                 // 模板ID（可选）
-	Extra       map[string]interface{} // 扩展参数（渠道特定参数）
-	CreatedAt   time.Time              // 创建时间
+	ID         string                 // 消息唯一ID
+	Title      string                 // 消息标题
+	Content    string                 // 消息正文（纯文本或HTML）
+	Channel    ChannelType            // 目标渠道
+	Priority   Priority               // 优先级
+	Recipients []string               // 收件人列表（邮箱/用户ID/Webhook URL）
+	TemplateID string                 // 模板ID（可选）
+	Extra      map[string]interface{} // 扩展参数（渠道特定参数）
+	CreatedAt  time.Time              // 创建时间
 }
 
 // Notifier 通知渠道接口
@@ -79,9 +80,9 @@ type Notifier interface {
 
 // SendResult 发送结果
 type SendResult struct {
-	Channel ChannelType // 渠道类型
-	Success bool       // 是否成功
-	Error   error      // 错误信息
+	Channel ChannelType   // 渠道类型
+	Success bool          // 是否成功
+	Error   error         // 错误信息
 	Latency time.Duration // 发送耗时
 }
 
@@ -92,10 +93,12 @@ type NotifyError struct {
 	Err     error
 }
 
+// Error 实现 error 接口，输出渠道、消息 ID 与失败原因。
 func (e *NotifyError) Error() string {
 	return "[" + string(e.Channel) + "] send " + e.MsgID + " failed: " + e.Err.Error()
 }
 
+// Unwrap 返回被包裹的原始错误。
 func (e *NotifyError) Unwrap() error {
 	return e.Err
 }

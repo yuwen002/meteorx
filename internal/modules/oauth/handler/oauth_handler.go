@@ -1,3 +1,4 @@
+// Package handler 实现 OAuth 模块的 HTTP 接口处理器，处理授权回调、账号绑定和解绑请求。
 package handler
 
 import (

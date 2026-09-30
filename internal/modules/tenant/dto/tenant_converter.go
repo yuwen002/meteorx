@@ -5,6 +5,7 @@ import "meteorx/internal/modules/tenant/model"
 // TenantConverter 租户模型到 DTO 的转换器
 type TenantConverter struct{}
 
+// ToTenantResponse 将租户领域模型转换为租户响应 DTO
 func (a *TenantConverter) ToTenantResponse(tenant *model.Tenant) *TenantResp {
 	return &TenantResp{
 		ID:           tenant.ID,

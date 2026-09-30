@@ -11,14 +11,17 @@ import (
 	"meteorx/pkg/idgen"
 )
 
+// TenantSettingsService 租户个性化设置业务服务。
 type TenantSettingsService struct {
 	repo repository.TenantSettingsRepository
 }
 
+// NewTenantSettingsService 创建租户设置服务实例。
 func NewTenantSettingsService(repo repository.TenantSettingsRepository) *TenantSettingsService {
 	return &TenantSettingsService{repo: repo}
 }
 
+// GetSettings 获取租户设置，不存在时返回默认值。
 func (s *TenantSettingsService) GetSettings(ctx context.Context, tenantID string) (*dto.TenantSettingsResp, error) {
 	settings, err := s.repo.GetByTenantID(ctx, tenantID)
 	if err != nil {
@@ -32,6 +35,7 @@ func (s *TenantSettingsService) GetSettings(ctx context.Context, tenantID string
 	return toSettingsResp(settings), nil
 }
 
+// UpdateSettings 更新租户设置，不存在则创建（upsert）后返回最新值。
 func (s *TenantSettingsService) UpdateSettings(ctx context.Context, tenantID string, req dto.UpdateTenantSettingsReq) (*dto.TenantSettingsResp, error) {
 	existing, err := s.repo.GetByTenantID(ctx, tenantID)
 	if err != nil {
@@ -83,6 +87,7 @@ func (s *TenantSettingsService) UpdateSettings(ctx context.Context, tenantID str
 	return toSettingsResp(updated), nil
 }
 
+// getDefaultSettings 构造一份默认租户设置。
 func (s *TenantSettingsService) getDefaultSettings(tenantID string) *dto.TenantSettingsResp {
 	return &dto.TenantSettingsResp{
 		TenantID:     tenantID,
@@ -102,6 +107,7 @@ func (s *TenantSettingsService) getDefaultSettings(tenantID string) *dto.TenantS
 	}
 }
 
+// toSettingsResp 将领域模型转换为响应 DTO。
 func toSettingsResp(s *model.TenantSettings) *dto.TenantSettingsResp {
 	resp := &dto.TenantSettingsResp{
 		ID:           s.ID,

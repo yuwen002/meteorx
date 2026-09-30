@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-container class="layout-container">
     <!-- 侧边栏 -->
     <el-aside :width="appStore.sidebarCollapsed ? '64px' : '220px'" class="sidebar">
@@ -32,6 +32,10 @@
           <el-menu-item index="/tenant-settings">
             <el-icon><Setting /></el-icon>
             <template #title>租户设置</template>
+          </el-menu-item>
+          <el-menu-item v-if="userStore.hasPermission('user:list') || userStore.isAdmin" index="/invitation">
+            <el-icon><Message /></el-icon>
+            <template #title>成员邀请</template>
           </el-menu-item>
           <el-menu-item v-if="userStore.hasPermission('wiki:list') || userStore.isAdmin" index="/wiki">
             <el-icon><Reading /></el-icon>
@@ -196,6 +200,7 @@ import {
   Goods,
   HomeFilled,
   Lock,
+  Message,
   Monitor,
   OfficeBuilding,
   Platform,

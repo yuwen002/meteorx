@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 邀请模块 API
  *
  * 提供租户成员邀请的完整接口：
@@ -34,6 +34,13 @@ export interface AcceptInvitationParams {
   username: string            // 设置的登录用户名
   password: string            // 设置的密码
   nickname: string            // 设置的昵称
+}
+
+/** 可分配角色选项 */
+export interface RoleOption {
+  id: string
+  name: string
+  code: string
 }
 
 /** 邀请列表查询参数 */
@@ -77,4 +84,9 @@ export function acceptInvitation(data: AcceptInvitationParams) {
 /** 通过令牌查询邀请信息（公开接口，用于接受邀请页面） */
 export function getInvitationInfo(token: string) {
   return get<InvitationItem>('/invitations/info', { token })
+}
+
+/** 获取可分配角色列表（不分页，供邀请下拉使用） */
+export function getAssignableRoles() {
+  return get<RoleOption[]>('/invitations/roles')
 }

@@ -14,18 +14,18 @@ import (
 type WebhookKind string
 
 const (
-	WebhookGeneric   WebhookKind = "generic"    // 通用 Webhook
-	WebhookDingTalk  WebhookKind = "dingtalk"   // 钉钉
-	WebhookWeChat    WebhookKind = "wechat"     // 企业微信
-	WebhookFeishu    WebhookKind = "feishu"     // 飞书
+	WebhookGeneric  WebhookKind = "generic"  // 通用 Webhook
+	WebhookDingTalk WebhookKind = "dingtalk" // 钉钉
+	WebhookWeChat   WebhookKind = "wechat"   // 企业微信
+	WebhookFeishu   WebhookKind = "feishu"   // 飞书
 )
 
 // WebhookNotifier Webhook 通知渠道
 type WebhookNotifier struct {
-	client  *http.Client
-	kind    WebhookKind
-	url     string
-	secret  string // 签名密钥（部分渠道需要）
+	client *http.Client
+	kind   WebhookKind
+	url    string
+	secret string // 签名密钥（部分渠道需要）
 }
 
 // WebhookOption Webhook 配置选项
@@ -49,10 +49,13 @@ func NewWebhookNotifier(opt WebhookOption) *WebhookNotifier {
 	}
 }
 
+// Type 返回 Webhook 渠道类型。
 func (n *WebhookNotifier) Type() ChannelType { return ChannelWebhook }
 
+// Name 返回带类型的渠道名称。
 func (n *WebhookNotifier) Name() string { return "webhook-" + string(n.kind) }
 
+// Send 根据渠道类型构建消息体并以 POST 推送到 Webhook 地址。
 func (n *WebhookNotifier) Send(ctx context.Context, msg *Message) error {
 	select {
 	case <-ctx.Done():
@@ -125,8 +128,8 @@ func (n *WebhookNotifier) buildGenericPayload(msg *Message) interface{} {
 
 // 钉钉机器人消息格式
 type dingTalkPayload struct {
-	MsgType string          `json:"msgtype"`
-	Text    *dingTalkText   `json:"text,omitempty"`
+	MsgType  string            `json:"msgtype"`
+	Text     *dingTalkText     `json:"text,omitempty"`
 	Markdown *dingTalkMarkdown `json:"markdown,omitempty"`
 }
 
@@ -172,8 +175,8 @@ func (n *WebhookNotifier) buildWeChatPayload(msg *Message) interface{} {
 
 // 飞书机器人格式
 type feishuPayload struct {
-	MsgType string          `json:"msg_type"`
-	Content *feishuContent  `json:"content"`
+	MsgType string         `json:"msg_type"`
+	Content *feishuContent `json:"content"`
 }
 
 type feishuContent struct {
@@ -190,10 +193,10 @@ type feishuZhCN struct {
 }
 
 type feishuBlock struct {
-	Tag    string `json:"tag"`
-	Text   string `json:"text,omitempty"`
-	Href   string `json:"href,omitempty"`
-	UnEscape bool  `json:"un_escape,omitempty"`
+	Tag      string `json:"tag"`
+	Text     string `json:"text,omitempty"`
+	Href     string `json:"href,omitempty"`
+	UnEscape bool   `json:"un_escape,omitempty"`
 }
 
 func (n *WebhookNotifier) buildFeishuPayload(msg *Message) interface{} {

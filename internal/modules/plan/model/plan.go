@@ -1,3 +1,4 @@
+// Package model 定义套餐模块的领域模型，包括套餐和订阅实体。
 package model
 
 import "time"

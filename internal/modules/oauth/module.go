@@ -1,3 +1,4 @@
+// Package oauth 提供第三方 OAuth2 登录集成，支持 GitHub/Google 等 Provider 授权码流程及账号绑定。
 package oauth
 
 import (
@@ -16,6 +17,7 @@ import (
 	userrepo "meteorx/internal/modules/user/repository"
 )
 
+// InitModule 迁移 OAuth 账号表、装配依赖并注册公开的 OAuth 授权/回调路由。
 func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, tokenHelper *jwt.TokenHelper, rdb *cache.Redis) {
 	db.AutoMigrate(&model.OAuthAccount{})
 
@@ -32,6 +34,7 @@ func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, tokenHelper *jwt.T
 	RegisterRoutes(r, h)
 }
 
+// InitProtectedModule 装配 OAuth 依赖并注册需登录的 OAuth 账号绑定/解绑路由。
 func InitProtectedModule(r chi.Router, db *gorm.DB, cfg config.Config, tokenHelper *jwt.TokenHelper, rdb *cache.Redis) {
 	oauthRepo := repository.NewOAuthAccountRepository(db)
 	uRepo := userrepo.NewUserRepository(db)

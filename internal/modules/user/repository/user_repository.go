@@ -11,8 +11,8 @@ import (
 
 // UserPO 内部数据库模型（角色由 user_roles 关联表管理）
 type UserPO struct {
-	ID            string `gorm:"primaryKey;size:26;comment:用户ID"`
-	TenantID      string `gorm:"index;size:26;not null;comment:租户ID"`
+	ID            string         `gorm:"primaryKey;size:26;comment:用户ID"`
+	TenantID      string         `gorm:"index;size:26;not null;comment:租户ID"`
 	Username      string         `gorm:"size:50;not null;uniqueIndex:idx_tenant_username;comment:用户名"`
 	Password      string         `gorm:"size:255;not null;comment:密码"`
 	Nickname      string         `gorm:"size:50;comment:昵称"`
@@ -27,6 +27,7 @@ type UserPO struct {
 	DeletedAt     gorm.DeletedAt `gorm:"index;comment:删除时间"`
 }
 
+// TableName 返回用户表名 users。
 func (UserPO) TableName() string {
 	return "users"
 }
@@ -54,6 +55,7 @@ func (record UserPO) toDomain() *model.User {
 	return u
 }
 
+// AutoMigrate 自动迁移用户表结构。
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&UserPO{})
 }
@@ -63,10 +65,12 @@ type userRepository struct {
 	db *gorm.DB
 }
 
+// NewUserRepository 创建用户仓储实例。
 func NewUserRepository(db *gorm.DB) UserRepository {
 	return &userRepository{db: db}
 }
 
+// Create 新建用户记录。
 func (r *userRepository) Create(ctx context.Context, u *model.User) error {
 	record := UserPO{
 		ID:            u.ID,
@@ -115,6 +119,7 @@ func (r *userRepository) GetByUsername(ctx context.Context, tenantID, username s
 	return record.toDomain(), nil
 }
 
+// GetByID 按主键查询用户。
 func (r *userRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
 	var record UserPO
 	err := r.db.WithContext(ctx).Where("id = ?", id).First(&record).Error
@@ -124,6 +129,7 @@ func (r *userRepository) GetByID(ctx context.Context, id string) (*model.User, e
 	return record.toDomain(), nil
 }
 
+// GetByEmail 按邮箱查询用户。
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
 	var record UserPO
 	err := r.db.WithContext(ctx).Where("email = ?", email).First(&record).Error
@@ -349,6 +355,7 @@ func (r *userRepository) BatchDelete(ctx context.Context, ids []string) (int64, 
 	return result.RowsAffected, nil
 }
 
+// ListAllTenantUsers 分页查询所有租户普通用户（排除系统管理员，支持关键词搜索）。
 func (r *userRepository) ListAllTenantUsers(ctx context.Context, page, pageSize int, keyword string) ([]*model.User, int64, error) {
 	var records []UserPO
 	var total int64

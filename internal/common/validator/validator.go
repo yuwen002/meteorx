@@ -1,3 +1,4 @@
+// Package validator 提供请求参数校验工具，封装 go-playground/validator 并统一错误响应格式。
 package validator
 
 import (

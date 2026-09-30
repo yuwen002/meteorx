@@ -1,3 +1,4 @@
+// Package model 定义 RBAC 模块的领域模型，包括角色、权限及其关联实体。
 package model
 
 import "time"
@@ -14,6 +15,7 @@ const (
 	RoleScopeAll    = "all"    // 所有上下文均可分配
 )
 
+// Role 角色领域模型，区分系统级/租户级作用域，支持软删除。
 type Role struct {
 	ID          string
 	Name        string

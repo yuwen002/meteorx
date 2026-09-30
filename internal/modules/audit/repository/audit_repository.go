@@ -40,6 +40,7 @@ type AuditLogPO struct {
 	CreatedAt    time.Time `gorm:"index;autoCreateTime;comment:创建时间"`
 }
 
+// TableName 返回审计日志表名 audit_logs。
 func (AuditLogPO) TableName() string {
 	return "audit_logs"
 }
@@ -128,11 +129,13 @@ func AutoMigrate(db *gorm.DB) error {
 	return nil
 }
 
+// Create 写入单条审计日志。
 func (r *auditLogRepository) Create(ctx context.Context, log *model.AuditLog) error {
 	po := auditLogFromDomain(log)
 	return r.db.WithContext(ctx).Create(po).Error
 }
 
+// BatchCreate 批量写入审计日志，空切片直接跳过。
 func (r *auditLogRepository) BatchCreate(ctx context.Context, logs []*model.AuditLog) error {
 	if len(logs) == 0 {
 		return nil
@@ -144,6 +147,7 @@ func (r *auditLogRepository) BatchCreate(ctx context.Context, logs []*model.Audi
 	return r.db.WithContext(ctx).Create(&pos).Error
 }
 
+// GetByID 按主键查询单条审计日志。
 func (r *auditLogRepository) GetByID(ctx context.Context, id string) (*model.AuditLog, error) {
 	var po AuditLogPO
 	if err := r.db.WithContext(ctx).First(&po, "id = ?", id).Error; err != nil {
@@ -152,6 +156,7 @@ func (r *auditLogRepository) GetByID(ctx context.Context, id string) (*model.Aud
 	return po.toDomain(), nil
 }
 
+// List 按查询条件（用户/租户/模块/动作/风险/时间/关键词等）动态过滤并分页返回审计日志及总数。
 func (r *auditLogRepository) List(ctx context.Context, query *AuditLogQuery) ([]*model.AuditLog, int64, error) {
 	db := r.db.WithContext(ctx).Model(&AuditLogPO{})
 
@@ -213,6 +218,7 @@ func (r *auditLogRepository) List(ctx context.Context, query *AuditLogQuery) ([]
 	return logs, total, nil
 }
 
+// GetStats 汇总审计日志整体统计：总量、今日量、动作分布、模块分布及成功/失败结果分布。
 func (r *auditLogRepository) GetStats(ctx context.Context) (*model.AuditLogStats, error) {
 	var totalCount int64
 	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).Count(&totalCount).Error; err != nil {
@@ -251,6 +257,7 @@ func (r *auditLogRepository) GetStats(ctx context.Context) (*model.AuditLogStats
 	}, nil
 }
 
+// GetActionStats 按操作动作分组统计审计日志数量。
 func (r *auditLogRepository) GetActionStats(ctx context.Context) (map[string]int64, error) {
 	type result struct {
 		Action string
@@ -271,6 +278,7 @@ func (r *auditLogRepository) GetActionStats(ctx context.Context) (map[string]int
 	return stats, nil
 }
 
+// GetModuleStats 按操作模块分组统计审计日志数量。
 func (r *auditLogRepository) GetModuleStats(ctx context.Context) (map[string]int64, error) {
 	type result struct {
 		Module string
@@ -291,6 +299,7 @@ func (r *auditLogRepository) GetModuleStats(ctx context.Context) (map[string]int
 	return stats, nil
 }
 
+// GetTrendStats 统计最近 days 天内按日聚合的日志总量、成功数与失败数，用于趋势图。
 func (r *auditLogRepository) GetTrendStats(ctx context.Context, tenantID string, days int) ([]model.AuditTrendPoint, error) {
 	type Result struct {
 		Date    string
@@ -329,6 +338,7 @@ func (r *auditLogRepository) GetTrendStats(ctx context.Context, tenantID string,
 	return points, nil
 }
 
+// GetTopModules 返回指定租户内日志数量最多的前 limit 个模块。
 func (r *auditLogRepository) GetTopModules(ctx context.Context, tenantID string, limit int) ([]model.ModuleCount, error) {
 	type Result struct {
 		Module string
@@ -361,6 +371,7 @@ func (r *auditLogRepository) GetTopModules(ctx context.Context, tenantID string,
 	return modules, nil
 }
 
+// GetDashboardData 聚合审计看板所需的总量、今日量、动作/模块/结果分布、趋势及热门模块。
 func (r *auditLogRepository) GetDashboardData(ctx context.Context, tenantID string, days int) (*model.AuditDashboardData, error) {
 	db := r.db.WithContext(ctx).Model(&AuditLogPO{})
 
@@ -429,6 +440,7 @@ func (r *auditLogRepository) GetDashboardData(ctx context.Context, tenantID stri
 	}, nil
 }
 
+// Cleanup 删除 days 天前的历史审计日志，返回受影响行数。
 func (r *auditLogRepository) Cleanup(ctx context.Context, days int) (int64, error) {
 	cutoff := time.Now().AddDate(0, 0, -days)
 	result := r.db.WithContext(ctx).Where("created_at < ?", cutoff).Delete(&AuditLogPO{})
@@ -468,11 +480,11 @@ func (r *auditLogRepository) ListSessions(ctx context.Context, page, pageSize in
 	}
 
 	db := r.db.WithContext(ctx).Table("audit_logs").
-		Select("session_id, user_id, username, COUNT(*) as total_ops, "+
-			"SUM(CASE WHEN result = 'success' THEN 1 ELSE 0 END) as success_count, "+
-			"SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) as failure_count, "+
-			"COALESCE(SUM(duration), 0) as total_duration, "+
-			"MAX(risk_level) as max_risk_level, "+
+		Select("session_id, user_id, username, COUNT(*) as total_ops, " +
+			"SUM(CASE WHEN result = 'success' THEN 1 ELSE 0 END) as success_count, " +
+			"SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) as failure_count, " +
+			"COALESCE(SUM(duration), 0) as total_duration, " +
+			"MAX(risk_level) as max_risk_level, " +
 			"MIN(created_at) as min_time, MAX(created_at) as max_time").
 		Where("session_id != '' AND session_id IS NOT NULL").
 		Group("session_id, user_id, username")

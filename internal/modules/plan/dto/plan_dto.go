@@ -1,3 +1,4 @@
+// Package dto 定义套餐模块的请求与响应数据结构。
 package dto
 
 import "time"

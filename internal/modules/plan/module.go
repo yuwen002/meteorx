@@ -1,3 +1,4 @@
+// Package plan 提供套餐管理与订阅模块，支持套餐定义、租户订阅绑定、到期自动禁用和配额校验。
 package plan
 
 import (

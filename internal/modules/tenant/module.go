@@ -1,3 +1,4 @@
+// Package tenant 提供多租户管理模块，支持租户注册、配置、注销审批、状态控制及租户设置。
 package tenant
 
 import (

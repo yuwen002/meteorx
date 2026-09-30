@@ -1,3 +1,4 @@
+// Package repository 定义 RBAC 模块的数据访问接口和 GORM 实现。
 package repository
 
 import (
@@ -5,6 +6,7 @@ import (
 	"meteorx/internal/modules/rbac/model"
 )
 
+// RoleRepository 角色数据访问接口，支持租户/系统级角色的增删改查、状态管理与回收站操作。
 type RoleRepository interface {
 	Create(ctx context.Context, role *model.Role) error
 	GetByID(ctx context.Context, id string) (*model.Role, error)
@@ -25,6 +27,7 @@ type RoleRepository interface {
 	Count(ctx context.Context, tenantID string) (int64, error)
 }
 
+// PermissionRepository 权限数据访问接口，支持权限的增删改查、状态管理及统计。
 type PermissionRepository interface {
 	Create(ctx context.Context, permission *model.Permission) error
 	GetByID(ctx context.Context, id string) (*model.Permission, error)
@@ -38,6 +41,7 @@ type PermissionRepository interface {
 	Count(ctx context.Context) (int64, error)
 }
 
+// RolePermissionRepository 角色-权限关联数据访问接口，支持绑定/解绑及按角色查询权限。
 type RolePermissionRepository interface {
 	BindPermissions(ctx context.Context, roleID string, permissionIDs []string) error
 	GetPermissionsByRoleID(ctx context.Context, roleID string) ([]*model.Permission, error)
@@ -51,6 +55,7 @@ type RolePermissionRepository interface {
 	CountByPermissionID(ctx context.Context, permissionID string) (int64, error)
 }
 
+// UserRoleRepository 用户-角色关联数据访问接口，支持角色分配/解除及按用户或角色反查。
 type UserRoleRepository interface {
 	AssignRoles(ctx context.Context, userID string, roleIDs []string) error
 	GetRoleIDsByUserID(ctx context.Context, userID string) ([]string, error)

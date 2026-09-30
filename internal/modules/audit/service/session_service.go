@@ -8,10 +8,12 @@ import (
 	"meteorx/internal/modules/audit/repository"
 )
 
+// SessionService 会话分析服务，基于审计日志按会话聚合统计操作与风险。
 type SessionService struct {
 	repo repository.AuditLogRepository
 }
 
+// NewSessionService 创建会话分析服务实例。
 func NewSessionService(repo repository.AuditLogRepository) *SessionService {
 	return &SessionService{repo: repo}
 }

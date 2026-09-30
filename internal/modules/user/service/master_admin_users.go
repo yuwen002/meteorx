@@ -11,6 +11,7 @@ import (
 	"meteorx/pkg/idgen"
 )
 
+// ListMasterAdmins 分页列出平台系统管理员。
 func (s *UserService) ListMasterAdmins(ctx context.Context, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error) {
 	users, total, err := s.repo.ListMasterAdmins(ctx, page, pageSize, keyword)
 	if err != nil {
@@ -23,6 +24,7 @@ func (s *UserService) ListMasterAdmins(ctx context.Context, page, pageSize int, 
 	return resp, total, nil
 }
 
+// GetMasterAdmin 获取系管理员详情，非系统管理员时报错。
 func (s *UserService) GetMasterAdmin(ctx context.Context, userID string) (*dto.UserResp, error) {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -34,6 +36,7 @@ func (s *UserService) GetMasterAdmin(ctx context.Context, userID string) (*dto.U
 	return s.buildUserResp(ctx, user)
 }
 
+// CreateMasterAdmin 创建系统管理员并分配角色（未指定时默认 superadmin）。
 func (s *UserService) CreateMasterAdmin(ctx context.Context, req dto.CreateMasterAdminReq) (*dto.UserResp, error) {
 	exists, err := s.repo.UsernameExists(ctx, req.Username)
 	if err != nil {
@@ -91,6 +94,7 @@ func (s *UserService) CreateMasterAdmin(ctx context.Context, req dto.CreateMaste
 	return s.buildUserResp(ctx, user)
 }
 
+// UpdateMasterAdmin 更新系统管理员基本信息，可选重新分配角色。
 func (s *UserService) UpdateMasterAdmin(ctx context.Context, userID string, req dto.UpdateMasterAdminReq) (*dto.UserResp, error) {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -128,6 +132,7 @@ func (s *UserService) UpdateMasterAdmin(ctx context.Context, userID string, req 
 	return s.buildUserResp(ctx, user)
 }
 
+// DeleteMasterAdmin 软删除系统管理员，系统保护用户不可删除，删除前先解除角色绑定。
 func (s *UserService) DeleteMasterAdmin(ctx context.Context, userID string) error {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -150,6 +155,7 @@ func (s *UserService) DeleteMasterAdmin(ctx context.Context, userID string) erro
 	return s.repo.Delete(ctx, userID)
 }
 
+// UpdateMasterAdminStatus 更新系统管理员启用状态。
 func (s *UserService) UpdateMasterAdminStatus(ctx context.Context, userID string, status int) error {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -161,6 +167,7 @@ func (s *UserService) UpdateMasterAdminStatus(ctx context.Context, userID string
 	return s.repo.UpdateStatus(ctx, userID, status)
 }
 
+// ListDeletedMasterAdmins 分页列出已软删除的系统管理员（回收站）。
 func (s *UserService) ListDeletedMasterAdmins(ctx context.Context, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error) {
 	users, total, err := s.repo.FindDeletedMasterAdmins(ctx, page, pageSize, keyword)
 	if err != nil {
@@ -173,10 +180,12 @@ func (s *UserService) ListDeletedMasterAdmins(ctx context.Context, page, pageSiz
 	return resp, total, nil
 }
 
+// RestoreMasterAdmin 恢复已软删除的系统管理员。
 func (s *UserService) RestoreMasterAdmin(ctx context.Context, userID string) error {
 	return s.repo.RestoreMasterAdmin(ctx, userID)
 }
 
+// PermanentDeleteMasterAdmin 永久删除系统管理员，系统保护用户不可删除。
 func (s *UserService) PermanentDeleteMasterAdmin(ctx context.Context, userID string) error {
 	// 检查是否为系统保护用户（初始管理员，不允许删除）
 	if isProtectedUser(userID) {
@@ -185,6 +194,7 @@ func (s *UserService) PermanentDeleteMasterAdmin(ctx context.Context, userID str
 	return s.repo.PermanentDeleteMasterAdmin(ctx, userID)
 }
 
+// BatchUpdateMasterAdminStatus 批量更新系统管理员状态。
 func (s *UserService) BatchUpdateMasterAdminStatus(ctx context.Context, ids []string, status int) (int64, error) {
 	if len(ids) == 0 {
 		return 0, fmt.Errorf("用户ID列表不能为空")
@@ -192,6 +202,7 @@ func (s *UserService) BatchUpdateMasterAdminStatus(ctx context.Context, ids []st
 	return s.repo.BatchUpdateStatus(ctx, ids, status)
 }
 
+// BatchDeleteMasterAdmins 批量软删除系统管理员，逐个校验归属与保护状态并解除角色绑定。
 func (s *UserService) BatchDeleteMasterAdmins(ctx context.Context, ids []string) (int64, error) {
 	if len(ids) == 0 {
 		return 0, fmt.Errorf("用户ID列表不能为空")
@@ -235,6 +246,7 @@ func isProtectedUser(userID string) bool {
 
 // ============ 系统管理员管理租户用户 ============
 
+// AdminCreateTenantUser 平台管理员为指定租户创建用户（校验配额、角色、密码）。
 func (s *UserService) AdminCreateTenantUser(ctx context.Context, req dto.AdminCreateTenantUserReq) (*dto.UserResp, error) {
 	exists, err := s.repo.UsernameExists(ctx, req.Username)
 	if err != nil {
@@ -281,6 +293,7 @@ func (s *UserService) AdminCreateTenantUser(ctx context.Context, req dto.AdminCr
 	return s.buildUserResp(ctx, user)
 }
 
+// AdminListTenantUsers 分页列出指定租户的用户。
 func (s *UserService) AdminListTenantUsers(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error) {
 	users, total, err := s.repo.ListByTenant(ctx, tenantID, page, pageSize, keyword, nil)
 	if err != nil {
@@ -293,6 +306,7 @@ func (s *UserService) AdminListTenantUsers(ctx context.Context, tenantID string,
 	return resp, total, nil
 }
 
+// AdminListAllTenantUsers 分页列出跨租户的全部普通用户。
 func (s *UserService) AdminListAllTenantUsers(ctx context.Context, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error) {
 	users, total, err := s.repo.ListAllTenantUsers(ctx, page, pageSize, keyword)
 	if err != nil {
@@ -305,6 +319,7 @@ func (s *UserService) AdminListAllTenantUsers(ctx context.Context, page, pageSiz
 	return resp, total, nil
 }
 
+// AdminUpdateTenantUser 更新指定租户用户的信息，可选重新分配角色。
 func (s *UserService) AdminUpdateTenantUser(ctx context.Context, tenantID, userID string, req dto.UpdateUserReq) (*dto.UserResp, error) {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -341,6 +356,7 @@ func (s *UserService) AdminUpdateTenantUser(ctx context.Context, tenantID, userI
 	return s.buildUserResp(ctx, user)
 }
 
+// AdminDeleteTenantUser 软删除指定租户用户，删除前先解除角色绑定。
 func (s *UserService) AdminDeleteTenantUser(ctx context.Context, tenantID, userID string) error {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -379,6 +395,7 @@ func (s *UserService) AdminResetTenantUserPassword(ctx context.Context, tenantID
 	return s.repo.Update(ctx, user)
 }
 
+// AdminListDeletedTenantUsers 分页列出指定租户的已删除用户（回收站）。
 func (s *UserService) AdminListDeletedTenantUsers(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error) {
 	users, total, err := s.repo.FindDeletedTenantUsers(ctx, tenantID, page, pageSize, keyword)
 	if err != nil {
@@ -391,6 +408,7 @@ func (s *UserService) AdminListDeletedTenantUsers(ctx context.Context, tenantID 
 	return resp, total, nil
 }
 
+// AdminListAllDeletedTenantUsers 分页列出跨租户的全部已删除用户。
 func (s *UserService) AdminListAllDeletedTenantUsers(ctx context.Context, page, pageSize int, keyword string) ([]*dto.UserResp, int64, error) {
 	users, total, err := s.repo.FindAllDeletedTenantUsers(ctx, page, pageSize, keyword)
 	if err != nil {
@@ -403,10 +421,12 @@ func (s *UserService) AdminListAllDeletedTenantUsers(ctx context.Context, page, 
 	return resp, total, nil
 }
 
+// AdminRestoreTenantUser 恢复指定租户的已删除用户。
 func (s *UserService) AdminRestoreTenantUser(ctx context.Context, tenantID, userID string) error {
 	return s.repo.RestoreTenantUser(ctx, tenantID, userID)
 }
 
+// AdminPermanentDeleteTenantUser 永久删除指定租户的用户。
 func (s *UserService) AdminPermanentDeleteTenantUser(ctx context.Context, tenantID, userID string) error {
 	return s.repo.PermanentDeleteTenantUser(ctx, tenantID, userID)
 }
@@ -436,6 +456,7 @@ func (s *UserService) PermanentDeleteUser(ctx context.Context, tenantID, userID 
 	return s.repo.PermanentDeleteTenantUser(ctx, tenantID, userID)
 }
 
+// AdminUpdateTenantUserStatus 更新指定租户用户的启用状态。
 func (s *UserService) AdminUpdateTenantUserStatus(ctx context.Context, tenantID, userID string, status int) error {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -449,6 +470,7 @@ func (s *UserService) AdminUpdateTenantUserStatus(ctx context.Context, tenantID,
 	return s.repo.UpdateStatus(ctx, userID, status)
 }
 
+// AdminBatchUpdateTenantUserStatus 批量更新指定租户用户的状态。
 func (s *UserService) AdminBatchUpdateTenantUserStatus(ctx context.Context, tenantID string, ids []string, status int) (int64, error) {
 	if len(ids) == 0 {
 		return 0, fmt.Errorf("用户ID列表不能为空")
@@ -456,6 +478,7 @@ func (s *UserService) AdminBatchUpdateTenantUserStatus(ctx context.Context, tena
 	return s.repo.BatchUpdateTenantUserStatus(ctx, tenantID, ids, status)
 }
 
+// AdminBatchDeleteTenantUsers 批量软删除指定租户用户，逐个校验归属并解除角色绑定。
 func (s *UserService) AdminBatchDeleteTenantUsers(ctx context.Context, tenantID string, ids []string) (int64, error) {
 	if len(ids) == 0 {
 		return 0, fmt.Errorf("用户ID列表不能为空")

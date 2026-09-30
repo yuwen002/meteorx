@@ -1,3 +1,4 @@
+// Package security 提供密码策略校验，支持复杂度规则配置与密码强度检查。
 package security
 
 import (

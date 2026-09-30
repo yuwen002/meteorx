@@ -1,3 +1,4 @@
+// Package middleware 提供 HTTP 中间件集合，包括认证、权限校验、审计日志、限流、请求追踪、文件服务等横切关注点。
 package middleware
 
 import (
@@ -96,12 +97,12 @@ func Auth(helper *jwt.TokenHelper, checker TokenBlacklistChecker, appMode string
 						return
 					}
 				} else {
-						// JWT 解析成功，从 claims 中提取用户信息
-						userID = claims.UserID
-						tenantID = claims.TenantID
-						roles = claims.Roles
-					}
+					// JWT 解析成功，从 claims 中提取用户信息
+					userID = claims.UserID
+					tenantID = claims.TenantID
+					roles = claims.Roles
 				}
+			}
 
 			// 将用户信息注入请求上下文
 			ctx := r.Context()

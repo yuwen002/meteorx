@@ -1,3 +1,4 @@
+// Package repository 定义审计模块的数据访问接口和 GORM 实现。
 package repository
 
 import (
@@ -62,6 +63,7 @@ type AuditLogRepository interface {
 	GetAnomalyLogs(ctx context.Context, threshold int, windowMinutes int) ([]*model.AnomalyLog, error)
 }
 
+// AuditLogQuery 审计日志分页查询条件，支持按用户/租户/模块/操作/结果/风险等级及时间范围筛选。
 type AuditLogQuery struct {
 	Page      int
 	PageSize  int

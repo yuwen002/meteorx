@@ -1,3 +1,4 @@
+// Package logger 提供全局日志工具，封装分层日志记录与格式化输出。
 package logger
 
 import (
@@ -23,8 +24,8 @@ type Config struct {
 	MaxAge     int    // 保留天数
 
 	// 异步日志配置
-	Async      bool  // 是否启用异步日志
-	BufferSize int   // 异步日志缓冲区大小（默认 1024）
+	Async      bool // 是否启用异步日志
+	BufferSize int  // 异步日志缓冲区大小（默认 1024）
 
 	// 日志采样配置
 	// Debug 日志采样率 (0.0-1.0)
@@ -51,9 +52,9 @@ func DefaultConfig() Config {
 }
 
 var (
-	std          = slog.New(slog.NewTextHandler(io.Discard, nil))
-	cfg          Config
-	closeOnce    sync.Once
+	std       = slog.New(slog.NewTextHandler(io.Discard, nil))
+	cfg       Config
+	closeOnce sync.Once
 )
 
 // Init 初始化全局日志器
@@ -207,6 +208,7 @@ func (aw *asyncWriter) loop() {
 	}
 }
 
+// Write 实现 io.Writer，将日志字节投入缓冲通道进而异步写入。
 func (aw *asyncWriter) Write(p []byte) (int, error) {
 	// 复制数据，避免外部重用
 	buf := make([]byte, len(p))
@@ -222,6 +224,7 @@ func (aw *asyncWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// Close 关闭异步写入并刷空缓冲区。
 func (aw *asyncWriter) Close() {
 	close(aw.closeCh)
 	aw.wg.Wait()
@@ -242,6 +245,7 @@ type rotatingWriter struct {
 	size       int64
 }
 
+// Write 实现 io.Writer，超过大小阈值时先轮转再写入。
 func (w *rotatingWriter) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -350,6 +354,7 @@ func (w *rotatingWriter) cleanOldBackups() {
 	}
 }
 
+// Close 关闭底层日志文件。
 func (w *rotatingWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -391,10 +396,12 @@ type samplingHandler struct {
 	count      uint64
 }
 
+// Enabled 委托底层处理器判断日志级别是否启用。
 func (h *samplingHandler) Enabled(ctx context.Context, level slog.Level) bool {
 	return h.handler.Enabled(ctx, level)
 }
 
+// Handle 对 Debug 日志按采样率过滤后交给底层处理器。
 func (h *samplingHandler) Handle(ctx context.Context, r slog.Record) error {
 	// 仅对 Debug 级别进行采样
 	if r.Level == slog.LevelDebug {
@@ -413,6 +420,7 @@ func (h *samplingHandler) Handle(ctx context.Context, r slog.Record) error {
 	return h.handler.Handle(ctx, r)
 }
 
+// WithAttrs 返回附加属性的采样处理器副本。
 func (h *samplingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &samplingHandler{
 		handler:    h.handler.WithAttrs(attrs),
@@ -420,6 +428,7 @@ func (h *samplingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 }
 
+// WithGroup 返回指定分组的采样处理器副本。
 func (h *samplingHandler) WithGroup(name string) slog.Handler {
 	return &samplingHandler{
 		handler:    h.handler.WithGroup(name),

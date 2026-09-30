@@ -20,11 +20,13 @@ import (
 	"meteorx/pkg/logger"
 )
 
+// AlertService 告警规则服务，负责规则 CRUD、审计日志匹配评估与多渠道告警通知。
 type AlertService struct {
 	alertRepo repository.AlertRuleRepository
 	emailer   *emailer.Emailer
 }
 
+// NewAlertService 创建告警规则服务实例。
 func NewAlertService(alertRepo repository.AlertRuleRepository, emailer *emailer.Emailer) *AlertService {
 	return &AlertService{
 		alertRepo: alertRepo,

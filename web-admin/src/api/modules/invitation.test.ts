@@ -7,6 +7,7 @@ import {
   deleteInvitation,
   acceptInvitation,
   getInvitationInfo,
+  getAssignableRoles,
   type InvitationItem,
   type CreateInvitationParams,
   type AcceptInvitationParams,
@@ -89,5 +90,12 @@ describe('Invitation API - 公开端', () => {
     vi.mocked(post).mockResolvedValue({ message: 'ok' })
     await acceptInvitation(payload)
     expect(post).toHaveBeenCalledWith('/invitations/accept', payload)
+  })
+
+  it('getAssignableRoles 应 GET 可分配角色列表', async () => {
+    vi.mocked(get).mockResolvedValue([{ id: 'r1', name: 'Admin', code: 'admin' }])
+    const roles = await getAssignableRoles()
+    expect(get).toHaveBeenCalledWith('/invitations/roles')
+    expect(roles).toEqual([{ id: 'r1', name: 'Admin', code: 'admin' }])
   })
 })

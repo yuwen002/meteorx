@@ -10,8 +10,8 @@ import (
 
 // EmailNotifier 邮件通知渠道
 type EmailNotifier struct {
-	emailer *emailer.Emailer
-	from    string
+	emailer  *emailer.Emailer
+	from     string
 	fromName string
 }
 
@@ -28,10 +28,13 @@ func NewEmailNotifier(e *emailer.Emailer, from, fromName string) *EmailNotifier 
 	}
 }
 
+// Type 返回邮件渠道类型。
 func (n *EmailNotifier) Type() ChannelType { return ChannelEmail }
 
+// Name 返回渠道名称。
 func (n *EmailNotifier) Name() string { return "email" }
 
+// Send 逐个向收件人发送 HTML 邮件，部分失败时汇总报错。
 func (n *EmailNotifier) Send(ctx context.Context, msg *Message) error {
 	// 检查上下文是否已取消
 	select {

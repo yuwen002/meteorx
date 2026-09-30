@@ -1,3 +1,4 @@
+// Package bootstrap 提供应用启动装配，负责初始化配置、数据库、缓存、中间件、路由和定时任务等核心组件。
 package bootstrap
 
 import (
@@ -16,6 +17,8 @@ import (
 	"meteorx/pkg/logger"
 )
 
+// StartApp 初始化并启动应用：按依赖顺序装配日志、配置、数据库、缓存、
+// WebSocket、通知、OpenTelemetry、路由与定时任务，并监听信号实现优雅关闭。
 func StartApp() {
 	// 1. 初始化日志系统
 	if err := logger.Init(logger.DefaultConfig()); err != nil {

@@ -1,3 +1,4 @@
+// Package repository 定义文件模块的数据访问接口和 GORM 实现。
 package repository
 
 import (

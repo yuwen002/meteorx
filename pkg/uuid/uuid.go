@@ -1,3 +1,4 @@
+// Package uuid 提供 UUID v4 生成工具，封装 crypto/rand 随机源以生成不可预测的随机标识符。
 package uuid
 
 import (

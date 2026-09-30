@@ -6,6 +6,7 @@ import (
 	"meteorx/pkg/crypto"
 )
 
+// ChangePassword 用户自助修改密码，校验原密码后重新加密存储。
 func (s *UserService) ChangePassword(ctx context.Context, userID, oldPassword, newPassword string) error {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {

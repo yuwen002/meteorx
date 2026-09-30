@@ -1,3 +1,4 @@
+// Package service 实现认证模块的业务逻辑，包括登录/登出、Token 签发刷新及 API Token 管理。
 package service
 
 import (
@@ -33,11 +34,11 @@ const (
 )
 
 var (
-	ErrEmailNotConfigured  = errors.New("email service not configured")
-	ErrInvalidResetToken   = errors.New("invalid or expired token")
-	ErrUserNotFound        = errors.New("user not found")
+	ErrEmailNotConfigured   = errors.New("email service not configured")
+	ErrInvalidResetToken    = errors.New("invalid or expired token")
+	ErrUserNotFound         = errors.New("user not found")
 	ErrEmailAlreadyVerified = errors.New("email already verified")
-	ErrEmailNotOwned       = errors.New("email does not belong to current user")
+	ErrEmailNotOwned        = errors.New("email does not belong to current user")
 )
 
 // LoginError 登录错误（包含安全信息）
@@ -48,6 +49,7 @@ type LoginError struct {
 	LockoutDuration   int64
 }
 
+// Error 实现 error 接口，返回登录错误描述信息。
 func (e *LoginError) Error() string {
 	return e.Message
 }

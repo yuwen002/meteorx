@@ -50,6 +50,9 @@ func (s *stubInvService) Accept(ctx context.Context, req dto.AcceptInvitationReq
 func (s *stubInvService) GetByToken(ctx context.Context, token string) (*model.Invitation, error) {
 	return s.getByTokenFn(ctx, token)
 }
+func (s *stubInvService) ListAssignableRoles(_ context.Context) ([]dto.RoleOption, error) {
+	return []dto.RoleOption{{ID: "role-1", Name: "租户管理员", Code: "tenant_admin"}}, nil
+}
 
 func newInvRouter(stub *stubInvService) http.Handler {
 	h := handler.NewInvitationHandler(stub)

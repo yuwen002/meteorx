@@ -13,11 +13,13 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// WikiHandlerExtended 内嵌 WikiHandler，提供标签/评论/分享/模板/统计/订阅/通知/编辑锁/批量/导入导出/审核等扩展 HTTP 接口。
 type WikiHandlerExtended struct {
 	*WikiHandler
 	svc service.WikiServiceExtended
 }
 
+// NewWikiHandlerExtended 创建 Wiki 扩展处理器实例。
 func NewWikiHandlerExtended(svc service.WikiServiceExtended) *WikiHandlerExtended {
 	return &WikiHandlerExtended{
 		WikiHandler: NewWikiHandler(svc),
@@ -25,6 +27,7 @@ func NewWikiHandlerExtended(svc service.WikiServiceExtended) *WikiHandlerExtende
 	}
 }
 
+// CreateTag 创建标签 POST /wiki/spaces/tags
 func (h *WikiHandlerExtended) CreateTag(w http.ResponseWriter, r *http.Request) {
 	var req dto.CreateTagReq
 	if !validator.ValidateJSON(w, r, &req) {
@@ -39,6 +42,7 @@ func (h *WikiHandlerExtended) CreateTag(w http.ResponseWriter, r *http.Request) 
 	response.Success(w, resp)
 }
 
+// ListTags 列出当前租户标签 GET /wiki/spaces/tags
 func (h *WikiHandlerExtended) ListTags(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.svc.ListTags(r.Context())
 	if err != nil {
@@ -48,6 +52,7 @@ func (h *WikiHandlerExtended) ListTags(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, resp)
 }
 
+// DeleteTag 删除标签 DELETE /wiki/spaces/tags/{id}
 func (h *WikiHandlerExtended) DeleteTag(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.svc.DeleteTag(r.Context(), id); err != nil {
@@ -57,6 +62,7 @@ func (h *WikiHandlerExtended) DeleteTag(w http.ResponseWriter, r *http.Request) 
 	response.Success(w, nil)
 }
 
+// AddDocumentTag 为文档添加标签 POST /wiki/documents/{id}/tags/{tagId}
 func (h *WikiHandlerExtended) AddDocumentTag(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 	tagID := chi.URLParam(r, "tagId")
@@ -68,6 +74,7 @@ func (h *WikiHandlerExtended) AddDocumentTag(w http.ResponseWriter, r *http.Requ
 	response.Success(w, nil)
 }
 
+// RemoveDocumentTag 移除文档标签 DELETE /wiki/documents/{id}/tags/{tagId}
 func (h *WikiHandlerExtended) RemoveDocumentTag(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 	tagID := chi.URLParam(r, "tagId")
@@ -79,6 +86,7 @@ func (h *WikiHandlerExtended) RemoveDocumentTag(w http.ResponseWriter, r *http.R
 	response.Success(w, nil)
 }
 
+// ListDocumentTags 列出文档标签 GET /wiki/documents/{id}/tags
 func (h *WikiHandlerExtended) ListDocumentTags(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 
@@ -90,6 +98,7 @@ func (h *WikiHandlerExtended) ListDocumentTags(w http.ResponseWriter, r *http.Re
 	response.Success(w, resp)
 }
 
+// CreateComment 新建文档评论 POST /wiki/documents/{id}/comments
 func (h *WikiHandlerExtended) CreateComment(w http.ResponseWriter, r *http.Request) {
 	var req dto.CreateCommentReq
 	if !validator.ValidateJSON(w, r, &req) {
@@ -107,6 +116,7 @@ func (h *WikiHandlerExtended) CreateComment(w http.ResponseWriter, r *http.Reque
 	response.Success(w, resp)
 }
 
+// ListComments 列出文档评论 GET /wiki/documents/{id}/comments
 func (h *WikiHandlerExtended) ListComments(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 
@@ -118,6 +128,7 @@ func (h *WikiHandlerExtended) ListComments(w http.ResponseWriter, r *http.Reques
 	response.Success(w, resp)
 }
 
+// UpdateComment 修改评论 PUT /wiki/documents/comments/{id}
 func (h *WikiHandlerExtended) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var req dto.UpdateCommentReq
@@ -132,6 +143,7 @@ func (h *WikiHandlerExtended) UpdateComment(w http.ResponseWriter, r *http.Reque
 	response.Success(w, nil)
 }
 
+// DeleteComment 删除评论 DELETE /wiki/documents/comments/{id}
 func (h *WikiHandlerExtended) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.svc.DeleteComment(r.Context(), id); err != nil {
@@ -141,6 +153,7 @@ func (h *WikiHandlerExtended) DeleteComment(w http.ResponseWriter, r *http.Reque
 	response.Success(w, nil)
 }
 
+// CreateShareLink 创建分享链接 POST /wiki/documents/{id}/share
 func (h *WikiHandlerExtended) CreateShareLink(w http.ResponseWriter, r *http.Request) {
 	var req dto.ShareLinkReq
 	if !validator.ValidateJSON(w, r, &req) {
@@ -158,6 +171,7 @@ func (h *WikiHandlerExtended) CreateShareLink(w http.ResponseWriter, r *http.Req
 	response.Success(w, resp)
 }
 
+// GetShareLink 按令牌获取分享链接信息 GET /wiki/share/{token}?password=xxx
 func (h *WikiHandlerExtended) GetShareLink(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	password := r.URL.Query().Get("password")
@@ -183,6 +197,7 @@ func (h *WikiHandlerExtended) AccessSharedDocument(w http.ResponseWriter, r *htt
 	response.Success(w, resp)
 }
 
+// ListShareLinks 列出文档分享链接 GET /wiki/documents/{id}/shares
 func (h *WikiHandlerExtended) ListShareLinks(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 
@@ -194,6 +209,7 @@ func (h *WikiHandlerExtended) ListShareLinks(w http.ResponseWriter, r *http.Requ
 	response.Success(w, resp)
 }
 
+// DeleteShareLink 删除分享链接 DELETE /wiki/documents/shares/{id}
 func (h *WikiHandlerExtended) DeleteShareLink(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.svc.DeleteShareLink(r.Context(), id); err != nil {
@@ -203,6 +219,7 @@ func (h *WikiHandlerExtended) DeleteShareLink(w http.ResponseWriter, r *http.Req
 	response.Success(w, nil)
 }
 
+// CreateTemplate 创建文档模板 POST /wiki/spaces/templates
 func (h *WikiHandlerExtended) CreateTemplate(w http.ResponseWriter, r *http.Request) {
 	var req dto.CreateTemplateReq
 	if !validator.ValidateJSON(w, r, &req) {
@@ -217,6 +234,7 @@ func (h *WikiHandlerExtended) CreateTemplate(w http.ResponseWriter, r *http.Requ
 	response.Success(w, resp)
 }
 
+// ListTemplates 按分类列出模板 GET /wiki/spaces/templates
 func (h *WikiHandlerExtended) ListTemplates(w http.ResponseWriter, r *http.Request) {
 	category := r.URL.Query().Get("category")
 
@@ -228,6 +246,7 @@ func (h *WikiHandlerExtended) ListTemplates(w http.ResponseWriter, r *http.Reque
 	response.Success(w, resp)
 }
 
+// GetTemplate 获取模板详情 GET /wiki/spaces/templates/{id}
 func (h *WikiHandlerExtended) GetTemplate(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -239,6 +258,7 @@ func (h *WikiHandlerExtended) GetTemplate(w http.ResponseWriter, r *http.Request
 	response.Success(w, resp)
 }
 
+// UpdateTemplate 更新模板 PUT /wiki/spaces/templates/{id}
 func (h *WikiHandlerExtended) UpdateTemplate(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var req dto.UpdateTemplateReq
@@ -254,6 +274,7 @@ func (h *WikiHandlerExtended) UpdateTemplate(w http.ResponseWriter, r *http.Requ
 	response.Success(w, resp)
 }
 
+// DeleteTemplate 删除模板 DELETE /wiki/spaces/templates/{id}
 func (h *WikiHandlerExtended) DeleteTemplate(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.svc.DeleteTemplate(r.Context(), id); err != nil {
@@ -263,6 +284,7 @@ func (h *WikiHandlerExtended) DeleteTemplate(w http.ResponseWriter, r *http.Requ
 	response.Success(w, nil)
 }
 
+// GetDocumentStats 获取文档统计 GET /wiki/documents/{id}/stats
 func (h *WikiHandlerExtended) GetDocumentStats(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 
@@ -274,6 +296,7 @@ func (h *WikiHandlerExtended) GetDocumentStats(w http.ResponseWriter, r *http.Re
 	response.Success(w, resp)
 }
 
+// ListAccessLogs 分页列出文档访问日志 GET /wiki/documents/{id}/access-logs
 func (h *WikiHandlerExtended) ListAccessLogs(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
@@ -288,6 +311,7 @@ func (h *WikiHandlerExtended) ListAccessLogs(w http.ResponseWriter, r *http.Requ
 	response.SuccessWithPagination(w, resp, pg.Page, pg.PageSize, total)
 }
 
+// SubscribeDocument 订阅文档变更通知 POST /wiki/documents/{id}/subscribe
 func (h *WikiHandlerExtended) SubscribeDocument(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 	notifyType := r.URL.Query().Get("notify_type")
@@ -303,6 +327,7 @@ func (h *WikiHandlerExtended) SubscribeDocument(w http.ResponseWriter, r *http.R
 	response.Success(w, resp)
 }
 
+// UnsubscribeDocument 取消订阅文档 DELETE /wiki/documents/{id}/subscribe
 func (h *WikiHandlerExtended) UnsubscribeDocument(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 	if err := h.svc.UnsubscribeDocument(r.Context(), documentID); err != nil {
@@ -312,6 +337,7 @@ func (h *WikiHandlerExtended) UnsubscribeDocument(w http.ResponseWriter, r *http
 	response.Success(w, nil)
 }
 
+// ListUserSubscriptions 列出当前用户订阅 GET /wiki/spaces/subscriptions
 func (h *WikiHandlerExtended) ListUserSubscriptions(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.svc.ListUserSubscriptions(r.Context())
 	if err != nil {
@@ -321,6 +347,7 @@ func (h *WikiHandlerExtended) ListUserSubscriptions(w http.ResponseWriter, r *ht
 	response.Success(w, resp)
 }
 
+// ListNotifications 分页列出站内通知 GET /wiki/spaces/notifications
 func (h *WikiHandlerExtended) ListNotifications(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
@@ -334,6 +361,7 @@ func (h *WikiHandlerExtended) ListNotifications(w http.ResponseWriter, r *http.R
 	response.SuccessWithPagination(w, resp, pg.Page, pg.PageSize, total)
 }
 
+// MarkNotificationAsRead 标记通知已读 PUT /wiki/spaces/notifications/{id}/read
 func (h *WikiHandlerExtended) MarkNotificationAsRead(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.svc.MarkNotificationAsRead(r.Context(), id); err != nil {
@@ -343,6 +371,7 @@ func (h *WikiHandlerExtended) MarkNotificationAsRead(w http.ResponseWriter, r *h
 	response.Success(w, nil)
 }
 
+// MarkAllNotificationsAsRead 全部通知标记已读 PUT /wiki/spaces/notifications/read-all
 func (h *WikiHandlerExtended) MarkAllNotificationsAsRead(w http.ResponseWriter, r *http.Request) {
 	if err := h.svc.MarkAllNotificationsAsRead(r.Context()); err != nil {
 		response.FailError(w, err)
@@ -351,6 +380,7 @@ func (h *WikiHandlerExtended) MarkAllNotificationsAsRead(w http.ResponseWriter, 
 	response.Success(w, nil)
 }
 
+// GetUnreadNotificationCount 获取未读通知数量 GET /wiki/spaces/notifications/unread-count
 func (h *WikiHandlerExtended) GetUnreadNotificationCount(w http.ResponseWriter, r *http.Request) {
 	count, err := h.svc.GetUnreadNotificationCount(r.Context())
 	if err != nil {
@@ -360,6 +390,7 @@ func (h *WikiHandlerExtended) GetUnreadNotificationCount(w http.ResponseWriter, 
 	response.Success(w, map[string]interface{}{"count": count})
 }
 
+// AcquireEditLock 获取文档编辑锁 POST /wiki/documents/{id}/edit-lock
 func (h *WikiHandlerExtended) AcquireEditLock(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 
@@ -371,6 +402,7 @@ func (h *WikiHandlerExtended) AcquireEditLock(w http.ResponseWriter, r *http.Req
 	response.Success(w, resp)
 }
 
+// ReleaseEditLock 释放文档编辑锁 DELETE /wiki/documents/{id}/edit-lock
 func (h *WikiHandlerExtended) ReleaseEditLock(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 	if err := h.svc.ReleaseEditLock(r.Context(), documentID); err != nil {
@@ -380,6 +412,7 @@ func (h *WikiHandlerExtended) ReleaseEditLock(w http.ResponseWriter, r *http.Req
 	response.Success(w, nil)
 }
 
+// RefreshEditLock 刷新编辑锁有效期 PUT /wiki/documents/{id}/edit-lock
 func (h *WikiHandlerExtended) RefreshEditLock(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 	if err := h.svc.RefreshEditLock(r.Context(), documentID); err != nil {
@@ -389,6 +422,7 @@ func (h *WikiHandlerExtended) RefreshEditLock(w http.ResponseWriter, r *http.Req
 	response.Success(w, nil)
 }
 
+// GetEditLock 查询编辑锁状态 GET /wiki/documents/{id}/edit-lock
 func (h *WikiHandlerExtended) GetEditLock(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 
@@ -400,6 +434,7 @@ func (h *WikiHandlerExtended) GetEditLock(w http.ResponseWriter, r *http.Request
 	response.Success(w, resp)
 }
 
+// BatchOperation 批量操作节点（删除/移动） POST /wiki/spaces/nodes/batch
 func (h *WikiHandlerExtended) BatchOperation(w http.ResponseWriter, r *http.Request) {
 	var req dto.BatchOperationReq
 	if !validator.ValidateJSON(w, r, &req) {
@@ -424,6 +459,7 @@ func (h *WikiHandlerExtended) BatchOperation(w http.ResponseWriter, r *http.Requ
 	response.Success(w, nil)
 }
 
+// CompareRevisions 对比两个修订版本 GET /wiki/documents/{id}/revisions/compare
 func (h *WikiHandlerExtended) CompareRevisions(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 	version1Str := r.URL.Query().Get("version1")
@@ -450,6 +486,7 @@ func (h *WikiHandlerExtended) CompareRevisions(w http.ResponseWriter, r *http.Re
 	response.Success(w, resp)
 }
 
+// ExportDocument 导出文档为文件流 POST /wiki/documents/{id}/export
 func (h *WikiHandlerExtended) ExportDocument(w http.ResponseWriter, r *http.Request) {
 	var req dto.ExportDocumentReq
 	if !validator.ValidateJSON(w, r, &req) {
@@ -469,6 +506,7 @@ func (h *WikiHandlerExtended) ExportDocument(w http.ResponseWriter, r *http.Requ
 	w.Write(content)
 }
 
+// ImportDocument 上传文件导入为新修订 POST /wiki/documents/{id}/import（multipart）
 func (h *WikiHandlerExtended) ImportDocument(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(32 << 20) // 32MB
 
@@ -511,6 +549,7 @@ func (h *WikiHandlerExtended) ImportDocument(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+// SubmitForReview 提交文档进入审核 POST /wiki/documents/{id}/submit-review
 func (h *WikiHandlerExtended) SubmitForReview(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 	var req dto.SubmitForReviewReq
@@ -526,6 +565,7 @@ func (h *WikiHandlerExtended) SubmitForReview(w http.ResponseWriter, r *http.Req
 	response.Success(w, resp)
 }
 
+// ApproveDocument 审核通过文档 POST /wiki/documents/{id}/approve
 func (h *WikiHandlerExtended) ApproveDocument(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 	var req dto.ReviewActionReq
@@ -541,6 +581,7 @@ func (h *WikiHandlerExtended) ApproveDocument(w http.ResponseWriter, r *http.Req
 	response.Success(w, resp)
 }
 
+// RejectDocument 驳回文档审核 POST /wiki/documents/{id}/reject
 func (h *WikiHandlerExtended) RejectDocument(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 	var req dto.ReviewActionReq
@@ -556,6 +597,7 @@ func (h *WikiHandlerExtended) RejectDocument(w http.ResponseWriter, r *http.Requ
 	response.Success(w, resp)
 }
 
+// PublishDocument 直接发布文档 POST /wiki/documents/{id}/publish
 func (h *WikiHandlerExtended) PublishDocument(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 
@@ -567,6 +609,7 @@ func (h *WikiHandlerExtended) PublishDocument(w http.ResponseWriter, r *http.Req
 	response.Success(w, resp)
 }
 
+// UnpublishDocument 取消发布文档 POST /wiki/documents/{id}/unpublish
 func (h *WikiHandlerExtended) UnpublishDocument(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 
@@ -578,6 +621,7 @@ func (h *WikiHandlerExtended) UnpublishDocument(w http.ResponseWriter, r *http.R
 	response.Success(w, resp)
 }
 
+// ArchiveDocument 归档文档 POST /wiki/documents/{id}/archive
 func (h *WikiHandlerExtended) ArchiveDocument(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 
@@ -589,6 +633,7 @@ func (h *WikiHandlerExtended) ArchiveDocument(w http.ResponseWriter, r *http.Req
 	response.Success(w, resp)
 }
 
+// ListReviewComments 列出文档审核评论 GET /wiki/documents/{id}/review-comments
 func (h *WikiHandlerExtended) ListReviewComments(w http.ResponseWriter, r *http.Request) {
 	documentID := chi.URLParam(r, "id")
 
@@ -600,6 +645,7 @@ func (h *WikiHandlerExtended) ListReviewComments(w http.ResponseWriter, r *http.
 	response.Success(w, resp)
 }
 
+// ListPendingReviews 分页列出待审核文档 GET /wiki/pending-reviews
 func (h *WikiHandlerExtended) ListPendingReviews(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
@@ -616,13 +662,14 @@ func (h *WikiHandlerExtended) ListPendingReviews(w http.ResponseWriter, r *http.
 		return
 	}
 	response.Success(w, map[string]interface{}{
-		"items": resp,
-		"total": total,
-		"page":  page,
+		"items":     resp,
+		"total":     total,
+		"page":      page,
 		"page_size": pageSize,
 	})
 }
 
+// RegisterExtendedRoutes 将扩展接口挂载到 /wiki 路由分组（需登录，免登录分享已单独注册）。
 func (h *WikiHandlerExtended) RegisterExtendedRoutes(r chi.Router) {
 	r.Route("/wiki", func(r chi.Router) {
 		// 注意：免登录分享 GET /wiki/share/{token} 已在公开分组注册（见 public_routes.go），

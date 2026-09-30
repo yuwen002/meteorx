@@ -1,3 +1,4 @@
+// Command migrate 一次性执行数据库自动迁移与种子数据初始化。
 package main
 
 import (
@@ -8,6 +9,7 @@ import (
 	"meteorx/pkg/logger"
 )
 
+// main 初始化日志与配置、连接数据库，执行迁移与种子数据后退出。
 func main() {
 	if err := logger.Init(logger.DefaultConfig()); err != nil {
 		panic(fmt.Sprintf("Failed to initialize logger: %v", err))

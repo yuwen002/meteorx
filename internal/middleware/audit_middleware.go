@@ -36,6 +36,7 @@ func newResponseRecorder(w http.ResponseWriter) *responseRecorder {
 	}
 }
 
+// WriteHeader 记录首次写入的响应状态码并透传给底层 ResponseWriter。
 func (rr *responseRecorder) WriteHeader(code int) {
 	if !rr.wroteHeader {
 		rr.statusCode = code
@@ -44,6 +45,7 @@ func (rr *responseRecorder) WriteHeader(code int) {
 	}
 }
 
+// Write 将响应体副本缓存以供审计记录，同时透传给底层 ResponseWriter。
 func (rr *responseRecorder) Write(b []byte) (int, error) {
 	rr.body.Write(b)
 	return rr.ResponseWriter.Write(b)

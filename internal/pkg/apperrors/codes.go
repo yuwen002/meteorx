@@ -4,6 +4,7 @@ import (
 	"net/http"
 )
 
+// ErrorCode 业务错误码（字符串枚举），按模块前缀分段。
 type ErrorCode string
 
 const (
@@ -39,13 +40,13 @@ const (
 	ErrWikiNodeTypeInvalid ErrorCode = "WIKI_NODE_TYPE_INVALID"
 
 	// Notification errors (5xxxx)
-	ErrAnnouncementNotFound       ErrorCode = "ANNOUNCEMENT_NOT_FOUND"
+	ErrAnnouncementNotFound         ErrorCode = "ANNOUNCEMENT_NOT_FOUND"
 	ErrAnnouncementAlreadyPublished ErrorCode = "ANNOUNCEMENT_ALREADY_PUBLISHED"
-	ErrAnnouncementAccessDenied   ErrorCode = "ANNOUNCEMENT_ACCESS_DENIED"
+	ErrAnnouncementAccessDenied     ErrorCode = "ANNOUNCEMENT_ACCESS_DENIED"
 
 	// Cancel request errors (6xxxx)
-	ErrCancelRequestNotFound  ErrorCode = "CANCEL_REQUEST_NOT_FOUND"
-	ErrCancelRequestDuplicate ErrorCode = "CANCEL_REQUEST_DUPLICATE"
+	ErrCancelRequestNotFound   ErrorCode = "CANCEL_REQUEST_NOT_FOUND"
+	ErrCancelRequestDuplicate  ErrorCode = "CANCEL_REQUEST_DUPLICATE"
 	ErrCancelRequestNotPending ErrorCode = "CANCEL_REQUEST_NOT_PENDING"
 
 	// Dashboard errors (7xxxx)
@@ -59,6 +60,7 @@ const (
 	ErrRateLimited      ErrorCode = "RATE_LIMITED"
 )
 
+// MapToHTTPStatus 将业务错误码映射为对应的 HTTP 状态码。
 func MapToHTTPStatus(code ErrorCode) int {
 	switch code {
 	case ErrSessionExpired:

@@ -1,3 +1,4 @@
+// Package contextx 提供请求上下文存取工具，封装 UserID、TenantID、角色等信息在 context.Context 中的传递。
 package contextx
 
 import "context"
@@ -5,12 +6,12 @@ import "context"
 type contextKey string
 
 const (
-	UserIDKey      contextKey = "user_id"
-	TenantIDKey    contextKey = "tenant_id"
-	RolesKey       contextKey = "roles"
+	UserIDKey       contextKey = "user_id"
+	TenantIDKey     contextKey = "tenant_id"
+	RolesKey        contextKey = "roles"
 	AllowedPathsKey contextKey = "allowed_paths"
-	RequestIDKey   contextKey = "request_id"
-	TraceIDKey     contextKey = "trace_id"
+	RequestIDKey    contextKey = "request_id"
+	TraceIDKey      contextKey = "trace_id"
 )
 
 // SetVars 存入核心身份信息

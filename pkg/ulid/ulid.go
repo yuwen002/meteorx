@@ -1,3 +1,4 @@
+// Package ulid 提供Universally Unique Lexicographically Sortable Identifier 生成器。
 package ulid
 
 import (

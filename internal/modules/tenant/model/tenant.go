@@ -1,3 +1,4 @@
+// Package model 定义租户模块的领域模型，包括租户、注销申请和租户设置实体。
 package model
 
 import (

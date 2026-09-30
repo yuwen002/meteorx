@@ -1,3 +1,4 @@
+// Package user 提供用户管理模块，支持租户内用户 CRUD、系统管理员后台、密码策略和个人信息维护。
 package user
 
 import (

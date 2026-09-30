@@ -1,3 +1,4 @@
+// Package service 实现 Wiki 模块的业务逻辑，包括空间/节点/文档 CRUD、版本管理和权限控制。
 package service
 
 import (

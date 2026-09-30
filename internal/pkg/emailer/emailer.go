@@ -1,3 +1,4 @@
+// Package emailer 提供 SMTP 邮件发送功能，支持纯文本、HTML 及模板邮件，用于邀请/验证/通知等场景。
 package emailer
 
 import (
@@ -5,6 +6,7 @@ import (
 	"net/smtp"
 )
 
+// Emailer SMTP 邮件发送器，封装连接参数与 HTML 模板邮件的发送。
 type Emailer struct {
 	Host     string
 	Port     int
@@ -14,6 +16,7 @@ type Emailer struct {
 	FromName string
 }
 
+// NewEmailer 创建邮件发送器实例。
 func NewEmailer(host string, port int, username, password, from, fromName string) *Emailer {
 	return &Emailer{
 		Host:     host,
@@ -25,6 +28,7 @@ func NewEmailer(host string, port int, username, password, from, fromName string
 	}
 }
 
+// Send 以 HTML 格式向收件人发送一封邮件。
 func (e *Emailer) Send(to, subject, body string) error {
 	if e.Host == "" {
 		return fmt.Errorf("SMTP host not configured")
@@ -45,6 +49,7 @@ func (e *Emailer) Send(to, subject, body string) error {
 	return smtp.SendMail(addr, auth, e.From, []string{to}, []byte(msg))
 }
 
+// SendResetPasswordEmail 发送密码重置邮件。
 func (e *Emailer) SendResetPasswordEmail(to, resetLink, username string) error {
 	subject := "【MeteorX】密码重置请求"
 	body := fmt.Sprintf(`
@@ -83,6 +88,7 @@ func (e *Emailer) SendResetPasswordEmail(to, resetLink, username string) error {
 	return e.Send(to, subject, body)
 }
 
+// SendVerificationEmail 发送带验证码的邮箱验证邮件。
 func (e *Emailer) SendVerificationEmail(to, verificationCode, username string) error {
 	subject := "【MeteorX】邮箱验证"
 	body := fmt.Sprintf(`
@@ -115,6 +121,7 @@ func (e *Emailer) SendVerificationEmail(to, verificationCode, username string) e
 	return e.Send(to, subject, body)
 }
 
+// SendEmailVerificationLink 发送带验证链接的邮箱验证邮件。
 func (e *Emailer) SendEmailVerificationLink(to, verifyLink, username string) error {
 	subject := "【MeteorX】验证您的邮箱地址"
 	body := fmt.Sprintf(`
@@ -153,6 +160,7 @@ func (e *Emailer) SendEmailVerificationLink(to, verifyLink, username string) err
 	return e.Send(to, subject, body)
 }
 
+// SendInvitationEmail 发送加入租户的邀请邮件。
 func (e *Emailer) SendInvitationEmail(to, inviteLink, inviterName, tenantName string) error {
 	subject := fmt.Sprintf("【MeteorX】%s 邀请您加入 %s", inviterName, tenantName)
 	body := fmt.Sprintf(`

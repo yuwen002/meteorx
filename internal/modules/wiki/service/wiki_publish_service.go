@@ -17,8 +17,8 @@ var validTransitions = map[string]map[string]bool{
 	},
 	model.PublishStatusPendingReview: {
 		model.PublishStatusPublished: true,
-		model.PublishStatusRejected: true,
-		model.PublishStatusDraft:    true,
+		model.PublishStatusRejected:  true,
+		model.PublishStatusDraft:     true,
 	},
 	model.PublishStatusPublished: {
 		model.PublishStatusArchived: true,
@@ -41,6 +41,7 @@ func canTransition(from, to string) bool {
 	return allowed[to]
 }
 
+// SubmitForReview 将草稿文档提交进入审核状态，校验更新权限并可附带说明评论。
 func (s *wikiServiceExtended) SubmitForReview(ctx context.Context, documentID string, req *dto.SubmitForReviewReq) (*dto.DocumentPublishStatusResp, error) {
 	userID := contextx.GetUserID(ctx)
 
@@ -79,6 +80,7 @@ func (s *wikiServiceExtended) SubmitForReview(ctx context.Context, documentID st
 	}, nil
 }
 
+// ApproveDocument 审核通过文档（需 review 权限），状态流转为已发布并记录审核评论。
 func (s *wikiServiceExtended) ApproveDocument(ctx context.Context, documentID string, req *dto.ReviewActionReq) (*dto.DocumentPublishStatusResp, error) {
 	userID := contextx.GetUserID(ctx)
 
@@ -119,6 +121,7 @@ func (s *wikiServiceExtended) ApproveDocument(ctx context.Context, documentID st
 	}, nil
 }
 
+// RejectDocument 驳回文档审核（需 review 权限），状态流转为已驳回并记录审核评论。
 func (s *wikiServiceExtended) RejectDocument(ctx context.Context, documentID string, req *dto.ReviewActionReq) (*dto.DocumentPublishStatusResp, error) {
 	userID := contextx.GetUserID(ctx)
 
@@ -158,6 +161,7 @@ func (s *wikiServiceExtended) RejectDocument(ctx context.Context, documentID str
 	}, nil
 }
 
+// PublishDocument 直接发布文档（需 publish 权限），校验状态流转合法性并记录评论。
 func (s *wikiServiceExtended) PublishDocument(ctx context.Context, documentID string) (*dto.DocumentPublishStatusResp, error) {
 	userID := contextx.GetUserID(ctx)
 
@@ -197,6 +201,7 @@ func (s *wikiServiceExtended) PublishDocument(ctx context.Context, documentID st
 	}, nil
 }
 
+// UnpublishDocument 取消发布文档（需 publish 权限），状态回退为草稿。
 func (s *wikiServiceExtended) UnpublishDocument(ctx context.Context, documentID string) (*dto.DocumentPublishStatusResp, error) {
 	userID := contextx.GetUserID(ctx)
 
@@ -225,6 +230,7 @@ func (s *wikiServiceExtended) UnpublishDocument(ctx context.Context, documentID 
 	}, nil
 }
 
+// ArchiveDocument 归档已发布的文档（需 publish 权限），状态流转为已归档并记录评论。
 func (s *wikiServiceExtended) ArchiveDocument(ctx context.Context, documentID string) (*dto.DocumentPublishStatusResp, error) {
 	userID := contextx.GetUserID(ctx)
 
@@ -260,6 +266,7 @@ func (s *wikiServiceExtended) ArchiveDocument(ctx context.Context, documentID st
 	}, nil
 }
 
+// ListReviewComments 列出文档的审核评论记录（需 read 权限），附带审核人用户名。
 func (s *wikiServiceExtended) ListReviewComments(ctx context.Context, documentID string) ([]*dto.ReviewCommentResp, error) {
 	userID := contextx.GetUserID(ctx)
 	if err := s.CheckDocumentPermission(ctx, documentID, userID, "read"); err != nil {
@@ -295,6 +302,7 @@ func (s *wikiServiceExtended) ListReviewComments(ctx context.Context, documentID
 	return resps, nil
 }
 
+// ListPendingReviews 分页列出当前租户待审核的文档（含空间与提交时间信息）。
 func (s *wikiServiceExtended) ListPendingReviews(ctx context.Context, page, pageSize int) ([]*dto.ListPendingReviewsResp, int64, error) {
 	tenantID := contextx.GetTenantID(ctx)
 

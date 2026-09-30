@@ -86,8 +86,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { getInvitationList, createInvitation, cancelInvitation, resendInvitation, deleteInvitation, type InvitationItem } from '@/api/modules/invitation'
-import { getRoleList } from '@/api/modules/role'
+import { getInvitationList, createInvitation, cancelInvitation, resendInvitation, deleteInvitation, getAssignableRoles, type InvitationItem, type RoleOption } from '@/api/modules/invitation'
+import { toPageResult } from '@/types/pagination'
 
 const loading = ref(false)
 const list = ref<InvitationItem[]>([])
@@ -97,12 +97,11 @@ const pageSize = ref(10)
 const keyword = ref('')
 const statusFilter = ref('')
 
-const roleList = ref<{ id: string; name: string; code: string }[]>([])
+const roleList = ref<RoleOption[]>([])
 
 async function loadRoles() {
   try {
-    const data = await getRoleList({ page: 1, page_size: 100 })
-    roleList.value = data?.list || []
+    roleList.value = await getAssignableRoles() || []
   } catch (e) {
     console.error('加载角色失败', e)
   }
@@ -126,14 +125,15 @@ function statusTagType(status: string) {
 async function loadList() {
   loading.value = true
   try {
-    const data = await getInvitationList({
+    const raw = await getInvitationList({
       page: page.value,
       page_size: pageSize.value,
       keyword: keyword.value,
       status: statusFilter.value || undefined
     })
-    list.value = data?.list || []
-    total.value = data?.total || 0
+    const result = toPageResult<InvitationItem>(raw)
+    list.value = result.list
+    total.value = result.total
   } catch (e) {
     ElMessage.error('获取邀请列表失败')
   } finally {

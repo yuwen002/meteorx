@@ -32,6 +32,7 @@ type PlanPO struct {
 	DeletedAt   gorm.DeletedAt `gorm:"index;comment:'软删除时间'"`
 }
 
+// TableName 返回套餐表名 tenant_plans。
 func (PlanPO) TableName() string { return "tenant_plans" }
 
 // SubscriptionPO 租户订阅持久化模型
@@ -47,6 +48,7 @@ type SubscriptionPO struct {
 	DeletedAt gorm.DeletedAt `gorm:"index;comment:'软删除时间'"`
 }
 
+// TableName 返回订阅表名 tenant_subscriptions。
 func (SubscriptionPO) TableName() string { return "tenant_subscriptions" }
 
 // AutoMigrate 套餐模块数据库迁移
@@ -70,6 +72,7 @@ func strVal(s *string) string {
 	return *s
 }
 
+// toDomain 将套餐持久化模型转换为领域模型。
 func (p PlanPO) toDomain() *model.Plan {
 	plan := &model.Plan{
 		ID:          p.ID,
@@ -108,6 +111,7 @@ func (s SubscriptionPO) toDomain() *model.TenantSubscription {
 
 // ---------- PlanRepository 实现 ----------
 
+// planRepository PlanRepository 的 GORM 实现。
 type planRepository struct {
 	db *gorm.DB
 }
@@ -242,6 +246,7 @@ func (r *planRepository) CountByID(ctx context.Context, ids []string) (int64, er
 
 // ---------- SubscriptionRepository 实现 ----------
 
+// subscriptionRepository SubscriptionRepository 的 GORM 实现。
 type subscriptionRepository struct {
 	db *gorm.DB
 }
@@ -336,6 +341,7 @@ func (r *subscriptionRepository) CountByPlan(ctx context.Context, planID string)
 	return count, err
 }
 
+// ListActiveByPlans 批量统计多个套餐当前生效订阅数，返回 planID→数量 映射。
 func (r *subscriptionRepository) ListActiveByPlans(ctx context.Context, planIDs []string) (map[string]int64, error) {
 	result := make(map[string]int64)
 	if len(planIDs) == 0 {
@@ -360,6 +366,7 @@ func (r *subscriptionRepository) ListActiveByPlans(ctx context.Context, planIDs 
 	return result, nil
 }
 
+// ListActiveByTenants 批量查询多个租户当前生效的订阅列表。
 func (r *subscriptionRepository) ListActiveByTenants(ctx context.Context, tenantIDs []string) ([]*model.TenantSubscription, error) {
 	if len(tenantIDs) == 0 {
 		return nil, nil

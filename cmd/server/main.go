@@ -1,3 +1,4 @@
+// Command server 启动 MeteorX HTTP 服务；传入 migrate 参数则仅执行数据库迁移后退出。
 package main
 
 import (
@@ -8,6 +9,7 @@ import (
 	"meteorx/pkg/logger"
 )
 
+// main 程序入口：根据命令行参数选择启动服务或执行迁移。
 func main() {
 	// 支持命令行参数：go run ./cmd/server migrate 执行迁移后退出
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
@@ -17,6 +19,7 @@ func main() {
 	bootstrap.StartApp()
 }
 
+// runMigration 初始化日志与配置、连接数据库并执行自动迁移与种子数据。
 func runMigration() {
 	if err := logger.Init(logger.DefaultConfig()); err != nil {
 		panic(fmt.Sprintf("Failed to initialize logger: %v", err))

@@ -1,3 +1,4 @@
+// Package testutil 提供测试辅助工具，包括测试数据库初始化、通用断言和测试数据构造器。
 package testutil
 
 import (

@@ -1,3 +1,4 @@
+// Package model 定义审计模块的领域模型和实体结构。
 package model
 
 import "time"
@@ -72,6 +73,7 @@ type AuditLog struct {
 	CreatedAt    time.Time // 创建时间
 }
 
+// AuditLogStats 审计日志整体统计（总量/今日量/动作/模块/结果分布）。
 type AuditLogStats struct {
 	TotalCount  int64            `json:"total_count"`
 	TodayCount  int64            `json:"today_count"`
@@ -80,6 +82,7 @@ type AuditLogStats struct {
 	ResultStats map[string]int64 `json:"result_stats"`
 }
 
+// AuditTrendPoint 按日聚合的审计趋势数据点。
 type AuditTrendPoint struct {
 	Date    string `json:"date"`
 	Count   int64  `json:"count"`
@@ -87,6 +90,7 @@ type AuditTrendPoint struct {
 	Failure int64  `json:"failure"`
 }
 
+// AuditDashboardData 审计看板聚合数据，含统计、趋势与热门模块。
 type AuditDashboardData struct {
 	TotalCount  int64             `json:"total_count"`
 	TodayCount  int64             `json:"today_count"`
@@ -97,11 +101,13 @@ type AuditDashboardData struct {
 	TopModules  []ModuleCount     `json:"top_modules"`
 }
 
+// ModuleCount 模块及其对应的日志数量。
 type ModuleCount struct {
 	Module string `json:"module"`
 	Count  int64  `json:"count"`
 }
 
+// AuditLogQuery 审计日志列表查询条件。
 type AuditLogQuery struct {
 	UserID    string `form:"user_id"`
 	Username  string `form:"username"`
@@ -117,6 +123,7 @@ type AuditLogQuery struct {
 	PageSize  int    `form:"page_size"`
 }
 
+// TrendQuery 审计趋势查询条件（租户、天数、时间区间）。
 type TrendQuery struct {
 	TenantID  string `form:"tenant_id"`
 	Days      int    `form:"days"`
@@ -150,5 +157,5 @@ type AnomalyLog struct {
 const (
 	AnomalyTypeHighFailure = "high_failure_rate" // 高频失败
 	AnomalyTypeGeoAnomaly  = "geo_anomaly"       // 异地登录异常
-	AnomalyTypeBruteForce  = "brute_force"        // 暴力破解尝试
+	AnomalyTypeBruteForce  = "brute_force"       // 暴力破解尝试
 )

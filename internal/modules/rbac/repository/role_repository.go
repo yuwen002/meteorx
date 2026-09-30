@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// RolePO 角色持久化对象，映射 roles 表（含软删除与租户/作用域字段）。
 type RolePO struct {
 	ID          string         `gorm:"primaryKey;size:26;comment:角色ID"`
 	Name        string         `gorm:"size:50;not null;comment:角色名称"`
@@ -23,10 +24,12 @@ type RolePO struct {
 	DeletedAt   gorm.DeletedAt `gorm:"index;comment:软删除时间"`
 }
 
+// TableName 返回角色表名 roles。
 func (RolePO) TableName() string {
 	return "roles"
 }
 
+// toDomain 将持久化对象转换为领域模型 model.Role。
 func (record RolePO) toDomain() *model.Role {
 	role := &model.Role{
 		ID:          record.ID,
@@ -46,14 +49,17 @@ func (record RolePO) toDomain() *model.Role {
 	return role
 }
 
+// roleRepository RoleRepository 的 GORM 实现。
 type roleRepository struct {
 	db *gorm.DB
 }
 
+// NewRoleRepository 创建角色仓储实例。
 func NewRoleRepository(db *gorm.DB) RoleRepository {
 	return &roleRepository{db: db}
 }
 
+// Create 新建角色记录。
 func (r *roleRepository) Create(ctx context.Context, role *model.Role) error {
 	record := RolePO{
 		ID:          role.ID,
@@ -68,6 +74,7 @@ func (r *roleRepository) Create(ctx context.Context, role *model.Role) error {
 	return r.db.WithContext(ctx).Create(&record).Error
 }
 
+// GetByID 按主键查询角色。
 func (r *roleRepository) GetByID(ctx context.Context, id string) (*model.Role, error) {
 	var record RolePO
 	if err := r.db.WithContext(ctx).First(&record, "id = ?", id).Error; err != nil {
@@ -76,6 +83,7 @@ func (r *roleRepository) GetByID(ctx context.Context, id string) (*model.Role, e
 	return record.toDomain(), nil
 }
 
+// GetByCode 按角色编码查询，传入 tenantID 时限定租户范围。
 func (r *roleRepository) GetByCode(ctx context.Context, tenantID, code string) (*model.Role, error) {
 	var record RolePO
 	query := r.db.WithContext(ctx).Where("code = ?", code)
@@ -88,6 +96,7 @@ func (r *roleRepository) GetByCode(ctx context.Context, tenantID, code string) (
 	return record.toDomain(), nil
 }
 
+// List 分页查询角色列表，支持按租户过滤与名称/编码关键词搜索。
 func (r *roleRepository) List(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*model.Role, int64, error) {
 	var total int64
 	query := r.db.WithContext(ctx).Model(&RolePO{})
@@ -165,6 +174,7 @@ func (r *roleRepository) ListSystemAdminRoles(ctx context.Context) ([]*model.Rol
 	return roles, nil
 }
 
+// Update 更新角色的名称/编码/描述/作用域/状态等字段。
 func (r *roleRepository) Update(ctx context.Context, role *model.Role) error {
 	return r.db.WithContext(ctx).Model(&RolePO{}).Where("id = ?", role.ID).Updates(map[string]interface{}{
 		"name":        role.Name,
@@ -208,6 +218,7 @@ func (r *roleRepository) BatchUpdateStatus(ctx context.Context, ids []string, st
 	return result.RowsAffected, nil
 }
 
+// Delete 软删除单个角色。
 func (r *roleRepository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&RolePO{}, "id = ?", id).Error
 }

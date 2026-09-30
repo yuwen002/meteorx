@@ -21,8 +21,10 @@ func NewWSNotifier(hub *ws.Hub) *WSNotifier {
 	return &WSNotifier{hub: hub}
 }
 
+// Type 返回 WebSocket 渠道类型。
 func (n *WSNotifier) Type() ChannelType { return ChannelWebSocket }
 
+// Name 返回渠道名称。
 func (n *WSNotifier) Name() string { return "websocket" }
 
 // Send 发送 WebSocket 通知

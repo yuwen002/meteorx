@@ -24,6 +24,7 @@ type InvitationHandler struct {
 	svc service.InvitationServiceInterface // 邀请业务服务
 }
 
+// NewInvitationHandler 创建邀请模块 HTTP 处理器实例。
 func NewInvitationHandler(svc service.InvitationServiceInterface) *InvitationHandler {
 	return &InvitationHandler{svc: svc}
 }
@@ -217,6 +218,17 @@ func (h *InvitationHandler) GetByToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, toResp(inv))
+}
+
+// AssignableRoles 获取可分配角色列表（不分页）。GET /api/v1/admin/invitations/roles
+// 供邀请页面下拉选择，返回 scope=tenant/all 的启用角色。
+func (h *InvitationHandler) AssignableRoles(w http.ResponseWriter, r *http.Request) {
+	roles, err := h.svc.ListAssignableRoles(r.Context())
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取可分配角色失败")
+		return
+	}
+	response.Success(w, roles)
 }
 
 func toResp(inv *model.Invitation) *dto.InvitationResp {

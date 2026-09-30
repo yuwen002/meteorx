@@ -1,3 +1,4 @@
+// Package file 提供文件管理模块，支持上传、下载、存储抽象和本地/云存储后端切换。
 package file
 
 import (

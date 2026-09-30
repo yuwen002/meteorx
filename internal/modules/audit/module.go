@@ -1,3 +1,4 @@
+// Package audit 提供审计日志模块，记录用户操作轨迹、异常检测、告警规则和会话分析。
 package audit
 
 import (

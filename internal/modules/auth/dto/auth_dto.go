@@ -1,3 +1,4 @@
+// Package dto 定义认证模块的请求与响应数据结构。
 package dto
 
 import userdto "meteorx/internal/modules/user/dto"
@@ -8,6 +9,8 @@ type LoginReq struct {
 	Username string `json:"username" validate:"required" label:"用户名"`
 	Password string `json:"password" validate:"required" label:"密码"`
 }
+
+// RegisterUserReq 新用户注册请求
 type RegisterUserReq struct {
 	TenantID string `json:"tenant_id" validate:"required" label:"租户ID"`
 	Username string `json:"username" validate:"required,username,min=4,max=20" label:"用户名"`
@@ -36,10 +39,12 @@ type ForgotPasswordReq struct {
 	Email string `json:"email" validate:"required,email" label:"邮箱"`
 }
 
+// ForgotPasswordResp 忘记密码处理响应
 type ForgotPasswordResp struct {
 	Message string `json:"message"`
 }
 
+// ResetPasswordReq 重置密码请求（携重置令牌与新密码）
 type ResetPasswordReq struct {
 	Token       string `json:"token" validate:"required" label:"重置令牌"`
 	NewPassword string `json:"new_password" validate:"required,min=8,max=32" label:"新密码"`

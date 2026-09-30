@@ -1,3 +1,4 @@
+// Package jwt 提供 JWT 令牌的签发、解析和校验功能，支持 Access Token 和 Refresh Token。
 package jwt
 
 import (
@@ -9,6 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// TokenHelper JWT 签发与解析助手，封装密钥、过期时长与签发者。
 type TokenHelper struct {
 	secret     []byte
 	expiration time.Duration

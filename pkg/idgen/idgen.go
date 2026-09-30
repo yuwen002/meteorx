@@ -1,3 +1,4 @@
+// Package idgen 提供分布式唯一 ID 生成工具，支持 ULID（有序）和 UUID（随机）两种策略。
 package idgen
 
 import (

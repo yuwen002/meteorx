@@ -23,10 +23,12 @@ type AlertService interface {
 	GetAlertStats(ctx context.Context, days int) (*model.AlertStats, error)
 }
 
+// AlertHandler 告警 HTTP 处理器，提供告警规则与告警记录的管理接口。
 type AlertHandler struct {
 	alertSvc AlertService
 }
 
+// NewAlertHandler 创建告警处理器实例。
 func NewAlertHandler(alertSvc AlertService) *AlertHandler {
 	return &AlertHandler{alertSvc: alertSvc}
 }

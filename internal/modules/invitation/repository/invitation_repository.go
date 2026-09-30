@@ -10,24 +10,27 @@ import (
 	"gorm.io/gorm"
 )
 
+// InvitationPO 邀请持久化对象，映射 invitations 表（令牌唯一）。
 type InvitationPO struct {
-	ID         string         `gorm:"primaryKey;size:26;comment:邀请ID"`
-	TenantID   string         `gorm:"index;size:26;not null;comment:租户ID"`
-	Email      string         `gorm:"size:100;not null;index;comment:被邀请邮箱"`
-	Token      string         `gorm:"size:64;uniqueIndex;not null;comment:邀请令牌"`
-	RoleIDs    string         `gorm:"type:text;comment:角色ID列表(JSON数组)"`
-	Status     string         `gorm:"size:20;default:pending;index;comment:状态"`
-	InvitedBy  string         `gorm:"size:26;not null;comment:邀请人ID"`
-	ExpiresAt  time.Time      `gorm:"not null;comment:过期时间"`
-	AcceptedAt *time.Time     `gorm:"comment:接受时间"`
-	CreatedAt  time.Time      `gorm:"autoCreateTime;comment:创建时间"`
-	UpdatedAt  time.Time      `gorm:"autoUpdateTime;comment:更新时间"`
+	ID         string     `gorm:"primaryKey;size:26;comment:邀请ID"`
+	TenantID   string     `gorm:"index;size:26;not null;comment:租户ID"`
+	Email      string     `gorm:"size:100;not null;index;comment:被邀请邮箱"`
+	Token      string     `gorm:"size:64;uniqueIndex;not null;comment:邀请令牌"`
+	RoleIDs    string     `gorm:"type:text;comment:角色ID列表(JSON数组)"`
+	Status     string     `gorm:"size:20;default:pending;index;comment:状态"`
+	InvitedBy  string     `gorm:"size:26;not null;comment:邀请人ID"`
+	ExpiresAt  time.Time  `gorm:"not null;comment:过期时间"`
+	AcceptedAt *time.Time `gorm:"comment:接受时间"`
+	CreatedAt  time.Time  `gorm:"autoCreateTime;comment:创建时间"`
+	UpdatedAt  time.Time  `gorm:"autoUpdateTime;comment:更新时间"`
 }
 
+// TableName 返回邀请表名 invitations。
 func (InvitationPO) TableName() string {
 	return "invitations"
 }
 
+// toDomain 将持久化对象转换为领域模型 model.Invitation。
 func (record InvitationPO) toDomain() *model.Invitation {
 	inv := &model.Invitation{
 		ID:        record.ID,
@@ -47,18 +50,22 @@ func (record InvitationPO) toDomain() *model.Invitation {
 	return inv
 }
 
+// invitationRepository InvitationRepository 的 GORM 实现。
 type invitationRepository struct {
 	db *gorm.DB
 }
 
+// NewInvitationRepository 创建邀请仓储实例。
 func NewInvitationRepository(db *gorm.DB) InvitationRepository {
 	return &invitationRepository{db: db}
 }
 
+// AutoMigrate 自动迁移邀请表结构。
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&InvitationPO{})
 }
 
+// Create 新建邀请记录。
 func (r *invitationRepository) Create(ctx context.Context, inv *model.Invitation) error {
 	record := InvitationPO{
 		ID:        inv.ID,
@@ -76,6 +83,7 @@ func (r *invitationRepository) Create(ctx context.Context, inv *model.Invitation
 	return r.db.WithContext(ctx).Create(&record).Error
 }
 
+// GetByToken 按邀请令牌查询邀请。
 func (r *invitationRepository) GetByToken(ctx context.Context, token string) (*model.Invitation, error) {
 	var record InvitationPO
 	err := r.db.WithContext(ctx).Where("token = ?", token).First(&record).Error
@@ -85,6 +93,7 @@ func (r *invitationRepository) GetByToken(ctx context.Context, token string) (*m
 	return record.toDomain(), nil
 }
 
+// GetByID 按主键查询邀请。
 func (r *invitationRepository) GetByID(ctx context.Context, id string) (*model.Invitation, error) {
 	var record InvitationPO
 	err := r.db.WithContext(ctx).Where("id = ?", id).First(&record).Error
@@ -94,6 +103,7 @@ func (r *invitationRepository) GetByID(ctx context.Context, id string) (*model.I
 	return record.toDomain(), nil
 }
 
+// ListByTenant 分页查询租户邀请列表，支持按邮箱关键词与状态筛选。
 func (r *invitationRepository) ListByTenant(ctx context.Context, tenantID string, page, pageSize int, keyword, status string) ([]*model.Invitation, int64, error) {
 	var records []InvitationPO
 	var total int64
@@ -127,6 +137,7 @@ func (r *invitationRepository) ListByTenant(ctx context.Context, tenantID string
 	return invs, total, nil
 }
 
+// UpdateStatus 更新邀请状态，置为 accepted 时同时记录接受时间。
 func (r *invitationRepository) UpdateStatus(ctx context.Context, id, status string) error {
 	updates := map[string]interface{}{
 		"status":     status,
@@ -138,10 +149,12 @@ func (r *invitationRepository) UpdateStatus(ctx context.Context, id, status stri
 	return r.db.WithContext(ctx).Model(&InvitationPO{}).Where("id = ?", id).Updates(updates).Error
 }
 
+// Delete 删除邀请记录。
 func (r *invitationRepository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&InvitationPO{}, "id = ?", id).Error
 }
 
+// CountPendingByTenant 统计租户下待处理（pending）邀请数量。
 func (r *invitationRepository) CountPendingByTenant(ctx context.Context, tenantID string) (int64, error) {
 	var total int64
 	err := r.db.WithContext(ctx).Model(&InvitationPO{}).
@@ -150,6 +163,7 @@ func (r *invitationRepository) CountPendingByTenant(ctx context.Context, tenantI
 	return total, err
 }
 
+// FindByEmailAndTenant 查询租户内指定邮箱的待处理邀请（用于重复邀请校验）。
 func (r *invitationRepository) FindByEmailAndTenant(ctx context.Context, email, tenantID string) (*model.Invitation, error) {
 	var record InvitationPO
 	err := r.db.WithContext(ctx).

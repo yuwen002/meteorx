@@ -1,5 +1,6 @@
 package dto
 
+// TenantSettingsResp 租户设置响应
 type TenantSettingsResp struct {
 	ID           string `json:"id"`
 	TenantID     string `json:"tenant_id"`
@@ -20,6 +21,7 @@ type TenantSettingsResp struct {
 	UpdatedAt    string `json:"updated_at"`
 }
 
+// UpdateTenantSettingsReq 更新租户设置请求（均为可选字段）
 type UpdateTenantSettingsReq struct {
 	Logo         string `json:"logo"`
 	Favicon      string `json:"favicon"`
@@ -36,6 +38,7 @@ type UpdateTenantSettingsReq struct {
 	Extra        string `json:"extra"`
 }
 
+// ToSettings 将更新请求转换为租户设置响应，并填充目标租户ID
 func (s *UpdateTenantSettingsReq) ToSettings(tenantID string) *TenantSettingsResp {
 	return &TenantSettingsResp{
 		TenantID:     tenantID,

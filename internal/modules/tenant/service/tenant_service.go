@@ -1,3 +1,4 @@
+// Package service 实现租户模块的业务逻辑，包括租户 CRUD、注销审批和状态管理。
 package service
 
 import (
@@ -35,6 +36,7 @@ type TenantPlanProvider interface {
 	GetTenantPlansBrief(ctx context.Context, tenantIDs []string) (map[string]*planDto.TenantPlanBrief, error)
 }
 
+// TenantService 租户模块业务服务，编排租户/管理员创建、状态变更与注销流程。
 type TenantService struct {
 	repo               repository.TenantRepository
 	userRepo           userRepo.UserRepository
@@ -44,6 +46,7 @@ type TenantService struct {
 	subRepo            planRepo.SubscriptionRepository
 }
 
+// NewTenantService 创建租户服务实例。
 func NewTenantService(
 	repo repository.TenantRepository,
 	userRepo userRepo.UserRepository,
@@ -670,6 +673,7 @@ func toCancelRequestResp(c *tenantModel.CancelRequest) *dto.CancelRequestResp {
 	return resp
 }
 
+// cancelRequestStatusText 将注销申请状态码映射为中文文案。
 func cancelRequestStatusText(status int) string {
 	switch status {
 	case tenantModel.CancelRequestStatusPending:

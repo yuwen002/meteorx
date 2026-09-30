@@ -1,3 +1,4 @@
+// Package rbac 提供基于角色的访问控制模块，管理角色、权限、角色-权限绑定及用户-角色分配。
 package rbac
 
 import (

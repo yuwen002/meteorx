@@ -1,3 +1,4 @@
+// Package repository 定义用户模块的数据访问接口和 GORM 实现。
 package repository
 
 import (
@@ -5,6 +6,7 @@ import (
 	"meteorx/internal/modules/user/model"
 )
 
+// UserRepository 用户数据访问接口，覆盖用户及系统管理员的增删改查、状态/回收站与批量操作。
 type UserRepository interface {
 	// Create 创建用户
 	Create(ctx context.Context, user *model.User) error

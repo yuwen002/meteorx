@@ -1,3 +1,4 @@
+// Package config 定义应用配置结构体及加载逻辑，支持 YAML、环境变量和默认值三层合并。
 package config
 
 import (
@@ -5,6 +6,7 @@ import (
 	"time"
 )
 
+// Config 应用总配置，聚合各子模块配置项。
 type Config struct {
 	Server     ServerConfig     `mapstructure:"server"`
 	Database   DatabaseConfig   `mapstructure:"database"`
@@ -39,8 +41,8 @@ type SearchConfig struct {
 
 // WSConfig WebSocket 配置
 type WSConfig struct {
-	Enabled      bool `mapstructure:"enabled"`
-	MaxConnPerUser int `mapstructure:"max_conn_per_user"`
+	Enabled        bool `mapstructure:"enabled"`
+	MaxConnPerUser int  `mapstructure:"max_conn_per_user"`
 }
 
 // NotifyConfig 多渠道通知配置
@@ -51,20 +53,20 @@ type NotifyConfig struct {
 
 // WebhookNotifyConfig Webhook 通知配置
 type WebhookNotifyConfig struct {
-	Enabled  bool   `mapstructure:"enabled"`
-	Kind     string `mapstructure:"kind"`     // generic / dingtalk / wechat / feishu
-	URL      string `mapstructure:"url"`      // Webhook URL
-	Secret   string `mapstructure:"secret"`   // 签名密钥
+	Enabled  bool     `mapstructure:"enabled"`
+	Kind     string   `mapstructure:"kind"`      // generic / dingtalk / wechat / feishu
+	URL      string   `mapstructure:"url"`       // Webhook URL
+	Secret   string   `mapstructure:"secret"`    // 签名密钥
 	OnEvents []string `mapstructure:"on_events"` // 触发事件列表：announcement/alert/cancel_request/subscription_expiry
 }
 
 // OTelConfig OpenTelemetry 可观测性配置
 type OTelConfig struct {
 	Enabled        bool    `mapstructure:"enabled"`
-	Exporter       string  `mapstructure:"exporter"`        // stdout / otlp
-	Endpoint       string  `mapstructure:"endpoint"`        // OTLP gRPC 端点（exporter=otlp 时生效）
-	Insecure       bool    `mapstructure:"insecure"`        // 跳过 TLS（开发环境）
-	SampleRate     float64 `mapstructure:"sample_rate"`     // Trace 采样率 0.0~1.0
+	Exporter       string  `mapstructure:"exporter"`    // stdout / otlp
+	Endpoint       string  `mapstructure:"endpoint"`    // OTLP gRPC 端点（exporter=otlp 时生效）
+	Insecure       bool    `mapstructure:"insecure"`    // 跳过 TLS（开发环境）
+	SampleRate     float64 `mapstructure:"sample_rate"` // Trace 采样率 0.0~1.0
 	ServiceName    string  `mapstructure:"service_name"`
 	ServiceVersion string  `mapstructure:"service_version"`
 }
@@ -73,8 +75,8 @@ type OTelConfig struct {
 type OAuthConfig struct {
 	Google          OAuthProviderConfig `mapstructure:"google"`
 	GitHub          OAuthProviderConfig `mapstructure:"github"`
-	RefreshTokenTTL time.Duration      `mapstructure:"refresh_token_ttl"`
-	StateTTL        time.Duration      `mapstructure:"state_ttl"`
+	RefreshTokenTTL time.Duration       `mapstructure:"refresh_token_ttl"`
+	StateTTL        time.Duration       `mapstructure:"state_ttl"`
 }
 
 // GetRefreshTokenTTL 返回刷新令牌有效期，未配置时默认 7 天
@@ -108,18 +110,20 @@ func (c AuthConfig) GetAPITokenMaxTTL() time.Duration {
 
 // OAuthProviderConfig OAuth2 提供商配置
 type OAuthProviderConfig struct {
-	Enabled     bool   `mapstructure:"enabled"`
-	ClientID    string `mapstructure:"client_id"`
+	Enabled      bool   `mapstructure:"enabled"`
+	ClientID     string `mapstructure:"client_id"`
 	ClientSecret string `mapstructure:"client_secret"`
-	RedirectURL string `mapstructure:"redirect_url"`
+	RedirectURL  string `mapstructure:"redirect_url"`
 }
 
+// IPLocationConfig IP 归属地解析配置。
 type IPLocationConfig struct {
 	Provider string `mapstructure:"provider"` // 解析方式：http-api / ip2region
 	DBPath   string `mapstructure:"db_path"`  // ip2region.xdb 文件路径（仅 provider=ip2region 时需要）
 	Timeout  int    `mapstructure:"timeout"`  // HTTP API 超时时间（秒），默认 3
 }
 
+// EmailConfig SMTP 邮件发送配置。
 type EmailConfig struct {
 	Enabled  bool   `mapstructure:"enabled"`
 	Host     string `mapstructure:"host"`
@@ -130,12 +134,14 @@ type EmailConfig struct {
 	FromName string `mapstructure:"from_name"`
 }
 
+// ClientConfig 前端客户端配置（站点地址与跨域白名单）。
 type ClientConfig struct {
 	BaseURL string `mapstructure:"base_url"`
 	// AllowedOrigins 额外允许跨域访问的前端来源列表；为空时仅允许 BaseURL
 	AllowedOrigins []string `mapstructure:"allowed_origins"`
 }
 
+// ServerConfig HTTP 服务器配置。
 type ServerConfig struct {
 	Port int    `mapstructure:"port"`
 	Mode string `mapstructure:"mode"`
@@ -156,6 +162,7 @@ type DatabaseReplicaConfig struct {
 	Weight int `mapstructure:"weight"`
 }
 
+// DatabaseConfig 数据库连接配置，支持读写分离从库列表。
 type DatabaseConfig struct {
 	Driver   string `mapstructure:"driver"`
 	Host     string `mapstructure:"host"`
@@ -170,6 +177,7 @@ type DatabaseConfig struct {
 	Replicas []DatabaseReplicaConfig `mapstructure:"replicas"`
 }
 
+// RedisConfig Redis 连接配置。
 type RedisConfig struct {
 	Host     string `mapstructure:"host"`
 	Port     int    `mapstructure:"port"`
@@ -177,6 +185,7 @@ type RedisConfig struct {
 	DB       int    `mapstructure:"db"`
 }
 
+// JWTConfig JWT 令牌签发配置。
 type JWTConfig struct {
 	Secret     string `mapstructure:"secret"`
 	Expiration string `mapstructure:"expiration"`
@@ -192,17 +201,20 @@ func (j JWTConfig) GetExpiration() time.Duration {
 	return d
 }
 
+// LogConfig 日志输出配置。
 type LogConfig struct {
 	Level  string `mapstructure:"level"`
 	Format string `mapstructure:"format"`
 }
 
+// SecurityConfig 安全相关配置（登录锁定、密码策略、限流）。
 type SecurityConfig struct {
 	LoginLockout   LoginLockoutConfig   `mapstructure:"login_lockout"`
 	PasswordPolicy PasswordPolicyConfig `mapstructure:"password_policy"`
 	RateLimit      RateLimitConfig      `mapstructure:"rate_limit"`
 }
 
+// LoginLockoutConfig 登录失败锁定配置。
 type LoginLockoutConfig struct {
 	Enabled         bool          `mapstructure:"enabled"`
 	MaxAttempts     int           `mapstructure:"max_attempts"`
@@ -210,6 +222,7 @@ type LoginLockoutConfig struct {
 	ResetAfter      time.Duration `mapstructure:"reset_after"`
 }
 
+// PasswordPolicyConfig 密码强度策略配置。
 type PasswordPolicyConfig struct {
 	Enabled          bool `mapstructure:"enabled"`
 	MinLength        int  `mapstructure:"min_length"`
@@ -220,6 +233,7 @@ type PasswordPolicyConfig struct {
 	RequireSpecial   bool `mapstructure:"require_special"`
 }
 
+// RateLimitConfig 请求频率限制配置。
 type RateLimitConfig struct {
 	Enabled   bool          `mapstructure:"enabled"`
 	Requests  int           `mapstructure:"requests"`

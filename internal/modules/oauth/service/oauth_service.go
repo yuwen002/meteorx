@@ -1,3 +1,4 @@
+// Package service 实现 OAuth 模块的业务逻辑，处理授权码交换、用户信息获取和账号绑定。
 package service
 
 import (

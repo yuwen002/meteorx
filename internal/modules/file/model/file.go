@@ -1,3 +1,4 @@
+// Package model 定义文件模块的领域模型。
 package model
 
 import (

@@ -6,23 +6,28 @@ import (
 	"strings"
 )
 
+// MarkdownService 定义 Markdown 渲染与 HTML 净化的能力接口。
 type MarkdownService interface {
 	Render(markdown string) string
 	SanitizeHTML(html string) string
 	RenderAndSanitize(markdown string) string
 }
 
+// markdownService MarkdownService 的默认实现，基于正则做轻量级转换与清洗。
 type markdownService struct{}
 
+// NewMarkdownService 创建 Markdown 渲染服务实例。
 func NewMarkdownService() MarkdownService {
 	return &markdownService{}
 }
 
+// Render 将 Markdown 文本渲染为 HTML（不做净化）。
 func (s *markdownService) Render(markdown string) string {
 	html := s.basicMarkdownToHTML(markdown)
 	return html
 }
 
+// SanitizeHTML 移除脚本标签、事件处理器、危险协议及危险标签，防止 XSS 注入。
 func (s *markdownService) SanitizeHTML(inputHTML string) string {
 	sanitized := inputHTML
 
@@ -55,6 +60,7 @@ func (s *markdownService) SanitizeHTML(inputHTML string) string {
 	return sanitized
 }
 
+// RenderAndSanitize 先渲染 Markdown 再净化 HTML，返回安全可直接展示的片段。
 func (s *markdownService) RenderAndSanitize(markdown string) string {
 	rendered := s.Render(markdown)
 	return s.SanitizeHTML(rendered)

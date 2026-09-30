@@ -1,3 +1,4 @@
+// Package tenantctx 提供多租户上下文工具，支持租户级数据隔离和 Scope 查询过滤。
 package tenantctx
 
 import (
@@ -14,6 +15,7 @@ var (
 	ErrTenantAccessDenied = errors.New("cross-tenant access denied")
 )
 
+// TenantInfo 当前请求解析出的租户上下文信息。
 type TenantInfo struct {
 	ID       string
 	UserID   string
@@ -21,6 +23,7 @@ type TenantInfo struct {
 	Roles    []string
 }
 
+// From 从上下文提取租户信息，未携带租户时返回 ErrTenantNotFound。
 func From(ctx context.Context) (*TenantInfo, error) {
 	tenantID := contextx.GetTenantID(ctx)
 	if tenantID == "" {
@@ -40,6 +43,7 @@ func From(ctx context.Context) (*TenantInfo, error) {
 	}, nil
 }
 
+// RequireTenant 提取租户信息并强制要求存在有效租户 ID。
 func RequireTenant(ctx context.Context) (*TenantInfo, error) {
 	info, err := From(ctx)
 	if err != nil {
@@ -51,6 +55,7 @@ func RequireTenant(ctx context.Context) (*TenantInfo, error) {
 	return info, nil
 }
 
+// CanAccessTenant 判断当前主体是否有权访问目标租户（主管理员放行，其余仅限本租户）。
 func CanAccessTenant(ctx context.Context, targetTenantID string) bool {
 	info, err := From(ctx)
 	if err != nil {
@@ -62,6 +67,7 @@ func CanAccessTenant(ctx context.Context, targetTenantID string) bool {
 	return info.ID == targetTenantID
 }
 
+// FilterQuery 按租户边界为查询追加过滤条件（主管理员不追加，无上下文则恒为假）。
 func FilterQuery(ctx context.Context, query *gorm.DB, column string) *gorm.DB {
 	info, err := From(ctx)
 	if err != nil {

@@ -16,10 +16,12 @@ type UserRolePO struct {
 	CreatedAt time.Time `gorm:"autoCreateTime;comment:创建时间"`
 }
 
+// TableName 返回用户-角色关联表名 user_roles。
 func (UserRolePO) TableName() string {
 	return "user_roles"
 }
 
+// toDomain 将持久化对象转换为领域模型 model.UserRole。
 func (record UserRolePO) toDomain() *model.UserRole {
 	return &model.UserRole{
 		UserID:    record.UserID,
@@ -28,10 +30,12 @@ func (record UserRolePO) toDomain() *model.UserRole {
 	}
 }
 
+// userRoleRepository UserRoleRepository 的 GORM 实现。
 type userRoleRepository struct {
 	db *gorm.DB
 }
 
+// NewUserRoleRepository 创建用户-角色关联仓储实例。
 func NewUserRoleRepository(db *gorm.DB) UserRoleRepository {
 	return &userRoleRepository{db: db}
 }

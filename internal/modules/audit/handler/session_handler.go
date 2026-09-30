@@ -15,14 +15,17 @@ type SessionService interface {
 	ListSessions(ctx context.Context, page, pageSize int, userID string) ([]dto.SessionSummaryResp, int64, error)
 }
 
+// SessionHandler 会话分析 HTTP 处理器，提供会话列表与会话详情接口。
 type SessionHandler struct {
 	sessionSvc SessionService
 }
 
+// NewSessionHandler 创建会话分析处理器实例。
 func NewSessionHandler(sessionSvc SessionService) *SessionHandler {
 	return &SessionHandler{sessionSvc: sessionSvc}
 }
 
+// GetSessionLogs 获取指定会话的日志分析详情 GET /api/v1/audit/sessions/{id}
 func (h *SessionHandler) GetSessionLogs(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.PathValue("id")
 	if sessionID == "" {
@@ -39,6 +42,7 @@ func (h *SessionHandler) GetSessionLogs(w http.ResponseWriter, r *http.Request) 
 	response.Success(w, result)
 }
 
+// ListSessions 分页查询会话摘要列表 GET /api/v1/audit/sessions
 func (h *SessionHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 	pageStr := r.URL.Query().Get("page")
 	pageSizeStr := r.URL.Query().Get("page_size")

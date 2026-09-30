@@ -1,3 +1,4 @@
+// Package otel 提供 OpenTelemetry 可观测性集成，配置 Tracer/Meter 导出器并与 Chi 中间件配合实现链路追踪。
 package otel
 
 // Config OTel 可观测性配置

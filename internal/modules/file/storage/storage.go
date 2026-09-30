@@ -1,3 +1,4 @@
+// Package storage 定义文件存储抽象接口，支持本地磁盘和云存储等多种后端实现。
 package storage
 
 import (

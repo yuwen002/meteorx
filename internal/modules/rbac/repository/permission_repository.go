@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// PermissionPO 权限持久化对象，映射 permissions 表（编码唯一）。
 type PermissionPO struct {
 	ID          string    `gorm:"primaryKey;size:26;comment:权限ID"`
 	Name        string    `gorm:"size:50;not null;comment:权限名称"`
@@ -21,10 +22,12 @@ type PermissionPO struct {
 	UpdatedAt   time.Time `gorm:"autoUpdateTime;comment:更新时间"`
 }
 
+// TableName 返回权限表名 permissions。
 func (PermissionPO) TableName() string {
 	return "permissions"
 }
 
+// toDomain 将持久化对象转换为领域模型 model.Permission。
 func (record PermissionPO) toDomain() *model.Permission {
 	return &model.Permission{
 		ID:          record.ID,
@@ -39,14 +42,17 @@ func (record PermissionPO) toDomain() *model.Permission {
 	}
 }
 
+// permissionRepository PermissionRepository 的 GORM 实现。
 type permissionRepository struct {
 	db *gorm.DB
 }
 
+// NewPermissionRepository 创建权限仓储实例。
 func NewPermissionRepository(db *gorm.DB) PermissionRepository {
 	return &permissionRepository{db: db}
 }
 
+// Create 新建权限记录。
 func (r *permissionRepository) Create(ctx context.Context, permission *model.Permission) error {
 	record := PermissionPO{
 		ID:          permission.ID,
@@ -60,6 +66,7 @@ func (r *permissionRepository) Create(ctx context.Context, permission *model.Per
 	return r.db.WithContext(ctx).Create(&record).Error
 }
 
+// GetByID 按主键查询权限。
 func (r *permissionRepository) GetByID(ctx context.Context, id string) (*model.Permission, error) {
 	var record PermissionPO
 	if err := r.db.WithContext(ctx).First(&record, "id = ?", id).Error; err != nil {
@@ -68,6 +75,7 @@ func (r *permissionRepository) GetByID(ctx context.Context, id string) (*model.P
 	return record.toDomain(), nil
 }
 
+// GetByCode 按权限编码查询（全局唯一）。
 func (r *permissionRepository) GetByCode(ctx context.Context, code string) (*model.Permission, error) {
 	var record PermissionPO
 	if err := r.db.WithContext(ctx).Where("code = ?", code).First(&record).Error; err != nil {
@@ -76,6 +84,7 @@ func (r *permissionRepository) GetByCode(ctx context.Context, code string) (*mod
 	return record.toDomain(), nil
 }
 
+// List 分页查询权限列表，支持按资源类型过滤与名称/编码关键词搜索。
 func (r *permissionRepository) List(ctx context.Context, page, pageSize int, resource, keyword string) ([]*model.Permission, int64, error) {
 	var total int64
 	query := r.db.WithContext(ctx).Model(&PermissionPO{})
@@ -110,6 +119,7 @@ func (r *permissionRepository) List(ctx context.Context, page, pageSize int, res
 	return permissions, total, nil
 }
 
+// Update 更新权限的名称/编码/描述/资源/操作/状态字段。
 func (r *permissionRepository) Update(ctx context.Context, permission *model.Permission) error {
 	return r.db.WithContext(ctx).Model(&PermissionPO{}).Where("id = ?", permission.ID).Updates(map[string]interface{}{
 		"name":        permission.Name,
@@ -122,6 +132,7 @@ func (r *permissionRepository) Update(ctx context.Context, permission *model.Per
 	}).Error
 }
 
+// UpdateStatus 更新单个权限启用状态，权限不存在时报错。
 func (r *permissionRepository) UpdateStatus(ctx context.Context, id string, status int) error {
 	result := r.db.WithContext(ctx).Model(&PermissionPO{}).
 		Where("id = ?", id).
@@ -138,6 +149,7 @@ func (r *permissionRepository) UpdateStatus(ctx context.Context, id string, stat
 	return nil
 }
 
+// BatchUpdateStatus 批量更新权限状态，返回实际更新行数。
 func (r *permissionRepository) BatchUpdateStatus(ctx context.Context, ids []string, status int) (int64, error) {
 	result := r.db.WithContext(ctx).Model(&PermissionPO{}).
 		Where("id IN ?", ids).
@@ -151,10 +163,12 @@ func (r *permissionRepository) BatchUpdateStatus(ctx context.Context, ids []stri
 	return result.RowsAffected, nil
 }
 
+// Delete 删除单个权限。
 func (r *permissionRepository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&PermissionPO{}, "id = ?", id).Error
 }
 
+// BatchDelete 批量删除权限，返回实际删除行数。
 func (r *permissionRepository) BatchDelete(ctx context.Context, ids []string) (int64, error) {
 	result := r.db.WithContext(ctx).Model(&PermissionPO{}).
 		Where("id IN ?", ids).

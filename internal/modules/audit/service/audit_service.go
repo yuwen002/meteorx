@@ -1,3 +1,4 @@
+// Package service 实现审计模块的业务逻辑，包括日志记录、异常检测和告警规则管理。
 package service
 
 import (

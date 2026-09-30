@@ -1,3 +1,4 @@
+// Package dto 定义文件模块的请求与响应数据结构。
 package dto
 
 // UploadFileReq 文件上传请求

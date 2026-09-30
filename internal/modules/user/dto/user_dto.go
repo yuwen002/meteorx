@@ -1,3 +1,4 @@
+// Package dto 定义用户模块的请求与响应数据结构。
 package dto
 
 // UserListResp 用户列表分页响应

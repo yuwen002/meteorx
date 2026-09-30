@@ -34,6 +34,9 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// openapi_sync 是一个以 //go:build ignore 隔离的开发工具脚本：
+// 从代码构建出路由集合，与 docs/apifox 下的 OpenAPI、Apifox 文档对比，
+// 加 -apply 参数可自动补齐缺失路由、删除多余路由，保持文档与代码一致。
 func main() {
 	applyFlag := flag.Bool("apply", false, "自动修复文档（添加缺失路由 / 删除多余路由）")
 	flag.Parse()
@@ -44,11 +47,13 @@ func main() {
 	syncApifox(codeSet, *applyFlag)
 }
 
+// routeEntry 描述一条路由的方法与已归一化的路径。
 type routeEntry struct {
 	method  string
 	pattern string
 }
 
+// buildCodeRouteSet 遍历代码路由，构建 "METHOD /path" 到路由条目的集合。
 func buildCodeRouteSet() map[string]routeEntry {
 	r := buildRouter()
 	var entries []routeEntry
@@ -74,6 +79,7 @@ func buildCodeRouteSet() map[string]routeEntry {
 	return codeSet
 }
 
+// syncOpenAPI 对比代码路由与 OpenAPI 文档差异，apply 为 true 时将修复写回文件。
 func syncOpenAPI(codeSet map[string]routeEntry, apply bool) {
 	data, err := os.ReadFile("docs/apifox/MeteorX-backend.openapi.json")
 	if err != nil {
@@ -185,6 +191,7 @@ func syncOpenAPI(codeSet map[string]routeEntry, apply bool) {
 	}
 }
 
+// addMissingRoute 向 OpenAPI paths 中补充一条缺失路由的操作定义。
 func addMissingRoute(paths map[string]interface{}, method, pattern string) {
 	pathObj, exists := paths[pattern]
 	if !exists {
@@ -211,6 +218,7 @@ func addMissingRoute(paths map[string]interface{}, method, pattern string) {
 	methodsMap[methodLower] = op
 }
 
+// inferTags 根据路径前缀推断 OpenAPI 分组标签。
 func inferTags(pattern string) []string {
 	if strings.HasPrefix(pattern, "/health") || strings.HasPrefix(pattern, "/metrics") {
 		return []string{"System"}
@@ -248,6 +256,7 @@ func inferTags(pattern string) []string {
 	return []string{"API"}
 }
 
+// inferSummary 优先使用已知路由的中文摘要，否则根据方法与末段路径生成。
 func inferSummary(method, pattern string) string {
 	knownSummaries := map[string]string{
 		"GET /health":                                "健康检查",
@@ -291,6 +300,7 @@ func inferSummary(method, pattern string) string {
 	return m + last
 }
 
+// normalizePattern 统一路径参数占位符并去除末尾斜杠，用于跨文档比较。
 func normalizePattern(p string) string {
 	p = strings.ReplaceAll(p, "{param}", "{id}")
 	if len(p) > 1 && strings.HasSuffix(p, "/") {
@@ -299,6 +309,7 @@ func normalizePattern(p string) string {
 	return p
 }
 
+// buildRouter 组装与生产一致的路由树（ handler 均为 noop），供 chi.Walk 提取路由。
 func buildRouter() *chi.Mux {
 	r := chi.NewRouter()
 
@@ -343,6 +354,7 @@ func buildRouter() *chi.Mux {
 	return r
 }
 
+// registerFileRoutes 补充文件模块路由（实际由动态注册，此处仅用于路由提取）。
 func registerFileRoutes(r chi.Router) {
 	r.Route("/files", func(r chi.Router) {
 		r.Post("/upload", noop())
@@ -359,6 +371,7 @@ func registerFileRoutes(r chi.Router) {
 	})
 }
 
+// registerWikiRoutes 补充 Wiki 模块路由（实际由动态注册，此处仅用于路由提取）。
 func registerWikiRoutes(r chi.Router) {
 	r.Route("/wiki", func(r chi.Router) {
 		r.Get("/stats", noop())
@@ -446,6 +459,7 @@ func registerWikiRoutes(r chi.Router) {
 	})
 }
 
+// syncApifox 对比代码路由与 Apifox 文档差异，apply 为 true 时将修复写回文件。
 func syncApifox(codeSet map[string]routeEntry, apply bool) {
 	data, err := os.ReadFile("docs/apifox/MeteorX-backend.apifox.json")
 	if err != nil {
@@ -580,6 +594,7 @@ func syncApifox(codeSet map[string]routeEntry, apply bool) {
 	}
 }
 
+// findApifoxGroup 根据推断的分组名在 Apifox 集合中定位目标分组。
 func findApifoxGroup(collection []interface{}, pattern string) map[string]interface{} {
 	groupName := inferApifoxGroupName(pattern)
 
@@ -597,6 +612,7 @@ func findApifoxGroup(collection []interface{}, pattern string) map[string]interf
 	return nil
 }
 
+// inferApifoxGroupName 根据路径前缀推断 Apifox 中文分组名。
 func inferApifoxGroupName(pattern string) string {
 	if strings.HasPrefix(pattern, "/health") || strings.HasPrefix(pattern, "/metrics") {
 		return "系统"
@@ -667,13 +683,16 @@ func inferApifoxGroupName(pattern string) string {
 	return "认证"
 }
 
+// apifoxIDCounter 为新增 Apifox 条目递增生成唯一 ID。
 var apifoxIDCounter int64 = 900000000
 
+// nextApifoxID 返回下一个可用的 Apifox 条目 ID。
 func nextApifoxID() string {
 	apifoxIDCounter++
 	return fmt.Sprintf("%d", apifoxIDCounter)
 }
 
+// buildApifoxAPIItem 构造一条符合 Apifox 结构的 API 条目。
 func buildApifoxAPIItem(method, pattern string) map[string]interface{} {
 	methodLower := strings.ToLower(method)
 	tags := inferTags(pattern)
@@ -692,28 +711,28 @@ func buildApifoxAPIItem(method, pattern string) map[string]interface{} {
 	return map[string]interface{}{
 		"name": summary,
 		"api": map[string]interface{}{
-			"id":       apiID,
-			"method":   methodLower,
-			"path":     pattern,
+			"id":     apiID,
+			"method": methodLower,
+			"path":   pattern,
 			"parameters": map[string]interface{}{
 				"path":   []interface{}{},
 				"query":  []interface{}{},
 				"cookie": []interface{}{},
 				"header": []interface{}{},
 			},
-			"auth":            map[string]interface{}{},
-			"securityScheme":  map[string]interface{}{},
+			"auth":             map[string]interface{}{},
+			"securityScheme":   map[string]interface{}{},
 			"commonParameters": map[string]interface{}{},
 			"responses": []interface{}{
 				map[string]interface{}{
-					"id":          respID,
-					"code":        "200",
-					"headers":     []interface{}{},
-					"jsonSchema":  map[string]interface{}{"type": "object", "properties": map[string]interface{}{}},
-					"itemSchema":  map[string]interface{}{},
-					"description": "成功",
-					"contentType": "json",
-					"mediaType":   "application/json",
+					"id":            respID,
+					"code":          "200",
+					"headers":       []interface{}{},
+					"jsonSchema":    map[string]interface{}{"type": "object", "properties": map[string]interface{}{}},
+					"itemSchema":    map[string]interface{}{},
+					"description":   "成功",
+					"contentType":   "json",
+					"mediaType":     "application/json",
 					"oasExtensions": "",
 				},
 			},
@@ -727,13 +746,13 @@ func buildApifoxAPIItem(method, pattern string) map[string]interface{} {
 				"required":               true,
 				"additionalContentTypes": []interface{}{},
 			},
-			"description":  fmt.Sprintf("权限码: `%s`", perm),
-			"tags":         tagStrs,
-			"status":       "released",
-			"serverId":     "",
-			"operationId":  "",
-			"sourceUrl":    "",
-			"ordering":     100,
+			"description": fmt.Sprintf("权限码: `%s`", perm),
+			"tags":        tagStrs,
+			"status":      "released",
+			"serverId":    "",
+			"operationId": "",
+			"sourceUrl":   "",
+			"ordering":    100,
 			"cases": []interface{}{
 				map[string]interface{}{
 					"id":         caseID,
@@ -759,14 +778,14 @@ func buildApifoxAPIItem(method, pattern string) map[string]interface{} {
 					"advancedSettings": map[string]interface{}{
 						"disabledSystemHeaders": map[string]interface{}{},
 					},
-					"requestResult": nil,
-					"visibility":    "INHERITED",
-					"moduleId":      7675120,
-					"categoryId":    0,
-					"tagIds":        []interface{}{},
+					"requestResult":   nil,
+					"visibility":      "INHERITED",
+					"moduleId":        7675120,
+					"categoryId":      0,
+					"tagIds":          []interface{}{},
 					"apiTestDataList": []interface{}{},
-					"preProcessors":  []interface{}{},
-					"postProcessors": []interface{}{},
+					"preProcessors":   []interface{}{},
+					"postProcessors":  []interface{}{},
 					"inheritPostProcessors": map[string]interface{}{
 						"enable":        map[string]interface{}{},
 						"defaultEnable": map[string]interface{}{},
@@ -777,25 +796,26 @@ func buildApifoxAPIItem(method, pattern string) map[string]interface{} {
 					},
 				},
 			},
-			"mocks":              []interface{}{},
-			"customApiFields":    "{}",
-			"advancedSettings":   map[string]interface{}{"disabledSystemHeaders": map[string]interface{}{}},
-			"mockScript":         map[string]interface{}{},
-			"codeSamples":        []interface{}{},
-			"commonResponseStatus": map[string]interface{}{},
-			"responseChildren":   []interface{}{},
-			"visibility":         "INHERITED",
-			"moduleId":           7675120,
-			"oasExtensions":      "",
-			"type":               "http",
-			"preProcessors":      []interface{}{},
-			"postProcessors":     []interface{}{},
+			"mocks":                 []interface{}{},
+			"customApiFields":       "{}",
+			"advancedSettings":      map[string]interface{}{"disabledSystemHeaders": map[string]interface{}{}},
+			"mockScript":            map[string]interface{}{},
+			"codeSamples":           []interface{}{},
+			"commonResponseStatus":  map[string]interface{}{},
+			"responseChildren":      []interface{}{},
+			"visibility":            "INHERITED",
+			"moduleId":              7675120,
+			"oasExtensions":         "",
+			"type":                  "http",
+			"preProcessors":         []interface{}{},
+			"postProcessors":        []interface{}{},
 			"inheritPostProcessors": map[string]interface{}{},
 			"inheritPreProcessors":  map[string]interface{}{},
 		},
 	}
 }
 
+// removeApifoxRoute 从 Apifox 集合中递归删除匹配方法+路径的条目，返回是否删除成功。
 func removeApifoxRoute(collection []interface{}, method, pattern string) bool {
 	methodLower := strings.ToLower(method)
 	normalizedPath := normalizePattern(pattern)

@@ -1,3 +1,4 @@
+// Package repository 定义 Wiki 模块的数据访问接口和 GORM 实现。
 package repository
 
 import (
@@ -23,6 +24,7 @@ var (
 	ErrDocumentVersionConflict = errors.New("document version conflict")
 )
 
+// WikiRepository Wiki 模块数据访问接口，涵盖空间/节点/文档/版本/成员/节点权限/回收站/搜索/附件及统计。
 type WikiRepository interface {
 	CreateSpace(ctx context.Context, space *model.WikiSpace) error
 	GetSpaceByID(ctx context.Context, id string) (*model.WikiSpace, error)
@@ -97,10 +99,12 @@ type WikiRepository interface {
 	GetWikiStats(ctx context.Context, tenantID string) (*model.WikiStats, error)
 }
 
+// wikiRepository WikiRepository 的 GORM 实现，写操作均基于 getDB 自动继承事务。
 type wikiRepository struct {
 	db *gorm.DB
 }
 
+// NewWikiRepository 创建 Wiki 仓储实例。
 func NewWikiRepository(database *gorm.DB) WikiRepository {
 	return &wikiRepository{db: database}
 }
@@ -112,6 +116,7 @@ func (r *wikiRepository) getDB(ctx context.Context) *gorm.DB {
 	return db.GetDB(ctx, r.db).WithContext(ctx)
 }
 
+// AutoMigrate 自动迁移 Wiki 模块涉及的全部表结构。
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&model.WikiSpace{},
@@ -135,6 +140,7 @@ func AutoMigrate(db *gorm.DB) error {
 	)
 }
 
+// CreateSpace 新建知识空间，自动补齐 ID、租户ID与创建/更新时间。
 func (r *wikiRepository) CreateSpace(ctx context.Context, space *model.WikiSpace) error {
 	if space.ID == "" {
 		space.ID = idgen.New()
@@ -147,6 +153,7 @@ func (r *wikiRepository) CreateSpace(ctx context.Context, space *model.WikiSpace
 	return r.getDB(ctx).Create(space).Error
 }
 
+// GetSpaceByID 按主键查询知识空间（受租户隔离），不存在返回 ErrWikiSpaceNotFound。
 func (r *wikiRepository) GetSpaceByID(ctx context.Context, id string) (*model.WikiSpace, error) {
 	var space model.WikiSpace
 	query := tenantctx.FilterQuery(ctx, r.getDB(ctx), "tenant_id")
@@ -157,6 +164,7 @@ func (r *wikiRepository) GetSpaceByID(ctx context.Context, id string) (*model.Wi
 	return &space, err
 }
 
+// ListSpaces 分页查询租户下的知识空间，可按可见性/成员过滤并支持名称关键词搜索。
 func (r *wikiRepository) ListSpaces(ctx context.Context, tenantID string, userID string, keyword string, page, pageSize int) ([]*model.WikiSpace, int64, error) {
 	var spaces []*model.WikiSpace
 	var total int64
@@ -184,6 +192,7 @@ func (r *wikiRepository) ListSpaces(ctx context.Context, tenantID string, userID
 	return spaces, total, nil
 }
 
+// UpdateSpace 更新知识空间的基础信息，无匹配记录时返回 ErrWikiSpaceNotFound。
 func (r *wikiRepository) UpdateSpace(ctx context.Context, space *model.WikiSpace) error {
 	space.UpdatedAt = time.Now()
 	result := r.getDB(ctx).Model(&model.WikiSpace{}).Where("id = ?", space.ID).Updates(map[string]interface{}{
@@ -199,6 +208,7 @@ func (r *wikiRepository) UpdateSpace(ctx context.Context, space *model.WikiSpace
 	return result.Error
 }
 
+// DeleteSpace 软删除知识空间，无匹配记录时返回 ErrWikiSpaceNotFound。
 func (r *wikiRepository) DeleteSpace(ctx context.Context, id string) error {
 	result := r.getDB(ctx).Delete(&model.WikiSpace{}, "id = ?", id)
 	if result.RowsAffected == 0 {
@@ -207,6 +217,7 @@ func (r *wikiRepository) DeleteSpace(ctx context.Context, id string) error {
 	return result.Error
 }
 
+// CreateNode 新建 Wiki 节点，自动补齐 ID、租户ID与时间戳。
 func (r *wikiRepository) CreateNode(ctx context.Context, node *model.WikiNode) error {
 	if node.ID == "" {
 		node.ID = idgen.New()
@@ -219,6 +230,7 @@ func (r *wikiRepository) CreateNode(ctx context.Context, node *model.WikiNode) e
 	return r.getDB(ctx).Create(node).Error
 }
 
+// GetNodeByID 按主键查询节点（租户隔离），不存在返回 ErrWikiNodeNotFound。
 func (r *wikiRepository) GetNodeByID(ctx context.Context, id string) (*model.WikiNode, error) {
 	var node model.WikiNode
 	query := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
@@ -231,6 +243,7 @@ func (r *wikiRepository) GetNodeByID(ctx context.Context, id string) (*model.Wik
 	return &node, err
 }
 
+// ListNodesBySpace 列出指定空间下的全部节点（按 sort、创建时间排序）。
 func (r *wikiRepository) ListNodesBySpace(ctx context.Context, spaceID string) ([]*model.WikiNode, error) {
 	var nodes []*model.WikiNode
 	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
@@ -239,6 +252,7 @@ func (r *wikiRepository) ListNodesBySpace(ctx context.Context, spaceID string) (
 	return nodes, err
 }
 
+// ListChildNodes 列出指定父节点的直接子节点。
 func (r *wikiRepository) ListChildNodes(ctx context.Context, parentID string) ([]*model.WikiNode, error) {
 	var nodes []*model.WikiNode
 	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
@@ -247,6 +261,7 @@ func (r *wikiRepository) ListChildNodes(ctx context.Context, parentID string) ([
 	return nodes, err
 }
 
+// UpdateNode 更新节点信息，无匹配记录时返回 ErrWikiNodeNotFound。
 func (r *wikiRepository) UpdateNode(ctx context.Context, node *model.WikiNode) error {
 	node.UpdatedAt = time.Now()
 	query := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").Model(&model.WikiNode{}).Where("id = ?", node.ID)
@@ -264,6 +279,7 @@ func (r *wikiRepository) UpdateNode(ctx context.Context, node *model.WikiNode) e
 	return result.Error
 }
 
+// DeleteNode 软删除节点，无匹配记录时返回 ErrWikiNodeNotFound。
 func (r *wikiRepository) DeleteNode(ctx context.Context, id string) error {
 	query := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id")
 	result := query.Delete(&model.WikiNode{}, "id = ?", id)
@@ -273,6 +289,7 @@ func (r *wikiRepository) DeleteNode(ctx context.Context, id string) error {
 	return result.Error
 }
 
+// CountChildNodes 统计指定父节点的直接子节点数量。
 func (r *wikiRepository) CountChildNodes(ctx context.Context, parentID string) (int64, error) {
 	var count int64
 	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
@@ -280,6 +297,7 @@ func (r *wikiRepository) CountChildNodes(ctx context.Context, parentID string) (
 	return count, err
 }
 
+// CreateDocument 新建文档，自动补齐 ID 与时间戳。
 func (r *wikiRepository) CreateDocument(ctx context.Context, doc *model.Document) error {
 	if doc.ID == "" {
 		doc.ID = idgen.New()
@@ -289,6 +307,7 @@ func (r *wikiRepository) CreateDocument(ctx context.Context, doc *model.Document
 	return r.getDB(ctx).Create(doc).Error
 }
 
+// GetDocumentByNodeID 按节点ID查询文档，不存在返回 ErrDocumentNotFound。
 func (r *wikiRepository) GetDocumentByNodeID(ctx context.Context, nodeID string) (*model.Document, error) {
 	var doc model.Document
 	query := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
@@ -301,6 +320,7 @@ func (r *wikiRepository) GetDocumentByNodeID(ctx context.Context, nodeID string)
 	return &doc, err
 }
 
+// GetDocumentByID 按主键查询文档，不存在返回 ErrDocumentNotFound。
 func (r *wikiRepository) GetDocumentByID(ctx context.Context, id string) (*model.Document, error) {
 	var doc model.Document
 	query := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
@@ -313,6 +333,8 @@ func (r *wikiRepository) GetDocumentByID(ctx context.Context, id string) (*model
 	return &doc, err
 }
 
+// UpdateDocument 基于乐观锁更新文档：仅当 current_ver 与 expectedVer 一致时写入，
+// 否则区分文档不存在与版本冲突并返回对应错误。
 func (r *wikiRepository) UpdateDocument(ctx context.Context, doc *model.Document, expectedVer int) error {
 	doc.UpdatedAt = time.Now()
 	now := time.Now()
@@ -343,6 +365,7 @@ func (r *wikiRepository) UpdateDocument(ctx context.Context, doc *model.Document
 	return nil
 }
 
+// DeleteDocument 软删除文档，无匹配记录时返回 ErrDocumentNotFound。
 func (r *wikiRepository) DeleteDocument(ctx context.Context, id string) error {
 	query := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id")
 	result := query.Delete(&model.Document{}, "id = ?", id)
@@ -352,12 +375,14 @@ func (r *wikiRepository) DeleteDocument(ctx context.Context, id string) error {
 	return result.Error
 }
 
+// IncrementViewCount 原子自增文档浏览量。
 func (r *wikiRepository) IncrementViewCount(ctx context.Context, id string) error {
 	return tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
 		Model(&model.Document{}).Where("id = ?", id).
 		UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
 }
 
+// CreateRevision 新建文档版本快照，自动补齐 ID、租户ID与创建时间。
 func (r *wikiRepository) CreateRevision(ctx context.Context, revision *model.DocumentRevision) error {
 	if revision.ID == "" {
 		revision.ID = idgen.New()
@@ -369,6 +394,7 @@ func (r *wikiRepository) CreateRevision(ctx context.Context, revision *model.Doc
 	return r.getDB(ctx).Create(revision).Error
 }
 
+// ListRevisions 按版本号倒序列出文档的历史版本。
 func (r *wikiRepository) ListRevisions(ctx context.Context, documentID string) ([]*model.DocumentRevision, error) {
 	var revisions []*model.DocumentRevision
 	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
@@ -376,6 +402,7 @@ func (r *wikiRepository) ListRevisions(ctx context.Context, documentID string) (
 	return revisions, err
 }
 
+// GetRevisionByVersion 查询文档指定版本号的历史版本，不存在返回 ErrRevisionNotFound。
 func (r *wikiRepository) GetRevisionByVersion(ctx context.Context, documentID string, version int) (*model.DocumentRevision, error) {
 	var revision model.DocumentRevision
 	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
@@ -386,6 +413,7 @@ func (r *wikiRepository) GetRevisionByVersion(ctx context.Context, documentID st
 	return &revision, err
 }
 
+// AddMember 向知识空间添加成员，自动补齐 ID、租户ID与时间戳。
 func (r *wikiRepository) AddMember(ctx context.Context, member *model.WikiSpaceMember) error {
 	if member.ID == "" {
 		member.ID = idgen.New()
@@ -398,11 +426,13 @@ func (r *wikiRepository) AddMember(ctx context.Context, member *model.WikiSpaceM
 	return r.getDB(ctx).Create(member).Error
 }
 
+// RemoveMember 从知识空间移除指定成员。
 func (r *wikiRepository) RemoveMember(ctx context.Context, spaceID, userID string) error {
 	return tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
 		Where("space_id = ? AND user_id = ?", spaceID, userID).Delete(&model.WikiSpaceMember{}).Error
 }
 
+// ListMembers 列出知识空间的全部成员。
 func (r *wikiRepository) ListMembers(ctx context.Context, spaceID string) ([]*model.WikiSpaceMember, error) {
 	var members []*model.WikiSpaceMember
 	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
@@ -410,6 +440,7 @@ func (r *wikiRepository) ListMembers(ctx context.Context, spaceID string) ([]*mo
 	return members, err
 }
 
+// GetMember 查询空间内指定成员，不存在时返回 nil（非错误）。
 func (r *wikiRepository) GetMember(ctx context.Context, spaceID, userID string) (*model.WikiSpaceMember, error) {
 	var member model.WikiSpaceMember
 	err := tenantctx.Scope(ctx, r.getDB(ctx), "tenant_id").
@@ -420,6 +451,7 @@ func (r *wikiRepository) GetMember(ctx context.Context, spaceID, userID string) 
 	return &member, err
 }
 
+// UpdateMemberRole 更新空间成员的角色。
 func (r *wikiRepository) UpdateMemberRole(ctx context.Context, member *model.WikiSpaceMember) error {
 	if member == nil || member.ID == "" {
 		return errors.New("member id is required")
@@ -431,6 +463,7 @@ func (r *wikiRepository) UpdateMemberRole(ctx context.Context, member *model.Wik
 		Update("role", member.Role).Error
 }
 
+// GetWikiStats 汇总租户下的空间数、节点数、文档数及总浏览量。
 func (r *wikiRepository) GetWikiStats(ctx context.Context, tenantID string) (*model.WikiStats, error) {
 	var stats model.WikiStats
 

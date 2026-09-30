@@ -1,3 +1,4 @@
+// Package service 实现 RBAC 模块的业务逻辑，包括角色/权限 CRUD、绑定审计和缓存。
 package service
 
 import (
@@ -14,6 +15,7 @@ import (
 	"time"
 )
 
+// RBACService RBAC 业务服务，编排角色/权限/绑定与缓存失效。
 type RBACService struct {
 	roleRepo           repository.RoleRepository
 	permissionRepo     repository.PermissionRepository
@@ -23,6 +25,7 @@ type RBACService struct {
 	permCache          *middleware.PermissionCache
 }
 
+// NewRBACService 创建 RBAC 服务实例。
 func NewRBACService(
 	rr repository.RoleRepository,
 	pr repository.PermissionRepository,
@@ -43,6 +46,7 @@ func NewRBACService(
 
 // --- Role ---
 
+// CreateRole 创建角色，未指定时默认系统租户、启用、tenant 作用域，并校验编码唯一。
 func (s *RBACService) CreateRole(ctx context.Context, req dto.CreateRoleReq) (*model.Role, error) {
 	// 如果未指定 tenant_id，默认为系统级角色
 	if req.TenantID == "" {
@@ -86,10 +90,12 @@ func (s *RBACService) CreateRole(ctx context.Context, req dto.CreateRoleReq) (*m
 	return role, nil
 }
 
+// GetRole 按 ID 获取角色。
 func (s *RBACService) GetRole(ctx context.Context, id string) (*model.Role, error) {
 	return s.roleRepo.GetByID(ctx, id)
 }
 
+// ListRoles 分页查询指定租户的角色列表。
 func (s *RBACService) ListRoles(ctx context.Context, tenantID string, page, pageSize int, keyword string) ([]*model.Role, int64, error) {
 	return s.roleRepo.List(ctx, tenantID, page, pageSize, keyword)
 }
@@ -104,6 +110,7 @@ func (s *RBACService) ListSystemAdminRoles(ctx context.Context) ([]*model.Role, 
 	return s.roleRepo.ListSystemAdminRoles(ctx)
 }
 
+// UpdateRole 更新角色信息，系统内置角色不可修改。
 func (s *RBACService) UpdateRole(ctx context.Context, id string, req dto.UpdateRoleReq) (*model.Role, error) {
 	role, err := s.roleRepo.GetByID(ctx, id)
 	if err != nil {
@@ -133,6 +140,7 @@ func (s *RBACService) UpdateRole(ctx context.Context, id string, req dto.UpdateR
 	return role, nil
 }
 
+// DeleteRole 软删除角色，系统内置角色或存在用户/权限绑定时拒绝删除。
 func (s *RBACService) DeleteRole(ctx context.Context, id string) error {
 	role, err := s.roleRepo.GetByID(ctx, id)
 	if err != nil {
@@ -263,6 +271,7 @@ func (s *RBACService) BatchDeleteRoles(ctx context.Context, ids []string) (int64
 
 // --- Permission ---
 
+// CreatePermission 创建权限，校验编码唯一并默认启用。
 func (s *RBACService) CreatePermission(ctx context.Context, req dto.CreatePermissionReq) (*model.Permission, error) {
 	existing, _ := s.permissionRepo.GetByCode(ctx, req.Code)
 	if existing != nil {
@@ -325,14 +334,17 @@ func (s *RBACService) SeedPermissions(ctx context.Context, defs []*model.Permiss
 	return inserted, len(defs), nil
 }
 
+// GetPermission 按 ID 获取权限。
 func (s *RBACService) GetPermission(ctx context.Context, id string) (*model.Permission, error) {
 	return s.permissionRepo.GetByID(ctx, id)
 }
 
+// ListPermissions 分页查询权限列表。
 func (s *RBACService) ListPermissions(ctx context.Context, page, pageSize int, resource, keyword string) ([]*model.Permission, int64, error) {
 	return s.permissionRepo.List(ctx, page, pageSize, resource, keyword)
 }
 
+// UpdatePermission 更新权限信息。
 func (s *RBACService) UpdatePermission(ctx context.Context, id string, req dto.UpdatePermissionReq) (*model.Permission, error) {
 	permission, err := s.permissionRepo.GetByID(ctx, id)
 	if err != nil {
@@ -355,10 +367,12 @@ func (s *RBACService) UpdatePermission(ctx context.Context, id string, req dto.U
 	return permission, nil
 }
 
+// UpdatePermissionStatus 更新单个权限的启用状态。
 func (s *RBACService) UpdatePermissionStatus(ctx context.Context, id string, status int) error {
 	return s.permissionRepo.UpdateStatus(ctx, id, status)
 }
 
+// BatchUpdatePermissionStatus 批量更新权限状态。
 func (s *RBACService) BatchUpdatePermissionStatus(ctx context.Context, ids []string, status int) (int64, error) {
 	if len(ids) == 0 {
 		return 0, errors.New("权限ID列表不能为空")
@@ -366,6 +380,7 @@ func (s *RBACService) BatchUpdatePermissionStatus(ctx context.Context, ids []str
 	return s.permissionRepo.BatchUpdateStatus(ctx, ids, status)
 }
 
+// DeletePermission 删除权限，被角色引用时拒绝。
 func (s *RBACService) DeletePermission(ctx context.Context, id string) error {
 	// 检查关联：是否有角色在使用该权限
 	roleCount, err := s.rolePermissionRepo.CountByPermissionID(ctx, id)
@@ -379,6 +394,7 @@ func (s *RBACService) DeletePermission(ctx context.Context, id string) error {
 	return s.permissionRepo.Delete(ctx, id)
 }
 
+// BatchDeletePermissions 批量删除权限，任一权限被角色引用则拒绝。
 func (s *RBACService) BatchDeletePermissions(ctx context.Context, ids []string) (int64, error) {
 	if len(ids) == 0 {
 		return 0, errors.New("权限ID列表不能为空")
@@ -404,6 +420,7 @@ func (s *RBACService) BatchDeletePermissions(ctx context.Context, ids []string) 
 
 // --- Role Permission ---
 
+// BindRolePermissions 为角色绑定权限集，并记录授予审计与失效权限缓存。
 func (s *RBACService) BindRolePermissions(ctx context.Context, roleID string, req dto.BindRolePermissionsReq) error {
 	// 验证角色是否存在
 	_, err := s.roleRepo.GetByID(ctx, roleID)
@@ -441,18 +458,22 @@ func (s *RBACService) BindRolePermissions(ctx context.Context, roleID string, re
 	return nil
 }
 
+// GetRolePermissions 获取角色已绑定的权限列表。
 func (s *RBACService) GetRolePermissions(ctx context.Context, roleID string) ([]*model.Permission, error) {
 	return s.rolePermissionRepo.GetPermissionsByRoleID(ctx, roleID)
 }
 
+// GetRolePermissionsWithResource 获取角色在指定资源下的权限列表。
 func (s *RBACService) GetRolePermissionsWithResource(ctx context.Context, roleID string, resource string) ([]*model.Permission, error) {
 	return s.rolePermissionRepo.GetPermissionsByRoleIDWithResource(ctx, roleID, resource)
 }
 
+// GetRolePermissionCodes 获取角色已绑定权限的编码列表。
 func (s *RBACService) GetRolePermissionCodes(ctx context.Context, roleID string) ([]string, error) {
 	return s.rolePermissionRepo.GetPermissionCodesByRoleID(ctx, roleID)
 }
 
+// UnbindRolePermission 解除角色与单个权限的绑定，并记录审计与失效缓存。
 func (s *RBACService) UnbindRolePermission(ctx context.Context, roleID, permissionID string) error {
 	_, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
@@ -480,6 +501,7 @@ func (s *RBACService) UnbindRolePermission(ctx context.Context, roleID, permissi
 	return nil
 }
 
+// UnbindRolePermissions 批量解除角色与多个权限的绑定，并记录审计与失效缓存。
 func (s *RBACService) UnbindRolePermissions(ctx context.Context, roleID string, permissionIDs []string) (int64, error) {
 	_, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
@@ -516,6 +538,7 @@ func (s *RBACService) UnbindRolePermissions(ctx context.Context, roleID string, 
 	return count, nil
 }
 
+// BatchBindRolesPermissions 为多个角色批量绑定同一组权限，并记录审计与失效缓存。
 func (s *RBACService) BatchBindRolesPermissions(ctx context.Context, req dto.BatchBindRolesPermissionsReq) (int64, error) {
 	if len(req.RoleIDs) == 0 {
 		return 0, errors.New("角色ID列表不能为空")
@@ -557,6 +580,7 @@ func (s *RBACService) BatchBindRolesPermissions(ctx context.Context, req dto.Bat
 	return count, nil
 }
 
+// BatchUnbindRolesPermissions 批量解除多个角色与一组权限的绑定，并记录审计与失效缓存。
 func (s *RBACService) BatchUnbindRolesPermissions(ctx context.Context, req dto.BatchUnbindRolesPermissionsReq) (int64, error) {
 	if len(req.RoleIDs) == 0 {
 		return 0, errors.New("角色ID列表不能为空")
@@ -588,6 +612,7 @@ func (s *RBACService) BatchUnbindRolesPermissions(ctx context.Context, req dto.B
 	return count, nil
 }
 
+// ListRolePermissions 分页查询角色权限绑定关系。
 func (s *RBACService) ListRolePermissions(ctx context.Context, page, pageSize int, roleID, permissionID string) ([]*model.RolePermission, int64, error) {
 	return s.rolePermissionRepo.List(ctx, page, pageSize, roleID, permissionID)
 }

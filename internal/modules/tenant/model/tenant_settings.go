@@ -2,6 +2,7 @@ package model
 
 import "time"
 
+// TenantSettings 租户个性化设置领域模型（品牌/主题/语言时区/联系方式等）。
 type TenantSettings struct {
 	ID           string
 	TenantID     string

@@ -1,3 +1,4 @@
+// Package dto 定义 Wiki 模块的请求与响应数据结构。
 package dto
 
 import "time"
@@ -93,22 +94,22 @@ type UpdateDocumentReq struct {
 
 // DocumentResp 文档响应
 type DocumentResp struct {
-	ID             string     `json:"id"`
-	NodeID         string     `json:"node_id"`
-	Title          string     `json:"title"`
-	Content        string     `json:"content"`
-	ContentHTML    string     `json:"content_html"`
-	Format         string     `json:"format"`
-	CurrentVer     int        `json:"current_ver"`
-	ViewCount      int64      `json:"view_count"`
-	LastEditedBy   string     `json:"last_edited_by"`
-	LastEditedAt   *time.Time `json:"last_edited_at"`
-	PublishStatus  string     `json:"publish_status"`
-	PublishedAt    *time.Time `json:"published_at,omitempty"`
-	ReviewedBy     string     `json:"reviewed_by,omitempty"`
-	ReviewedAt     *time.Time `json:"reviewed_at,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID            string     `json:"id"`
+	NodeID        string     `json:"node_id"`
+	Title         string     `json:"title"`
+	Content       string     `json:"content"`
+	ContentHTML   string     `json:"content_html"`
+	Format        string     `json:"format"`
+	CurrentVer    int        `json:"current_ver"`
+	ViewCount     int64      `json:"view_count"`
+	LastEditedBy  string     `json:"last_edited_by"`
+	LastEditedAt  *time.Time `json:"last_edited_at"`
+	PublishStatus string     `json:"publish_status"`
+	PublishedAt   *time.Time `json:"published_at,omitempty"`
+	ReviewedBy    string     `json:"reviewed_by,omitempty"`
+	ReviewedAt    *time.Time `json:"reviewed_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 // DocumentRevisionResp 文档历史版本响应
@@ -406,11 +407,11 @@ type DiffResult struct {
 
 // DiffLine 版本差异行
 type DiffLine struct {
-	Type     string `json:"type"` // added, removed, unchanged
-	LineNum  int    `json:"line_num"`
-	Content  string `json:"content"`
-	OldLine  int    `json:"old_line,omitempty"`
-	NewLine  int    `json:"new_line,omitempty"`
+	Type    string `json:"type"` // added, removed, unchanged
+	LineNum int    `json:"line_num"`
+	Content string `json:"content"`
+	OldLine int    `json:"old_line,omitempty"`
+	NewLine int    `json:"new_line,omitempty"`
 }
 
 // BatchOperationReq 批量操作请求（通过 action 区分移动或删除）

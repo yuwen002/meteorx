@@ -1,3 +1,4 @@
+// Package ws 实现 WebSocket 实时通信层，包括客户端连接管理、Hub 消息广播和 HTTP 升级处理。
 package ws
 
 import (
@@ -32,13 +33,13 @@ var upgrader = websocket.Upgrader{
 
 // Client WebSocket 客户端连接
 type Client struct {
-	Hub      *Hub
-	UserID   string
-	conn     *websocket.Conn
-	send     chan *Message
-	done     chan struct{}
-	mu       sync.Mutex
-	closed   bool
+	Hub    *Hub
+	UserID string
+	conn   *websocket.Conn
+	send   chan *Message
+	done   chan struct{}
+	mu     sync.Mutex
+	closed bool
 }
 
 // NewClient 创建客户端连接
@@ -160,16 +161,19 @@ func (c *Client) Close() {
 	c.conn.Close()
 }
 
+// writeJSON 设置写截止后以 JSON 写入一条消息。
 func (c *Client) writeJSON(msg *Message) error {
 	c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 	return c.conn.WriteJSON(msg)
 }
 
+// writePingMessage 设置写截止后发送心跳 Ping。
 func (c *Client) writePingMessage() error {
 	c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 	return c.conn.WriteMessage(websocket.PingMessage, nil)
 }
 
+// writeCloseMessage 发送关闭帧。
 func (c *Client) writeCloseMessage() {
 	c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 	c.conn.WriteMessage(websocket.CloseMessage, []byte{})

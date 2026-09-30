@@ -91,6 +91,7 @@ func (e *meiliSearchEngine) fullIndexName() string {
 	return e.prefix + wikiIndex
 }
 
+// Index 将一批文档写入 MeiliSearch 索引。
 func (e *meiliSearchEngine) Index(ctx context.Context, docs ...Document) error {
 	if !e.avail {
 		return ErrSearchEngineUnavailable
@@ -126,6 +127,7 @@ func (e *meiliSearchEngine) Index(ctx context.Context, docs ...Document) error {
 	return nil
 }
 
+// Delete 按 ID 批量删除索引中的文档。
 func (e *meiliSearchEngine) Delete(ctx context.Context, ids ...string) error {
 	if !e.avail {
 		return ErrSearchEngineUnavailable
@@ -144,6 +146,7 @@ func (e *meiliSearchEngine) Delete(ctx context.Context, ids ...string) error {
 	return nil
 }
 
+// Search 执行全文搜索并解析高亮结果。
 func (e *meiliSearchEngine) Search(ctx context.Context, q *Query) (*SearchResponse, error) {
 	if !e.avail {
 		return nil, ErrSearchEngineUnavailable
@@ -276,6 +279,7 @@ func truncateContent(content string, maxLen int) string {
 	return string(runes[:maxLen]) + "..."
 }
 
+// ClearIndex 删除索引中的全部文档。
 func (e *meiliSearchEngine) ClearIndex(ctx context.Context) error {
 	if !e.avail {
 		return ErrSearchEngineUnavailable
@@ -290,12 +294,14 @@ func (e *meiliSearchEngine) ClearIndex(ctx context.Context) error {
 	return nil
 }
 
+// Close 标记引擎不可用（客户端无显式关闭操作）。
 func (e *meiliSearchEngine) Close() error {
 	e.avail = false
 	logger.Info("MeiliSearch engine closed")
 	return nil
 }
 
+// IsAvailable 返回引擎当前是否可用。
 func (e *meiliSearchEngine) IsAvailable() bool {
 	return e.avail
 }

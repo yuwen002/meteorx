@@ -39,11 +39,13 @@ func initHandler(db *gorm.DB, cfg config.Config) (*handler.InvitationHandler, mi
 	return h, checker
 }
 
+// InitModule 装配邀请依赖并注册需登录的管理路由。
 func InitModule(r chi.Router, db *gorm.DB, cfg config.Config) {
 	h, checker := initHandler(db, cfg)
 	RegisterRoutes(r, h, checker)
 }
 
+// InitPublicModule 装配邀请依赖并注册无需登录的公开路由（接受邀请/查询信息）。
 func InitPublicModule(r chi.Router, db *gorm.DB, cfg config.Config) {
 	h, _ := initHandler(db, cfg)
 	RegisterPublicRoutes(r, h)
@@ -56,6 +58,7 @@ func RegisterRoutes(r chi.Router, h *handler.InvitationHandler, checker middlewa
 		r.Use(middleware.AutoRequirePermission(checker))
 		r.Get("/", h.List)
 		r.Post("/", h.Create)
+		r.Get("/roles", h.AssignableRoles) // 必须在 /{id} 之前
 		r.Put("/{id}/cancel", h.Cancel)
 		r.Put("/{id}/resend", h.Resend)
 		r.Delete("/{id}/delete", h.Delete)

@@ -4,6 +4,7 @@ import (
 	"meteorx/internal/modules/user/model"
 )
 
+// UserConverter 用户模型与响应 DTO 之间的转换器（无状态）。
 type UserConverter struct{}
 
 // ToResponse 将用户模型转换为响应对象

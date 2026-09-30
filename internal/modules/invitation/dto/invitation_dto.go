@@ -3,7 +3,7 @@ package dto
 
 // CreateInvitationReq 创建邀请请求。管理员邀请外部用户加入租户。
 type CreateInvitationReq struct {
-	Email   string   `json:"email" validate:"required,email" label:"邮箱"`     // 被邀请人邮箱
+	Email   string   `json:"email" validate:"required,email" label:"邮箱"`    // 被邀请人邮箱
 	RoleIDs []string `json:"role_ids" validate:"required,min=1" label:"角色"` // 分配的角色 ID 列表
 }
 
@@ -11,22 +11,22 @@ type CreateInvitationReq struct {
 type InvitationResp struct {
 	ID         string   `json:"id"`
 	TenantID   string   `json:"tenant_id"`
-	TenantName string   `json:"tenant_name"`   // 租户名称（仅查询时填充）
-	Email      string   `json:"email"`         // 被邀请人邮箱
-	RoleIDs    []string `json:"role_ids"`      // 分配的角色 ID 列表
-	Status     string   `json:"status"`        // 状态：pending / accepted / cancelled / expired
-	InvitedBy  string   `json:"invited_by"`    // 邀请人用户 ID
-	ExpiresAt  string   `json:"expires_at"`    // 过期时间
+	TenantName string   `json:"tenant_name"`           // 租户名称（仅查询时填充）
+	Email      string   `json:"email"`                 // 被邀请人邮箱
+	RoleIDs    []string `json:"role_ids"`              // 分配的角色 ID 列表
+	Status     string   `json:"status"`                // 状态：pending / accepted / cancelled / expired
+	InvitedBy  string   `json:"invited_by"`            // 邀请人用户 ID
+	ExpiresAt  string   `json:"expires_at"`            // 过期时间
 	AcceptedAt string   `json:"accepted_at,omitempty"` // 接受时间（仅已接受时有值）
-	CreatedAt  string   `json:"created_at"`    // 创建时间
+	CreatedAt  string   `json:"created_at"`            // 创建时间
 }
 
 // AcceptInvitationReq 接受邀请请求。被邀请人填写注册信息并接受邀请。
 type AcceptInvitationReq struct {
-	Token    string `json:"token" validate:"required" label:"邀请令牌"`                // 邮件链接中携带的邀请令牌
+	Token    string `json:"token" validate:"required" label:"邀请令牌"`                         // 邮件链接中携带的邀请令牌
 	Username string `json:"username" validate:"required,alphanum,min=4,max=50" label:"用户名"` // 设置的登录用户名
-	Password string `json:"password" validate:"required,min=6,max=32" label:"密码"`      // 设置的密码
-	Nickname string `json:"nickname" validate:"required,max=50" label:"昵称"`           // 设置的昵称
+	Password string `json:"password" validate:"required,min=6,max=32" label:"密码"`           // 设置的密码
+	Nickname string `json:"nickname" validate:"required,max=50" label:"昵称"`                 // 设置的昵称
 }
 
 // AcceptInvitationResp 接受邀请响应。
@@ -36,8 +36,15 @@ type AcceptInvitationResp struct {
 
 // ListInvitationsReq 邀请列表查询请求。
 type ListInvitationsReq struct {
-	Page     int    `json:"page"`       // 页码
-	PageSize int    `json:"page_size"`  // 每页条数
-	Keyword  string `json:"keyword"`    // 按邮箱搜索
-	Status   string `json:"status"`     // 按状态筛选
+	Page     int    `json:"page"`      // 页码
+	PageSize int    `json:"page_size"` // 每页条数
+	Keyword  string `json:"keyword"`   // 按邮箱搜索
+	Status   string `json:"status"`    // 按状态筛选
+}
+
+// RoleOption 可分配角色选项（供邀请页面下拉选择）。
+type RoleOption struct {
+	ID   string `json:"id"`   // 角色 ID
+	Name string `json:"name"` // 角色名称
+	Code string `json:"code"` // 角色编码
 }

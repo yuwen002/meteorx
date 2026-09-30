@@ -27,6 +27,7 @@ type AlertRulePO struct {
 	UpdatedAt       time.Time `gorm:"autoUpdateTime;comment:更新时间"`
 }
 
+// TableName 返回告警规则表名 audit_alert_rules。
 func (AlertRulePO) TableName() string {
 	return "audit_alert_rules"
 }
@@ -47,23 +48,28 @@ type AuditAlertPO struct {
 	CreatedAt  time.Time `gorm:"autoCreateTime;comment:创建时间"`
 }
 
+// TableName 返回审计告警记录表名 audit_alerts。
 func (AuditAlertPO) TableName() string {
 	return "audit_alerts"
 }
 
+// alertRuleRepository 告警规则与告警记录仓储的 GORM 实现。
 type alertRuleRepository struct {
 	db *gorm.DB
 }
 
+// NewAlertRuleRepository 创建告警规则仓储实例。
 func NewAlertRuleRepository(db *gorm.DB) AlertRuleRepository {
 	return &alertRuleRepository{db: db}
 }
 
+// Create 新建告警规则。
 func (r *alertRuleRepository) Create(ctx context.Context, rule *model.AlertRule) error {
 	po := alertRuleFromDomain(rule)
 	return r.db.WithContext(ctx).Create(po).Error
 }
 
+// GetByID 按主键查询告警规则。
 func (r *alertRuleRepository) GetByID(ctx context.Context, id string) (*model.AlertRule, error) {
 	var po AlertRulePO
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&po).Error; err != nil {
@@ -72,15 +78,18 @@ func (r *alertRuleRepository) GetByID(ctx context.Context, id string) (*model.Al
 	return po.toDomain(), nil
 }
 
+// Update 全量更新告警规则。
 func (r *alertRuleRepository) Update(ctx context.Context, rule *model.AlertRule) error {
 	po := alertRuleFromDomain(rule)
 	return r.db.WithContext(ctx).Save(po).Error
 }
 
+// Delete 删除指定告警规则。
 func (r *alertRuleRepository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&AlertRulePO{}, "id = ?", id).Error
 }
 
+// List 按创建时间倒序列出全部告警规则。
 func (r *alertRuleRepository) List(ctx context.Context) ([]*model.AlertRule, error) {
 	var pos []AlertRulePO
 	if err := r.db.WithContext(ctx).Order("created_at DESC").Find(&pos).Error; err != nil {
@@ -94,6 +103,7 @@ func (r *alertRuleRepository) List(ctx context.Context) ([]*model.AlertRule, err
 	return rules, nil
 }
 
+// GetEnabledRules 查询所有已启用的告警规则。
 func (r *alertRuleRepository) GetEnabledRules(ctx context.Context) ([]*model.AlertRule, error) {
 	var pos []AlertRulePO
 	if err := r.db.WithContext(ctx).Where("enabled = ?", true).Find(&pos).Error; err != nil {
@@ -107,11 +117,13 @@ func (r *alertRuleRepository) GetEnabledRules(ctx context.Context) ([]*model.Ale
 	return rules, nil
 }
 
+// CreateAlert 写入一条审计告警记录。
 func (r *alertRuleRepository) CreateAlert(ctx context.Context, alert *model.AuditAlert) error {
 	po := auditAlertFromDomain(alert)
 	return r.db.WithContext(ctx).Create(po).Error
 }
 
+// GetAlertByID 按主键查询单条审计告警。
 func (r *alertRuleRepository) GetAlertByID(ctx context.Context, id string) (*model.AuditAlert, error) {
 	var po AuditAlertPO
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&po).Error; err != nil {
@@ -120,6 +132,7 @@ func (r *alertRuleRepository) GetAlertByID(ctx context.Context, id string) (*mod
 	return po.toDomain(), nil
 }
 
+// ListAlerts 按规则/用户/风险等级过滤并分页返回审计告警及总数。
 func (r *alertRuleRepository) ListAlerts(ctx context.Context, page, pageSize int, ruleID, userID, riskLevel string) ([]*model.AuditAlert, int64, error) {
 	db := r.db.WithContext(ctx).Model(&AuditAlertPO{})
 
@@ -150,6 +163,7 @@ func (r *alertRuleRepository) ListAlerts(ctx context.Context, page, pageSize int
 	return alerts, total, nil
 }
 
+// IsInCooldown 判断指定规则在最近 cooldownMinutes 分钟内是否已触发过告警（用于告警冷却防抖）。
 func (r *alertRuleRepository) IsInCooldown(ctx context.Context, ruleID string, cooldownMinutes int) (bool, error) {
 	var count int64
 	cooldownTime := time.Now().Add(-time.Duration(cooldownMinutes) * time.Minute)

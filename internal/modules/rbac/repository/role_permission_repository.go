@@ -8,24 +8,29 @@ import (
 	"gorm.io/gorm"
 )
 
+// RolePermissionPO 角色-权限关联表（多对多）持久化对象。
 type RolePermissionPO struct {
 	RoleID       string    `gorm:"primaryKey;size:26;comment:角色ID"`
 	PermissionID string    `gorm:"primaryKey;size:26;comment:权限ID"`
 	CreatedAt    time.Time `gorm:"autoCreateTime;comment:创建时间"`
 }
 
+// TableName 返回角色-权限关联表名 role_permissions。
 func (RolePermissionPO) TableName() string {
 	return "role_permissions"
 }
 
+// rolePermissionRepository RolePermissionRepository 的 GORM 实现。
 type rolePermissionRepository struct {
 	db *gorm.DB
 }
 
+// NewRolePermissionRepository 创建角色-权限关联仓储实例。
 func NewRolePermissionRepository(db *gorm.DB) RolePermissionRepository {
 	return &rolePermissionRepository{db: db}
 }
 
+// BindPermissions 以全量覆盖方式为角色绑定权限集（先删后插，事务内完成）。
 func (r *rolePermissionRepository) BindPermissions(ctx context.Context, roleID string, permissionIDs []string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 先删除旧绑定
@@ -47,6 +52,7 @@ func (r *rolePermissionRepository) BindPermissions(ctx context.Context, roleID s
 	})
 }
 
+// GetPermissionsByRoleID 联表查询角色已绑定的权限列表。
 func (r *rolePermissionRepository) GetPermissionsByRoleID(ctx context.Context, roleID string) ([]*model.Permission, error) {
 	var records []PermissionPO
 	if err := r.db.WithContext(ctx).
@@ -63,6 +69,7 @@ func (r *rolePermissionRepository) GetPermissionsByRoleID(ctx context.Context, r
 	return permissions, nil
 }
 
+// GetPermissionsByRoleIDWithResource 联表查询角色在指定资源下的权限列表。
 func (r *rolePermissionRepository) GetPermissionsByRoleIDWithResource(ctx context.Context, roleID string, resource string) ([]*model.Permission, error) {
 	var records []PermissionPO
 	query := r.db.WithContext(ctx).
@@ -84,6 +91,7 @@ func (r *rolePermissionRepository) GetPermissionsByRoleIDWithResource(ctx contex
 	return permissions, nil
 }
 
+// GetPermissionCodesByRoleID 查询角色已绑定权限的编码列表。
 func (r *rolePermissionRepository) GetPermissionCodesByRoleID(ctx context.Context, roleID string) ([]string, error) {
 	var codes []string
 	if err := r.db.WithContext(ctx).Model(&PermissionPO{}).
@@ -95,12 +103,14 @@ func (r *rolePermissionRepository) GetPermissionCodesByRoleID(ctx context.Contex
 	return codes, nil
 }
 
+// UnbindPermission 解除角色与单个权限的绑定。
 func (r *rolePermissionRepository) UnbindPermission(ctx context.Context, roleID, permissionID string) error {
 	return r.db.WithContext(ctx).
 		Where("role_id = ? AND permission_id = ?", roleID, permissionID).
 		Delete(&RolePermissionPO{}).Error
 }
 
+// BatchBindPermissions 为多个角色批量补绑同一组权限（跳过已存在），返回新增绑定数。
 func (r *rolePermissionRepository) BatchBindPermissions(ctx context.Context, roleIDs []string, permissionIDs []string) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -133,6 +143,7 @@ func (r *rolePermissionRepository) BatchBindPermissions(ctx context.Context, rol
 	return count, err
 }
 
+// BatchUnbindPermissions 批量解除多个角色与一组权限的绑定，返回删除行数。
 func (r *rolePermissionRepository) BatchUnbindPermissions(ctx context.Context, roleIDs []string, permissionIDs []string) (int64, error) {
 	result := r.db.WithContext(ctx).
 		Where("role_id IN ?", roleIDs).
@@ -141,6 +152,7 @@ func (r *rolePermissionRepository) BatchUnbindPermissions(ctx context.Context, r
 	return result.RowsAffected, result.Error
 }
 
+// List 分页查询角色-权限绑定关系，联表返回角色与权限详情。
 func (r *rolePermissionRepository) List(ctx context.Context, page, pageSize int, roleID, permissionID string) ([]*model.RolePermission, int64, error) {
 	type row struct {
 		RoleID             string    `gorm:"column:role_id"`

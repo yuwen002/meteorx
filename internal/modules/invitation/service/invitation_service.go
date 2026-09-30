@@ -49,6 +49,7 @@ type InvitationServiceInterface interface {
 	Resend(ctx context.Context, tenantID, invitationID string) (*model.Invitation, error)
 	Delete(ctx context.Context, tenantID, invitationID string) error
 	GetByToken(ctx context.Context, token string) (*model.Invitation, error)
+	ListAssignableRoles(ctx context.Context) ([]dto.RoleOption, error)
 }
 
 // InvitationService 邀请模块业务服务。
@@ -65,6 +66,7 @@ type InvitationService struct {
 	securityCfg  config.SecurityConfig           // 安全配置（密码策略）
 }
 
+// NewInvitationService 创建邀请业务服务实例，按需初始化邮件发送器。
 func NewInvitationService(
 	invRepo repository.InvitationRepository,
 	userRepo userRepo.UserRepository,
@@ -80,21 +82,35 @@ func NewInvitationService(
 		em = emailer.NewEmailer(emailCfg.Host, emailCfg.Port, emailCfg.Username, emailCfg.Password, emailCfg.From, emailCfg.FromName)
 	}
 	return &InvitationService{
-		invRepo:     invRepo,
-		userRepo:    userRepo,
-		tenantRepo:  tenantRepo,
-		roleRepo:    roleRepo,
+		invRepo:      invRepo,
+		userRepo:     userRepo,
+		tenantRepo:   tenantRepo,
+		roleRepo:     roleRepo,
 		userRoleRepo: userRoleRepo,
-		emailer:     em,
-		emailCfg:    emailCfg,
-		clientCfg:   clientCfg,
-		securityCfg: securityCfg,
+		emailer:      em,
+		emailCfg:     emailCfg,
+		clientCfg:    clientCfg,
+		securityCfg:  securityCfg,
 	}
 }
 
 // ExpireOutdatedInvitations 批量将过期仍为 pending 的邀请置为 expired（供定时任务调用）
 func (s *InvitationService) ExpireOutdatedInvitations(ctx context.Context) (int64, error) {
 	return s.invRepo.ExpireOutdated(ctx, time.Now())
+}
+
+// ListAssignableRoles 返回可分配给受邀成员的角色列表（scope=tenant 或 all 且启用）。
+// 不分页，供邀请页面下拉使用。
+func (s *InvitationService) ListAssignableRoles(ctx context.Context) ([]dto.RoleOption, error) {
+	roles, err := s.roleRepo.ListByScope(ctx, "tenant")
+	if err != nil {
+		return nil, err
+	}
+	opts := make([]dto.RoleOption, 0, len(roles))
+	for _, r := range roles {
+		opts = append(opts, dto.RoleOption{ID: r.ID, Name: r.Name, Code: r.Code})
+	}
+	return opts, nil
 }
 
 // Create 创建租户邀请。
@@ -199,16 +215,16 @@ func (s *InvitationService) Accept(ctx context.Context, req dto.AcceptInvitation
 
 	now := time.Now()
 	user := &userModel.User{
-		ID:        idgen.NewUUID(),
-		TenantID:  inv.TenantID,
-		Username:  req.Username,
-		Password:  hashedPassword,
-		Nickname:  req.Nickname,
-		Email:     inv.Email,
+		ID:            idgen.NewUUID(),
+		TenantID:      inv.TenantID,
+		Username:      req.Username,
+		Password:      hashedPassword,
+		Nickname:      req.Nickname,
+		Email:         inv.Email,
 		EmailVerified: true,
-		Status:    1,
-		CreatedAt: now,
-		UpdatedAt: now,
+		Status:        1,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {

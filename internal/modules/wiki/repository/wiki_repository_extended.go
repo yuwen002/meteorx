@@ -1,3 +1,4 @@
+// Package repository 定义 Wiki 模块扩展数据访问接口（标签/评论/分享/模板/统计/订阅/通知/编辑锁/评审）及 GORM 实现。
 package repository
 
 import (
@@ -225,6 +226,7 @@ func (r *wikiRepositoryExtended) GetShareLinkByToken(ctx context.Context, token 
 	return &link, nil
 }
 
+// GetShareLinkByID 按主键查询分享链接。
 func (r *wikiRepositoryExtended) GetShareLinkByID(ctx context.Context, id string) (*model.ShareLink, error) {
 	var link model.ShareLink
 	err := r.getDB(ctx).Where("id = ?", id).First(&link).Error
@@ -234,16 +236,19 @@ func (r *wikiRepositoryExtended) GetShareLinkByID(ctx context.Context, id string
 	return &link, nil
 }
 
+// ListShareLinks 列出指定文档的全部分享链接（按创建时间倒序）。
 func (r *wikiRepositoryExtended) ListShareLinks(ctx context.Context, documentID string) ([]*model.ShareLink, error) {
 	var links []*model.ShareLink
 	err := r.getDB(ctx).Where("document_id = ?", documentID).Order("created_at DESC").Find(&links).Error
 	return links, err
 }
 
+// UpdateShareLink 全量更新分享链接。
 func (r *wikiRepositoryExtended) UpdateShareLink(ctx context.Context, link *model.ShareLink) error {
 	return r.getDB(ctx).Save(link).Error
 }
 
+// DeleteShareLink 删除指定分享链接。
 func (r *wikiRepositoryExtended) DeleteShareLink(ctx context.Context, id string) error {
 	return r.getDB(ctx).Where("id = ?", id).Delete(&model.ShareLink{}).Error
 }
@@ -279,6 +284,7 @@ func (r *wikiRepositoryExtended) IncrementShareViewCount(ctx context.Context, id
 	return res.RowsAffected > 0, nil
 }
 
+// CreateTemplate 新建文档模板，自动补齐 ID 与租户ID。
 func (r *wikiRepositoryExtended) CreateTemplate(ctx context.Context, template *model.DocumentTemplate) error {
 	template.ID = idgen.NewULID()
 	if template.TenantID == "" {
@@ -287,6 +293,7 @@ func (r *wikiRepositoryExtended) CreateTemplate(ctx context.Context, template *m
 	return r.getDB(ctx).Create(template).Error
 }
 
+// ListTemplates 列出租户自有及公共模板，可按分类过滤；isPublic=false 时仅返回本租户模板。
 func (r *wikiRepositoryExtended) ListTemplates(ctx context.Context, tenantID string, category string, isPublic bool) ([]*model.DocumentTemplate, error) {
 	var templates []*model.DocumentTemplate
 	query := r.getDB(ctx).Where("tenant_id = ? OR is_public = ?", tenantID, true)
@@ -300,6 +307,7 @@ func (r *wikiRepositoryExtended) ListTemplates(ctx context.Context, tenantID str
 	return templates, err
 }
 
+// GetTemplate 按主键查询文档模板。
 func (r *wikiRepositoryExtended) GetTemplate(ctx context.Context, id string) (*model.DocumentTemplate, error) {
 	var template model.DocumentTemplate
 	err := r.getDB(ctx).Where("id = ?", id).First(&template).Error
@@ -309,14 +317,17 @@ func (r *wikiRepositoryExtended) GetTemplate(ctx context.Context, id string) (*m
 	return &template, nil
 }
 
+// UpdateTemplate 全量更新文档模板。
 func (r *wikiRepositoryExtended) UpdateTemplate(ctx context.Context, template *model.DocumentTemplate) error {
 	return r.getDB(ctx).Save(template).Error
 }
 
+// DeleteTemplate 删除指定文档模板。
 func (r *wikiRepositoryExtended) DeleteTemplate(ctx context.Context, id string) error {
 	return r.getDB(ctx).Where("id = ?", id).Delete(&model.DocumentTemplate{}).Error
 }
 
+// CreateAccessLog 记录一条文档访问日志，自动补齐 ID 与租户ID。
 func (r *wikiRepositoryExtended) CreateAccessLog(ctx context.Context, log *model.DocumentAccessLog) error {
 	log.ID = idgen.NewULID()
 	if log.TenantID == "" {
@@ -325,6 +336,7 @@ func (r *wikiRepositoryExtended) CreateAccessLog(ctx context.Context, log *model
 	return r.getDB(ctx).Create(log).Error
 }
 
+// ListAccessLogs 分页列出指定文档的访问日志及总数。
 func (r *wikiRepositoryExtended) ListAccessLogs(ctx context.Context, documentID string, page, pageSize int) ([]*model.DocumentAccessLog, int64, error) {
 	var logs []*model.DocumentAccessLog
 	var total int64
@@ -339,6 +351,7 @@ func (r *wikiRepositoryExtended) ListAccessLogs(ctx context.Context, documentID 
 	return logs, total, err
 }
 
+// GetDocumentStats 汇总文档的浏览/编辑/下载/分享次数及独立浏览者、最近浏览时间。
 func (r *wikiRepositoryExtended) GetDocumentStats(ctx context.Context, documentID string) (*model.DocumentStats, error) {
 	stats := &model.DocumentStats{}
 	query := r.getDB(ctx).Model(&model.DocumentAccessLog{}).Where("document_id = ?", documentID)
@@ -359,6 +372,7 @@ func (r *wikiRepositoryExtended) GetDocumentStats(ctx context.Context, documentI
 	return stats, nil
 }
 
+// CreateSubscription 新建文档订阅，自动补齐 ID 与租户ID。
 func (r *wikiRepositoryExtended) CreateSubscription(ctx context.Context, sub *model.DocumentSubscription) error {
 	sub.ID = idgen.NewULID()
 	if sub.TenantID == "" {
@@ -367,17 +381,20 @@ func (r *wikiRepositoryExtended) CreateSubscription(ctx context.Context, sub *mo
 	return r.getDB(ctx).Create(sub).Error
 }
 
+// ListSubscriptions 列出指定文档的全部订阅者。
 func (r *wikiRepositoryExtended) ListSubscriptions(ctx context.Context, documentID string) ([]*model.DocumentSubscription, error) {
 	var subs []*model.DocumentSubscription
 	err := r.getDB(ctx).Where("document_id = ?", documentID).Find(&subs).Error
 	return subs, err
 }
 
+// DeleteSubscription 取消指定用户对文档的订阅。
 func (r *wikiRepositoryExtended) DeleteSubscription(ctx context.Context, documentID, userID string) error {
 	return r.getDB(ctx).Where("document_id = ? AND user_id = ?", documentID, userID).
 		Delete(&model.DocumentSubscription{}).Error
 }
 
+// GetSubscription 查询指定用户对文档的订阅记录。
 func (r *wikiRepositoryExtended) GetSubscription(ctx context.Context, documentID, userID string) (*model.DocumentSubscription, error) {
 	var sub model.DocumentSubscription
 	err := r.getDB(ctx).Where("document_id = ? AND user_id = ?", documentID, userID).First(&sub).Error
@@ -387,6 +404,7 @@ func (r *wikiRepositoryExtended) GetSubscription(ctx context.Context, documentID
 	return &sub, nil
 }
 
+// CreateNotification 创建站内通知，自动补齐 ID 与租户ID。
 func (r *wikiRepositoryExtended) CreateNotification(ctx context.Context, notification *model.Notification) error {
 	notification.ID = idgen.NewULID()
 	if notification.TenantID == "" {
@@ -395,6 +413,7 @@ func (r *wikiRepositoryExtended) CreateNotification(ctx context.Context, notific
 	return r.getDB(ctx).Create(notification).Error
 }
 
+// ListNotifications 分页列出用户的全部通知及总数。
 func (r *wikiRepositoryExtended) ListNotifications(ctx context.Context, userID string, page, pageSize int) ([]*model.Notification, int64, error) {
 	var notifications []*model.Notification
 	var total int64
@@ -409,23 +428,27 @@ func (r *wikiRepositoryExtended) ListNotifications(ctx context.Context, userID s
 	return notifications, total, err
 }
 
+// MarkNotificationAsRead 将指定通知标记为已读（同时校验归属人，防越权）。
 func (r *wikiRepositoryExtended) MarkNotificationAsRead(ctx context.Context, id, userID string) error {
 	// 同时匹配 user_id，防止越权把他人通知标记为已读
 	return r.getDB(ctx).Model(&model.Notification{}).Where("id = ? AND user_id = ?", id, userID).
 		Update("is_read", true).Error
 }
 
+// MarkAllNotificationsAsRead 将用户全部未读通知标记为已读。
 func (r *wikiRepositoryExtended) MarkAllNotificationsAsRead(ctx context.Context, userID string) error {
 	return r.getDB(ctx).Model(&model.Notification{}).Where("user_id = ? AND is_read = ?", userID, false).
 		Update("is_read", true).Error
 }
 
+// GetUnreadNotificationCount 统计用户未读通知数量。
 func (r *wikiRepositoryExtended) GetUnreadNotificationCount(ctx context.Context, userID string) (int64, error) {
 	var count int64
 	err := r.getDB(ctx).Model(&model.Notification{}).Where("user_id = ? AND is_read = ?", userID, false).Count(&count).Error
 	return count, err
 }
 
+// AcquireEditLock 获取文档编辑锁，默认 30 分钟过期，自动补齐 ID 与租户ID。
 func (r *wikiRepositoryExtended) AcquireEditLock(ctx context.Context, lock *model.EditLock) error {
 	lock.ID = idgen.NewULID()
 	if lock.TenantID == "" {
@@ -437,6 +460,7 @@ func (r *wikiRepositoryExtended) AcquireEditLock(ctx context.Context, lock *mode
 	return r.getDB(ctx).Create(lock).Error
 }
 
+// ReleaseEditLock 释放并删除指定文档的编辑锁。
 func (r *wikiRepositoryExtended) ReleaseEditLock(ctx context.Context, documentID string) error {
 	return r.getDB(ctx).Where("document_id = ?", documentID).Delete(&model.EditLock{}).Error
 }
@@ -454,6 +478,7 @@ func (r *wikiRepositoryExtended) GetEditLock(ctx context.Context, documentID str
 	return &lock, nil
 }
 
+// IsDocumentLocked 判断文档是否处于未过期的锁定状态。
 func (r *wikiRepositoryExtended) IsDocumentLocked(ctx context.Context, documentID string) (bool, error) {
 	var lock model.EditLock
 	err := r.getDB(ctx).Where("document_id = ? AND expires_at > ?", documentID, time.Now()).First(&lock).Error
@@ -466,20 +491,24 @@ func (r *wikiRepositoryExtended) IsDocumentLocked(ctx context.Context, documentI
 	return true, nil
 }
 
+// RefreshEditLock 刷新文档编辑锁的过期时间（续期 30 分钟）。
 func (r *wikiRepositoryExtended) RefreshEditLock(ctx context.Context, documentID string) error {
 	return r.getDB(ctx).Model(&model.EditLock{}).Where("document_id = ?", documentID).
 		Update("expires_at", time.Now().Add(30*time.Minute)).Error
 }
 
+// BatchDeleteNodes 批量软删除指定节点。
 func (r *wikiRepositoryExtended) BatchDeleteNodes(ctx context.Context, nodeIDs []string) error {
 	return r.getDB(ctx).Where("id IN ?", nodeIDs).Delete(&model.WikiNode{}).Error
 }
 
+// BatchMoveNodes 批量将指定节点移动到新的父节点下。
 func (r *wikiRepositoryExtended) BatchMoveNodes(ctx context.Context, nodeIDs []string, newParentID string) error {
 	return r.getDB(ctx).Model(&model.WikiNode{}).Where("id IN ?", nodeIDs).
 		Update("parent_id", newParentID).Error
 }
 
+// CompareRevisions 取回同一文档两个版本的原始内容，供上层 diff 对比。
 func (r *wikiRepositoryExtended) CompareRevisions(ctx context.Context, documentID string, version1, version2 int) (string, string, error) {
 	var rev1, rev2 model.DocumentRevision
 	if err := r.getDB(ctx).Where("document_id = ? AND version = ?", documentID, version1).First(&rev1).Error; err != nil {
@@ -491,18 +520,21 @@ func (r *wikiRepositoryExtended) CompareRevisions(ctx context.Context, documentI
 	return rev1.Content, rev2.Content, nil
 }
 
+// ListNodesByIDs 批量按 ID 查询节点。
 func (r *wikiRepositoryExtended) ListNodesByIDs(ctx context.Context, nodeIDs []string) ([]*model.WikiNode, error) {
 	var nodes []*model.WikiNode
 	err := r.getDB(ctx).Where("id IN ?", nodeIDs).Find(&nodes).Error
 	return nodes, err
 }
 
+// ListDocumentsByNodeIDs 批量查询多个节点下的文档。
 func (r *wikiRepositoryExtended) ListDocumentsByNodeIDs(ctx context.Context, nodeIDs []string) ([]*model.Document, error) {
 	var docs []*model.Document
 	err := r.getDB(ctx).Where("node_id IN ?", nodeIDs).Find(&docs).Error
 	return docs, err
 }
 
+// GetNodeByDocumentID 根据文档 ID 反查其所属节点。
 func (r *wikiRepositoryExtended) GetNodeByDocumentID(ctx context.Context, documentID string) (*model.WikiNode, error) {
 	var doc model.Document
 	if err := r.getDB(ctx).Where("id = ?", documentID).First(&doc).Error; err != nil {
@@ -515,12 +547,14 @@ func (r *wikiRepositoryExtended) GetNodeByDocumentID(ctx context.Context, docume
 	return &node, nil
 }
 
+// ListDocumentTagsWithDetails 列出文档的标签关联并预加载标签详情。
 func (r *wikiRepositoryExtended) ListDocumentTagsWithDetails(ctx context.Context, documentID string) ([]*model.DocumentTag, error) {
 	var docTags []*model.DocumentTag
 	err := r.getDB(ctx).Preload("Tag").Where("document_id = ?", documentID).Find(&docTags).Error
 	return docTags, err
 }
 
+// ListCommentsByDocument 列出指定文档的活跃评论（按创建时间正序）。
 func (r *wikiRepositoryExtended) ListCommentsByDocument(ctx context.Context, documentID string) ([]*model.Comment, error) {
 	var comments []*model.Comment
 	err := r.getDB(ctx).Where("document_id = ? AND status = ?", documentID, model.CommentStatusActive).
@@ -528,6 +562,7 @@ func (r *wikiRepositoryExtended) ListCommentsByDocument(ctx context.Context, doc
 	return comments, err
 }
 
+// ListRepliesByParentID 列出指定父评论下的活跃回复。
 func (r *wikiRepositoryExtended) ListRepliesByParentID(ctx context.Context, parentID string) ([]*model.Comment, error) {
 	var comments []*model.Comment
 	err := r.getDB(ctx).Where("parent_id = ? AND status = ?", parentID, model.CommentStatusActive).
@@ -535,12 +570,14 @@ func (r *wikiRepositoryExtended) ListRepliesByParentID(ctx context.Context, pare
 	return comments, err
 }
 
+// CountDocumentsByTag 统计使用指定标签的文档数量。
 func (r *wikiRepositoryExtended) CountDocumentsByTag(ctx context.Context, tagID string) (int64, error) {
 	var count int64
 	err := r.getDB(ctx).Model(&model.DocumentTag{}).Where("tag_id = ?", tagID).Count(&count).Error
 	return count, err
 }
 
+// SearchDocumentsByTags 按标签集合检索租户下的文档（join 标签关联表）。
 func (r *wikiRepositoryExtended) SearchDocumentsByTags(ctx context.Context, tenantID string, tagIDs []string) ([]*model.Document, error) {
 	var docs []*model.Document
 	query := r.getDB(ctx).Model(&model.Document{}).
@@ -551,6 +588,7 @@ func (r *wikiRepositoryExtended) SearchDocumentsByTags(ctx context.Context, tena
 	return docs, err
 }
 
+// ListTemplatesByCategory 按分类归组返回租户自有及公共模板。
 func (r *wikiRepositoryExtended) ListTemplatesByCategory(ctx context.Context, tenantID string) (map[string][]*model.DocumentTemplate, error) {
 	var templates []*model.DocumentTemplate
 	query := r.getDB(ctx).Where("tenant_id = ? OR is_public = ?", tenantID, true)
@@ -565,6 +603,7 @@ func (r *wikiRepositoryExtended) ListTemplatesByCategory(ctx context.Context, te
 	return result, nil
 }
 
+// GetShareLinkStats 获取分享链接的当前浏览量。
 func (r *wikiRepositoryExtended) GetShareLinkStats(ctx context.Context, linkID string) (int, error) {
 	var link model.ShareLink
 	if err := r.getDB(ctx).Where("id = ?", linkID).First(&link).Error; err != nil {
@@ -573,32 +612,38 @@ func (r *wikiRepositoryExtended) GetShareLinkStats(ctx context.Context, linkID s
 	return link.ViewCount, nil
 }
 
+// ListExpiredShareLinks 列出已过期的分享链接。
 func (r *wikiRepositoryExtended) ListExpiredShareLinks(ctx context.Context) ([]*model.ShareLink, error) {
 	var links []*model.ShareLink
 	err := r.getDB(ctx).Where("expire_at IS NOT NULL AND expire_at < ?", time.Now()).Find(&links).Error
 	return links, err
 }
 
+// DeleteExpiredShareLinks 物理删除已过期的分享链接。
 func (r *wikiRepositoryExtended) DeleteExpiredShareLinks(ctx context.Context) error {
 	return r.getDB(ctx).Where("expire_at IS NOT NULL AND expire_at < ?", time.Now()).Delete(&model.ShareLink{}).Error
 }
 
+// CleanExpiredEditLocks 清理已过期的编辑锁。
 func (r *wikiRepositoryExtended) CleanExpiredEditLocks(ctx context.Context) error {
 	return r.getDB(ctx).Where("expires_at < ?", time.Now()).Delete(&model.EditLock{}).Error
 }
 
+// ListLockedDocuments 列出当前未过期、处于锁定状态的编辑锁。
 func (r *wikiRepositoryExtended) ListLockedDocuments(ctx context.Context) ([]*model.EditLock, error) {
 	var locks []*model.EditLock
 	err := r.getDB(ctx).Where("expires_at > ?", time.Now()).Find(&locks).Error
 	return locks, err
 }
 
+// GetUserSubscriptions 列出用户订阅的全部文档。
 func (r *wikiRepositoryExtended) GetUserSubscriptions(ctx context.Context, userID string) ([]*model.DocumentSubscription, error) {
 	var subs []*model.DocumentSubscription
 	err := r.getDB(ctx).Where("user_id = ?", userID).Find(&subs).Error
 	return subs, err
 }
 
+// ListUnreadNotifications 分页列出用户未读通知及总数。
 func (r *wikiRepositoryExtended) ListUnreadNotifications(ctx context.Context, userID string, page, pageSize int) ([]*model.Notification, int64, error) {
 	var notifications []*model.Notification
 	var total int64
@@ -613,6 +658,7 @@ func (r *wikiRepositoryExtended) ListUnreadNotifications(ctx context.Context, us
 	return notifications, total, err
 }
 
+// GetDocumentByIDWithNode 按 ID 查询文档并连带返回其所属节点。
 func (r *wikiRepositoryExtended) GetDocumentByIDWithNode(ctx context.Context, id string) (*model.Document, *model.WikiNode, error) {
 	var doc model.Document
 	if err := r.getDB(ctx).Where("id = ?", id).First(&doc).Error; err != nil {
@@ -625,6 +671,7 @@ func (r *wikiRepositoryExtended) GetDocumentByIDWithNode(ctx context.Context, id
 	return &doc, &node, nil
 }
 
+// GetDocumentStatsExtended 扩展统计文档的浏览/编辑/下载/分享及独立浏览者、最近浏览时间。
 func (r *wikiRepositoryExtended) GetDocumentStatsExtended(ctx context.Context, documentID string) (*model.DocumentStats, error) {
 	stats := &model.DocumentStats{}
 
@@ -656,6 +703,7 @@ func (r *wikiRepositoryExtended) GetDocumentStatsExtended(ctx context.Context, d
 	return stats, nil
 }
 
+// GenerateDiff 逐行对比新旧内容，生成 unified 风格的差异文本。
 func (r *wikiRepositoryExtended) GenerateDiff(ctx context.Context, oldContent, newContent string) string {
 	oldLines := strings.Split(oldContent, "\n")
 	newLines := strings.Split(newContent, "\n")
@@ -691,6 +739,7 @@ func (r *wikiRepositoryExtended) GenerateDiff(ctx context.Context, oldContent, n
 	return diff.String()
 }
 
+// UpdateDocumentPublishStatus 更新文档发布状态，按需写入评审人/评审时间/发布时间，回退草稿时清空评审信息。
 func (r *wikiRepositoryExtended) UpdateDocumentPublishStatus(ctx context.Context, documentID string, status string, reviewedBy string, reviewedAt *time.Time, publishedAt *time.Time) error {
 	updates := map[string]interface{}{
 		"publish_status": status,
@@ -712,6 +761,7 @@ func (r *wikiRepositoryExtended) UpdateDocumentPublishStatus(ctx context.Context
 	return r.getDB(ctx).Model(&model.Document{}).Where("id = ?", documentID).Updates(updates).Error
 }
 
+// CreateReviewComment 创建评审评论，自动补齐 ID 与租户ID。
 func (r *wikiRepositoryExtended) CreateReviewComment(ctx context.Context, comment *model.ReviewComment) error {
 	comment.ID = idgen.NewULID()
 	if comment.TenantID == "" {
@@ -720,12 +770,14 @@ func (r *wikiRepositoryExtended) CreateReviewComment(ctx context.Context, commen
 	return r.getDB(ctx).Create(comment).Error
 }
 
+// ListReviewComments 列出指定文档的评审评论（按创建时间倒序）。
 func (r *wikiRepositoryExtended) ListReviewComments(ctx context.Context, documentID string) ([]*model.ReviewComment, error) {
 	var comments []*model.ReviewComment
 	err := r.getDB(ctx).Where("document_id = ?", documentID).Order("created_at DESC").Find(&comments).Error
 	return comments, err
 }
 
+// ListPendingReviewDocuments 分页查询租户下待评审/已驳回的文档及总数。
 func (r *wikiRepositoryExtended) ListPendingReviewDocuments(ctx context.Context, tenantID string, page, pageSize int) ([]*model.Document, int64, error) {
 	var docs []*model.Document
 	var total int64

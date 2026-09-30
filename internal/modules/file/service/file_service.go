@@ -1,3 +1,4 @@
+// Package service 实现文件模块的业务逻辑，包括上传、下载、存储后端切换和文件元数据管理。
 package service
 
 import (

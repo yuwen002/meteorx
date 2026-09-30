@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// TenantSettingsPO 租户设置持久化对象，映射 tenant_settings 表（每个租户一条）。
 type TenantSettingsPO struct {
 	ID           string    `gorm:"primaryKey;size:26;comment:'设置ID'"`
 	TenantID     string    `gorm:"size:26;uniqueIndex;comment:'租户ID，唯一'"`
@@ -30,10 +31,12 @@ type TenantSettingsPO struct {
 	UpdatedAt    time.Time `gorm:"comment:'更新时间'"`
 }
 
+// TableName 返回租户设置表名 tenant_settings。
 func (TenantSettingsPO) TableName() string {
 	return "tenant_settings"
 }
 
+// toDomain 将持久化对象转换为领域模型 model.TenantSettings。
 func (po TenantSettingsPO) toDomain() *model.TenantSettings {
 	return &model.TenantSettings{
 		ID:           po.ID,
@@ -56,18 +59,22 @@ func (po TenantSettingsPO) toDomain() *model.TenantSettings {
 	}
 }
 
+// AutoMigrateTenantSettings 自动迁移租户设置表结构。
 func AutoMigrateTenantSettings(db *gorm.DB) error {
 	return db.AutoMigrate(&TenantSettingsPO{})
 }
 
+// tenantSettingsRepository TenantSettingsRepository 的 GORM 实现。
 type tenantSettingsRepository struct {
 	db *gorm.DB
 }
 
+// NewTenantSettingsRepository 创建租户设置仓储实例。
 func NewTenantSettingsRepository(db *gorm.DB) TenantSettingsRepository {
 	return &tenantSettingsRepository{db: db}
 }
 
+// TenantSettingsRepository 租户设置数据访问接口。
 type TenantSettingsRepository interface {
 	GetByTenantID(ctx context.Context, tenantID string) (*model.TenantSettings, error)
 	Create(ctx context.Context, settings *model.TenantSettings) error
@@ -75,6 +82,7 @@ type TenantSettingsRepository interface {
 	Upsert(ctx context.Context, settings *model.TenantSettings) error
 }
 
+// GetByTenantID 按租户ID查询设置，不存在时返回 nil（非错误）。
 func (r *tenantSettingsRepository) GetByTenantID(ctx context.Context, tenantID string) (*model.TenantSettings, error) {
 	var po TenantSettingsPO
 	err := r.db.WithContext(ctx).Where("tenant_id = ?", tenantID).First(&po).Error
@@ -87,6 +95,7 @@ func (r *tenantSettingsRepository) GetByTenantID(ctx context.Context, tenantID s
 	return po.toDomain(), nil
 }
 
+// Create 新建租户设置记录。
 func (r *tenantSettingsRepository) Create(ctx context.Context, settings *model.TenantSettings) error {
 	po := &TenantSettingsPO{
 		ID:           settings.ID,
@@ -108,6 +117,7 @@ func (r *tenantSettingsRepository) Create(ctx context.Context, settings *model.T
 	return r.db.WithContext(ctx).Create(po).Error
 }
 
+// Update 仅更新非空字段，自动维护 updated_at。
 func (r *tenantSettingsRepository) Update(ctx context.Context, settings *model.TenantSettings) error {
 	updates := map[string]interface{}{}
 	if settings.Logo != "" {
@@ -158,6 +168,7 @@ func (r *tenantSettingsRepository) Update(ctx context.Context, settings *model.T
 	return r.db.WithContext(ctx).Model(&TenantSettingsPO{}).Where("tenant_id = ?", settings.TenantID).Updates(updates).Error
 }
 
+// Upsert 存在则更新、不存在则创建，保证租户设置的幂等写入。
 func (r *tenantSettingsRepository) Upsert(ctx context.Context, settings *model.TenantSettings) error {
 	existing, err := r.GetByTenantID(ctx, settings.TenantID)
 	if err != nil {

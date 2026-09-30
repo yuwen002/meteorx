@@ -18,6 +18,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// WikiServiceExtended 在 WikiService 基础上扩展标签、评论、分享、模板、统计、订阅、通知、编辑锁、批量操作、版本对比与导入导出等高阶能力。
 type WikiServiceExtended interface {
 	WikiService
 
@@ -83,22 +84,24 @@ type WikiServiceExtended interface {
 	ListPendingReviews(ctx context.Context, page, pageSize int) ([]*dto.ListPendingReviewsResp, int64, error)
 }
 
+// wikiServiceExtended 内嵌 wikiService 并实现 WikiServiceExtended 扩展接口。
 type wikiServiceExtended struct {
 	wikiService
 }
 
+// NewWikiServiceExtended 创建 Wiki 扩展服务实例，将仓储适配为扩展仓储并复用基础服务字段。
 func NewWikiServiceExtended(repo repository.WikiRepository, tx *db.TxManager) WikiServiceExtended {
 	extRepo, ok := repo.(repository.WikiRepositoryExtended)
 	if !ok {
 		extRepo = repository.NewWikiRepositoryExtended(nil)
 	}
-	
+
 	svc := &wikiService{
 		repo:        extRepo,
 		tx:          tx,
 		markdownSvc: NewMarkdownService(),
 	}
-	
+
 	return &wikiServiceExtended{
 		wikiService: *svc,
 	}
@@ -108,6 +111,7 @@ func (s *wikiServiceExtended) getExtendedRepo() repository.WikiRepositoryExtende
 	return s.wikiService.repo.(repository.WikiRepositoryExtended)
 }
 
+// CreateTag 创建租户级标签。
 func (s *wikiServiceExtended) CreateTag(ctx context.Context, req *dto.CreateTagReq) (*dto.TagResp, error) {
 	userID := contextx.GetUserID(ctx)
 	tag := &model.Tag{
@@ -129,6 +133,7 @@ func (s *wikiServiceExtended) CreateTag(ctx context.Context, req *dto.CreateTagR
 	}, nil
 }
 
+// ListTags 列出当前租户的全部标签。
 func (s *wikiServiceExtended) ListTags(ctx context.Context) ([]*dto.TagResp, error) {
 	tenantID := contextx.GetTenantID(ctx)
 	tags, err := s.getExtendedRepo().ListTags(ctx, tenantID)
@@ -149,6 +154,7 @@ func (s *wikiServiceExtended) ListTags(ctx context.Context) ([]*dto.TagResp, err
 	return resps, nil
 }
 
+// DeleteTag 删除标签，仅创建者可删除以防止他人越权。
 func (s *wikiServiceExtended) DeleteTag(ctx context.Context, id string) error {
 	userID := contextx.GetUserID(ctx)
 
@@ -165,6 +171,7 @@ func (s *wikiServiceExtended) DeleteTag(ctx context.Context, id string) error {
 	return s.getExtendedRepo().DeleteTag(ctx, id)
 }
 
+// AddDocumentTag 为文档添加标签（需 update 权限）。
 func (s *wikiServiceExtended) AddDocumentTag(ctx context.Context, documentID, tagID string) error {
 	userID := contextx.GetUserID(ctx)
 	if err := s.CheckDocumentPermission(ctx, documentID, userID, "update"); err != nil {
@@ -173,6 +180,7 @@ func (s *wikiServiceExtended) AddDocumentTag(ctx context.Context, documentID, ta
 	return s.getExtendedRepo().AddDocumentTag(ctx, documentID, tagID)
 }
 
+// RemoveDocumentTag 移除文档上的标签（需 update 权限）。
 func (s *wikiServiceExtended) RemoveDocumentTag(ctx context.Context, documentID, tagID string) error {
 	userID := contextx.GetUserID(ctx)
 	if err := s.CheckDocumentPermission(ctx, documentID, userID, "update"); err != nil {
@@ -181,6 +189,7 @@ func (s *wikiServiceExtended) RemoveDocumentTag(ctx context.Context, documentID,
 	return s.getExtendedRepo().RemoveDocumentTag(ctx, documentID, tagID)
 }
 
+// ListDocumentTags 列出文档已关联的标签详情（需 read 权限）。
 func (s *wikiServiceExtended) ListDocumentTags(ctx context.Context, documentID string) ([]*dto.DocumentTagResp, error) {
 	userID := contextx.GetUserID(ctx)
 	if err := s.CheckDocumentPermission(ctx, documentID, userID, "read"); err != nil {
@@ -210,6 +219,7 @@ func (s *wikiServiceExtended) ListDocumentTags(ctx context.Context, documentID s
 	return resps, nil
 }
 
+// CreateComment 新建文档评论，自动解析所属节点并向下到 @提及 用户发送提及通知。
 func (s *wikiServiceExtended) CreateComment(ctx context.Context, req *dto.CreateCommentReq) (*dto.CommentResp, error) {
 	userID := contextx.GetUserID(ctx)
 
@@ -261,14 +271,15 @@ func (s *wikiServiceExtended) CreateComment(ctx context.Context, req *dto.Create
 	return s.buildCommentResp(ctx, comment)
 }
 
+// ListComments 列出文档的顶级评论并聚合其子回复（需节点 read 权限）。
 func (s *wikiServiceExtended) ListComments(ctx context.Context, documentID string) ([]*dto.CommentResp, error) {
 	userID := contextx.GetUserID(ctx)
-	
+
 	doc, node, err := s.getExtendedRepo().GetDocumentByIDWithNode(ctx, documentID)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if err := s.CheckNodePermission(ctx, node.ID, userID, "read"); err != nil {
 		return nil, err
 	}
@@ -295,9 +306,10 @@ func (s *wikiServiceExtended) ListComments(ctx context.Context, documentID strin
 	return resps, nil
 }
 
+// UpdateComment 修改评论内容，仅评论作者可修改。
 func (s *wikiServiceExtended) UpdateComment(ctx context.Context, id string, req *dto.UpdateCommentReq) error {
 	userID := contextx.GetUserID(ctx)
-	
+
 	comment, err := s.getExtendedRepo().GetComment(ctx, id)
 	if err != nil {
 		return err
@@ -311,6 +323,7 @@ func (s *wikiServiceExtended) UpdateComment(ctx context.Context, id string, req 
 	return s.getExtendedRepo().UpdateComment(ctx, comment)
 }
 
+// DeleteComment 删除评论，非作者需 delete 权限；删除父评论时级联软删其子回复。
 func (s *wikiServiceExtended) DeleteComment(ctx context.Context, id string) error {
 	userID := contextx.GetUserID(ctx)
 
@@ -372,9 +385,10 @@ func (s *wikiServiceExtended) buildCommentResp(ctx context.Context, comment *mod
 	return resp, nil
 }
 
+// CreateShareLink 为文档创建分享链接（需 read 权限），可设置密码/过期/最大访问次数并记录分享日志。
 func (s *wikiServiceExtended) CreateShareLink(ctx context.Context, req *dto.ShareLinkReq) (*dto.ShareLinkResp, error) {
 	userID := contextx.GetUserID(ctx)
-	
+
 	if err := s.CheckDocumentPermission(ctx, req.DocumentID, userID, "read"); err != nil {
 		return nil, err
 	}
@@ -410,6 +424,7 @@ func (s *wikiServiceExtended) CreateShareLink(ctx context.Context, req *dto.Shar
 	return s.buildShareLinkResp(ctx, link), nil
 }
 
+// GetShareLink 按令牌获取分享链接信息，校验过期/密码并原子自增访问计数。
 func (s *wikiServiceExtended) GetShareLink(ctx context.Context, token, password string) (*dto.ShareLinkResp, error) {
 	link, err := s.getExtendedRepo().GetShareLinkByToken(ctx, token)
 	if err != nil {
@@ -502,6 +517,7 @@ func (s *wikiServiceExtended) AccessSharedDocument(ctx context.Context, token, p
 	}, nil
 }
 
+// ListShareLinks 列出文档的全部分享链接（需 read 权限）。
 func (s *wikiServiceExtended) ListShareLinks(ctx context.Context, documentID string) ([]*dto.ShareLinkResp, error) {
 	userID := contextx.GetUserID(ctx)
 	if err := s.CheckDocumentPermission(ctx, documentID, userID, "read"); err != nil {
@@ -520,6 +536,7 @@ func (s *wikiServiceExtended) ListShareLinks(ctx context.Context, documentID str
 	return resps, nil
 }
 
+// DeleteShareLink 按记录主键删除分享链接（需对目标文档的 update 权限）。
 func (s *wikiServiceExtended) DeleteShareLink(ctx context.Context, id string) error {
 	userID := contextx.GetUserID(ctx)
 
@@ -559,6 +576,7 @@ func (s *wikiServiceExtended) generateToken() string {
 	return hex.EncodeToString(b)
 }
 
+// CreateTemplate 创建文档模板，归属当前租户与创建者。
 func (s *wikiServiceExtended) CreateTemplate(ctx context.Context, req *dto.CreateTemplateReq) (*dto.DocumentTemplateResp, error) {
 	userID := contextx.GetUserID(ctx)
 	tenantID := contextx.GetTenantID(ctx)
@@ -592,6 +610,7 @@ func (s *wikiServiceExtended) CreateTemplate(ctx context.Context, req *dto.Creat
 	}, nil
 }
 
+// ListTemplates 按分类列出当前租户的非公开模板。
 func (s *wikiServiceExtended) ListTemplates(ctx context.Context, category string) ([]*dto.DocumentTemplateResp, error) {
 	tenantID := contextx.GetTenantID(ctx)
 	templates, err := s.getExtendedRepo().ListTemplates(ctx, tenantID, category, false)
@@ -617,6 +636,7 @@ func (s *wikiServiceExtended) ListTemplates(ctx context.Context, category string
 	return resps, nil
 }
 
+// GetTemplate 按 ID 获取模板详情。
 func (s *wikiServiceExtended) GetTemplate(ctx context.Context, id string) (*dto.DocumentTemplateResp, error) {
 	template, err := s.getExtendedRepo().GetTemplate(ctx, id)
 	if err != nil {
@@ -637,9 +657,10 @@ func (s *wikiServiceExtended) GetTemplate(ctx context.Context, id string) (*dto.
 	}, nil
 }
 
+// UpdateTemplate 更新模板，仅模板创建者可修改。
 func (s *wikiServiceExtended) UpdateTemplate(ctx context.Context, id string, req *dto.UpdateTemplateReq) (*dto.DocumentTemplateResp, error) {
 	userID := contextx.GetUserID(ctx)
-	
+
 	template, err := s.getExtendedRepo().GetTemplate(ctx, id)
 	if err != nil {
 		return nil, err
@@ -681,9 +702,10 @@ func (s *wikiServiceExtended) UpdateTemplate(ctx context.Context, id string, req
 	}, nil
 }
 
+// DeleteTemplate 删除模板，仅模板创建者可删除。
 func (s *wikiServiceExtended) DeleteTemplate(ctx context.Context, id string) error {
 	userID := contextx.GetUserID(ctx)
-	
+
 	template, err := s.getExtendedRepo().GetTemplate(ctx, id)
 	if err != nil {
 		return err
@@ -696,6 +718,7 @@ func (s *wikiServiceExtended) DeleteTemplate(ctx context.Context, id string) err
 	return s.getExtendedRepo().DeleteTemplate(ctx, id)
 }
 
+// GetDocumentStats 获取文档访问统计（需 read 权限）。
 func (s *wikiServiceExtended) GetDocumentStats(ctx context.Context, documentID string) (*dto.DocumentStatsResp, error) {
 	userID := contextx.GetUserID(ctx)
 	if err := s.CheckDocumentPermission(ctx, documentID, userID, "read"); err != nil {
@@ -717,6 +740,7 @@ func (s *wikiServiceExtended) GetDocumentStats(ctx context.Context, documentID s
 	}, nil
 }
 
+// ListAccessLogs 分页列出文档访问日志（需 read 权限）。
 func (s *wikiServiceExtended) ListAccessLogs(ctx context.Context, documentID string, page, pageSize int) ([]*dto.DocumentAccessLogResp, int64, error) {
 	userID := contextx.GetUserID(ctx)
 	if err := s.CheckDocumentPermission(ctx, documentID, userID, "read"); err != nil {
@@ -742,9 +766,10 @@ func (s *wikiServiceExtended) ListAccessLogs(ctx context.Context, documentID str
 	return resps, total, nil
 }
 
+// SubscribeDocument 订阅文档变更通知（需 read 权限），已订阅则直接返回现有订阅。
 func (s *wikiServiceExtended) SubscribeDocument(ctx context.Context, documentID, notifyType string) (*dto.SubscriptionResp, error) {
 	userID := contextx.GetUserID(ctx)
-	
+
 	if err := s.CheckDocumentPermission(ctx, documentID, userID, "read"); err != nil {
 		return nil, err
 	}
@@ -788,11 +813,13 @@ func (s *wikiServiceExtended) SubscribeDocument(ctx context.Context, documentID,
 	}, nil
 }
 
+// UnsubscribeDocument 取消当前用户对文档的订阅。
 func (s *wikiServiceExtended) UnsubscribeDocument(ctx context.Context, documentID string) error {
 	userID := contextx.GetUserID(ctx)
 	return s.getExtendedRepo().DeleteSubscription(ctx, documentID, userID)
 }
 
+// ListUserSubscriptions 列出当前用户的全部订阅。
 func (s *wikiServiceExtended) ListUserSubscriptions(ctx context.Context) ([]*dto.SubscriptionResp, error) {
 	userID := contextx.GetUserID(ctx)
 	subs, err := s.getExtendedRepo().GetUserSubscriptions(ctx, userID)
@@ -814,6 +841,7 @@ func (s *wikiServiceExtended) ListUserSubscriptions(ctx context.Context) ([]*dto
 	return resps, nil
 }
 
+// ListNotifications 分页列出当前用户的站内通知。
 func (s *wikiServiceExtended) ListNotifications(ctx context.Context, page, pageSize int) ([]*dto.NotificationResp, int64, error) {
 	userID := contextx.GetUserID(ctx)
 	notifications, total, err := s.getExtendedRepo().ListNotifications(ctx, userID, page, pageSize)
@@ -837,21 +865,25 @@ func (s *wikiServiceExtended) ListNotifications(ctx context.Context, page, pageS
 	return resps, total, nil
 }
 
+// MarkNotificationAsRead 将指定通知标记为已读（仅限本人）。
 func (s *wikiServiceExtended) MarkNotificationAsRead(ctx context.Context, id string) error {
 	userID := contextx.GetUserID(ctx)
 	return s.getExtendedRepo().MarkNotificationAsRead(ctx, id, userID)
 }
 
+// MarkAllNotificationsAsRead 将当前用户全部通知标记为已读。
 func (s *wikiServiceExtended) MarkAllNotificationsAsRead(ctx context.Context) error {
 	userID := contextx.GetUserID(ctx)
 	return s.getExtendedRepo().MarkAllNotificationsAsRead(ctx, userID)
 }
 
+// GetUnreadNotificationCount 获取当前用户未读通知数量。
 func (s *wikiServiceExtended) GetUnreadNotificationCount(ctx context.Context) (int64, error) {
 	userID := contextx.GetUserID(ctx)
 	return s.getExtendedRepo().GetUnreadNotificationCount(ctx, userID)
 }
 
+// AcquireEditLock 获取文档编辑锁（30 分钟），本人持有时自动续期，他人持有有效锁时拒绝。
 func (s *wikiServiceExtended) AcquireEditLock(ctx context.Context, documentID string) (*dto.EditLockResp, error) {
 	userID := contextx.GetUserID(ctx)
 
@@ -908,6 +940,7 @@ func (s *wikiServiceExtended) AcquireEditLock(ctx context.Context, documentID st
 	}, nil
 }
 
+// ReleaseEditLock 释放文档编辑锁，无有效锁时幂等返回，仅锁持有者可释放。
 func (s *wikiServiceExtended) ReleaseEditLock(ctx context.Context, documentID string) error {
 	userID := contextx.GetUserID(ctx)
 
@@ -927,6 +960,7 @@ func (s *wikiServiceExtended) ReleaseEditLock(ctx context.Context, documentID st
 	return s.getExtendedRepo().ReleaseEditLock(ctx, documentID)
 }
 
+// RefreshEditLock 刷新编辑锁有效期，仅持有者且锁未过期时可刷新。
 func (s *wikiServiceExtended) RefreshEditLock(ctx context.Context, documentID string) error {
 	userID := contextx.GetUserID(ctx)
 
@@ -947,6 +981,7 @@ func (s *wikiServiceExtended) RefreshEditLock(ctx context.Context, documentID st
 	return s.getExtendedRepo().RefreshEditLock(ctx, documentID)
 }
 
+// GetEditLock 查询文档编辑锁状态，无锁/已过期视为空闲可编辑。
 func (s *wikiServiceExtended) GetEditLock(ctx context.Context, documentID string) (*dto.EditLockResp, error) {
 	userID := contextx.GetUserID(ctx)
 
@@ -971,6 +1006,7 @@ func (s *wikiServiceExtended) GetEditLock(ctx context.Context, documentID string
 	}, nil
 }
 
+// BatchDeleteNodes 在单个事务内批量删除多个节点，任一失败则整体回滚。
 func (s *wikiServiceExtended) BatchDeleteNodes(ctx context.Context, nodeIDs []string) error {
 	return s.wikiService.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
 		for _, nodeID := range nodeIDs {
@@ -982,9 +1018,10 @@ func (s *wikiServiceExtended) BatchDeleteNodes(ctx context.Context, nodeIDs []st
 	})
 }
 
+// BatchMoveNodes 批量移动节点至新父节点，逐个校验 update 权限。
 func (s *wikiServiceExtended) BatchMoveNodes(ctx context.Context, nodeIDs []string, newParentID string) error {
 	userID := contextx.GetUserID(ctx)
-	
+
 	nodes, err := s.getExtendedRepo().ListNodesByIDs(ctx, nodeIDs)
 	if err != nil {
 		return err
@@ -999,6 +1036,7 @@ func (s *wikiServiceExtended) BatchMoveNodes(ctx context.Context, nodeIDs []stri
 	return s.getExtendedRepo().BatchMoveNodes(ctx, nodeIDs, newParentID)
 }
 
+// CompareRevisions 对比同一文档两个修订版本的逐行差异（需 read 权限）。
 func (s *wikiServiceExtended) CompareRevisions(ctx context.Context, documentID string, version1, version2 int) (*dto.DiffResult, error) {
 	userID := contextx.GetUserID(ctx)
 	if err := s.CheckDocumentPermission(ctx, documentID, userID, "read"); err != nil {
@@ -1011,10 +1049,10 @@ func (s *wikiServiceExtended) CompareRevisions(ctx context.Context, documentID s
 	}
 
 	diffStr := s.getExtendedRepo().GenerateDiff(ctx, oldContent, newContent)
-	
+
 	oldLines := strings.Split(oldContent, "\n")
 	newLines := strings.Split(newContent, "\n")
-	
+
 	var diffs []dto.DiffLine
 	maxLen := len(oldLines)
 	if len(newLines) > maxLen {
@@ -1071,6 +1109,7 @@ func (s *wikiServiceExtended) CompareRevisions(ctx context.Context, documentID s
 	}, nil
 }
 
+// ExportDocument 按格式（markdown/html/pdf）导出文档内容并记录下载日志，返回字节流与建议文件名。
 func (s *wikiServiceExtended) ExportDocument(ctx context.Context, documentID, format string) ([]byte, string, error) {
 	userID := contextx.GetUserID(ctx)
 	if err := s.CheckDocumentPermission(ctx, documentID, userID, "read"); err != nil {

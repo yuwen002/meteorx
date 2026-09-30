@@ -42,6 +42,7 @@ import (
 	"meteorx/pkg/security"
 )
 
+// InitRouter 构建 chi 路由，装配全局中间件并将各业务模块按公开/受保护/平台管理员三个分组注册。
 func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 	r := chi.NewRouter()
 	SetupMiddleware(r, BuildAllowedOrigins(cfg.Client))
