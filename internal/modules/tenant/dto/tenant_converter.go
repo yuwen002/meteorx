@@ -2,6 +2,7 @@ package dto
 
 import "meteorx/internal/modules/tenant/model"
 
+// TenantConverter 租户模型到 DTO 的转换器
 type TenantConverter struct{}
 
 func (a *TenantConverter) ToTenantResponse(tenant *model.Tenant) *TenantResp {

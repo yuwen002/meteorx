@@ -64,9 +64,8 @@ func RegisterRoutes(r chi.Router, h *handler.InvitationHandler, checker middlewa
 
 // RegisterPublicRoutes 注册公开路由（无需登录）。
 // 包含邀请信息查询和接受邀请接口，供被邀请人从邮件链接访问。
+// 注意：直接在父路由上注册，不使用 r.Route 分组，避免与 RegisterRoutes 的 /invitations Mount 冲突。
 func RegisterPublicRoutes(r chi.Router, h *handler.InvitationHandler) {
-	r.Route("/invitations", func(r chi.Router) {
-		r.Post("/accept", h.Accept)
-		r.Get("/info", h.GetByToken)
-	})
+	r.Post("/invitations/accept", h.Accept)
+	r.Get("/invitations/info", h.GetByToken)
 }

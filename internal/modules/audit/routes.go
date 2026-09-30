@@ -19,8 +19,8 @@ import (
 func RegisterRoutes(r chi.Router, h *handler.AuditHandler, alertH *handler.AlertHandler, sessionH *handler.SessionHandler, checker middleware.PermissionChecker, ipLocator iplocation.IPLocator) {
 	r.Route("/audit", func(r chi.Router) {
 		// Dashboard 统计接口：无需细粒度权限校验（只需登录）
-		r.Get("/stats", h.GetStats)
-		r.Get("/dashboard", h.GetDashboard)
+		r.Get("/stats", h.GetStats)               // 审计统计概览
+		r.Get("/dashboard", h.GetDashboard)       // 审计看板数据
 		r.Get("/user-timeline", h.GetUserTimeline)        // 用户时间线（需登录）
 		r.Get("/detailed-stats", h.GetDetailedStats)      // 详细统计（需登录）
 		r.Get("/anomalies", h.GetAnomalyLogs)             // 异常检测（需登录）

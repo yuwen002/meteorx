@@ -31,6 +31,7 @@ type LoginErrorResp struct {
 	LockoutDuration   int64  `json:"lockout_duration"`   // 锁定剩余时间（秒）
 }
 
+// ForgotPasswordReq 忘记密码请求（发送重置链接到邮箱）
 type ForgotPasswordReq struct {
 	Email string `json:"email" validate:"required,email" label:"邮箱"`
 }
@@ -44,6 +45,7 @@ type ResetPasswordReq struct {
 	NewPassword string `json:"new_password" validate:"required,min=8,max=32" label:"新密码"`
 }
 
+// ResetPasswordResp 重置密码响应
 type ResetPasswordResp struct {
 	Message string `json:"message"`
 }

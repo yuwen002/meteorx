@@ -27,8 +27,8 @@ func RegisterEmailVerificationRoutes(r chi.Router, h *handler.AuthHandler) {
 
 func RegisterAPITokenRoutes(r chi.Router, h *handler.APITokenHandler) {
 	r.Route("/auth/tokens", func(r chi.Router) {
-		r.Get("/", h.List)
-		r.Post("/", h.Create)
-		r.Post("/revoke", h.Revoke)
+		r.Get("/", h.List)         // 获取 API Token 列表
+		r.Post("/", h.Create)      // 创建 API Token
+		r.Post("/revoke", h.Revoke) // 撤销 API Token
 	})
 }

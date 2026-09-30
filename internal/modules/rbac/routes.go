@@ -24,7 +24,7 @@ import (
 func RegisterRoutes(r chi.Router, h *handler.RBACHandler, checker middleware.PermissionChecker) {
 	r.Route("/rbac", func(r chi.Router) {
 		// Dashboard 统计接口：无需细粒度权限校验（只需登录）
-		r.Get("/stats", h.GetStats)
+		r.Get("/stats", h.GetStats) // RBAC 统计概览
 
 		// 需要细粒度权限校验的路由组
 		r.Group(func(r chi.Router) {

@@ -99,9 +99,8 @@ func (r *stubInvRepo) FindByEmailAndTenant(_ context.Context, email, tenantID st
 }
 
 type stubUserRepo struct {
-	users    map[string]*userModel.User
-	byEmail  map[string]*userModel.User
-	createFn func(ctx context.Context, user *userModel.User) error
+	users   map[string]*userModel.User
+	byEmail map[string]*userModel.User
 }
 
 func newStubUserRepo() *stubUserRepo {
@@ -111,6 +110,14 @@ func newStubUserRepo() *stubUserRepo {
 	}
 }
 
+func (r *stubUserRepo) Create(_ context.Context, user *userModel.User) error {
+	r.users[user.ID] = user
+	r.byEmail[user.Email] = user
+	return nil
+}
+func (r *stubUserRepo) GetByUsername(_ context.Context, tenantID, username string) (*userModel.User, error) {
+	return nil, errors.New("not found")
+}
 func (r *stubUserRepo) GetByID(_ context.Context, id string) (*userModel.User, error) {
 	u, ok := r.users[id]
 	if !ok {
@@ -118,7 +125,6 @@ func (r *stubUserRepo) GetByID(_ context.Context, id string) (*userModel.User, e
 	}
 	return u, nil
 }
-
 func (r *stubUserRepo) GetByEmail(_ context.Context, email string) (*userModel.User, error) {
 	u, ok := r.byEmail[email]
 	if !ok {
@@ -126,17 +132,16 @@ func (r *stubUserRepo) GetByEmail(_ context.Context, email string) (*userModel.U
 	}
 	return u, nil
 }
-
-func (r *stubUserRepo) Create(ctx context.Context, user *userModel.User) error {
-	if r.createFn != nil {
-		return r.createFn(ctx, user)
-	}
-	r.users[user.ID] = user
-	r.byEmail[user.Email] = user
-	return nil
+func (r *stubUserRepo) UsernameExists(_ context.Context, username string) (bool, error) {
+	return false, nil
 }
-
-func (r *stubUserRepo) ListByTenant(_ context.Context, tenantID string, page, pageSize int, keyword string, status int) ([]*userModel.User, int64, error) {
+func (r *stubUserRepo) ListByTenant(_ context.Context, tenantID string, page, pageSize int, keyword string, status *int) ([]*userModel.User, int64, error) {
+	return nil, 0, nil
+}
+func (r *stubUserRepo) ListMasterAdmins(_ context.Context, page, pageSize int, keyword string) ([]*userModel.User, int64, error) {
+	return nil, 0, nil
+}
+func (r *stubUserRepo) ListAllTenantUsers(_ context.Context, page, pageSize int, keyword string) ([]*userModel.User, int64, error) {
 	return nil, 0, nil
 }
 func (r *stubUserRepo) Update(_ context.Context, user *userModel.User) error { return nil }
@@ -144,28 +149,47 @@ func (r *stubUserRepo) Delete(_ context.Context, id string) error             { 
 func (r *stubUserRepo) UpdateStatus(_ context.Context, id string, status int) error {
 	return nil
 }
+func (r *stubUserRepo) FindDeletedMasterAdmins(_ context.Context, page, pageSize int, keyword string) ([]*userModel.User, int64, error) {
+	return nil, 0, nil
+}
+func (r *stubUserRepo) RestoreMasterAdmin(_ context.Context, id string) error { return nil }
+func (r *stubUserRepo) PermanentDeleteMasterAdmin(_ context.Context, id string) error {
+	return nil
+}
+func (r *stubUserRepo) BatchUpdateStatus(_ context.Context, ids []string, status int) (int64, error) {
+	return 0, nil
+}
+func (r *stubUserRepo) BatchDelete(_ context.Context, ids []string) (int64, error) {
+	return 0, nil
+}
+func (r *stubUserRepo) FindDeletedTenantUsers(_ context.Context, tenantID string, page, pageSize int, keyword string) ([]*userModel.User, int64, error) {
+	return nil, 0, nil
+}
+func (r *stubUserRepo) FindAllDeletedTenantUsers(_ context.Context, page, pageSize int, keyword string) ([]*userModel.User, int64, error) {
+	return nil, 0, nil
+}
+func (r *stubUserRepo) RestoreTenantUser(_ context.Context, tenantID, userID string) error {
+	return nil
+}
+func (r *stubUserRepo) PermanentDeleteTenantUser(_ context.Context, tenantID, userID string) error {
+	return nil
+}
+func (r *stubUserRepo) BatchUpdateTenantUserStatus(_ context.Context, tenantID string, ids []string, status int) (int64, error) {
+	return 0, nil
+}
+func (r *stubUserRepo) BatchDeleteTenantUsers(_ context.Context, tenantID string, ids []string) (int64, error) {
+	return 0, nil
+}
 func (r *stubUserRepo) CountByTenant(_ context.Context, tenantID string) (int64, error) {
 	return 0, nil
 }
-func (r *stubUserRepo) GetByUsername(_ context.Context, username string) (*userModel.User, error) {
-	return nil, errors.New("not found")
-}
-func (r *stubUserRepo) GetByUsernameAndTenant(_ context.Context, username, tenantID string) (*userModel.User, error) {
-	return nil, errors.New("not found")
-}
-func (r *stubUserRepo) ListDeletedByTenant(_ context.Context, tenantID string, page, pageSize int) ([]*userModel.User, int64, error) {
-	return nil, 0, nil
-}
-func (r *stubUserRepo) Restore(_ context.Context, id string) error { return nil }
-func (r *stubUserRepo) PermanentDelete(_ context.Context, id string) error {
+func (r *stubUserRepo) CountAllUsers(_ context.Context) (int64, error) { return 0, nil }
+func (r *stubUserRepo) UpdateEmailVerified(_ context.Context, userID string, verified bool) error {
 	return nil
 }
-func (r *stubUserRepo) BatchUpdateStatus(_ context.Context, ids []string, status int) error {
-	return nil
+func (r *stubUserRepo) GetByPhone(_ context.Context, phone string) (*userModel.User, error) {
+	return nil, errors.New("not found")
 }
-func (r *stubUserRepo) BatchDelete(_ context.Context, ids []string) error { return nil }
-func (r *stubUserRepo) CountAll(_ context.Context) (int64, error)         { return 0, nil }
-func (r *stubUserRepo) CountByTenantAll(_ context.Context) (int64, error) { return 0, nil }
 
 type stubTenantRepo struct {
 	tenants map[string]*tenantModel.Tenant
@@ -182,106 +206,128 @@ func (r *stubTenantRepo) GetByID(_ context.Context, id string) (*tenantModel.Ten
 	}
 	return t, nil
 }
-
 func (r *stubTenantRepo) Create(_ context.Context, tenant *tenantModel.Tenant) error {
 	r.tenants[tenant.ID] = tenant
-	return nil
-}
-
-func (r *stubTenantRepo) List(_ context.Context, page, pageSize int, keyword string, status int) ([]*tenantModel.Tenant, int64, error) {
-	return nil, 0, nil
-}
-func (r *stubTenantRepo) Update(_ context.Context, tenant *tenantModel.Tenant) error { return nil }
-func (r *stubTenantRepo) Delete(_ context.Context, id string) error                  { return nil }
-func (r *stubTenantRepo) UpdateStatus(_ context.Context, id string, status int) error {
 	return nil
 }
 func (r *stubTenantRepo) GetByDomain(_ context.Context, domain string) (*tenantModel.Tenant, error) {
 	return nil, errors.New("not found")
 }
-func (r *stubTenantRepo) CountAll(_ context.Context) (int64, error) { return 0, nil }
-func (r *stubTenantRepo) ListDeleted(_ context.Context, page, pageSize int) ([]*tenantModel.Tenant, int64, error) {
+func (r *stubTenantRepo) GetByName(_ context.Context, name string) (*tenantModel.Tenant, error) {
+	return nil, errors.New("not found")
+}
+func (r *stubTenantRepo) CreateTenantWithAdmin(_ context.Context, tenant *tenantModel.Tenant, user *userModel.User, roleIDs []string) error {
+	return nil
+}
+func (r *stubTenantRepo) UpdateStatus(_ context.Context, id string, status int) error {
+	return nil
+}
+func (r *stubTenantRepo) Update(_ context.Context, id string, tenant *tenantModel.Tenant) error {
+	return nil
+}
+func (r *stubTenantRepo) Delete(_ context.Context, id string) error  { return nil }
+func (r *stubTenantRepo) HardDelete(_ context.Context, id string) error { return nil }
+func (r *stubTenantRepo) FindPage(_ context.Context, page, pageSize int, name string, status *int) ([]*tenantModel.Tenant, int64, error) {
+	return nil, 0, nil
+}
+func (r *stubTenantRepo) BatchUpdateStatus(_ context.Context, ids []string, status int) (int64, []string, error) {
+	return 0, nil, nil
+}
+func (r *stubTenantRepo) BatchDelete(_ context.Context, ids []string) (int64, []string, error) {
+	return 0, nil, nil
+}
+func (r *stubTenantRepo) FindDeleted(_ context.Context, page, pageSize int, name string) ([]*tenantModel.Tenant, int64, error) {
 	return nil, 0, nil
 }
 func (r *stubTenantRepo) Restore(_ context.Context, id string) error { return nil }
-func (r *stubTenantRepo) HardDelete(_ context.Context, id string) error {
+func (r *stubTenantRepo) CreateCancelRequest(_ context.Context, req *tenantModel.CancelRequest) error {
 	return nil
 }
-func (r *stubTenantRepo) BatchUpdateStatus(_ context.Context, ids []string, status int) error {
+func (r *stubTenantRepo) GetCancelRequestByID(_ context.Context, id string) (*tenantModel.CancelRequest, error) {
+	return nil, errors.New("not found")
+}
+func (r *stubTenantRepo) GetPendingCancelRequestByTenant(_ context.Context, tenantID string) (*tenantModel.CancelRequest, error) {
+	return nil, errors.New("not found")
+}
+func (r *stubTenantRepo) UpdateCancelRequest(_ context.Context, req *tenantModel.CancelRequest) error {
 	return nil
 }
-func (r *stubTenantRepo) BatchDelete(_ context.Context, ids []string) error { return nil }
-func (r *stubTenantRepo) UpdatePlan(_ context.Context, tenantID, planID string) error {
-	return nil
+func (r *stubTenantRepo) FindCancelRequests(_ context.Context, page, pageSize int, status int, keyword string) ([]*tenantModel.CancelRequest, int64, error) {
+	return nil, 0, nil
 }
-func (r *stubTenantRepo) GetPlanID(_ context.Context, tenantID string) (string, error) {
-	return "", nil
+func (r *stubTenantRepo) FindApprovedDueCancelRequests(_ context.Context, now time.Time) ([]*tenantModel.CancelRequest, error) {
+	return nil, nil
+}
+func (r *stubTenantRepo) ListActive(_ context.Context) ([]*tenantModel.Tenant, error) {
+	return nil, nil
 }
 
 type stubRoleRepo struct{}
 
-func (r *stubRoleRepo) Create(_ context.Context, role *rbacModel.Role) error         { return nil }
-func (r *stubRoleRepo) GetByID(_ context.Context, id string) (*rbacModel.Role, error) { return nil, errors.New("not found") }
-func (r *stubRoleRepo) GetByCode(_ context.Context, code string) (*rbacModel.Role, error) {
+func (r *stubRoleRepo) Create(_ context.Context, role *rbacModel.Role) error { return nil }
+func (r *stubRoleRepo) GetByID(_ context.Context, id string) (*rbacModel.Role, error) {
 	return nil, errors.New("not found")
 }
-func (r *stubRoleRepo) Update(_ context.Context, role *rbacModel.Role) error { return nil }
-func (r *stubRoleRepo) Delete(_ context.Context, id string) error            { return nil }
-func (r *stubRoleRepo) List(_ context.Context, page, pageSize int, keyword string, status int) ([]*rbacModel.Role, int64, error) {
+func (r *stubRoleRepo) GetByCode(_ context.Context, tenantID, code string) (*rbacModel.Role, error) {
+	return nil, errors.New("not found")
+}
+func (r *stubRoleRepo) List(_ context.Context, tenantID string, page, pageSize int, keyword string) ([]*rbacModel.Role, int64, error) {
 	return nil, 0, nil
 }
-func (r *stubRoleRepo) CountAll(_ context.Context) (int64, error) { return 0, nil }
-func (r *stubRoleRepo) UpdateStatus(_ context.Context, id string, status int) error {
-	return nil
+func (r *stubRoleRepo) ListByScope(_ context.Context, scope string) ([]*rbacModel.Role, error) {
+	return nil, nil
 }
-func (r *stubRoleRepo) ListDeleted(_ context.Context, page, pageSize int) ([]*rbacModel.Role, int64, error) {
-	return nil, 0, nil
-}
-func (r *stubRoleRepo) Restore(_ context.Context, id string) error { return nil }
-func (r *stubRoleRepo) PermanentDelete(_ context.Context, id string) error {
-	return nil
-}
-func (r *stubRoleRepo) BatchUpdateStatus(_ context.Context, ids []string, status int) error {
-	return nil
-}
-func (r *stubRoleRepo) BatchDelete(_ context.Context, ids []string) error { return nil }
-func (r *stubRoleRepo) BatchPermanentDelete(_ context.Context, ids []string) error {
-	return nil
-}
-func (r *stubRoleRepo) ListForSelect(_ context.Context) ([]*rbacModel.Role, error) { return nil, nil }
 func (r *stubRoleRepo) ListSystemAdminRoles(_ context.Context) ([]*rbacModel.Role, error) {
 	return nil, nil
 }
-
-type stubUserRoleRepo struct {
-	assignments map[string][]string
+func (r *stubRoleRepo) Update(_ context.Context, role *rbacModel.Role) error { return nil }
+func (r *stubRoleRepo) UpdateStatus(_ context.Context, id string, status int) error {
+	return nil
 }
-
-func newStubUserRoleRepo() *stubUserRoleRepo {
-	return &stubUserRoleRepo{assignments: make(map[string][]string)}
+func (r *stubRoleRepo) BatchUpdateStatus(_ context.Context, ids []string, status int) (int64, error) {
+	return 0, nil
 }
+func (r *stubRoleRepo) Delete(_ context.Context, id string) error { return nil }
+func (r *stubRoleRepo) BatchDelete(_ context.Context, ids []string) (int64, error) { return 0, nil }
+func (r *stubRoleRepo) FindDeleted(_ context.Context, page, pageSize int, keyword string) ([]*rbacModel.Role, int64, error) {
+	return nil, 0, nil
+}
+func (r *stubRoleRepo) Restore(_ context.Context, id string) error { return nil }
+func (r *stubRoleRepo) PermanentDelete(_ context.Context, id string) error { return nil }
+func (r *stubRoleRepo) BatchPermanentDelete(_ context.Context, ids []string) (int64, error) {
+	return 0, nil
+}
+func (r *stubRoleRepo) Count(_ context.Context, tenantID string) (int64, error) { return 0, nil }
+
+type stubUserRoleRepo struct{}
+
+func newStubUserRoleRepo() *stubUserRoleRepo { return &stubUserRoleRepo{} }
 
 func (r *stubUserRoleRepo) AssignRoles(_ context.Context, userID string, roleIDs []string) error {
-	r.assignments[userID] = roleIDs
 	return nil
 }
-func (r *stubUserRoleRepo) RemoveRole(_ context.Context, userID, roleID string) error { return nil }
-func (r *stubUserRoleRepo) RemoveAllRoles(_ context.Context, userID string) error     { return nil }
-func (r *stubUserRoleRepo) GetRolesByUserID(_ context.Context, userID string) ([]*rbacModel.Role, error) {
+func (r *stubUserRoleRepo) GetRoleIDsByUserID(_ context.Context, userID string) ([]string, error) {
 	return nil, nil
 }
-func (r *stubUserRoleRepo) GetUsersByRoleID(_ context.Context, roleID string, page, pageSize int) ([]*rbacModel.UserRole, int64, error) {
-	return nil, 0, nil
+func (r *stubUserRoleRepo) GetRoleCodesByUserID(_ context.Context, userID string) ([]string, error) {
+	return nil, nil
 }
-func (r *stubUserRoleRepo) List(_ context.Context, page, pageSize int, keyword string) ([]*rbacModel.UserRole, int64, error) {
-	return nil, 0, nil
+func (r *stubUserRoleRepo) BatchGetRoleIDsByUserIDs(_ context.Context, userIDs []string) (map[string][]string, error) {
+	return nil, nil
 }
-func (r *stubUserRoleRepo) BatchAssign(_ context.Context, assignments []*rbacModel.UserRole) error {
+func (r *stubUserRoleRepo) DeleteByUserID(_ context.Context, userID string) error { return nil }
+func (r *stubUserRoleRepo) DeleteByUserIDAndRoleID(_ context.Context, userID, roleID string) error {
 	return nil
 }
-func (r *stubUserRoleRepo) HasRole(_ context.Context, userID, roleID string) (bool, error) { return false, nil }
-func (r *stubUserRoleRepo) CountByRoleID(_ context.Context, roleID string) (int64, error)  { return 0, nil }
-func (r *stubUserRoleRepo) CountByUserID(_ context.Context, userID string) (int64, error)  { return 0, nil }
+func (r *stubUserRoleRepo) GetUserIDsByRoleID(_ context.Context, roleID string) ([]string, error) {
+	return nil, nil
+}
+func (r *stubUserRoleRepo) CountByRoleID(_ context.Context, roleID string) (int64, error) { return 0, nil }
+func (r *stubUserRoleRepo) CountByUserID(_ context.Context, userID string) (int64, error) { return 0, nil }
+func (r *stubUserRoleRepo) CheckUserExists(_ context.Context, userID string) error { return nil }
+func (r *stubUserRoleRepo) ListUserRoles(_ context.Context, page, pageSize int, userID, roleID string) ([]*rbacModel.UserRole, int64, error) {
+	return nil, 0, nil
+}
 
 func newTestService(invRepo *stubInvRepo, userRepo *stubUserRepo) *InvitationService {
 	return NewInvitationService(
@@ -292,7 +338,7 @@ func newTestService(invRepo *stubInvRepo, userRepo *stubUserRepo) *InvitationSer
 		newStubUserRoleRepo(),
 		config.EmailConfig{Enabled: false},
 		config.ClientConfig{BaseURL: "http://localhost:3000"},
-		config.SecurityConfig{PasswordPolicy: config.PasswordPolicy{MinLength: 6}},
+		config.SecurityConfig{PasswordPolicy: config.PasswordPolicyConfig{MinLength: 6}},
 	)
 }
 

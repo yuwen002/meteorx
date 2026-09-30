@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -68,8 +67,7 @@ func newInvRouter(stub *stubInvService) http.Handler {
 }
 
 func withTenantContext(r *http.Request, tenantID, userID string) *http.Request {
-	ctx := contextx.WithTenantID(r.Context(), tenantID)
-	ctx = contextx.WithUserID(ctx, userID)
+	ctx := contextx.SetVars(r.Context(), tenantID, userID, nil)
 	return r.WithContext(ctx)
 }
 

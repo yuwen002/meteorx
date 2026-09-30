@@ -28,6 +28,6 @@ func RegisterRoutes(r chi.Router, h *handler.AnnouncementHandler, checker middle
 // 挂载路径前缀: /api/v1/announcements
 func RegisterTenantRoutes(r chi.Router, h *handler.AnnouncementHandler) {
 	r.Route("/announcements", func(r chi.Router) {
-		r.Get("/", h.ListForTenant)
+		r.Get("/", h.ListForTenant) // 租户端公告列表
 	})
 }

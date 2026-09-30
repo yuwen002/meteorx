@@ -239,6 +239,7 @@ type ModuleCount struct {
 	Count  int64  `json:"count"`
 }
 
+// DashboardResp 审计看板响应（含趋势和模块分布）
 type DashboardResp struct {
 	TotalCount  int64            `json:"total_count"`
 	TodayCount  int64            `json:"today_count"`

@@ -21,10 +21,10 @@ import (
 
 // InvitationHandler 邀请模块 HTTP 处理器。
 type InvitationHandler struct {
-	svc *service.InvitationService // 邀请业务服务
+	svc service.InvitationServiceInterface // 邀请业务服务
 }
 
-func NewInvitationHandler(svc *service.InvitationService) *InvitationHandler {
+func NewInvitationHandler(svc service.InvitationServiceInterface) *InvitationHandler {
 	return &InvitationHandler{svc: svc}
 }
 

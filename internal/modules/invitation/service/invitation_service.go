@@ -40,6 +40,17 @@ var (
 	ErrEmailNotConfigured = errors.New("email service not configured")
 )
 
+// InvitationServiceInterface 邀请服务接口，供 handler 层依赖反转。
+type InvitationServiceInterface interface {
+	Create(ctx context.Context, tenantID, invitedBy string, req dto.CreateInvitationReq) (*model.Invitation, error)
+	Accept(ctx context.Context, req dto.AcceptInvitationReq) error
+	List(ctx context.Context, tenantID string, page, pageSize int, keyword, status string) ([]*model.Invitation, int64, error)
+	Cancel(ctx context.Context, tenantID, invitationID string) error
+	Resend(ctx context.Context, tenantID, invitationID string) (*model.Invitation, error)
+	Delete(ctx context.Context, tenantID, invitationID string) error
+	GetByToken(ctx context.Context, token string) (*model.Invitation, error)
+}
+
 // InvitationService 邀请模块业务服务。
 // 管理邀请的完整生命周期：创建→邮件通知→接受→用户注册→角色分配。
 type InvitationService struct {
