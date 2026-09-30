@@ -1,0 +1,16 @@
+web-admin/src/views/wiki/components/PublishWorkflow.vue
+  h_a3f313f3d96276 1-337
+web-admin/src/views/wiki/pending-reviews.vue
+  h_a3f313f3d96276 1-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "533ac37deb61e28836edb861cbebc398cf657d70",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
