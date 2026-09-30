@@ -20,6 +20,9 @@
         <el-button @click="goTrashPage">
           <el-icon><Delete /></el-icon>回收站
         </el-button>
+        <el-button @click="goPendingReviews">
+          <el-icon><DocumentChecked /></el-icon>待审核
+        </el-button>
         <el-button type="success" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>新建空间
         </el-button>
@@ -97,7 +100,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Search, Plus, Reading, Delete } from '@element-plus/icons-vue'
+import { Search, Plus, Reading, Delete, DocumentChecked } from '@element-plus/icons-vue'
 import {
   listSpaces,
   createSpace,
@@ -172,6 +175,9 @@ function goSearchPage() {
 }
 function goTrashPage() {
   router.push('/wiki/trash')
+}
+function goPendingReviews() {
+  router.push('/wiki/pending-reviews')
 }
 
 function openCreateDialog() {

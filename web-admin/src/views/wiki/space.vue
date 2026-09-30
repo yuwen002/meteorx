@@ -139,6 +139,14 @@
             <el-tag v-if="canEdit" type="warning" size="small" class="unsaved-tip">
               最后编辑 {{ currentDocument.last_edited_at?.replace('T', ' ').substring(0, 16) }}
             </el-tag>
+            <PublishWorkflow
+              v-if="currentDocument"
+              :document-id="currentDocument.id"
+              :publish-status="(currentDocument.publish_status as any) || 'draft'"
+              :can-review="canEdit"
+              :can-publish="canManage"
+              @status-changed="onPublishStatusChanged"
+            />
             <el-button v-if="canEdit" :icon="PriceTag" @click="tagManagerRef?.open()">标签</el-button>
             <el-button v-if="canEdit" :icon="Share" @click="shareManagerRef?.open()">分享</el-button>
             <el-button :icon="DataAnalysis" @click="statsPanelRef?.open()">统计</el-button>
@@ -572,6 +580,7 @@ import StatsPanel from './components/StatsPanel.vue'
 import TemplateSelector from './components/TemplateSelector.vue'
 import NotificationCenter from './components/NotificationCenter.vue'
 import EditLockIndicator from './components/EditLockIndicator.vue'
+import PublishWorkflow from './components/PublishWorkflow.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -680,6 +689,12 @@ const previewLoading = ref(false)
 const dirty = ref(false)
 const saving = ref(false)
 const editorRef = ref<HTMLTextAreaElement>()
+
+function onPublishStatusChanged(status: string) {
+  if (currentDocument.value) {
+    currentDocument.value.publish_status = status
+  }
+}
 
 async function loadDocument(nodeId: string) {
   try {

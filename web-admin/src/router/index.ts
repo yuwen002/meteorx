@@ -110,6 +110,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Wiki 回收站', icon: 'Delete', permission: 'wiki:list' }
       },
       {
+        path: 'wiki/pending-reviews',
+        name: 'WikiPendingReviews',
+        component: () => import('@/views/wiki/pending-reviews.vue'),
+        meta: { title: '待审核文档', icon: 'DocumentChecked', permission: 'wiki:list' }
+      },
+      {
         path: 'announcement',
         name: 'Announcement',
         component: () => import('@/views/announcement/index.vue'),

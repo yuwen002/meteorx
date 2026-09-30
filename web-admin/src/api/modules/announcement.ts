@@ -16,6 +16,7 @@ export interface AnnouncementItem {
   updated_at: string
 }
 
+// 获取公告列表（管理端，分页）
 export function getAnnouncementList(params?: {
   page?: number
   page_size?: number
@@ -26,10 +27,12 @@ export function getAnnouncementList(params?: {
   return request.get<any, PaginatedResult<AnnouncementItem>>('/admin/announcements', { params })
 }
 
+// 获取公告详情
 export function getAnnouncementDetail(id: string) {
   return request.get<any, AnnouncementItem>(`/admin/announcements/${id}`)
 }
 
+// 创建公告
 export function createAnnouncement(data: {
   title: string
   content: string
@@ -42,6 +45,7 @@ export function createAnnouncement(data: {
   return request.post<any, AnnouncementItem>('/admin/announcements', data)
 }
 
+// 更新公告
 export function updateAnnouncement(id: string, data: {
   title: string
   content: string
@@ -54,14 +58,17 @@ export function updateAnnouncement(id: string, data: {
   return request.put<any, AnnouncementItem>(`/admin/announcements/${id}`, data)
 }
 
+// 更新公告状态（发布/下架）
 export function updateAnnouncementStatus(id: string, status: number) {
   return request.put<any, AnnouncementItem>(`/admin/announcements/${id}/status`, { status })
 }
 
+// 删除公告
 export function deleteAnnouncement(id: string) {
   return request.delete<any, { id: string }>(`/admin/announcements/${id}`)
 }
 
+// 获取当前租户的公告列表（租户端，分页）
 export function listTenantAnnouncements(params?: { page?: number; page_size?: number }) {
   return request.get<any, PaginatedResult<AnnouncementItem>>('/announcements', { params })
 }

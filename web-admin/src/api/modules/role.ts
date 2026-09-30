@@ -44,6 +44,7 @@ export interface RoleListParams {
   status?: number
 }
 
+// 获取角色列表（分页）
 export function getRoleList(params: RoleListParams) {
   return get<{ list: RoleItem[]; total: number }>('/rbac/roles', params)
 }
@@ -66,30 +67,37 @@ export function getRolesForSelect(scope: 'system' | 'tenant' | 'all' = 'system')
   return get<RoleItem[]>(`/rbac/roles/select?scope=${scope}`)
 }
 
+// 获取角色详情
 export function getRoleDetail(id: string) {
   return get<RoleItem>(`/rbac/roles/${id}/detail`)
 }
 
+// 创建角色
 export function createRole(data: RoleCreateParams) {
   return post<RoleItem>('/rbac/roles', data)
 }
 
+// 更新角色
 export function updateRole(id: string, data: RoleUpdateParams) {
   return put<RoleItem>(`/rbac/roles/${id}/update`, data)
 }
 
+// 更新角色状态（启用/禁用）
 export function updateRoleStatus(id: string, status: number) {
   return put(`/rbac/roles/${id}/status`, { status })
 }
 
+// 删除角色（软删除）
 export function deleteRole(id: string) {
   return del(`/rbac/roles/${id}/delete`)
 }
 
+// 批量删除角色
 export function batchDeleteRoles(ids: string[]) {
   return del('/rbac/roles/batch/delete', { data: { ids } })
 }
 
+// 批量更新角色状态
 export function batchUpdateRoleStatus(ids: string[], status: number) {
   return put('/rbac/roles/batch/status', { ids, status })
 }

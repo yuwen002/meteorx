@@ -76,6 +76,7 @@ export interface PaginatedResponse<T> {
   }
 }
 
+// 获取审计日志列表（分页，支持多维度筛选）
 export function getAuditLogList(params: {
   page?: number
   page_size?: number
@@ -100,22 +101,27 @@ export function getAuditLogList(params: {
   })
 }
 
+// 获取审计日志详情
 export function getAuditLogDetail(id: string): Promise<AuditLogItem> {
   return get(`/audit/logs/${id}`)
 }
 
+// 获取审计统计概览
 export function getAuditStats(): Promise<AuditLogStats> {
   return get('/audit/stats')
 }
 
+// 获取审计看板数据（含趋势和模块分布）
 export function getAuditDashboard(days?: number): Promise<AuditDashboardData> {
   return get('/audit/dashboard', { days: days || 7 })
 }
 
+// 清理指定天数之前的审计日志
 export function cleanupAuditLogs(days: number): Promise<{ deleted_count: number }> {
   return del('/audit/logs/cleanup', { params: { days } })
 }
 
+// 导出审计日志（返回下载 URL）
 export function exportAuditLogs(params: {
   format?: 'csv'
   module?: string
@@ -137,7 +143,7 @@ export function exportAuditLogs(params: {
   return `/api/v1/audit/logs/export?${query.toString()}`
 }
 
-// ---------------------- 新增 API ----------------------
+// ---------------------- 扩展 API ----------------------
 
 // 用户时间线
 export interface TimelineItem {
@@ -154,6 +160,7 @@ export interface UserTimelineResult {
   pages: number
 }
 
+// 获取用户操作时间线（按日期分组）
 export function getUserTimeline(params: {
   user_id: string
   page?: number
@@ -184,6 +191,7 @@ export interface DetailedStats {
   trend: TrendPoint[]
 }
 
+// 获取详细统计数据（含风险等级、小时分布、用户活跃度）
 export function getDetailedStats(days?: number): Promise<DetailedStats> {
   return get('/audit/detailed-stats', { days: days || 7 })
 }
@@ -203,6 +211,7 @@ export interface AnomalyLogItem {
   details: string
 }
 
+// 获取异常行为日志（可设置阈值和时间窗口）
 export function getAnomalyLogs(params?: {
   threshold?: number
   window_minutes?: number
@@ -228,6 +237,7 @@ export interface AlertStatsResult {
   top_rules: AlertRuleCount[]
 }
 
+// 获取告警统计数据（含风险等级分布和规则命中排名）
 export function getAlertStats(days?: number): Promise<AlertStatsResult> {
   return get('/audit/alerts/stats', { days: days || 7 })
 }
