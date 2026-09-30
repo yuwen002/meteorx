@@ -1,0 +1,20 @@
+web-admin/src/api/modules/oauth.ts
+  h_a3f313f3d96276 1-75
+internal/modules/invitation/service/invitation_service_test.go
+  h_a3f313f3d96276 1-643
+web-admin/src/api/modules/auth.ts
+  h_a3f313f3d96276 1-101
+internal/modules/invitation/handler/invitation_handler_test.go
+  h_a3f313f3d96276 1-323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "b73af24489ca7379c79d8a89318e9541a1e8907e",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
