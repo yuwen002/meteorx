@@ -395,6 +395,8 @@ func writeServiceError(w http.ResponseWriter, err error, fallback string) {
 	switch {
 	case errors.Is(err, service.ErrInvalidDueDate):
 		response.BadRequest(w, "截止时间格式不正确")
+	case errors.Is(err, service.ErrInvalidRemindLead):
+		response.BadRequest(w, "提醒提前量不合法（形如 2h/30m，最长 31 天）")
 	case errors.Is(err, service.ErrTaskNotFound):
 		response.NotFound(w, "任务不存在")
 	case errors.Is(err, service.ErrTaskForbidden):

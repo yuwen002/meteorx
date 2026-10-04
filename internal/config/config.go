@@ -8,22 +8,64 @@ import (
 
 // Config 应用总配置，聚合各子模块配置项。
 type Config struct {
-	Server     ServerConfig     `mapstructure:"server"`
-	Database   DatabaseConfig   `mapstructure:"database"`
-	Redis      RedisConfig      `mapstructure:"redis"`
-	JWT        JWTConfig        `mapstructure:"jwt"`
-	Log        LogConfig        `mapstructure:"log"`
-	Security   SecurityConfig   `mapstructure:"security"`
-	File       FileConfig       `mapstructure:"file"`
-	Email      EmailConfig      `mapstructure:"email"`
-	Client     ClientConfig     `mapstructure:"client"`
-	IPLocation IPLocationConfig `mapstructure:"ip_location"`
-	OAuth      OAuthConfig      `mapstructure:"oauth"`
-	Auth       AuthConfig       `mapstructure:"auth"`
-	WS         WSConfig         `mapstructure:"ws"`
-	Notify     NotifyConfig     `mapstructure:"notify"`
-	OTel       OTelConfig       `mapstructure:"otel"`
-	Search     SearchConfig     `mapstructure:"search"`
+	Server       ServerConfig       `mapstructure:"server"`
+	Database     DatabaseConfig     `mapstructure:"database"`
+	Redis        RedisConfig        `mapstructure:"redis"`
+	JWT          JWTConfig          `mapstructure:"jwt"`
+	Log          LogConfig          `mapstructure:"log"`
+	Security     SecurityConfig     `mapstructure:"security"`
+	File         FileConfig         `mapstructure:"file"`
+	Email        EmailConfig        `mapstructure:"email"`
+	Client       ClientConfig       `mapstructure:"client"`
+	IPLocation   IPLocationConfig   `mapstructure:"ip_location"`
+	OAuth        OAuthConfig        `mapstructure:"oauth"`
+	Auth         AuthConfig         `mapstructure:"auth"`
+	WS           WSConfig           `mapstructure:"ws"`
+	Notify       NotifyConfig       `mapstructure:"notify"`
+	OTel         OTelConfig         `mapstructure:"otel"`
+	Search       SearchConfig       `mapstructure:"search"`
+	TaskReminder TaskReminderConfig `mapstructure:"task_reminder"`
+}
+
+// TaskReminderConfig 任务到期提醒定时任务配置。
+// 未配置或为零值时由对应 Getter 回落内置默认，保持向后兼容。
+type TaskReminderConfig struct {
+	Horizon         time.Duration `mapstructure:"horizon"`          // 提醒窗口（提前量），默认 24h
+	Interval        time.Duration `mapstructure:"interval"`         // 扫描间隔，默认 30m
+	OverdueCooldown time.Duration `mapstructure:"overdue_cooldown"` // 逾期任务重复提醒的最小间隔，默认 24h
+	BatchLimit      int           `mapstructure:"batch_limit"`      // 单次扫描发送提醒的最大任务数，默认 200
+}
+
+// GetHorizon 返回提醒窗口，未配置时默认 24 小时
+func (c TaskReminderConfig) GetHorizon() time.Duration {
+	if c.Horizon > 0 {
+		return c.Horizon
+	}
+	return 24 * time.Hour
+}
+
+// GetInterval 返回扫描间隔，未配置时默认 30 分钟
+func (c TaskReminderConfig) GetInterval() time.Duration {
+	if c.Interval > 0 {
+		return c.Interval
+	}
+	return 30 * time.Minute
+}
+
+// GetOverdueCooldown 返回逾期重复提醒冷却期，未配置时默认 24 小时
+func (c TaskReminderConfig) GetOverdueCooldown() time.Duration {
+	if c.OverdueCooldown > 0 {
+		return c.OverdueCooldown
+	}
+	return 24 * time.Hour
+}
+
+// GetBatchLimit 返回单次扫描最大任务数，未配置时默认 200
+func (c TaskReminderConfig) GetBatchLimit() int {
+	if c.BatchLimit > 0 {
+		return c.BatchLimit
+	}
+	return 200
 }
 
 // SearchConfig 全文检索引擎配置

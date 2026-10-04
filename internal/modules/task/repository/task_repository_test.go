@@ -240,14 +240,15 @@ func TestTaskRepo_FindDueForReminder(t *testing.T) {
 	due := now.Add(-time.Hour)
 	rows := sqlmock.NewRows([]string{
 		"id", "tenant_id", "creator_id", "assignee_id", "title", "description",
-		"status", "priority", "due_date", "tags", "visibility", "completed_at",
+		"status", "priority", "due_date", "remind_before", "tags", "visibility", "completed_at",
 		"reminder_sent_at", "created_at", "updated_at", "deleted_at",
 	}).AddRow(
 		"id1", "t1", "u1", "u2", "写周报", "",
-		"pending", "normal", due, `[]`, "tenant", nil,
+		"pending", "normal", due, 120, `[]`, "tenant", nil,
 		nil, now, now, nil,
 	)
-	mock.ExpectQuery("SELECT .* FROM `tasks`").WillReturnRows(rows)
+	// 扫描 SQL 应包含任务级提前量分支：有 remind_before 时基线为 now+remind_before，否则用全局 horizon
+	mock.ExpectQuery("SELECT .* FROM `tasks` .* due_date <= CASE WHEN remind_before IS NOT NULL THEN TIMESTAMPADD").WillReturnRows(rows)
 
 	tasks, err := repo.FindDueForReminder(context.Background(), now.Add(24*time.Hour), now, now.Add(-24*time.Hour), 100)
 	require.NoError(t, err)
@@ -255,6 +256,9 @@ func TestTaskRepo_FindDueForReminder(t *testing.T) {
 	assert.Equal(t, "id1", tasks[0].ID)
 	assert.NotNil(t, tasks[0].DueDate)
 	assert.Nil(t, tasks[0].ReminderSentAt)
+	// remind_before 列（分钟）应正确转为领域层 Duration
+	require.NotNil(t, tasks[0].RemindBefore)
+	assert.Equal(t, 2*time.Hour, *tasks[0].RemindBefore)
 }
 
 func TestTaskRepo_MarkReminderSent(t *testing.T) {

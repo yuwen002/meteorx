@@ -159,6 +159,10 @@
             style="width: 100%;"
           />
         </el-form-item>
+        <el-form-item label="提醒提前量">
+          <el-input v-model="form.remind_before" placeholder="如 2h / 30m / 1d，留空使用全局默认" clearable />
+          <div class="form-tip">仅在设置截止时间时生效；为空则按系统默认提醒窗口提醒。</div>
+        </el-form-item>
         <el-form-item label="标签">
           <el-select v-model="form.tags" multiple filterable allow-create default-first-option placeholder="输入后回车添加标签" style="width: 100%;">
             <el-option v-for="t in form.tags" :key="t" :label="t" :value="t" />
@@ -306,6 +310,7 @@ const form = reactive({
   priority: 'normal' as TaskPriority,
   assignee_id: '',
   due_date: '',
+  remind_before: '',
   tags: [] as string[],
 })
 const rules: FormRules = {
@@ -321,6 +326,7 @@ function openDialog(row?: TaskItem) {
     form.priority = row.priority
     form.assignee_id = row.assignee_id === row.creator_id ? '' : row.assignee_id
     form.due_date = row.due_date || ''
+    form.remind_before = row.remind_before || ''
     form.tags = [...(row.tags || [])]
   } else {
     form.title = ''
@@ -329,6 +335,7 @@ function openDialog(row?: TaskItem) {
     form.priority = 'normal'
     form.assignee_id = ''
     form.due_date = ''
+    form.remind_before = ''
     form.tags = []
   }
   dialogVisible.value = true
@@ -347,6 +354,7 @@ async function submitForm() {
         priority: form.priority,
         assignee_id: form.visibility === 'tenant' ? form.assignee_id : undefined,
         due_date: form.due_date || undefined,
+        remind_before: form.remind_before || undefined,
         tags: form.tags,
       }
       if (editingId.value) {
@@ -466,6 +474,12 @@ onMounted(() => {
 <style scoped>
 .stat-row {
   margin-bottom: 16px;
+}
+.form-tip {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.4;
+  margin-top: 2px;
 }
 .stat-card {
   text-align: center;

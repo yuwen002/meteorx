@@ -63,6 +63,11 @@ func LoadConfig() (*config.Config, error) {
 		{"oauth.state_ttl", "METEORX_OAUTH_STATE_TTL"},
 		// Auth
 		{"auth.api_token_max_ttl", "METEORX_AUTH_API_TOKEN_MAX_TTL"},
+		// Task reminder
+		{"task_reminder.horizon", "METEORX_TASK_REMINDER_HORIZON"},
+		{"task_reminder.interval", "METEORX_TASK_REMINDER_INTERVAL"},
+		{"task_reminder.overdue_cooldown", "METEORX_TASK_REMINDER_OVERDUE_COOLDOWN"},
+		{"task_reminder.batch_limit", "METEORX_TASK_REMINDER_BATCH_LIMIT"},
 	}
 	for _, b := range envBindings {
 		if err := mustBindEnv(v, b.key, b.env); err != nil {

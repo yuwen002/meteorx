@@ -27,6 +27,7 @@ export interface TaskItem {
   status: TaskStatus
   priority: TaskPriority
   due_date?: string
+  remind_before?: string
   tags: string[]
   visibility: TaskVisibility
   started_at?: string
@@ -43,6 +44,7 @@ export interface CreateTaskParams {
   status?: TaskStatus
   priority?: TaskPriority
   due_date?: string
+  remind_before?: string
   tags?: string[]
   visibility?: TaskVisibility
   assignee_id?: string
@@ -55,6 +57,7 @@ export interface UpdateTaskParams {
   status?: TaskStatus
   priority?: TaskPriority
   due_date?: string
+  remind_before?: string
   tags?: string[]
   visibility?: TaskVisibility
   assignee_id?: string

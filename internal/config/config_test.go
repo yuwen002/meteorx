@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 )
 
 func TestUploadSignKeys_FallbackToJWTSecret(t *testing.T) {
@@ -40,5 +41,34 @@ func TestUploadSignKeys_GarbageOnlyYieldsNoKeys(t *testing.T) {
 	f := FileConfig{SignKey: ",,,"}
 	if keys := f.UploadSignKeys("jwt-secret"); keys != nil {
 		t.Fatalf("sign_key containing only separators should yield no keys, got %v", keys)
+	}
+}
+
+func TestTaskReminderConfig_Defaults(t *testing.T) {
+	c := TaskReminderConfig{}
+	if c.GetHorizon() != 24*time.Hour {
+		t.Fatalf("expected default horizon 24h, got %v", c.GetHorizon())
+	}
+	if c.GetInterval() != 30*time.Minute {
+		t.Fatalf("expected default interval 30m, got %v", c.GetInterval())
+	}
+	if c.GetOverdueCooldown() != 24*time.Hour {
+		t.Fatalf("expected default overdue cooldown 24h, got %v", c.GetOverdueCooldown())
+	}
+	if c.GetBatchLimit() != 200 {
+		t.Fatalf("expected default batch limit 200, got %d", c.GetBatchLimit())
+	}
+}
+
+func TestTaskReminderConfig_Overrides(t *testing.T) {
+	c := TaskReminderConfig{
+		Horizon:         6 * time.Hour,
+		Interval:        15 * time.Minute,
+		OverdueCooldown: 12 * time.Hour,
+		BatchLimit:      50,
+	}
+	if c.GetHorizon() != 6*time.Hour || c.GetInterval() != 15*time.Minute ||
+		c.GetOverdueCooldown() != 12*time.Hour || c.GetBatchLimit() != 50 {
+		t.Fatalf("configured values should be returned as-is, got %+v", c)
 	}
 }

@@ -770,8 +770,10 @@ client:
 ### 16.4 任务提醒
 
 - 指派提醒：创建/更新任务将负责人指向他人时，通过全局 `notify.Manager` 向新负责人推送 `task_assigned` 站内信（WebSocket），通知器未初始化时静默跳过不影响主流程
-- 到期/逾期提醒：`TaskReminderJob`（`task/reminder_job.go`）每 30 分钟扫描一次，截止时间进入 24 小时窗口或已逾期且未提醒过的未完成任务，向负责人推送 `task_due`；`bootstrap` 中 `StartTaskReminderJob` 接线
-- 提醒去重：`tasks` 表新增 `reminder_sent_at` 列（`TaskPO.ReminderSent`），同一任务仅提醒一次；修改截止时间自动重置标记，新截止日可再次触发；单轮扫描上限 200 条
+- 到期/逾期提醒：`TaskReminderJob`（`task/reminder_job.go`）周期扫描截止时间进入提醒窗口或已逾期的未完成任务，向负责人推送 `task_due`；`bootstrap` 中 `StartTaskReminderJob` 接线
+- 提醒参数可配置：`config.yaml` 的 `task_reminder` 段（或环境变量 `METEORX_TASK_REMINDER_HORIZON/INTERVAL/OVERDUE_COOLDOWN/BATCH_LIMIT`）控制提醒窗口、扫描间隔、逾期重复提醒冷却期与单轮上限，缺省回落默认 24h/30m/24h/200
+- 任务级提醒提前量：`tasks` 新增 `remind_before` 列（分钟，可为空），创建/更新时以 Go Duration（如 2h/30m）传入；扫描时优先用任务自带 `remind_before`，为空回落全局 `horizon`；修改提前量会重置提醒标记
+- 提醒去重：`tasks` 表 `reminder_sent_at` 列（`TaskPO.ReminderSent`）为冷却基准；即将到期首次提醒一次，已逾期则按冷却期（默认 24h）重复提醒；修改截止时间自动重置标记，新截止日可再次触发
 - 仓储新增 `FindDueForReminder`/`MarkReminderSent`；`service.SendDueReminders` 为系统级扫描入口；`notify.Manager.NotifyTaskReminder` 封装 WS 定向推送
 - 前端：全局 `App.vue` 监听 WS 消息，命中 `task_assigned`/`task_due` 时弹出 `ElNotification`，不再误触发公告刷新
 

@@ -98,7 +98,7 @@ func StartApp() {
 	StartInvitationExpiryJob(ctx, db)
 
 	// 7.4 启动任务到期提醒定时任务（即将到期/已逾期任务站内提醒）
-	StartTaskReminderJob(ctx, db)
+	StartTaskReminderJob(ctx, db, cfg)
 
 	// 7. 构造 http.Server 以支持优雅关闭
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)

@@ -286,8 +286,14 @@ func StartInvitationExpiryJob(ctx context.Context, db *gorm.DB) {
 
 // StartTaskReminderJob 启动任务到期提醒定时任务
 // 周期扫描即将到期/已逾期且未提醒过的任务，向负责人推送站内提醒
-func StartTaskReminderJob(ctx context.Context, db *gorm.DB) {
-	job := task.NewTaskReminderJob(db)
+// 提醒窗口/扫描间隔/逾期冷却期/单轮上限均由配置注入
+func StartTaskReminderJob(ctx context.Context, db *gorm.DB, cfg *config.Config) {
+	job := task.NewTaskReminderJob(db, task.ReminderJobOptions{
+		Horizon:         cfg.TaskReminder.GetHorizon(),
+		Interval:        cfg.TaskReminder.GetInterval(),
+		OverdueCooldown: cfg.TaskReminder.GetOverdueCooldown(),
+		BatchLimit:      cfg.TaskReminder.GetBatchLimit(),
+	})
 	job.Start(ctx)
 }
 

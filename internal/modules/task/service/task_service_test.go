@@ -714,3 +714,79 @@ func TestSendDueReminders_OverdueReReminderAfterCooldown(t *testing.T) {
 	assert.Equal(t, 1, n)
 	assert.ElementsMatch(t, []string{"stale"}, repo.marked)
 }
+
+// 冷却期可配：配置为 1h 时，距上次提醒 2h 的逾期任务应重复提醒（默认 24h 下则不会）
+func TestSendDueReminders_ConfigurableCooldown(t *testing.T) {
+	svc, repo := newService()
+	now := time.Now()
+	repo.tasks["overdue"] = &model.Task{ID: "overdue", TenantID: "t1", CreatorID: "u1", AssigneeID: "u2",
+		Status: model.TaskStatusPending, DueDate: ptr(now.Add(-time.Hour)), ReminderSentAt: ptr(now.Add(-2 * time.Hour))}
+	// 默认冷却 24h：2h 前的提醒仍应处于冷却内，不重复
+	n0, err := svc.SendDueReminders(context.Background(), now.Add(24*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, 0, n0)
+	// 自定义冷却 1h：超过冷却应重复提醒
+	n1, err := svc.SendDueReminders(context.Background(), now.Add(24*time.Hour), ReminderOptions{OverdueCooldown: time.Hour})
+	require.NoError(t, err)
+	assert.Equal(t, 1, n1)
+	assert.ElementsMatch(t, []string{"overdue"}, repo.marked)
+}
+
+// ---- 任务级提醒提前量 remind_before ----
+
+func TestParseRemindLead(t *testing.T) {
+	// 空值→nil（使用全局默认）
+	d, err := parseRemindLead("")
+	require.NoError(t, err)
+	assert.Nil(t, d)
+	// 合法 duration
+	d, err = parseRemindLead("2h30m")
+	require.NoError(t, err)
+	require.NotNil(t, d)
+	assert.Equal(t, 150*time.Minute, *d)
+	// 非法格式/负值/超范围均报错
+	for _, bad := range []string{"abc", "-1h", "32d", "1000h"} {
+		_, err := parseRemindLead(bad)
+		assert.ErrorIs(t, err, ErrInvalidRemindLead, bad)
+	}
+}
+
+func TestCreate_WithRemindLead(t *testing.T) {
+	svc, _ := newService()
+	task, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "带提前量", DueDate: "2026-12-31 10:00:00", RemindBefore: "3h",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, task.RemindBefore)
+	assert.Equal(t, 3*time.Hour, *task.RemindBefore)
+	resp := ToResp(task)
+	assert.Equal(t, "3h0m0s", resp.RemindBefore)
+}
+
+func TestCreate_InvalidRemindLead(t *testing.T) {
+	svc, _ := newService()
+	_, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "非法提前量", DueDate: "2026-12-31 10:00:00", RemindBefore: "bogus",
+	})
+	assert.ErrorIs(t, err, ErrInvalidRemindLead)
+}
+
+func TestUpdate_SetAndClearRemindLead(t *testing.T) {
+	svc, repo := newService()
+	now := time.Now()
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1",
+		Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusPending,
+		DueDate: ptr(now.Add(time.Hour)), ReminderSentAt: ptr(now.Add(-time.Minute))}
+	// 设置提前量应写回并重置提醒标记
+	task, err := svc.Update(context.Background(), "t1", "u1", "a",
+		dto.UpdateTaskReq{RemindBefore: ptr("30m")})
+	require.NoError(t, err)
+	require.NotNil(t, task.RemindBefore)
+	assert.Equal(t, 30*time.Minute, *task.RemindBefore)
+	assert.Nil(t, task.ReminderSentAt)
+	// 传空字符串清除自定义提前量，回落全局默认
+	task2, err := svc.Update(context.Background(), "t1", "u1", "a",
+		dto.UpdateTaskReq{RemindBefore: ptr("")})
+	require.NoError(t, err)
+	assert.Nil(t, task2.RemindBefore)
+}

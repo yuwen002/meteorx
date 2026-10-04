@@ -54,8 +54,8 @@ type TaskRepository interface {
 	// PermanentDelete 永久删除任务（物理删除，不可恢复）
 	PermanentDelete(ctx context.Context, id string) error
 	// FindDueForReminder 查询需要发送到期/逾期提醒的未完成任务（供定时提醒任务使用）：
-	//  - 尚未提醒过（reminder_sent_at 为空）且截止日不晚于 horizon 的任务；
-	//  - 已逾期（due_date < now）且距上次提醒已超过冷却期（reminder_sent_at <= lastReminderCutoff）的任务，实现逾期重复提醒。
+	//  - 提醒到点：任务自带 remind_before 时以 now+remind_before 为阈值，否则使用全局 horizon；
+	//  - 尚未提醒过（reminder_sent_at 为空）；或已逾期（due_date < now）且距上次提醒已超过冷却期（reminder_sent_at <= lastReminderCutoff），实现逾期重复提醒。
 	FindDueForReminder(ctx context.Context, horizon, now, lastReminderCutoff time.Time, limit int) ([]*model.Task, error)
 	// MarkReminderSent 标记任务已发送到期提醒，避免重复提醒
 	MarkReminderSent(ctx context.Context, id string, t time.Time) error

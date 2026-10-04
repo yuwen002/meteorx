@@ -68,6 +68,14 @@ describe('Task API', () => {
     expect(post).toHaveBeenCalledWith('/tasks', payload)
   })
 
+  it('createTask 携带 remind_before 时应透传该字段', async () => {
+    const payload: CreateTaskParams = { title: '带提前量', due_date: '2026-12-31 10:00:00', remind_before: '2h' }
+    vi.mocked(post).mockResolvedValue({ ...sampleTask, remind_before: '2h0m0s' })
+    const res = await createTask(payload)
+    expect(post).toHaveBeenCalledWith('/tasks', payload)
+    expect(res.remind_before).toBe('2h0m0s')
+  })
+
   it('updateTask 应 PUT /tasks/{id}', async () => {
     vi.mocked(put).mockResolvedValue(sampleTask)
     await updateTask('t-1', { title: '改名' })

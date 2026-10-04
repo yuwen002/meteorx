@@ -47,8 +47,11 @@ type Task struct {
 	Status      string     // 状态：pending / in_progress / completed
 	Priority    string     // 优先级：low / normal / high / urgent
 	DueDate     *time.Time // 截止时间，可为空
-	Tags        []string   // 分类标签
-	Visibility  string     // 可见范围：personal / tenant
+	// RemindBefore 任务级自定义提醒提前量：非空时覆盖全局提醒窗口（horizon），
+	// 定时扫描在 截止日 - RemindBefore 到点时触发提醒；为空则回落配置默认。
+	RemindBefore *time.Duration
+	Tags         []string // 分类标签
+	Visibility   string   // 可见范围：personal / tenant
 	// StartedAt 首次进入 in_progress 时自动记录，一旦开始不清空（退回 pending/完成均保留），
 	// 用于计算处理耗时（完成-开始）
 	StartedAt   *time.Time // 开始时间

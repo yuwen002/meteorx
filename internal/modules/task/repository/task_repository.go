@@ -24,6 +24,7 @@ type TaskPO struct {
 	Status       string         `gorm:"size:20;default:pending;index;comment:状态"`
 	Priority     string         `gorm:"size:20;default:normal;index;comment:优先级"`
 	DueDate      *time.Time     `gorm:"comment:截止时间"`
+	RemindBefore *int           `gorm:"comment:提醒提前量(分钟)"`
 	Tags         string         `gorm:"type:text;comment:标签(JSON数组)"`
 	Visibility   string         `gorm:"size:20;default:personal;index;comment:可见范围"`
 	StartedAt    *time.Time     `gorm:"comment:开始时间"`
@@ -63,6 +64,10 @@ func (p TaskPO) toDomain() *model.Task {
 		CreatedAt:      p.CreatedAt,
 		UpdatedAt:      p.UpdatedAt,
 	}
+	if p.RemindBefore != nil {
+		d := time.Duration(*p.RemindBefore) * time.Minute
+		t.RemindBefore = &d
+	}
 	if p.DeletedAt.Valid {
 		dt := p.DeletedAt.Time
 		t.DeletedAt = &dt
@@ -83,12 +88,22 @@ func fromDomain(t *model.Task) TaskPO {
 		Status:       t.Status,
 		Priority:     t.Priority,
 		DueDate:      t.DueDate,
+		RemindBefore: remindBeforeMinutes(t.RemindBefore),
 		Tags:         string(tagsJSON),
 		Visibility:   t.Visibility,
 		StartedAt:    t.StartedAt,
 		CompletedAt:  t.CompletedAt,
 		ReminderSent: t.ReminderSentAt,
 	}
+}
+
+// remindBeforeMinutes 将提醒提前量 Duration 转为分钟数供持久化（截断到整分钟）；nil 保持 nil。
+func remindBeforeMinutes(d *time.Duration) *int {
+	if d == nil {
+		return nil
+	}
+	m := int(d.Minutes())
+	return &m
 }
 
 // taskRepository TaskRepository 的 GORM 实现。
@@ -130,6 +145,7 @@ func (r *taskRepository) Update(ctx context.Context, task *model.Task) error {
 		"status":           task.Status,
 		"priority":         task.Priority,
 		"due_date":         task.DueDate,
+		"remind_before":    remindBeforeMinutes(task.RemindBefore),
 		"tags":             string(tagsJSON),
 		"assignee_id":      task.AssigneeID,
 		"visibility":       task.Visibility,
@@ -214,11 +230,13 @@ func (r *taskRepository) PermanentDelete(ctx context.Context, id string) error {
 }
 
 // FindDueForReminder 查询需要发送到期/逾期提醒的未完成任务，供定时提醒任务扫描。
-// 命中条件：未提醒过且截止日不晚于 horizon；或已逾期（due<now）且距上次提醒已超过冷却期（reminder_sent_at<=cutoff）。
+// 命中条件：
+//   - 提醒到点：任务自带 remind_before 时以 now+remind_before 为阈值，否则使用全局 horizon；
+//   - 尚未提醒过（reminder_sent_at 为空）；或已逾期（due<now）且距上次提醒已超过冷却期（reminder_sent_at<=cutoff）。
 func (r *taskRepository) FindDueForReminder(ctx context.Context, horizon, now, cutoff time.Time, limit int) ([]*model.Task, error) {
 	q := r.db.WithContext(ctx).Model(&TaskPO{}).
 		Where("status IN ?", []string{model.TaskStatusPending, model.TaskStatusInProgress}).
-		Where("due_date IS NOT NULL AND due_date <= ?", horizon).
+		Where("due_date IS NOT NULL AND due_date <= CASE WHEN remind_before IS NOT NULL THEN TIMESTAMPADD(MINUTE, remind_before, ?) ELSE ? END", now, horizon).
 		Where("reminder_sent_at IS NULL OR (due_date < ? AND reminder_sent_at <= ?)", now, cutoff).
 		Order("due_date ASC")
 	if limit > 0 {

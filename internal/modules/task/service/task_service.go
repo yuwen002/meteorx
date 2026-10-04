@@ -27,6 +27,8 @@ var (
 	ErrTaskForbidden = errors.New("no permission to operate this task")
 	// ErrInvalidDueDate 截止时间格式不合法
 	ErrInvalidDueDate = errors.New("invalid due date format")
+	// ErrInvalidRemindLead 提醒提前量不合法（无法解析或超出允许范围）
+	ErrInvalidRemindLead = errors.New("invalid remind lead time")
 	// ErrInvalidStatus 任务状态不合法
 	ErrInvalidStatus = errors.New("invalid task status")
 )
@@ -102,6 +104,10 @@ func (s *TaskService) Create(ctx context.Context, tenantID, userID string, req d
 	if err != nil {
 		return nil, err
 	}
+	remindBefore, err := parseRemindLead(req.RemindBefore)
+	if err != nil {
+		return nil, err
+	}
 
 	assignee := req.AssigneeID
 	// 个人任务负责人始终为创建人本人
@@ -113,19 +119,20 @@ func (s *TaskService) Create(ctx context.Context, tenantID, userID string, req d
 	}
 
 	task := &model.Task{
-		ID:          idgen.New(),
-		TenantID:    tenantID,
-		CreatorID:   userID,
-		AssigneeID:  assignee,
-		Title:       strings.TrimSpace(req.Title),
-		Description: req.Description,
-		Status:      status,
-		Priority:    priority,
-		DueDate:     dueDate,
-		Tags:        normalizeTags(req.Tags),
-		Visibility:  visibility,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:           idgen.New(),
+		TenantID:     tenantID,
+		CreatorID:    userID,
+		AssigneeID:   assignee,
+		Title:        strings.TrimSpace(req.Title),
+		Description:  req.Description,
+		Status:       status,
+		Priority:     priority,
+		DueDate:      dueDate,
+		RemindBefore: remindBefore,
+		Tags:         normalizeTags(req.Tags),
+		Visibility:   visibility,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 
 	applyStatusChange(task, status, now)
@@ -197,6 +204,15 @@ func (s *TaskService) Update(ctx context.Context, tenantID, userID, id string, r
 		}
 		task.DueDate = dueDate
 		// 截止日变化后重置提醒标记，使新截止日可再次触发到期提醒
+		task.ReminderSentAt = nil
+	}
+	if req.RemindBefore != nil {
+		remindBefore, err := parseRemindLead(*req.RemindBefore)
+		if err != nil {
+			return nil, err
+		}
+		task.RemindBefore = remindBefore
+		// 提前量变化后重置提醒标记，使新提醒窗口可重新评估
 		task.ReminderSentAt = nil
 	}
 	if req.Status != nil && *req.Status != "" {
@@ -379,13 +395,30 @@ func (s *TaskService) BatchAssign(ctx context.Context, tenantID, userID string, 
 	return affected, nil
 }
 
+// ReminderOptions 到期提醒扫描的可配置参数；零值字段回落内置默认。
+// 由定时提醒任务从应用配置注入，使逾期重复提醒冷却期与单轮扫描上限可外部调整。
+type ReminderOptions struct {
+	OverdueCooldown time.Duration // 逾期任务两次重复提醒之间的最小间隔
+	BatchLimit      int           // 单次扫描发送提醒的最大任务数
+}
+
 // SendDueReminders 扫描需要提醒的未完成任务（即将到期/首次逾期、以及距上次提醒超过冷却期的已逾期任务），
 // 逐条向负责人（无负责人时向创建人）发送站内提醒并刷新提醒时间，返回实际发送数。
 // 供定时提醒任务调用，不受多租户/可见范围限制（系统级扫描）。
-func (s *TaskService) SendDueReminders(ctx context.Context, horizon time.Time) (int, error) {
+// opts 为可选扫描参数（冷却期/单轮上限），缺省时使用内置默认值。
+func (s *TaskService) SendDueReminders(ctx context.Context, horizon time.Time, opts ...ReminderOptions) (int, error) {
+	cooldown, limit := defaultReminderOverdueCooldown, defaultReminderBatchLimit
+	if len(opts) > 0 {
+		if opts[0].OverdueCooldown > 0 {
+			cooldown = opts[0].OverdueCooldown
+		}
+		if opts[0].BatchLimit > 0 {
+			limit = opts[0].BatchLimit
+		}
+	}
 	now := time.Now()
-	cutoff := now.Add(-reminderOverdueCooldown)
-	tasks, err := s.repo.FindDueForReminder(ctx, horizon, now, cutoff, reminderBatchLimit)
+	cutoff := now.Add(-cooldown)
+	tasks, err := s.repo.FindDueForReminder(ctx, horizon, now, cutoff, limit)
 	if err != nil {
 		return 0, err
 	}
@@ -414,13 +447,13 @@ func (s *TaskService) SendDueReminders(ctx context.Context, horizon time.Time) (
 	return sent, nil
 }
 
-// 提醒相关常量
+// 提醒相关类型标识与默认参数
 const (
-	reminderBatchLimit = 200             // 单次扫描发送提醒的最大任务数
 	reminderTypeDue    = "task_due"      // 到期/逾期提醒类型标识
 	reminderTypeAssign = "task_assigned" // 指派提醒类型标识
-	// reminderOverdueCooldown 逾期任务两次提醒之间的最小间隔，避免每小时扫描频繁打扰
-	reminderOverdueCooldown = 24 * time.Hour
+	// 逾期重复提醒冷却期与单轮扫描上限的内置默认值，可被 ReminderOptions 覆盖
+	defaultReminderBatchLimit      = 200
+	defaultReminderOverdueCooldown = 24 * time.Hour
 )
 
 // formatDue 格式化截止时间供提醒正文使用。
@@ -549,6 +582,20 @@ func parseDueDate(s string) (*time.Time, error) {
 	return nil, ErrInvalidDueDate
 }
 
+// parseRemindLead 解析任务级提醒提前量：空字符串返回 nil（使用全局默认）；
+// 否则按 Go Duration 格式（如 2h/30m/1h30m）解析，仅允许 [0, 31天] 区间。
+func parseRemindLead(s string) (*time.Duration, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d < 0 || d > 31*24*time.Hour {
+		return nil, ErrInvalidRemindLead
+	}
+	return &d, nil
+}
+
 // normalizeTags 去除空白标签并返回，空切片归一化为 nil。
 func normalizeTags(tags []string) []string {
 	result := make([]string, 0, len(tags))
@@ -593,6 +640,9 @@ func ToResp(task *model.Task) *dto.TaskResp {
 	}
 	if task.DueDate != nil {
 		resp.DueDate = task.DueDate.Format("2006-01-02 15:04:05")
+	}
+	if task.RemindBefore != nil {
+		resp.RemindBefore = task.RemindBefore.String()
 	}
 	if task.CompletedAt != nil {
 		resp.CompletedAt = task.CompletedAt.Format("2006-01-02 15:04:05")

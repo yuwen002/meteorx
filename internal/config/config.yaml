@@ -130,6 +130,13 @@ oauth:
 auth:
   api_token_max_ttl: 2160h   # API Token 最长有效期，默认 2160h（90 天）
 
+# 任务到期提醒定时任务配置（留空/删除即回落默认值）
+task_reminder:
+  horizon: 24h               # 提醒窗口（提前量）：截止日进入未来此时段内的任务将被提醒，默认 24h
+  interval: 30m              # 扫描间隔，默认 30m
+  overdue_cooldown: 24h      # 逾期任务重复提醒的最小间隔，默认 24h
+  batch_limit: 200           # 单次扫描发送提醒的最大任务数，默认 200
+
 # WebSocket 实时推送配置
 ws:
   enabled: true

@@ -21,7 +21,8 @@
 
 **任务提醒**：支持两类站内提醒（WebSocket 推送），详见第 7 节：
 - 指派提醒：创建/更新任务并将负责人指向他人时，实时通知新负责人；
-- 到期/逾期提醒：后台定时任务扫描即将到期（24 小时内）或已逾期的未完成任务，提醒负责人，同一任务仅提醒一次。
+- 到期/逾期提醒：后台定时任务扫描即将到期或已逾期的未完成任务，提醒负责人，即将到期仅提醒一次、已逾期按冷却期重复提醒。
+  提醒窗口/扫描间隔/冷却期/单轮上限均可通过配置 `task_reminder` 调整；任务还可通过 `remind_before` 字段设置**任务级自定义提醒提前量**，未设置则使用全局默认窗口。
 
 ---
 
@@ -68,6 +69,7 @@
 | status | string | 状态：`pending` / `in_progress` / `completed` |
 | priority | string | 优先级：`low` / `normal` / `high` / `urgent` |
 | due_date | string | 截止时间（`2006-01-02 15:04:05`），为空时不返回该字段 |
+| remind_before | string | 任务级提醒提前量（Go Duration 字符串，如 `3h0m0s`），未设置时不返回该字段（表示使用全局默认） |
 | tags | []string | 分类标签，无标签时返回 `[]` |
 | visibility | string | 可见范围：`personal` / `tenant` |
 | started_at | string | 开始时间，任务首次进入 `in_progress` 时自动记录，未开始不返回该字段 |
@@ -87,6 +89,7 @@
 | status | string | 否 | oneof pending/in_progress/completed | 状态，默认 `pending` |
 | priority | string | 否 | oneof low/normal/high/urgent | 优先级，默认 `normal` |
 | due_date | string | 否 | - | 截止时间，支持 RFC3339 / `2006-01-02 15:04:05` / `2006-01-02` |
+| remind_before | string | 否 | max=16 | 任务级提醒提前量，Go Duration 格式（如 `2h`/`30m`/`1h30m`），仅允许 `[0, 31天]`；留空使用全局默认窗口 |
 | tags | []string | 否 | max=10 | 标签列表 |
 | visibility | string | 否 | oneof personal/tenant | 可见范围，默认 `personal` |
 | assignee_id | string | 否 | max=26 | 负责人；`personal` 任务强制为创建人 |
@@ -102,6 +105,7 @@
 | status | *string | oneof pending/in_progress/completed | 状态；置为 `completed` 会自动写入 `completed_at`，其它状态清空 |
 | priority | *string | oneof low/normal/high/urgent | 优先级 |
 | due_date | *string | - | 截止时间；**传空字符串表示清除**截止时间 |
+| remind_before | *string | max=16 | 提醒提前量（Go Duration 格式）；**传空字符串表示恢复使用全局默认** |
 | tags | *[]string | max=10 | 标签 |
 | visibility | *string | oneof personal/tenant | 可见范围 |
 | assignee_id | *string | max=26 | 负责人；`personal` 任务会强制回写为创建人 |
@@ -145,6 +149,7 @@
   "description": "整理 Q3 数据并输出结论",
   "priority": "high",
   "due_date": "2026-10-15 18:00:00",
+  "remind_before": "2h",
   "tags": ["工作", "季度"],
   "visibility": "tenant",
   "assignee_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV"
@@ -157,6 +162,7 @@
 - `tenant` 任务可将 `assignee_id` 指派给其他成员，为空时默认为创建人
 - 若创建时直接指定 `status=completed`，会写入 `completed_at`
 - `due_date` 格式非法返回 `400`
+- `remind_before` 为任务级提醒提前量（仅在设置了 `due_date` 时生效）；无法解析或超出 `[0, 31天]` 范围返回 `400`；留空则使用全局默认提醒窗口
 - `tenant` 任务指派给他人（负责人 ≠ 创建人）时，系统会向新负责人发送一条站内指派提醒（见第 7 节）
 
 **成功响应（200）：**
@@ -660,7 +666,7 @@
 | payload.type | 触发时机 | 接收人 | 标题 |
 |--------------|----------|--------|------|
 | `task_assigned` | 创建/更新任务且负责人指向他人（变更时重新提醒） | 新负责人 | 新任务指派 |
-| `task_due` | 定时扫描：截止时间进入 24 小时窗口或已逾期，且状态为 `pending`/`in_progress`；已逾期的任务按冷却期（默认 24 小时）重复提醒 | 负责人（为空时创建人） | 任务截止提醒 / 任务逾期提醒 |
+| `task_due` | 定时扫描：任务进入提醒窗口（任务自定义 `remind_before` 优先，否则全局 `task_reminder.horizon`）或已逾期，且状态为 `pending`/`in_progress`；已逾期的任务按冷却期（默认 24 小时）重复提醒 | 负责人（为空时创建人） | 任务截止提醒 / 任务逾期提醒 |
 
 **消息体示例（WS payload）：**
 ```json
@@ -679,8 +685,9 @@
 ```
 
 **实现要点：**
-- 提醒去重：`tasks.reminder_sent_at` 列记录上次到期提醒发送时间。即将到期（未逾期）仅首次提醒一次；**已逾期的任务按 24 小时冷却期重复提醒**（距上次提醒超过 24 小时才会再次推送）；**修改截止时间会重置该标记**，使新截止日可重新触发提醒。
-- 定时任务 `TaskReminderJob` 随应用启动，每 30 分钟扫描一次（启动时先立即执行一轮），单轮最多 200 条；系统级扫描，不受租户/可见范围限制。
+- 提醒去重：`tasks.reminder_sent_at` 列记录上次到期提醒发送时间。即将到期（未逾期）仅首次提醒一次；**已逾期的任务按冷却期（默认 24 小时）重复提醒**（距上次提醒超过冷却期才会再次推送）；**修改截止时间或提前量会重置该标记**，使新提醒窗口可重新触发。
+- 提醒窗口：扫描时优先使用任务自带的 `remind_before`（以 `now + remind_before` 为阈值），未设置（NULL）时回落到全局 `task_reminder.horizon`。
+- 定时任务 `TaskReminderJob` 随应用启动，按 `task_reminder.interval`（默认 30 分钟）周期扫描（启动时先立即执行一轮），单轮最多 `task_reminder.batch_limit`（默认 200）条；系统级扫描，不受租户/可见范围限制。
 - 指派提醒在负责人变更（含首次指派给他人）时触发，自己给自己的任务不提醒。
 - 通知不可用（WS 未启用/用户离线）时静默跳过，不影响任务主流程；离线用户不会补发。
 - 前端（web-admin）在全局 `App.vue` 中监听，命中提醒类型时弹出 `ElNotification`，不刷新公告列表。
