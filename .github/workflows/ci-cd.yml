@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -24,8 +26,11 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.1.6
+          # v2.4.0 is the first release whose binary is built with Go 1.25,
+          # required because go.mod declares `go 1.25.0` (older binaries exit 3 on load).
+          version: v2.4.0
           args: --timeout=5m
+          only-new-issues: true
 
   test:
     name: Unit Tests
