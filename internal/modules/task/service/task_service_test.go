@@ -146,8 +146,9 @@ func (r *stubTaskRepo) Stats(_ context.Context, f repository.ListFilter) (*repos
 	return s, nil
 }
 
-// FindDueForReminder 模拟到期扫描：未删除、未完成、截止日不晚于 horizon 且未提醒过。
-func (r *stubTaskRepo) FindDueForReminder(_ context.Context, horizon time.Time, _ int) ([]*model.Task, error) {
+// FindDueForReminder 模拟到期扫描：未删除、未完成、截止日不晚于 horizon，且满足
+// “未提醒过”或“已逾期(due<now)且距上次提醒超过冷却期(reminder_sent_at<=cutoff)”。
+func (r *stubTaskRepo) FindDueForReminder(_ context.Context, horizon, now, cutoff time.Time, _ int) ([]*model.Task, error) {
 	var out []*model.Task
 	for _, t := range r.tasks {
 		if t.Status != model.TaskStatusPending && t.Status != model.TaskStatusInProgress {
@@ -156,11 +157,16 @@ func (r *stubTaskRepo) FindDueForReminder(_ context.Context, horizon time.Time, 
 		if t.DueDate == nil || t.DueDate.After(horizon) {
 			continue
 		}
-		if t.ReminderSentAt != nil {
+		if t.ReminderSentAt == nil {
+			cp := *t
+			out = append(out, &cp)
 			continue
 		}
-		cp := *t
-		out = append(out, &cp)
+		// 已逾期且上次提醒早于冷却基准，应重复提醒
+		if t.DueDate.Before(now) && !t.ReminderSentAt.After(cutoff) {
+			cp := *t
+			out = append(out, &cp)
+		}
 	}
 	return out, nil
 }
@@ -660,4 +666,51 @@ func TestToResp_IncludesNamesAndStartedAt(t *testing.T) {
 	assert.Equal(t, "张三", resp.CreatorName)
 	assert.Equal(t, "李四", resp.AssigneeName)
 	assert.NotEmpty(t, resp.StartedAt)
+}
+
+// ---- 批量改状态 / 批量指派 ----
+
+func TestBatchUpdateStatus_InProgress(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1", Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusPending}
+	repo.tasks["x"] = &model.Task{ID: "x", TenantID: "t1", CreatorID: "u2", Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusPending}
+	n, err := svc.BatchUpdateStatus(context.Background(), "t1", "u1", []string{"a", "x", "missing"}, model.TaskStatusInProgress)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	assert.Equal(t, model.TaskStatusInProgress, repo.tasks["a"].Status)
+	assert.NotNil(t, repo.tasks["a"].StartedAt) // 进入进行中应记录开始时间
+}
+
+func TestBatchUpdateStatus_InvalidStatus(t *testing.T) {
+	svc, _ := newService()
+	_, err := svc.BatchUpdateStatus(context.Background(), "t1", "u1", []string{"a"}, "bogus")
+	assert.ErrorIs(t, err, ErrInvalidStatus)
+}
+
+func TestBatchAssign_CountsOnlyEditable(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1", AssigneeID: "u1", Visibility: model.TaskVisibilityTenant, Status: model.TaskStatusPending}
+	repo.tasks["x"] = &model.Task{ID: "x", TenantID: "t1", CreatorID: "u2", AssigneeID: "u2", Visibility: model.TaskVisibilityTenant, Status: model.TaskStatusPending}
+	n, err := svc.BatchAssign(context.Background(), "t1", "u1", []string{"a", "x"}, "u3")
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	assert.Equal(t, "u3", repo.tasks["a"].AssigneeID)
+	assert.Equal(t, "u2", repo.tasks["x"].AssigneeID) // 无权项保持不变
+}
+
+// ---- 逾期重复提醒 ----
+
+func TestSendDueReminders_OverdueReReminderAfterCooldown(t *testing.T) {
+	svc, repo := newService()
+	now := time.Now()
+	// 已逾期且上次提醒超过 24h 冷却 → 再次提醒
+	repo.tasks["stale"] = &model.Task{ID: "stale", TenantID: "t1", CreatorID: "u1", AssigneeID: "u2",
+		Status: model.TaskStatusPending, DueDate: ptr(now.Add(-time.Hour)), ReminderSentAt: ptr(now.Add(-25 * time.Hour))}
+	// 已逾期但刚提醒过（冷却内）→ 不重复
+	repo.tasks["fresh"] = &model.Task{ID: "fresh", TenantID: "t1", CreatorID: "u1",
+		Status: model.TaskStatusPending, DueDate: ptr(now.Add(-time.Hour)), ReminderSentAt: ptr(now.Add(-time.Minute))}
+	n, err := svc.SendDueReminders(context.Background(), now.Add(24*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	assert.ElementsMatch(t, []string{"stale"}, repo.marked)
 }

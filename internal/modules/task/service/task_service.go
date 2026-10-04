@@ -27,6 +27,8 @@ var (
 	ErrTaskForbidden = errors.New("no permission to operate this task")
 	// ErrInvalidDueDate 截止时间格式不合法
 	ErrInvalidDueDate = errors.New("invalid due date format")
+	// ErrInvalidStatus 任务状态不合法
+	ErrInvalidStatus = errors.New("invalid task status")
 )
 
 // TaskServiceInterface 任务服务接口，供 handler 层依赖反转。
@@ -49,6 +51,10 @@ type TaskServiceInterface interface {
 	BatchComplete(ctx context.Context, tenantID, userID string, ids []string) (int, error)
 	// BatchDelete 批量软删除任务，返回实际生效数
 	BatchDelete(ctx context.Context, tenantID, userID string, ids []string) (int, error)
+	// BatchUpdateStatus 批量修改任务状态，逐条按归属校验，返回实际生效数
+	BatchUpdateStatus(ctx context.Context, tenantID, userID string, ids []string, status string) (int, error)
+	// BatchAssign 批量指派负责人，逐条按归属校验并通知新负责人，返回实际生效数
+	BatchAssign(ctx context.Context, tenantID, userID string, ids []string, assigneeID string) (int, error)
 }
 
 // UserNameResolver 按用户 ID 批量解析展示名，供任务响应富化创建人/负责人姓名。
@@ -345,15 +351,44 @@ func (s *TaskService) BatchDelete(ctx context.Context, tenantID, userID string, 
 	return affected, nil
 }
 
-// SendDueReminders 扫描截止时间不晚于 horizon 且尚未提醒的未完成任务，
-// 逐条向负责人（无负责人时向创建人）发送站内提醒并标记已提醒，返回实际发送数。
+// BatchUpdateStatus 批量修改任务状态，逐条执行归属校验，跳过无权/不存在的项，返回成功数。
+// status 必须为合法状态值，否则返回 ErrInvalidStatus。
+func (s *TaskService) BatchUpdateStatus(ctx context.Context, tenantID, userID string, ids []string, status string) (int, error) {
+	if !model.IsValidStatus(status) {
+		return 0, ErrInvalidStatus
+	}
+	affected := 0
+	for _, id := range ids {
+		if _, err := s.changeStatus(ctx, tenantID, userID, id, status); err == nil {
+			affected++
+		}
+	}
+	return affected, nil
+}
+
+// BatchAssign 批量指派负责人，逐条复用更新逻辑（含归属校验与对新负责人的站内提醒），
+// 跳过无权/不存在的项，返回成功数。个人任务会被回写为创建人，仍计入成功。
+func (s *TaskService) BatchAssign(ctx context.Context, tenantID, userID string, ids []string, assigneeID string) (int, error) {
+	affected := 0
+	aid := assigneeID
+	for _, id := range ids {
+		if _, err := s.Update(ctx, tenantID, userID, id, dto.UpdateTaskReq{AssigneeID: &aid}); err == nil {
+			affected++
+		}
+	}
+	return affected, nil
+}
+
+// SendDueReminders 扫描需要提醒的未完成任务（即将到期/首次逾期、以及距上次提醒超过冷却期的已逾期任务），
+// 逐条向负责人（无负责人时向创建人）发送站内提醒并刷新提醒时间，返回实际发送数。
 // 供定时提醒任务调用，不受多租户/可见范围限制（系统级扫描）。
 func (s *TaskService) SendDueReminders(ctx context.Context, horizon time.Time) (int, error) {
-	tasks, err := s.repo.FindDueForReminder(ctx, horizon, reminderBatchLimit)
+	now := time.Now()
+	cutoff := now.Add(-reminderOverdueCooldown)
+	tasks, err := s.repo.FindDueForReminder(ctx, horizon, now, cutoff, reminderBatchLimit)
 	if err != nil {
 		return 0, err
 	}
-	now := time.Now()
 	sent := 0
 	for _, t := range tasks {
 		recipient := t.AssigneeID
@@ -370,7 +405,7 @@ func (s *TaskService) SendDueReminders(ctx context.Context, horizon time.Time) (
 			mgr.NotifyTaskReminder(ctx, recipient, title, content, reminderTypeDue,
 				map[string]interface{}{"task_id": t.ID, "tenant_id": t.TenantID})
 		}
-		// 无论站内推送成否均标记已提醒，避免扫描风暴下重复打扰
+		// 无论站内推送成否均刷新提醒时间，作为下次重复提醒的冷却基准
 		if err := s.repo.MarkReminderSent(ctx, t.ID, now); err != nil {
 			return sent, err
 		}
@@ -384,6 +419,8 @@ const (
 	reminderBatchLimit = 200             // 单次扫描发送提醒的最大任务数
 	reminderTypeDue    = "task_due"      // 到期/逾期提醒类型标识
 	reminderTypeAssign = "task_assigned" // 指派提醒类型标识
+	// reminderOverdueCooldown 逾期任务两次提醒之间的最小间隔，避免每小时扫描频繁打扰
+	reminderOverdueCooldown = 24 * time.Hour
 )
 
 // formatDue 格式化截止时间供提醒正文使用。

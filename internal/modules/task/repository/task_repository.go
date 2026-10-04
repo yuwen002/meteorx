@@ -213,12 +213,13 @@ func (r *taskRepository) PermanentDelete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Unscoped().Where("id = ?", id).Delete(&TaskPO{}).Error
 }
 
-// FindDueForReminder 查询截止时间不晚于 horizon 且尚未发送过提醒的未完成任务，供定时提醒任务扫描。
-func (r *taskRepository) FindDueForReminder(ctx context.Context, horizon time.Time, limit int) ([]*model.Task, error) {
+// FindDueForReminder 查询需要发送到期/逾期提醒的未完成任务，供定时提醒任务扫描。
+// 命中条件：未提醒过且截止日不晚于 horizon；或已逾期（due<now）且距上次提醒已超过冷却期（reminder_sent_at<=cutoff）。
+func (r *taskRepository) FindDueForReminder(ctx context.Context, horizon, now, cutoff time.Time, limit int) ([]*model.Task, error) {
 	q := r.db.WithContext(ctx).Model(&TaskPO{}).
 		Where("status IN ?", []string{model.TaskStatusPending, model.TaskStatusInProgress}).
 		Where("due_date IS NOT NULL AND due_date <= ?", horizon).
-		Where("reminder_sent_at IS NULL").
+		Where("reminder_sent_at IS NULL OR (due_date < ? AND reminder_sent_at <= ?)", now, cutoff).
 		Order("due_date ASC")
 	if limit > 0 {
 		q = q.Limit(limit)

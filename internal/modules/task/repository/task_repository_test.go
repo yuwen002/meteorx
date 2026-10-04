@@ -249,7 +249,7 @@ func TestTaskRepo_FindDueForReminder(t *testing.T) {
 	)
 	mock.ExpectQuery("SELECT .* FROM `tasks`").WillReturnRows(rows)
 
-	tasks, err := repo.FindDueForReminder(context.Background(), now.Add(24*time.Hour), 100)
+	tasks, err := repo.FindDueForReminder(context.Background(), now.Add(24*time.Hour), now, now.Add(-24*time.Hour), 100)
 	require.NoError(t, err)
 	require.Len(t, tasks, 1)
 	assert.Equal(t, "id1", tasks[0].ID)

@@ -158,3 +158,25 @@ export function batchCompleteTasks(ids: string[]) {
 export function batchDeleteTasks(ids: string[]) {
   return post<BatchResult>('/tasks/batch/delete', { ids })
 }
+
+/** 批量修改状态参数 */
+export interface BatchStatusParams {
+  ids: string[]
+  status: TaskStatus
+}
+
+/** 批量指派参数 */
+export interface BatchAssignParams {
+  ids: string[]
+  assignee_id: string
+}
+
+/** 批量修改任务状态 */
+export function batchUpdateTaskStatus(data: BatchStatusParams) {
+  return post<BatchResult>('/tasks/batch/status', data)
+}
+
+/** 批量指派负责人 */
+export function batchAssignTasks(data: BatchAssignParams) {
+  return post<BatchResult>('/tasks/batch/assign', data)
+}

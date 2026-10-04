@@ -316,6 +316,48 @@ func (h *TaskHandler) doBatch(w http.ResponseWriter, r *http.Request, complete b
 	response.Success(w, dto.BatchTaskResp{Affected: affected})
 }
 
+// BatchStatus 批量修改状态。POST /api/v1/tasks/batch/status
+func (h *TaskHandler) BatchStatus(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := currentIdentity(r)
+	if tenantID == "" || userID == "" {
+		response.Unauthorized(w, "未获取到用户信息")
+		return
+	}
+	var req dto.BatchStatusReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+	affected, err := h.svc.BatchUpdateStatus(r.Context(), tenantID, userID, req.IDs, req.Status)
+	if err != nil {
+		if errors.Is(err, service.ErrInvalidStatus) {
+			response.BadRequest(w, "状态值不合法")
+			return
+		}
+		response.Fail(w, http.StatusInternalServerError, "批量修改状态失败")
+		return
+	}
+	response.Success(w, dto.BatchTaskResp{Affected: affected})
+}
+
+// BatchAssign 批量指派负责人。POST /api/v1/tasks/batch/assign
+func (h *TaskHandler) BatchAssign(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := currentIdentity(r)
+	if tenantID == "" || userID == "" {
+		response.Unauthorized(w, "未获取到用户信息")
+		return
+	}
+	var req dto.BatchAssignReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+	affected, err := h.svc.BatchAssign(r.Context(), tenantID, userID, req.IDs, req.AssigneeID)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "批量指派失败")
+		return
+	}
+	response.Success(w, dto.BatchTaskResp{Affected: affected})
+}
+
 // Stats 任务统计。GET /api/v1/tasks/stats
 func (h *TaskHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	tenantID, userID := currentIdentity(r)

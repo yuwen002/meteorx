@@ -62,6 +62,18 @@ type BatchTaskReq struct {
 	IDs []string `json:"ids" validate:"required,min=1,max=100" label:"任务ID列表"`
 }
 
+// BatchStatusReq 批量修改状态请求。
+type BatchStatusReq struct {
+	IDs    []string `json:"ids" validate:"required,min=1,max=100" label:"任务ID列表"`
+	Status string   `json:"status" validate:"required,oneof=pending in_progress completed" label:"状态"`
+}
+
+// BatchAssignReq 批量指派负责人请求。
+type BatchAssignReq struct {
+	IDs        []string `json:"ids" validate:"required,min=1,max=100" label:"任务ID列表"`
+	AssigneeID string   `json:"assignee_id" validate:"required,max=26" label:"负责人"`
+}
+
 // BatchTaskResp 批量操作任务响应。
 type BatchTaskResp struct {
 	Affected int `json:"affected"` // 实际生效的任务数

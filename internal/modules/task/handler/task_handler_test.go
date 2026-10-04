@@ -35,6 +35,8 @@ type stubTaskService struct {
 	permanentDeleteFn func(ctx context.Context, tenantID, userID, id string) error
 	batchCompleteFn   func(ctx context.Context, tenantID, userID string, ids []string) (int, error)
 	batchDeleteFn     func(ctx context.Context, tenantID, userID string, ids []string) (int, error)
+	batchStatusFn     func(ctx context.Context, tenantID, userID string, ids []string, status string) (int, error)
+	batchAssignFn     func(ctx context.Context, tenantID, userID string, ids []string, assigneeID string) (int, error)
 }
 
 func (s *stubTaskService) Create(ctx context.Context, t, u string, req dto.CreateTaskReq) (*model.Task, error) {
@@ -76,6 +78,12 @@ func (s *stubTaskService) BatchComplete(ctx context.Context, t, u string, ids []
 func (s *stubTaskService) BatchDelete(ctx context.Context, t, u string, ids []string) (int, error) {
 	return s.batchDeleteFn(ctx, t, u, ids)
 }
+func (s *stubTaskService) BatchUpdateStatus(ctx context.Context, t, u string, ids []string, status string) (int, error) {
+	return s.batchStatusFn(ctx, t, u, ids, status)
+}
+func (s *stubTaskService) BatchAssign(ctx context.Context, t, u string, ids []string, assigneeID string) (int, error) {
+	return s.batchAssignFn(ctx, t, u, ids, assigneeID)
+}
 
 func newTaskRouter(stub *stubTaskService) http.Handler {
 	h := handler.NewTaskHandler(stub)
@@ -85,6 +93,8 @@ func newTaskRouter(stub *stubTaskService) http.Handler {
 		r.Get("/deleted", h.ListTrash)
 		r.Post("/batch/complete", h.BatchComplete)
 		r.Post("/batch/delete", h.BatchDelete)
+		r.Post("/batch/status", h.BatchStatus)
+		r.Post("/batch/assign", h.BatchAssign)
 		r.Get("/", h.List)
 		r.Post("/", h.Create)
 		r.Get("/{id}", h.Get)
@@ -337,6 +347,51 @@ func TestTaskBatchDelete_ValidationError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestTaskBatchStatus_Success(t *testing.T) {
+	stub := &stubTaskService{batchStatusFn: func(_ context.Context, _, _ string, ids []string, status string) (int, error) {
+		assert.Equal(t, model.TaskStatusInProgress, status)
+		return len(ids), nil
+	}}
+	router := newTaskRouter(stub)
+	body, _ := json.Marshal(dto.BatchStatusReq{IDs: []string{"a", "b"}, Status: model.TaskStatusInProgress})
+	req := withCtx(httptest.NewRequest(http.MethodPost, "/tasks/batch/status", bytesReader(body)), "t1", "u1")
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestTaskBatchStatus_ValidationError(t *testing.T) {
+	stub := &stubTaskService{batchStatusFn: func(context.Context, string, string, []string, string) (int, error) {
+		return 0, nil
+	}}
+	router := newTaskRouter(stub)
+	// status 非法，校验失败
+	body, _ := json.Marshal(dto.BatchStatusReq{IDs: []string{"a"}, Status: "bogus"})
+	req := withCtx(httptest.NewRequest(http.MethodPost, "/tasks/batch/status", bytesReader(body)), "t1", "u1")
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestTaskBatchAssign_Success(t *testing.T) {
+	stub := &stubTaskService{batchAssignFn: func(_ context.Context, _, _ string, ids []string, assignee string) (int, error) {
+		assert.Equal(t, "u2", assignee)
+		return len(ids), nil
+	}}
+	router := newTaskRouter(stub)
+	body, _ := json.Marshal(dto.BatchAssignReq{IDs: []string{"a", "b"}, AssigneeID: "u2"})
+	req := withCtx(httptest.NewRequest(http.MethodPost, "/tasks/batch/assign", bytesReader(body)), "t1", "u1")
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
 // helpers

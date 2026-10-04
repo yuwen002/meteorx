@@ -12,8 +12,8 @@ import (
 )
 
 // TaskReminderJob 任务到期提醒定时任务
-// 周期性扫描截止时间进入提醒窗口（默认未来 24 小时内）或已逾期、
-// 且尚未提醒过的未完成任务，向负责人推送站内提醒并标记去重。
+// 周期性扫描截止时间进入提醒窗口（默认未来 24 小时内）或已逾期的未完成任务，
+// 向负责人推送站内提醒；即将到期首次提醒一次，已逾期则按冷却期（默认 24 小时）重复提醒。
 type TaskReminderJob struct {
 	svc      *service.TaskService
 	horizon  time.Duration // 提醒窗口：截止日早于 now+horizon 的任务纳入提醒

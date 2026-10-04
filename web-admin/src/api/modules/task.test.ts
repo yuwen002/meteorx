@@ -13,6 +13,8 @@ import {
   permanentDeleteTask,
   batchCompleteTasks,
   batchDeleteTasks,
+  batchUpdateTaskStatus,
+  batchAssignTasks,
   type TaskItem,
   type CreateTaskParams,
 } from './task'
@@ -144,5 +146,18 @@ describe('Task API', () => {
     vi.mocked(post).mockResolvedValue({ affected: 1 })
     await batchDeleteTasks(['a'])
     expect(post).toHaveBeenCalledWith('/tasks/batch/delete', { ids: ['a'] })
+  })
+
+  it('batchUpdateTaskStatus 应 POST 批量改状态接口', async () => {
+    vi.mocked(post).mockResolvedValue({ affected: 2 })
+    const res = await batchUpdateTaskStatus({ ids: ['a', 'b'], status: 'in_progress' })
+    expect(post).toHaveBeenCalledWith('/tasks/batch/status', { ids: ['a', 'b'], status: 'in_progress' })
+    expect(res.affected).toBe(2)
+  })
+
+  it('batchAssignTasks 应 POST 批量指派接口', async () => {
+    vi.mocked(post).mockResolvedValue({ affected: 1 })
+    await batchAssignTasks({ ids: ['a'], assignee_id: 'u-2' })
+    expect(post).toHaveBeenCalledWith('/tasks/batch/assign', { ids: ['a'], assignee_id: 'u-2' })
   })
 })

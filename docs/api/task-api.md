@@ -44,6 +44,8 @@
 | DELETE | `/tasks/{id}/permanent` | 永久删除任务（不可恢复） |
 | POST | `/tasks/batch/complete` | 批量完成任务 |
 | POST | `/tasks/batch/delete` | 批量删除任务（软删除） |
+| POST | `/tasks/batch/status` | 批量修改任务状态 |
+| POST | `/tasks/batch/assign` | 批量指派负责人 |
 
 > 路由注册顺序上静态段（`/stats`、`/deleted`、`/batch/*`）必须先于 `/{id}`，避免路径参数吞掉静态段。
 
@@ -542,6 +544,60 @@
 
 ---
 
+### 4.14 批量修改状态
+
+`POST /api/v1/tasks/batch/status`
+
+**请求头：** `Authorization: Bearer <token>`
+
+**请求体：**
+```json
+{
+  "ids": ["01M2Q3QXR8R1SNP95BASQ1EFCS", "01M2Q3QXR8R1SNP95BASQ1EFC2"],
+  "status": "in_progress"
+}
+```
+
+**业务规则：**
+- `status` 必填，取值 `pending` / `in_progress` / `completed`，非法值返回 `400`
+- 逐条按单条状态变更的归属规则校验（创建人或 `tenant` 任务的负责人），无权/不存在项静默跳过
+- 改为 `completed` 写入 `completed_at`；首次改为 `in_progress` 自动写入 `started_at`
+- 返回实际生效数 `affected`
+
+**成功响应（200）：**
+```json
+{ "code": 200, "message": "success", "data": { "affected": 2 } }
+```
+
+---
+
+### 4.15 批量指派负责人
+
+`POST /api/v1/tasks/batch/assign`
+
+**请求头：** `Authorization: Bearer <token>`
+
+**请求体：**
+```json
+{
+  "ids": ["01M2Q3QXR8R1SNP95BASQ1EFCS"],
+  "assignee_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+}
+```
+
+**业务规则：**
+- `assignee_id` 必填，逐条复用更新逻辑（含归属校验），无权/不存在项静默跳过
+- `personal` 任务会被强制回写为创建人（仍计入 `affected`）
+- `tenant` 任务指派给他人时，逐条向新负责人发送站内指派提醒
+- 返回实际生效数 `affected`
+
+**成功响应（200）：**
+```json
+{ "code": 200, "message": "success", "data": { "affected": 1 } }
+```
+
+---
+
 ## 5. 访问控制矩阵
 
 | 操作 | personal 任务 | tenant 任务 |
@@ -604,7 +660,7 @@
 | payload.type | 触发时机 | 接收人 | 标题 |
 |--------------|----------|--------|------|
 | `task_assigned` | 创建/更新任务且负责人指向他人（变更时重新提醒） | 新负责人 | 新任务指派 |
-| `task_due` | 定时扫描：截止时间进入 24 小时窗口或已逾期，且状态为 `pending`/`in_progress` | 负责人（为空时创建人） | 任务截止提醒 / 任务逾期提醒 |
+| `task_due` | 定时扫描：截止时间进入 24 小时窗口或已逾期，且状态为 `pending`/`in_progress`；已逾期的任务按冷却期（默认 24 小时）重复提醒 | 负责人（为空时创建人） | 任务截止提醒 / 任务逾期提醒 |
 
 **消息体示例（WS payload）：**
 ```json
@@ -623,7 +679,7 @@
 ```
 
 **实现要点：**
-- 提醒去重：`tasks.reminder_sent_at` 列记录到期提醒发送时间，定时任务只处理该列为空的任务；**修改截止时间会重置该标记**，使新截止日可再次触发提醒。
+- 提醒去重：`tasks.reminder_sent_at` 列记录上次到期提醒发送时间。即将到期（未逾期）仅首次提醒一次；**已逾期的任务按 24 小时冷却期重复提醒**（距上次提醒超过 24 小时才会再次推送）；**修改截止时间会重置该标记**，使新截止日可重新触发提醒。
 - 定时任务 `TaskReminderJob` 随应用启动，每 30 分钟扫描一次（启动时先立即执行一轮），单轮最多 200 条；系统级扫描，不受租户/可见范围限制。
 - 指派提醒在负责人变更（含首次指派给他人）时触发，自己给自己的任务不提醒。
 - 通知不可用（WS 未启用/用户离线）时静默跳过，不影响任务主流程；离线用户不会补发。
