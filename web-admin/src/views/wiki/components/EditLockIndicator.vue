@@ -119,8 +119,9 @@ async function handleAcquire() {
     lockInfo.value = await acquireEditLock(props.documentId)
     ElMessage.success('已获取编辑权')
     emit('locked')
-  } catch (error: any) {
-    if (error.response?.data?.message?.includes('已被锁定')) {
+  } catch (error) {
+    const msg = (error as { response?: { data?: { message?: string } } }).response?.data?.message
+    if (msg?.includes('已被锁定')) {
       ElMessage.warning('文档已被其他用户锁定')
     } else {
       ElMessage.error('获取编辑权失败')

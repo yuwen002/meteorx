@@ -110,8 +110,8 @@ async function loadInvitationInfo() {
     if (data.status !== 'pending') {
       error.value = data.status === 'accepted' ? '此邀请已被接受' : data.status === 'cancelled' ? '此邀请已被取消' : '此邀请已过期'
     }
-  } catch (e: any) {
-    error.value = e.message || '获取邀请信息失败'
+  } catch (e) {
+    error.value = (e as Error).message || '获取邀请信息失败'
   } finally {
     loading.value = false
   }
@@ -131,8 +131,8 @@ async function handleSubmit() {
       })
       success.value = true
       ElMessage.success('注册成功，请登录')
-    } catch (e: any) {
-      ElMessage.error(e.message || '注册失败')
+    } catch (e) {
+      ElMessage.error((e as Error).message || '注册失败')
     } finally {
       submitLoading.value = false
     }

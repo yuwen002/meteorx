@@ -126,7 +126,7 @@ const form = reactive({
   confirm_password: '',
 })
 
-const validateConfirmPassword = (_rule: any, value: string, callback: any) => {
+const validateConfirmPassword = (_rule: unknown, value: string, callback: (error?: string | Error) => void) => {
   if (value !== form.password) {
     callback(new Error('两次输入的密码不一致'))
   } else {
@@ -166,14 +166,15 @@ const handleRegister = async () => {
     await formRef.value.validate()
     loading.value = true
 
-    const { confirm_password, ...registerData } = form
+    const { confirm_password: _confirm_password, ...registerData } = form
     await registerUser(registerData)
 
     ElMessage.success('注册成功，请登录')
     router.push('/login')
-  } catch (error: any) {
-    if (error.message) {
-      ElMessage.error(error.message)
+  } catch (error) {
+    const err = error as { message?: string }
+    if (err.message) {
+      ElMessage.error(err.message)
     }
   } finally {
     loading.value = false

@@ -72,7 +72,7 @@ export interface BatchDeleteResp {
  * GET /api/v1/files
  */
 export function getFileList(params: FileListParams) {
-  return request.get<any, PaginatedResult<FileItem>>('/files', { params })
+  return request.get<unknown, PaginatedResult<FileItem>>('/files', { params })
 }
 
 /**
@@ -80,7 +80,7 @@ export function getFileList(params: FileListParams) {
  * GET /api/v1/files/my
  */
 export function getMyFileList(params: FileListParams) {
-  return request.get<any, PaginatedResult<FileItem>>('/files/my', { params })
+  return request.get<unknown, PaginatedResult<FileItem>>('/files/my', { params })
 }
 
 /**
@@ -88,7 +88,7 @@ export function getMyFileList(params: FileListParams) {
  * GET /api/v1/files/:id
  */
 export function getFileDetail(id: string) {
-  return request.get<any, FileItem>(`/files/${id}`)
+  return request.get<unknown, FileItem>(`/files/${id}`)
 }
 
 /**
@@ -98,7 +98,7 @@ export function getFileDetail(id: string) {
 export function uploadFile(file: File) {
   const formData = new FormData()
   formData.append('file', file)
-  return request.post<any, UploadFileResp>('/files/upload', formData, {
+  return request.post<unknown, UploadFileResp>('/files/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
 }
@@ -108,7 +108,7 @@ export function uploadFile(file: File) {
  * PUT /api/v1/files/:id
  */
 export function updateFile(id: string, data: FileUpdateParams) {
-  return request.put<any, null>(`/files/${id}`, data)
+  return request.put<unknown, null>(`/files/${id}`, data)
 }
 
 /**
@@ -116,7 +116,7 @@ export function updateFile(id: string, data: FileUpdateParams) {
  * DELETE /api/v1/files/:id
  */
 export function deleteFile(id: string) {
-  return request.delete<any, null>(`/files/${id}`)
+  return request.delete<unknown, null>(`/files/${id}`)
 }
 
 /**
@@ -124,7 +124,7 @@ export function deleteFile(id: string) {
  * POST /api/v1/files/batch/delete
  */
 export function batchDeleteFile(data: BatchDeleteParams) {
-  return request.post<any, BatchDeleteResp>('/files/batch/delete', data)
+  return request.post<unknown, BatchDeleteResp>('/files/batch/delete', data)
 }
 
 /**
@@ -132,7 +132,7 @@ export function batchDeleteFile(data: BatchDeleteParams) {
  * GET /api/v1/files/deleted
  */
 export function getDeletedFileList(params: FileListParams) {
-  return request.get<any, PaginatedResult<FileItem>>('/files/deleted', { params })
+  return request.get<unknown, PaginatedResult<FileItem>>('/files/deleted', { params })
 }
 
 /**
@@ -140,7 +140,7 @@ export function getDeletedFileList(params: FileListParams) {
  * PUT /api/v1/files/:id/restore
  */
 export function restoreFile(id: string) {
-  return request.put<any, null>(`/files/${id}/restore`)
+  return request.put<unknown, null>(`/files/${id}/restore`)
 }
 
 /**
@@ -148,7 +148,7 @@ export function restoreFile(id: string) {
  * DELETE /api/v1/files/:id/permanent
  */
 export function permanentDeleteFile(id: string) {
-  return request.delete<any, null>(`/files/${id}/permanent`)
+  return request.delete<unknown, null>(`/files/${id}/permanent`)
 }
 
 /**
@@ -156,7 +156,7 @@ export function permanentDeleteFile(id: string) {
  * GET /api/v1/files/:id/download
  */
 export function downloadFile(id: string) {
-  return request.get<any, Blob>(`/files/${id}/download`, {
+  return request.get<unknown, Blob>(`/files/${id}/download`, {
     responseType: 'blob'
   })
 }

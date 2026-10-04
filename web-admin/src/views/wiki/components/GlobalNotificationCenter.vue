@@ -108,8 +108,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Bell, Warning } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus/es/components/message/index'
-import { useNotificationStore } from '@/stores/notification'
+import { useNotificationStore, type AnnouncementNotification } from '@/stores/notification'
 
 const router = useRouter()
 const notificationStore = useNotificationStore()
@@ -146,13 +145,13 @@ function getRiskColor(level: string): string {
   return map[level] || '#909399'
 }
 
-function handleAnnouncementClick(item: any) {
+function handleAnnouncementClick(item: AnnouncementNotification) {
   notificationStore.markAnnouncementAsRead(item.id)
   popoverVisible.value = false
   router.push('/announcement')
 }
 
-function handleAlertClick(item: any) {
+function handleAlertClick(_item: unknown) {
   notificationStore.markAllAlertsAsRead()
   popoverVisible.value = false
   router.push('/system/audit/alert')

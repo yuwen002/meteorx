@@ -292,7 +292,7 @@ async function submitUpload() {
         try {
           await uploadFile(file.raw!)
           successCount++
-        } catch (e: any) {
+        } catch {
           failedNames.push(file.name)
         } finally {
           completed++
@@ -415,7 +415,7 @@ function getFileTypeLabel(type: string) {
 }
 
 function getFileTypeColor(type: string) {
-  const map: Record<string, any> = {
+  const map: Record<string, string> = {
     image: 'success',
     document: 'primary',
     video: 'warning',

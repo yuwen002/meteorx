@@ -154,7 +154,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { InfoFilled, Warning, Avatar, OfficeBuilding, Link, Connection, ArrowDown } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import { getOAuthRedirectURL, oauthLogin, getOAuthTenants, type LoginParams, type LoginErrorData } from '@/api/auth'
+import { getOAuthRedirectURL, getOAuthTenants, type LoginParams, type LoginErrorData } from '@/api/auth'
 
 const router = useRouter()
 const route = useRoute()
@@ -226,9 +226,10 @@ async function handleLogin() {
       ElMessage.success('登录成功')
       const redirect = (route.query.redirect as string) || '/'
       router.push(redirect)
-    } catch (e: any) {
-      if (e.response?.status === 401 && e.response?.data?.data) {
-        const errorData: LoginErrorData = e.response.data.data
+    } catch (e) {
+      const err = e as { response?: { status?: number; data?: { data?: LoginErrorData } } }
+      if (err.response?.status === 401 && err.response?.data?.data) {
+        const errorData: LoginErrorData = err.response.data.data
         loginError.show = true
         loginError.message = errorData.message
         loginError.remainingAttempts = errorData.remaining_attempts
@@ -245,7 +246,7 @@ async function handleOAuthLogin(provider: string) {
   try {
     // 先获取租户列表
     const res = await getOAuthTenants()
-    const data = (res as any)?.data || res
+    const data = (res as { data?: typeof res }).data || res
     
     if (data?.tenants && data.tenants.length > 0) {
       tenantList.value = data.tenants
@@ -281,7 +282,7 @@ async function confirmOAuthLogin() {
     
     // 获取 OAuth 跳转链接
     const res = await getOAuthRedirectURL(currentOAuthProvider.value)
-    const data = (res as any)?.data || res
+    const data = (res as { data?: typeof res }).data || res
     if (data?.url) {
       window.location.href = data.url
       showTenantDialog.value = false

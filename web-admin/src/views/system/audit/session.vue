@@ -142,8 +142,23 @@ interface SessionSummary {
   duration_minutes: number
 }
 
+interface SessionLog {
+  id: string
+  created_at: string
+  action: string
+  module: string
+  method: string
+  path: string
+  status_code: number
+  result: string
+  client_ip: string
+  ip_location?: string
+  duration: number
+  error_message?: string
+}
+
 interface SessionDetail extends SessionSummary {
-  logs: any[]
+  logs: SessionLog[]
 }
 
 const {
@@ -179,7 +194,7 @@ function resetSearch() {
 
 async function openSessionDetail(sessionId: string) {
   try {
-    const res = await get(`/audit/sessions/${sessionId}/logs`)
+    const res = await get<SessionDetail>(`/audit/sessions/${sessionId}/logs`)
     sessionDetail.value = res
     detailVisible.value = true
   } catch (error) {

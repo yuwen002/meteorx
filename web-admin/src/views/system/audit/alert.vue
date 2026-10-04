@@ -444,7 +444,7 @@ onMounted(() => {
 
 async function loadRules() {
   try {
-    const res = await get('/audit/alert-rules')
+    const res = await get<{ data: AlertRule[] }>('/audit/alert-rules')
     rules.value = res.data || []
   } catch (error) {
     console.error('加载告警规则失败', error)
@@ -536,7 +536,7 @@ async function handleDeleteRule(row: AlertRule) {
     await del(`/audit/alert-rules/${row.id}`)
     ElMessage.success('删除告警规则成功')
     loadRules()
-  } catch (error: any) {
+  } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('删除告警规则失败')
     }

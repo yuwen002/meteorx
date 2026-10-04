@@ -2,7 +2,7 @@ import { get } from '@/api/request'
 
 // 平台运营数据看板：获取总览统计（仅平台超级管理员）
 export function getDashboardOverview() {
-  return get('/admin/dashboard/overview')
+  return get<DashboardOverview>('/admin/dashboard/overview')
 }
 
 // 看板响应数据结构

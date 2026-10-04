@@ -72,7 +72,7 @@ const form = reactive({
   confirm_password: ''
 })
 
-const validateConfirmPassword = (_rule: any, value: string, callback: any) => {
+const validateConfirmPassword = (_rule: unknown, value: string, callback: (error?: string | Error) => void) => {
   if (value !== form.new_password) {
     callback(new Error('两次输入的密码不一致'))
   } else {
@@ -120,8 +120,8 @@ async function handleSubmit() {
       setTimeout(() => {
         router.push('/login')
       }, 2000)
-    } catch (e: any) {
-      ElMessage.error(e?.response?.data?.message || '重置密码失败')
+    } catch (e) {
+      ElMessage.error((e as { response?: { data?: { message?: string } } })?.response?.data?.message || '重置密码失败')
     } finally {
       loading.value = false
     }

@@ -532,6 +532,7 @@ import {
   permanentDeleteTenantUser,
   resetTenantUserPassword,
   type UserItem,
+  type UserListParams,
   type UserCreateParams,
   type UserUpdateParams
 } from '@/api/modules/user'
@@ -539,7 +540,7 @@ import { getAuditLogList, type AuditLogItem } from '@/api/modules/audit'
 import { getRolesForSelect, getUserRoles, removeUserRole, removeAllUserRoles, type RoleItem } from '@/api/modules/role'
 import { getPlanSelect, getTenantPlan, assignTenantPlan, type PlanItem, type CurrentPlan } from '@/api/modules/plan'
 import { useTableList } from '@/composables/useTableList'
-import { toPageResult } from '@/types/pagination'
+import { toPageResult, type PageResult } from '@/types/pagination'
 
 const router = useRouter()
 
@@ -554,7 +555,7 @@ const {
   reload
 } = useTableList<TenantItem, { name: string; status?: number }>({
   fetchList: async (params) => {
-    const req: any = { page: params.page, page_size: params.page_size }
+    const req: { page: number; page_size: number; name?: string; status?: number } = { page: params.page, page_size: params.page_size }
     if (params.name) req.name = params.name
     if (params.status !== undefined && params.status !== null) req.status = params.status
     const res = await getTenantList(req)
@@ -890,9 +891,9 @@ async function loadTenantUsers() {
   if (!currentTenant.value) return
   userLoading.value = true
   try {
-    const params: any = { page: userPage.value, page_size: userPageSize.value }
+    const params: UserListParams = { page: userPage.value, page_size: userPageSize.value }
     if (userSearch.keyword) params.keyword = userSearch.keyword
-    let res: any
+    let res: PageResult<UserItem> & { data?: UserItem[]; pagination?: { total?: number } }
     if (isUserRecycleBin.value) {
       // 回收站模式：获取所有已删除的用户，然后过滤当前租户的
       res = await getAllDeletedTenantUsers(params)

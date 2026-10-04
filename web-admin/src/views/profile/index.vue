@@ -460,8 +460,8 @@ async function handleSendEmailVerification() {
   try {
     await sendEmailVerification(userInfo.email)
     ElMessage.success('验证邮件已发送，请检查您的邮箱')
-  } catch (e: any) {
-    ElMessage.error(e.message || '发送验证邮件失败')
+  } catch (e) {
+    ElMessage.error((e as Error).message || '发送验证邮件失败')
   } finally {
     sendVerifyLoading.value = false
   }
@@ -489,8 +489,8 @@ async function submitEdit() {
       userInfo.phone = editForm.phone
       userStore.updateUserInfo({ nickname: editForm.nickname, email: editForm.email, phone: editForm.phone })
       editDialogVisible.value = false
-    } catch (e: any) {
-      ElMessage.error(e.message || '更新失败')
+    } catch (e) {
+      ElMessage.error((e as Error).message || '更新失败')
     } finally {
       editLoading.value = false
     }
@@ -518,8 +518,8 @@ async function submitPassword() {
       setTimeout(() => {
         userStore.logout()
       }, 1500)
-    } catch (e: any) {
-      ElMessage.error(e.message || '密码修改失败')
+    } catch (e) {
+      ElMessage.error((e as Error).message || '密码修改失败')
     } finally {
       pwdLoading.value = false
     }
@@ -550,7 +550,7 @@ async function handleBindOAuth(provider: string) {
   try {
     sessionStorage.setItem('oauth_bind_mode', 'true')
     const res = await getOAuthRedirectURL(provider)
-    const data = (res as any)?.data || res
+    const data = (res as { data?: typeof res }).data || res
     if (data?.url) {
       window.location.href = data.url
     } else {
@@ -637,8 +637,8 @@ async function submitCreateToken() {
       newTokenValue.value = data.token
       ElMessage.success('令牌创建成功')
       loadAPITokens()
-    } catch (e: any) {
-      ElMessage.error(e.message || '创建令牌失败')
+    } catch (e) {
+      ElMessage.error((e as Error).message || '创建令牌失败')
     } finally {
       createTokenLoading.value = false
     }

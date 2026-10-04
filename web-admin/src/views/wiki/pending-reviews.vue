@@ -107,8 +107,8 @@ async function loadData() {
     const res = await listPendingReviews(page.value, pageSize.value)
     items.value = res.items || []
     total.value = res.total || 0
-  } catch (e: any) {
-    ElMessage.error(e?.message || '加载失败')
+  } catch (e) {
+    ElMessage.error((e as Error)?.message || '加载失败')
   } finally {
     loading.value = false
   }
@@ -143,8 +143,8 @@ async function submitAction() {
     ElMessage.success(actionType.value === 'approve' ? '已通过' : '已驳回')
     actionDialogVisible.value = false
     loadData()
-  } catch (e: any) {
-    ElMessage.error(e?.message || '操作失败')
+  } catch (e) {
+    ElMessage.error((e as Error)?.message || '操作失败')
   } finally {
     submitting.value = false
   }

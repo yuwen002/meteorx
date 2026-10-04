@@ -142,7 +142,7 @@
             <PublishWorkflow
               v-if="currentDocument"
               :document-id="currentDocument.id"
-              :publish-status="(currentDocument.publish_status as any) || 'draft'"
+              :publish-status="(currentDocument.publish_status as PublishStatus) || 'draft'"
               :can-review="canEdit"
               :can-publish="canManage"
               @status-changed="onPublishStatusChanged"
@@ -535,9 +535,7 @@ import {
   Share,
   Files,
   DataAnalysis,
-  Finished,
-  Star,
-  StarFilled
+  Finished
 } from '@element-plus/icons-vue'
 import {
   getSpace,
@@ -567,6 +565,10 @@ import {
   type WikiNodeTree,
   type WikiDocument,
   type DocumentRevision,
+  type DocumentTag,
+  type DocumentTemplate,
+  type RevisionDiff,
+  type PublishStatus,
   type WikiAttachment
 } from '@/api/modules/wiki'
 import { uploadFile, downloadFile } from '@/api/modules/file'
@@ -1026,7 +1028,7 @@ const tagManagerRef = ref<InstanceType<typeof TagManager>>()
 const shareManagerRef = ref<InstanceType<typeof ShareLinkManager>>()
 const statsPanelRef = ref<InstanceType<typeof StatsPanel>>()
 const templateSelectorRef = ref<InstanceType<typeof TemplateSelector>>()
-const documentTags = ref<any[]>([])
+const documentTags = ref<DocumentTag[]>([])
 const editLocked = ref(false)
 
 // 加载文档标签
@@ -1054,7 +1056,7 @@ async function handleRemoveTag(tagId: string) {
 }
 
 // 处理模板选择
-function handleTemplateSelect(template: any) {
+function handleTemplateSelect(template: DocumentTemplate) {
   if (!editing.value) {
     startEditing()
   }
@@ -1248,7 +1250,7 @@ async function loadDiff() {
   }
 }
 
-function renderDiffHtml(diff: any): string {
+function renderDiffHtml(diff: RevisionDiff | null): string {
   if (!diff || !diff.diffs) return ''
   let html = '<div class="diff-container">'
   html += `<div class="diff-header">对比版本：v${diff.old_version} → v${diff.new_version}</div>`
@@ -1292,7 +1294,7 @@ async function exportDocument() {
   }
 }
 
-async function handleImportFile(file: any) {
+async function handleImportFile(file: { name: string; raw?: File }) {
   if (!currentDocument.value || !file.raw) return
   
   try {
@@ -1321,7 +1323,7 @@ const selectedBatchNodes = ref<string[]>([])
 const batchMoveVisible = ref(false)
 const batchMoveTargetId = ref<string>('')
 
-function handleBatchCheck(_node: any, checkedInfo: { checkedKeys: string[] }) {
+function handleBatchCheck(_node: unknown, checkedInfo: { checkedKeys: string[] }) {
   selectedBatchNodes.value = checkedInfo.checkedKeys
   selectAll.value = checkedInfo.checkedKeys.length === tree.value.length
 }

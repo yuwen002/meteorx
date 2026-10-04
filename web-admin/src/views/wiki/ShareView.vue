@@ -84,6 +84,14 @@ interface SharedDocumentView {
   expire_at?: string
 }
 
+// 免登录接口可能返回 { code, message, data } 包裹或直接返回文档对象
+interface ShareApiResponse {
+  code?: number
+  message?: string
+  data?: SharedDocumentView
+  document_id?: string
+}
+
 const route = useRoute()
 const router = useRouter()
 const token = route.params.token as string
@@ -109,11 +117,11 @@ async function fetchDoc(pwd?: string): Promise<void> {
       params: pwd ? { password: pwd } : {},
       timeout: 15000
     })
-    const body: any = res.data
+    const body = res.data as ShareApiResponse
     if (body && typeof body === 'object' && body.code !== undefined && body.code !== 0 && body.code !== 200) {
       throw new Error(body.message || '加载失败')
     }
-    const data = body?.data ?? body
+    const data = (body?.data ?? body) as SharedDocumentView
     if (data && typeof data === 'object' && data.document_id) {
       doc.value = data
       fatal.value = null
@@ -121,7 +129,11 @@ async function fetchDoc(pwd?: string): Promise<void> {
       return
     }
     throw new Error('返回数据格式不正确')
-  } catch (e: any) {
+  } catch (err) {
+    const e = err as {
+      response?: { status?: number; statusText?: string; data?: { message?: string } }
+      message?: string
+    }
     const status = e?.response?.status
     const message = e?.response?.data?.message || e?.response?.statusText || e?.message || '加载失败'
     if (status === 403 && (message.includes('需要密码') || message.includes('密码错误'))) {

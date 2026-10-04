@@ -240,7 +240,7 @@ const rules: FormRules = {
   scope: [{ required: true, message: '请选择范围', trigger: 'change' }],
   target_tenant_id: [
     {
-      validator: (_: any, value: string, callback: any) => {
+      validator: (_: unknown, value: string, callback: (error?: string | Error) => void) => {
         if (form.scope === 'tenant' && !value) {
           callback(new Error('指定租户时必须填写目标租户ID'))
         } else {
@@ -339,7 +339,7 @@ async function handleStatus(row: AnnouncementItem, status: number) {
     await updateAnnouncementStatus(row.id, status)
     ElMessage.success(`${text}成功`)
     loadList()
-  } catch (error: any) {
+  } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error(`${text}失败`)
     }
@@ -356,7 +356,7 @@ async function handleDelete(row: AnnouncementItem) {
     await deleteAnnouncement(row.id)
     ElMessage.success('删除成功')
     loadList()
-  } catch (error: any) {
+  } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('删除失败')
     }

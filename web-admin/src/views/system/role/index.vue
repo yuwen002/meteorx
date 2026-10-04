@@ -224,11 +224,17 @@ const rules: FormRules = {
   code: [{ required: true, message: '请输入编码', trigger: 'blur' }]
 }
 
+// 权限树节点（按 resource 分组，子节点为具体权限）
+interface PermTreeNode {
+  name: string
+  children: PermissionItem[]
+}
+
 // 权限绑定相关
 const bindDialogVisible = ref(false)
 const currentRole = ref<RoleItem | null>(null)
 const treeRef = ref<InstanceType<typeof ElTree>>()
-const permTreeData = ref<any[]>([])
+const permTreeData = ref<PermTreeNode[]>([])
 const allPermIds = ref<string[]>([])
 
 // 查看权限相关
@@ -237,12 +243,12 @@ const currentRolePerms = ref<PermissionItem[]>([])
 const selectedPermIds = ref<string[]>([])
 
 async function loadAllPermissions() {
-  const res: any = await getPermissionList({ page: 1, page_size: 500 })
+  const res = await getPermissionList({ page: 1, page_size: 500 }) as unknown as { data?: PermissionItem[] }
   const perms = (res.data || []) as PermissionItem[]
   allPermissions.value = perms  // 存储所有权限
   allPermIds.value = perms.map((p) => p.id)
   // 按 resource 分组（简单实现：resource 作为父节点，权限作为子节点）
-  const groups = new Map<string, { name: string; children: any[] }>()
+  const groups = new Map<string, PermTreeNode>()
   for (const p of perms) {
     if (!groups.has(p.resource)) groups.set(p.resource, { name: p.resource, children: [] })
     groups.get(p.resource)!.children.push(p)
@@ -450,7 +456,7 @@ async function openBindPerm(row: RoleItem) {
 async function submitBind() {
   if (!currentRole.value) return
   // 从树中取出选中的节点 id（叶子节点 = 权限本身）
-  const checked: any[] = treeRef.value?.getCheckedNodes(true) || []
+  const checked = (treeRef.value?.getCheckedNodes(true) || []) as Array<{ id: string; children?: unknown[] }>
   const leafIds = checked.filter((n) => !n.children || n.children.length === 0).map((n) => n.id)
   saving.value = true
   try {

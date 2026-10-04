@@ -1,4 +1,5 @@
 import { get, post } from '@/api/request'
+import type { LoginUserInfo } from '@/api/auth'
 
 export interface OAuthRedirectResponse {
   url: string
@@ -8,7 +9,7 @@ export interface OAuthRedirectResponse {
 export interface OAuthLoginResponse {
   token: string
   refresh_token?: string
-  user: any
+  user: LoginUserInfo
   permissions: string[]
   is_new_user: boolean
 }
@@ -66,10 +67,10 @@ export function listOAuthAccounts() {
 
 // 解绑指定第三方账号
 export function unbindOAuth(provider: string) {
-  return post<any>('/auth/oauth/unbind', { provider })
+  return post<void>('/auth/oauth/unbind', { provider })
 }
 
 // 绑定新的第三方账号
 export function bindOAuth(data: { provider: string; code: string; state: string }) {
-  return post<any>('/auth/oauth/bind', data)
+  return post<void>('/auth/oauth/bind', data)
 }

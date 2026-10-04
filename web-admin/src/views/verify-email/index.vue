@@ -45,8 +45,8 @@ onMounted(async () => {
   try {
     await verifyEmail(token)
     verified.value = true
-  } catch (e: any) {
-    errorMsg.value = e.message || '验证失败，请重新发送验证邮件'
+  } catch (e) {
+    errorMsg.value = (e as Error).message || '验证失败，请重新发送验证邮件'
   } finally {
     loading.value = false
   }

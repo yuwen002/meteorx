@@ -1,11 +1,20 @@
 import { ref, onUnmounted, type Ref } from 'vue'
 import { useUserStore } from '@/stores/user'
+import type { AlertNotification } from '@/stores/notification'
 
-export interface WSMessage {
-  type: 'alert' | 'announcement' | 'unread_count' | 'ping' | 'pong'
-  payload: any
-  time: number
+// 公告/任务提醒负载
+export interface AnnouncementPayload {
+  type?: string
+  id?: string
+  title?: string
+  content?: string
 }
+
+// WebSocket 消息：按 type 判别负载结构，避免使用 any
+export type WSMessage =
+  | { type: 'alert'; payload: AlertNotification; time: number }
+  | { type: 'announcement'; payload: AnnouncementPayload; time: number }
+  | { type: 'unread_count' | 'ping' | 'pong'; payload: Record<string, unknown>; time: number }
 
 // 重连配置
 const RECONNECT_BASE_DELAY = 1000 // 基础延迟 1s

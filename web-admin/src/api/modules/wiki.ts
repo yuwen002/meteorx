@@ -187,27 +187,27 @@ export interface AddMemberReq {
 
 // 创建知识空间
 export function createSpace(req: CreateSpaceReq) {
-  return request.post<any, WikiSpace>('/wiki/spaces', req)
+  return request.post<unknown, WikiSpace>('/wiki/spaces', req)
 }
 
 // 获取知识空间列表（分页）
 export function listSpaces(params?: { page?: number; page_size?: number; keyword?: string }) {
-  return request.get<any, PaginatedResult<WikiSpace>>('/wiki/spaces', { params })
+  return request.get<unknown, PaginatedResult<WikiSpace>>('/wiki/spaces', { params })
 }
 
 // 获取知识空间详情
 export function getSpace(id: string) {
-  return request.get<any, WikiSpace>(`/wiki/spaces/${id}`)
+  return request.get<unknown, WikiSpace>(`/wiki/spaces/${id}`)
 }
 
 // 更新知识空间
 export function updateSpace(id: string, req: UpdateSpaceReq) {
-  return request.put<any, WikiSpace>(`/wiki/spaces/${id}`, req)
+  return request.put<unknown, WikiSpace>(`/wiki/spaces/${id}`, req)
 }
 
 // 删除知识空间（进入回收站）
 export function deleteSpace(id: string) {
-  return request.delete<any, void>(`/wiki/spaces/${id}`)
+  return request.delete<unknown, void>(`/wiki/spaces/${id}`)
 }
 
 // ============================================================
@@ -216,27 +216,27 @@ export function deleteSpace(id: string) {
 
 // 获取空间下的节点树（已排序）
 export function getNodeTree(spaceId: string) {
-  return request.get<any, WikiNodeTree[]>(`/wiki/spaces/${spaceId}/nodes/tree`)
+  return request.get<unknown, WikiNodeTree[]>(`/wiki/spaces/${spaceId}/nodes/tree`)
 }
 
 // 创建节点（文件夹或文档）
 export function createNode(spaceId: string, req: CreateNodeReq) {
-  return request.post<any, WikiNode>(`/wiki/spaces/${spaceId}/nodes`, req)
+  return request.post<unknown, WikiNode>(`/wiki/spaces/${spaceId}/nodes`, req)
 }
 
 // 获取节点详情
 export function getNode(spaceId: string, id: string) {
-  return request.get<any, WikiNode>(`/wiki/spaces/${spaceId}/nodes/${id}`)
+  return request.get<unknown, WikiNode>(`/wiki/spaces/${spaceId}/nodes/${id}`)
 }
 
 // 更新节点（支持移动、重命名、排序）
 export function updateNode(spaceId: string, id: string, req: UpdateNodeReq) {
-  return request.put<any, WikiNode>(`/wiki/spaces/${spaceId}/nodes/${id}`, req)
+  return request.put<unknown, WikiNode>(`/wiki/spaces/${spaceId}/nodes/${id}`, req)
 }
 
 // 删除节点（进入回收站）
 export function deleteNode(spaceId: string, id: string) {
-  return request.delete<any, void>(`/wiki/spaces/${spaceId}/nodes/${id}`)
+  return request.delete<unknown, void>(`/wiki/spaces/${spaceId}/nodes/${id}`)
 }
 
 // ============================================================
@@ -245,27 +245,27 @@ export function deleteNode(spaceId: string, id: string) {
 
 // 创建文档（关联到指定节点）
 export function createDocument(nodeId: string, req: CreateDocumentReq) {
-  return request.post<any, WikiDocument>(`/wiki/documents/nodes/${nodeId}`, req)
+  return request.post<unknown, WikiDocument>(`/wiki/documents/nodes/${nodeId}`, req)
 }
 
 // 获取文档详情（通过节点 ID 查询）
 export function getDocument(nodeId: string) {
-  return request.get<any, WikiDocument>(`/wiki/documents/nodes/${nodeId}`)
+  return request.get<unknown, WikiDocument>(`/wiki/documents/nodes/${nodeId}`)
 }
 
 // 更新文档内容
 export function updateDocument(id: string, req: UpdateDocumentReq) {
-  return request.put<any, WikiDocument>(`/wiki/documents/${id}`, req)
+  return request.put<unknown, WikiDocument>(`/wiki/documents/${id}`, req)
 }
 
 // 删除文档
 export function deleteDocument(id: string) {
-  return request.delete<any, void>(`/wiki/documents/${id}`)
+  return request.delete<unknown, void>(`/wiki/documents/${id}`)
 }
 
 // Markdown 内容预览（返回渲染后的 HTML）
 export function previewMarkdown(content: string, format = 'markdown') {
-  return request.post<any, { content_html: string }>('/wiki/documents/preview', { content, format })
+  return request.post<unknown, { content_html: string }>('/wiki/documents/preview', { content, format })
 }
 
 // ============================================================
@@ -274,17 +274,17 @@ export function previewMarkdown(content: string, format = 'markdown') {
 
 // 获取文档历史版本列表
 export function listRevisions(documentId: string) {
-  return request.get<any, DocumentRevision[]>(`/wiki/documents/${documentId}/revisions`)
+  return request.get<unknown, DocumentRevision[]>(`/wiki/documents/${documentId}/revisions`)
 }
 
 // 获取指定版本详情
 export function getRevision(documentId: string, version: number) {
-  return request.get<any, DocumentRevision>(`/wiki/documents/${documentId}/revisions/${version}`)
+  return request.get<unknown, DocumentRevision>(`/wiki/documents/${documentId}/revisions/${version}`)
 }
 
 // 恢复到指定历史版本
 export function restoreRevision(documentId: string, version: number) {
-  return request.post<any, void>(`/wiki/documents/${documentId}/revisions/${version}/restore`)
+  return request.post<unknown, void>(`/wiki/documents/${documentId}/revisions/${version}/restore`)
 }
 
 // ============================================================
@@ -293,17 +293,17 @@ export function restoreRevision(documentId: string, version: number) {
 
 // 获取空间成员列表
 export function listMembers(spaceId: string) {
-  return request.get<any, WikiSpaceMember[]>(`/wiki/spaces/${spaceId}/members`)
+  return request.get<unknown, WikiSpaceMember[]>(`/wiki/spaces/${spaceId}/members`)
 }
 
 // 添加空间成员
 export function addMember(spaceId: string, req: AddMemberReq) {
-  return request.post<any, WikiSpaceMember>(`/wiki/spaces/${spaceId}/members`, req)
+  return request.post<unknown, WikiSpaceMember>(`/wiki/spaces/${spaceId}/members`, req)
 }
 
 // 移除空间成员
 export function removeMember(spaceId: string, userId: string) {
-  return request.delete<any, void>(`/wiki/spaces/${spaceId}/members/${userId}`)
+  return request.delete<unknown, void>(`/wiki/spaces/${spaceId}/members/${userId}`)
 }
 
 // ============================================================
@@ -312,17 +312,17 @@ export function removeMember(spaceId: string, userId: string) {
 
 // 获取节点权限列表
 export function listNodePermissions(spaceId: string, nodeId: string) {
-  return request.get<any, NodePermission[]>(`/wiki/spaces/${spaceId}/nodes/${nodeId}/permissions`)
+  return request.get<unknown, NodePermission[]>(`/wiki/spaces/${spaceId}/nodes/${nodeId}/permissions`)
 }
 
 // 设置节点权限（如已存在则更新）
 export function setNodePermission(spaceId: string, nodeId: string, data: { user_id: string; permission: string }) {
-  return request.post<any, NodePermission>(`/wiki/spaces/${spaceId}/nodes/${nodeId}/permissions`, data)
+  return request.post<unknown, NodePermission>(`/wiki/spaces/${spaceId}/nodes/${nodeId}/permissions`, data)
 }
 
 // 移除节点权限
 export function removeNodePermission(spaceId: string, nodeId: string, userId: string, permission: string) {
-  return request.delete<any, void>(
+  return request.delete<unknown, void>(
     `/wiki/spaces/${spaceId}/nodes/${nodeId}/permissions/${userId}/${permission}`
   )
 }
@@ -333,7 +333,7 @@ export function removeNodePermission(spaceId: string, nodeId: string, userId: st
 
 // 获取回收站列表（分页）
 export function listTrash(params?: { page?: number; page_size?: number; space_id?: string; item_type?: string }) {
-  return request.get<any, { items: WikiTrashItem[]; total: number; page: number; page_size: number }>(
+  return request.get<unknown, { items: WikiTrashItem[]; total: number; page: number; page_size: number }>(
     '/wiki/trash',
     { params }
   )
@@ -341,12 +341,12 @@ export function listTrash(params?: { page?: number; page_size?: number; space_id
 
 // 恢复回收站项目
 export function restoreTrashItem(id: string) {
-  return request.post<any, void>(`/wiki/trash/${id}/restore`)
+  return request.post<unknown, void>(`/wiki/trash/${id}/restore`)
 }
 
 // 永久删除回收站项目（不可恢复）
 export function permanentDeleteTrashItem(id: string) {
-  return request.delete<any, void>(`/wiki/trash/${id}`)
+  return request.delete<unknown, void>(`/wiki/trash/${id}`)
 }
 
 // ============================================================
@@ -355,7 +355,7 @@ export function permanentDeleteTrashItem(id: string) {
 
 // 全局搜索 Wiki 内容
 export function searchWiki(params: { q: string; space_id?: string; page?: number; page_size?: number }) {
-  return request.get<any, { results: WikiSearchItem[]; total: number; page: number; page_size: number }>(
+  return request.get<unknown, { results: WikiSearchItem[]; total: number; page: number; page_size: number }>(
     '/wiki/search',
     { params }
   )
@@ -376,22 +376,22 @@ export interface CreateAttachmentReq {
 
 // 获取文档附件列表
 export function listAttachments(documentId: string) {
-  return request.get<any, WikiAttachment[]>(`/wiki/documents/${documentId}/attachments`)
+  return request.get<unknown, WikiAttachment[]>(`/wiki/documents/${documentId}/attachments`)
 }
 
 // 创建附件（关联文件到文档）
 export function createAttachment(data: CreateAttachmentReq) {
-  return request.post<any, WikiAttachment>('/wiki/documents/attachments', data)
+  return request.post<unknown, WikiAttachment>('/wiki/documents/attachments', data)
 }
 
 // 删除附件
 export function deleteAttachment(id: string) {
-  return request.delete<any, void>(`/wiki/documents/attachments/${id}`)
+  return request.delete<unknown, void>(`/wiki/documents/attachments/${id}`)
 }
 
 // 获取 Wiki 统计信息
 export function getWikiStats() {
-  return request.get<any, WikiStats>('/wiki/stats')
+  return request.get<unknown, WikiStats>('/wiki/stats')
 }
 
 // ============================================================
@@ -423,32 +423,32 @@ export interface CreateTagReq {
 
 // 创建标签
 export function createTag(req: CreateTagReq) {
-  return request.post<any, Tag>('/wiki/spaces/tags', req)
+  return request.post<unknown, Tag>('/wiki/spaces/tags', req)
 }
 
 // 获取标签列表
 export function listTags() {
-  return request.get<any, Tag[]>('/wiki/spaces/tags')
+  return request.get<unknown, Tag[]>('/wiki/spaces/tags')
 }
 
 // 删除标签
 export function deleteTag(id: string) {
-  return request.delete<any, void>(`/wiki/spaces/tags/${id}`)
+  return request.delete<unknown, void>(`/wiki/spaces/tags/${id}`)
 }
 
 // 为文档添加标签
 export function addDocumentTag(documentId: string, tagId: string) {
-  return request.post<any, void>(`/wiki/documents/${documentId}/tags/${tagId}`)
+  return request.post<unknown, void>(`/wiki/documents/${documentId}/tags/${tagId}`)
 }
 
 // 移除文档标签
 export function removeDocumentTag(documentId: string, tagId: string) {
-  return request.delete<any, void>(`/wiki/documents/${documentId}/tags/${tagId}`)
+  return request.delete<unknown, void>(`/wiki/documents/${documentId}/tags/${tagId}`)
 }
 
 // 获取文档标签列表
 export function listDocumentTags(documentId: string) {
-  return request.get<any, DocumentTag[]>(`/wiki/documents/${documentId}/tags`)
+  return request.get<unknown, DocumentTag[]>(`/wiki/documents/${documentId}/tags`)
 }
 
 // 评论系统
@@ -476,7 +476,7 @@ export interface CreateCommentReq {
 
 // 创建评论（支持 @提及）
 export function createComment(req: CreateCommentReq) {
-  return request.post<any, Comment>(`/wiki/documents/${req.document_id}/comments`, {
+  return request.post<unknown, Comment>(`/wiki/documents/${req.document_id}/comments`, {
     document_id: req.document_id,
     parent_id: req.parent_id,
     content: req.content,
@@ -486,17 +486,17 @@ export function createComment(req: CreateCommentReq) {
 
 // 获取文档评论列表（含嵌套回复）
 export function listComments(documentId: string) {
-  return request.get<any, Comment[]>(`/wiki/documents/${documentId}/comments`)
+  return request.get<unknown, Comment[]>(`/wiki/documents/${documentId}/comments`)
 }
 
 // 更新评论内容
 export function updateComment(id: string, content: string) {
-  return request.put<any, void>(`/wiki/documents/comments/${id}`, { content })
+  return request.put<unknown, void>(`/wiki/documents/comments/${id}`, { content })
 }
 
 // 删除评论
 export function deleteComment(id: string) {
-  return request.delete<any, void>(`/wiki/documents/comments/${id}`)
+  return request.delete<unknown, void>(`/wiki/documents/comments/${id}`)
 }
 
 // 分享链接
@@ -539,22 +539,22 @@ export function createShareLink(req: CreateShareLinkReq) {
     const ts = Date.parse(req.expires_at)
     body.expire_at = isNaN(ts) ? req.expires_at : new Date(ts).toISOString()
   }
-  return request.post<any, ShareLink>(`/wiki/documents/${req.document_id}/share`, body)
+  return request.post<unknown, ShareLink>(`/wiki/documents/${req.document_id}/share`, body)
 }
 
 // 获取文档分享链接列表
 export function listShareLinks(documentId: string) {
-  return request.get<any, ShareLink[]>(`/wiki/documents/${documentId}/shares`)
+  return request.get<unknown, ShareLink[]>(`/wiki/documents/${documentId}/shares`)
 }
 
 // 删除分享链接
 export function deleteShareLink(id: string) {
-  return request.delete<any, void>(`/wiki/documents/shares/${id}`)
+  return request.delete<unknown, void>(`/wiki/documents/shares/${id}`)
 }
 
 // 获取分享链接详情（公开接口，通过 token 访问）
 export function getShareLink(token: string, password?: string) {
-  return request.get<any, ShareLink>(`/wiki/share/${token}`, { params: { password } })
+  return request.get<unknown, ShareLink>(`/wiki/share/${token}`, { params: { password } })
 }
 
 // 文档模板（挂在 /wiki/spaces/templates 下）
@@ -583,27 +583,27 @@ export interface CreateTemplateReq {
 
 // 创建文档模板
 export function createTemplate(req: CreateTemplateReq) {
-  return request.post<any, DocumentTemplate>('/wiki/spaces/templates', req)
+  return request.post<unknown, DocumentTemplate>('/wiki/spaces/templates', req)
 }
 
 // 获取模板列表（可按分类筛选）
 export function listTemplates(category?: string) {
-  return request.get<any, DocumentTemplate[]>('/wiki/spaces/templates', { params: { category } })
+  return request.get<unknown, DocumentTemplate[]>('/wiki/spaces/templates', { params: { category } })
 }
 
 // 获取模板详情
 export function getTemplate(id: string) {
-  return request.get<any, DocumentTemplate>(`/wiki/spaces/templates/${id}`)
+  return request.get<unknown, DocumentTemplate>(`/wiki/spaces/templates/${id}`)
 }
 
 // 更新模板
 export function updateTemplate(id: string, req: Partial<CreateTemplateReq>) {
-  return request.put<any, DocumentTemplate>(`/wiki/spaces/templates/${id}`, req)
+  return request.put<unknown, DocumentTemplate>(`/wiki/spaces/templates/${id}`, req)
 }
 
 // 删除模板
 export function deleteTemplate(id: string) {
-  return request.delete<any, void>(`/wiki/spaces/templates/${id}`)
+  return request.delete<unknown, void>(`/wiki/spaces/templates/${id}`)
 }
 
 // 访问统计
@@ -629,12 +629,12 @@ export interface DocumentAccessLog {
 
 // 获取文档访问统计
 export function getDocumentStats(documentId: string) {
-  return request.get<any, DocumentStats>(`/wiki/documents/${documentId}/stats`)
+  return request.get<unknown, DocumentStats>(`/wiki/documents/${documentId}/stats`)
 }
 
 // 获取文档访问日志（分页）
 export function listAccessLogs(documentId: string, page = 1, pageSize = 20) {
-  return request.get<any, PaginatedResult<DocumentAccessLog>>(
+  return request.get<unknown, PaginatedResult<DocumentAccessLog>>(
     `/wiki/documents/${documentId}/access-logs`,
     { params: { page, page_size: pageSize } }
   )
@@ -653,17 +653,17 @@ export interface DocumentSubscription {
 
 // 订阅文档变更通知
 export function subscribeDocument(documentId: string) {
-  return request.post<any, void>(`/wiki/documents/${documentId}/subscribe`)
+  return request.post<unknown, void>(`/wiki/documents/${documentId}/subscribe`)
 }
 
 // 取消订阅文档
 export function unsubscribeDocument(documentId: string) {
-  return request.delete<any, void>(`/wiki/documents/${documentId}/subscribe`)
+  return request.delete<unknown, void>(`/wiki/documents/${documentId}/subscribe`)
 }
 
 // 当前用户在空间内订阅的全部文档
 export function listUserSubscriptions() {
-  return request.get<any, DocumentSubscription[]>('/wiki/spaces/subscriptions')
+  return request.get<unknown, DocumentSubscription[]>('/wiki/spaces/subscriptions')
 }
 
 // 通知系统（挂在 /wiki/spaces/notifications 下）
@@ -681,24 +681,24 @@ export interface Notification {
 
 // 获取通知列表（分页）
 export function listNotifications(page = 1, pageSize = 20) {
-  return request.get<any, PaginatedResult<Notification>>('/wiki/spaces/notifications', {
+  return request.get<unknown, PaginatedResult<Notification>>('/wiki/spaces/notifications', {
     params: { page, page_size: pageSize }
   })
 }
 
 // 标记通知为已读
 export function markNotificationAsRead(id: string) {
-  return request.put<any, void>(`/wiki/spaces/notifications/${id}/read`)
+  return request.put<unknown, void>(`/wiki/spaces/notifications/${id}/read`)
 }
 
 // 标记所有通知为已读
 export function markAllNotificationsAsRead() {
-  return request.put<any, void>('/wiki/spaces/notifications/read-all')
+  return request.put<unknown, void>('/wiki/spaces/notifications/read-all')
 }
 
 // 获取未读通知数量
 export function getUnreadNotificationCount() {
-  return request.get<any, { count: number }>('/wiki/spaces/notifications/unread-count')
+  return request.get<unknown, { count: number }>('/wiki/spaces/notifications/unread-count')
 }
 
 // 编辑锁（挂在 /wiki/documents/{id}/edit-lock 下）
@@ -713,22 +713,22 @@ export interface EditLock {
 
 // 获取编辑锁（若不存在则自动获取）
 export function acquireEditLock(documentId: string) {
-  return request.post<any, EditLock>(`/wiki/documents/${documentId}/edit-lock`)
+  return request.post<unknown, EditLock>(`/wiki/documents/${documentId}/edit-lock`)
 }
 
 // 释放编辑锁
 export function releaseEditLock(documentId: string) {
-  return request.delete<any, void>(`/wiki/documents/${documentId}/edit-lock`)
+  return request.delete<unknown, void>(`/wiki/documents/${documentId}/edit-lock`)
 }
 
 // 刷新编辑锁（延长过期时间）
 export function refreshEditLock(documentId: string) {
-  return request.put<any, void>(`/wiki/documents/${documentId}/edit-lock`)
+  return request.put<unknown, void>(`/wiki/documents/${documentId}/edit-lock`)
 }
 
 // 获取编辑锁状态
 export function getEditLock(documentId: string) {
-  return request.get<any, EditLock>(`/wiki/documents/${documentId}/edit-lock`)
+  return request.get<unknown, EditLock>(`/wiki/documents/${documentId}/edit-lock`)
 }
 
 // 批量操作（统一 POST /wiki/spaces/nodes/batch，通过 action 区分）
@@ -743,7 +743,7 @@ export interface BatchMoveReq {
 
 // 批量删除节点
 export function batchDeleteNodes(req: BatchDeleteReq) {
-  return request.post<any, void>('/wiki/spaces/nodes/batch', {
+  return request.post<unknown, void>('/wiki/spaces/nodes/batch', {
     action: 'delete',
     node_ids: req.node_ids
   })
@@ -751,7 +751,7 @@ export function batchDeleteNodes(req: BatchDeleteReq) {
 
 // 批量移动节点到新父节点
 export function batchMoveNodes(req: BatchMoveReq) {
-  return request.post<any, void>('/wiki/spaces/nodes/batch', {
+  return request.post<unknown, void>('/wiki/spaces/nodes/batch', {
     action: 'move',
     node_ids: req.node_ids,
     target: req.new_parent_id
@@ -775,7 +775,7 @@ export interface RevisionDiff {
 
 // 对比两个版本的差异
 export function compareRevisions(documentId: string, version1: number, version2: number) {
-  return request.get<any, RevisionDiff>(
+  return request.get<unknown, RevisionDiff>(
     `/wiki/documents/${documentId}/revisions/compare`,
     { params: { version1, version2 } }
   )
@@ -791,7 +791,7 @@ export function importDocument(documentId: string, file: File) {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('format', 'markdown')
-  return request.post<any, any>(`/wiki/documents/${documentId}/import`, formData, {
+  return request.post<unknown, { document_id?: string; title?: string; format?: string }>(`/wiki/documents/${documentId}/import`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
 }
@@ -837,42 +837,42 @@ export interface PendingReviewItem {
 
 // 提交文档审核
 export function submitForReview(documentId: string, comment?: string) {
-  return request.post<any, DocumentPublishStatus>(`/wiki/documents/${documentId}/submit-review`, { comment })
+  return request.post<unknown, DocumentPublishStatus>(`/wiki/documents/${documentId}/submit-review`, { comment })
 }
 
 // 审核通过
 export function approveDocument(documentId: string, comment?: string) {
-  return request.post<any, DocumentPublishStatus>(`/wiki/documents/${documentId}/approve`, { comment })
+  return request.post<unknown, DocumentPublishStatus>(`/wiki/documents/${documentId}/approve`, { comment })
 }
 
 // 审核驳回
 export function rejectDocument(documentId: string, comment?: string) {
-  return request.post<any, DocumentPublishStatus>(`/wiki/documents/${documentId}/reject`, { comment })
+  return request.post<unknown, DocumentPublishStatus>(`/wiki/documents/${documentId}/reject`, { comment })
 }
 
 // 发布文档
 export function publishDocument(documentId: string) {
-  return request.post<any, DocumentPublishStatus>(`/wiki/documents/${documentId}/publish`)
+  return request.post<unknown, DocumentPublishStatus>(`/wiki/documents/${documentId}/publish`)
 }
 
 // 取消发布
 export function unpublishDocument(documentId: string) {
-  return request.post<any, DocumentPublishStatus>(`/wiki/documents/${documentId}/unpublish`)
+  return request.post<unknown, DocumentPublishStatus>(`/wiki/documents/${documentId}/unpublish`)
 }
 
 // 归档文档
 export function archiveDocument(documentId: string) {
-  return request.post<any, DocumentPublishStatus>(`/wiki/documents/${documentId}/archive`)
+  return request.post<unknown, DocumentPublishStatus>(`/wiki/documents/${documentId}/archive`)
 }
 
 // 获取审核评论列表
 export function listReviewComments(documentId: string) {
-  return request.get<any, ReviewComment[]>(`/wiki/documents/${documentId}/review-comments`)
+  return request.get<unknown, ReviewComment[]>(`/wiki/documents/${documentId}/review-comments`)
 }
 
 // 获取待审核列表（分页）
 export function listPendingReviews(page = 1, pageSize = 20) {
-  return request.get<any, { items: PendingReviewItem[]; total: number; page: number; page_size: number }>(
+  return request.get<unknown, { items: PendingReviewItem[]; total: number; page: number; page_size: number }>(
     '/wiki/pending-reviews',
     { params: { page, page_size: pageSize } }
   )

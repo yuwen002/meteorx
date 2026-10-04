@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { login, logout as apiLogout, type LoginParams, type LoginUserInfo } from '@/api/auth'
+import { login, logout as apiLogout, type LoginParams, type LoginResult, type LoginUserInfo } from '@/api/auth'
 
 const TOKEN_KEY = 'meteorx_token'
 const USER_KEY = 'meteorx_user'
@@ -27,7 +27,9 @@ export const useUserStore = defineStore('user', () => {
   async function doLogin(params: LoginParams) {
     const res = await login(params)
     // 根据后端返回结构取值：{ token: "...", user: {...}, permissions?: [...] }
-    const data = (res as any).data || res
+    // 响应拦截器已解包一层，这里兼容仍带 { data } 包裹的历史结构
+    const wrapped = res as LoginResult & { data?: LoginResult }
+    const data = wrapped.data ?? wrapped
     token.value = data.token || ''
     userInfo.value = data.user || null
     // 如果后端没有返回 permissions，就用空数组（后续可以通过接口获取）

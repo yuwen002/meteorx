@@ -705,7 +705,7 @@ async function openAssignRoles(row: UserItem) {
     // 2. 获取用户当前已分配的角色
     if (row.id) {
       const userRolesRes = await getUserRoles(row.id)
-      selectedRoleIds.value = (userRolesRes || []).map((r: any) => r.id)
+      selectedRoleIds.value = (userRolesRes || []).map((r) => r.id)
     }
   } catch (e) {
     ElMessage.error('加载角色数据失败')
@@ -730,8 +730,8 @@ async function submitAssignRoles() {
     
     ElMessage.success('角色分配成功')
     assignRolesDialogVisible.value = false
-  } catch (e: any) {
-    ElMessage.error(e.message || '角色分配失败')
+  } catch (e) {
+    ElMessage.error((e as Error).message || '角色分配失败')
   } finally {
     savingRoles.value = false
   }

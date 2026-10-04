@@ -1,4 +1,5 @@
 import { get, post } from '@/api/request'
+import type { LoginUserInfo } from '@/api/auth'
 
 export interface LoginParams {
   tenant_id?: string
@@ -8,7 +9,7 @@ export interface LoginParams {
 
 export interface LoginResponse {
   token: string
-  user: any
+  user: LoginUserInfo
   permissions: string[]
 }
 
@@ -53,12 +54,12 @@ export function login(data: LoginParams) {
 
 // 用户注册
 export function register(data: RegisterParams) {
-  return post<any>('/auth/register', data)
+  return post<unknown>('/auth/register', data)
 }
 
 // 用户登出
 export function logout() {
-  return post<any>('/auth/logout')
+  return post<void>('/auth/logout')
 }
 
 // 忘记密码（发送重置链接到邮箱）
@@ -97,5 +98,5 @@ export function createAPIToken(data: {
 
 // 撤销 API Token
 export function revokeAPIToken(id: string) {
-  return post<any>('/auth/tokens/revoke', { id })
+  return post<void>('/auth/tokens/revoke', { id })
 }

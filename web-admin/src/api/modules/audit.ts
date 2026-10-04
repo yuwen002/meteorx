@@ -91,7 +91,7 @@ export function getAuditLogList(params: {
   end_time?: string
   keyword?: string
 }): Promise<AuditLogListResult> {
-  return get('/audit/logs', params).then((res: PaginatedResponse<AuditLogItem>) => {
+  return get<PaginatedResponse<AuditLogItem>>('/audit/logs', params).then((res) => {
     return {
       items: res.data,
       page: res.pagination.page,

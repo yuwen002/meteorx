@@ -179,7 +179,7 @@ function formatTime(time: string) {
 }
 
 function getActionType(action: string) {
-  const types: Record<string, any> = {
+  const types: Record<string, string> = {
     view: 'info',
     edit: 'warning',
     download: 'success',

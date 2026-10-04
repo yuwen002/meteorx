@@ -585,7 +585,7 @@ async function confirmCleanup() {
     cleanupVisible.value = false
     loadList()
     loadDashboard()
-  } catch (error: any) {
+  } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('清理失败')
     }
@@ -712,7 +712,15 @@ function getRiskLevelLabel(level: string): string {
 }
 
 function handleExport() {
-  const params: any = {
+  const params: {
+    format: 'csv'
+    module?: string
+    action?: string
+    result?: string
+    keyword?: string
+    start_time?: string
+    end_time?: string
+  } = {
     format: 'csv',
     module: query.module || undefined,
     action: query.action || undefined,

@@ -56,7 +56,6 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElMessage } from 'element-plus/es/components/message/index'
 import { listTenantAnnouncements, type AnnouncementItem } from '@/api/modules/announcement'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'

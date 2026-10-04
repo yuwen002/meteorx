@@ -210,7 +210,7 @@ const formRules: FormRules = {
   ],
   extra: [
     {
-      validator: (_rule: any, value: string, callback: any) => {
+      validator: (_rule: unknown, value: string, callback: (error?: string | Error) => void) => {
         if (value && value.trim()) {
           try {
             JSON.parse(value)
@@ -267,8 +267,8 @@ async function handleSave() {
       const res = await updateTenantSettings(data)
       Object.assign(form, res)
       ElMessage.success('保存成功')
-    } catch (error: any) {
-      ElMessage.error(error?.response?.data?.message || '保存失败')
+    } catch (error) {
+      ElMessage.error((error as { response?: { data?: { message?: string } } })?.response?.data?.message || '保存失败')
     } finally {
       saving.value = false
     }

@@ -217,7 +217,7 @@ const {
   reload
 } = useTableList<UserItem, { keyword: string; status?: number }>({
   fetchList: async (params) => {
-    const req: any = { page: params.page, page_size: params.page_size }
+    const req: { page?: number; page_size?: number; keyword?: string; status?: number } = { page: params.page, page_size: params.page_size }
     if (params.keyword) req.keyword = params.keyword
     if (params.status !== undefined && params.status !== null) req.status = params.status
     const res = await getMasterAdminList(req)
@@ -280,7 +280,7 @@ function handleSelectionChange(selection: UserItem[]) {
 
 async function loadRoles() {
   try {
-    const res: any = await getSystemAdminRoles()
+    const res = await getSystemAdminRoles()
     roleOptions.value = res || []
   } catch (e) {
     roleOptions.value = []
@@ -337,8 +337,8 @@ function handleSubmit() {
       }
       dialogVisible.value = false
       loadList()
-    } catch (e: any) {
-      ElMessage.error(e?.response?.data?.message || '操作失败')
+    } catch (e) {
+      ElMessage.error((e as { response?: { data?: { message?: string } } })?.response?.data?.message || '操作失败')
     }
   })
 }

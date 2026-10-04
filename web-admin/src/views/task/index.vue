@@ -411,8 +411,8 @@ async function submitForm() {
       }
       dialogVisible.value = false
       loadList()
-    } catch (e: any) {
-      ElMessage.error(e.message || '操作失败')
+    } catch (e) {
+      ElMessage.error((e as Error).message || '操作失败')
     } finally {
       submitLoading.value = false
     }
@@ -424,8 +424,8 @@ async function handleComplete(row: TaskItem) {
     await completeTask(row.id)
     ElMessage.success('已完成')
     loadList()
-  } catch (e: any) {
-    ElMessage.error(e.message || '操作失败')
+  } catch (e) {
+    ElMessage.error((e as Error).message || '操作失败')
   }
 }
 
@@ -434,8 +434,8 @@ async function handleReopen(row: TaskItem) {
     await reopenTask(row.id, 'pending')
     ElMessage.success('已重新打开')
     loadList()
-  } catch (e: any) {
-    ElMessage.error(e.message || '操作失败')
+  } catch (e) {
+    ElMessage.error((e as Error).message || '操作失败')
   }
 }
 
@@ -455,8 +455,8 @@ async function handleBatchComplete() {
     const res = await batchCompleteTasks(ids)
     ElMessage.success(`已完成 ${res.affected} 项`)
     loadList()
-  } catch (e: any) {
-    ElMessage.error(e.message || '批量完成失败')
+  } catch (e) {
+    ElMessage.error((e as Error).message || '批量完成失败')
   }
 }
 
@@ -497,8 +497,8 @@ async function handleRestore(row: TaskItem) {
     ElMessage.success('已恢复')
     loadTrash()
     loadList()
-  } catch (e: any) {
-    ElMessage.error(e.message || '恢复失败')
+  } catch (e) {
+    ElMessage.error((e as Error).message || '恢复失败')
   }
 }
 

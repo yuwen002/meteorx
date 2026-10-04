@@ -60,6 +60,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import type { Component } from 'vue'
 import { Bell, Edit, ChatDotRound, Share, InfoFilled } from '@element-plus/icons-vue'
 import {
   listNotifications,
@@ -125,7 +126,7 @@ async function markAllAsRead() {
 }
 
 function getNotificationIcon(type: string) {
-  const icons: Record<string, any> = {
+  const icons: Record<string, Component> = {
     edit: Edit,
     comment: ChatDotRound,
     share: Share,

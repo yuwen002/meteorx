@@ -169,8 +169,8 @@ async function submitCreate() {
       ElMessage.success('邀请已发送')
       createDialogVisible.value = false
       loadList()
-    } catch (e: any) {
-      ElMessage.error(e.message || '创建邀请失败')
+    } catch (e) {
+      ElMessage.error((e as Error).message || '创建邀请失败')
     } finally {
       createLoading.value = false
     }
@@ -181,8 +181,8 @@ async function handleResend(row: InvitationItem) {
   try {
     await resendInvitation(row.id)
     ElMessage.success('邀请邮件已重发')
-  } catch (e: any) {
-    ElMessage.error(e.message || '重发失败')
+  } catch (e) {
+    ElMessage.error((e as Error).message || '重发失败')
   }
 }
 

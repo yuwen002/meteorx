@@ -89,8 +89,8 @@ onMounted(async () => {
       await bindOAuth(provider, code, state)
       ElMessage.success('绑定成功')
       router.push('/profile')
-    } catch (e: any) {
-      ElMessage.error(e?.message || '绑定失败')
+    } catch (e) {
+      ElMessage.error((e as Error)?.message || '绑定失败')
       router.push('/profile')
     }
     return
@@ -109,7 +109,7 @@ onMounted(async () => {
     
     // 否则获取租户列表
     const res = await getOAuthTenants()
-    const data = (res as any)?.data || res
+    const data = (res as { data?: typeof res }).data || res
     
     if (data?.tenants && data.tenants.length > 0) {
       tenantList.value = data.tenants
@@ -127,9 +127,9 @@ onMounted(async () => {
       errorMessage.value = '没有可用的租户，请联系管理员'
       setTimeout(() => router.push('/login'), 3000)
     }
-  } catch (e: any) {
+  } catch (e) {
     statusMessage.value = '登录失败'
-    errorMessage.value = e?.message || '获取租户列表失败'
+    errorMessage.value = (e as Error)?.message || '获取租户列表失败'
     setTimeout(() => router.push('/login'), 3000)
   }
 })
@@ -148,7 +148,7 @@ async function handleTenantSelect() {
       selectedTenantId.value,
       oauthParams.value.state
     )
-    const data = (res as any)?.data || res
+    const data = (res as { data?: typeof res }).data || res
     
     // 清除 sessionStorage
     sessionStorage.removeItem('oauth_tenant_id')
@@ -163,8 +163,8 @@ async function handleTenantSelect() {
     ElMessage.success('登录成功')
     const redirect = route.query.redirect as string || '/'
     router.push(redirect)
-  } catch (e: any) {
-    ElMessage.error(e?.message || '登录失败')
+  } catch (e) {
+    ElMessage.error((e as Error)?.message || '登录失败')
     router.push('/login')
   } finally {
     submitting.value = false

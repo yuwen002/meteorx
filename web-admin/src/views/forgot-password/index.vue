@@ -85,8 +85,8 @@ async function handleSubmit() {
       setTimeout(() => {
         router.push('/login')
       }, 3000)
-    } catch (e: any) {
-      ElMessage.error(e?.response?.data?.message || '发送失败，请稍后重试')
+    } catch (e) {
+      ElMessage.error((e as { response?: { data?: { message?: string } } })?.response?.data?.message || '发送失败，请稍后重试')
     } finally {
       loading.value = false
     }

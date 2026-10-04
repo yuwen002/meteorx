@@ -71,29 +71,29 @@ function handleLogoutSync() {
 }
 
 // 通用类型封装：后端返回 { code, message, data }
-export interface ApiResult<T = any> {
+export interface ApiResult<T = unknown> {
   code: number
   message: string
   data: T
 }
 
-export function request<T = any>(config: AxiosRequestConfig): Promise<T> {
-  return service.request<any, T>(config)
+export function request<T = unknown>(config: AxiosRequestConfig): Promise<T> {
+  return service.request<unknown, T>(config)
 }
 
-export function get<T = any>(url: string, params?: any, config?: AxiosRequestConfig): Promise<T> {
+export function get<T = unknown>(url: string, params?: unknown, config?: AxiosRequestConfig): Promise<T> {
   return request<T>({ url, method: 'GET', params, ...config })
 }
 
-export function post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+export function post<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   return request<T>({ url, method: 'POST', data, ...config })
 }
 
-export function put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+export function put<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   return request<T>({ url, method: 'PUT', data, ...config })
 }
 
-export function del<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+export function del<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
   return request<T>({ url, method: 'DELETE', ...config })
 }
 

@@ -59,7 +59,7 @@ export const useNotificationStore = defineStore('notification', () => {
     try {
       const res = await listTenantAnnouncements({ page: 1, page_size: 5 })
       const items = res.data ?? []
-      announcements.value = items.map((item: any) => ({
+      announcements.value = items.map((item) => ({
         id: item.id,
         title: item.title,
         content: item.content?.replace(/<[^>]*>/g, '').substring(0, 100) || '',

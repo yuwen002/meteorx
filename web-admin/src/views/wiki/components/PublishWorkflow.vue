@@ -263,8 +263,8 @@ async function executeAction(cmd: string, comment?: string) {
       emit('status-changed', result.publish_status)
     }
     ElMessage.success('操作成功')
-  } catch (e: any) {
-    ElMessage.error(e?.message || '操作失败')
+  } catch (e) {
+    ElMessage.error((e as Error)?.message || '操作失败')
   }
 }
 
@@ -272,8 +272,8 @@ async function loadComments() {
   try {
     reviewComments.value = await listReviewComments(props.documentId)
     commentsDialogVisible.value = true
-  } catch (e: any) {
-    ElMessage.error(e?.message || '加载审核记录失败')
+  } catch (e) {
+    ElMessage.error((e as Error)?.message || '加载审核记录失败')
   }
 }
 
