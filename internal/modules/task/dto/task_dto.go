@@ -13,6 +13,7 @@ type CreateTaskReq struct {
 	Tags         []string `json:"tags" validate:"omitempty,max=10" label:"标签"`
 	Visibility   string   `json:"visibility" validate:"omitempty,oneof=personal tenant" label:"可见范围"`
 	AssigneeID   string   `json:"assignee_id" validate:"omitempty,max=26" label:"负责人"`
+	Recurrence   string   `json:"recurrence" validate:"omitempty,oneof=daily weekly monthly" label:"重复周期"` // 完成时自动按周期生成下一条任务
 }
 
 // UpdateTaskReq 更新任务请求。仅提交需要修改的字段，指针/空值语义表示"不改动"。
@@ -26,6 +27,7 @@ type UpdateTaskReq struct {
 	Tags         *[]string `json:"tags" validate:"omitempty,max=10" label:"标签"`
 	Visibility   *string   `json:"visibility" validate:"omitempty,oneof=personal tenant" label:"可见范围"`
 	AssigneeID   *string   `json:"assignee_id" validate:"omitempty,max=26" label:"负责人"`
+	Recurrence   *string   `json:"recurrence" validate:"omitempty,oneof=daily weekly monthly" label:"重复周期"` // 传空字符串表示取消重复
 }
 
 // TaskResp 任务响应，返回给前端的任务详情。
@@ -44,6 +46,7 @@ type TaskResp struct {
 	RemindBefore string   `json:"remind_before,omitempty"` // 任务级提醒提前量（为空表示使用全局默认）
 	Tags         []string `json:"tags"`
 	Visibility   string   `json:"visibility"`
+	Recurrence   string   `json:"recurrence,omitempty"` // 重复周期（为空表示不重复）
 	StartedAt    string   `json:"started_at,omitempty"`
 	CompletedAt  string   `json:"completed_at,omitempty"`
 	DeletedAt    string   `json:"deleted_at,omitempty"`
@@ -58,6 +61,10 @@ type TaskStatsResp struct {
 	Completed  int64 `json:"completed"`   // 已完成数量
 	Overdue    int64 `json:"overdue"`     // 逾期数量
 	Total      int64 `json:"total"`       // 总数量
+	// CompletionRate 完成率（completed/total），取值 0~1，保留四位小数；总数为 0 时为 0
+	CompletionRate float64 `json:"completion_rate"`
+	// AvgHandleSeconds 已完成任务平均处理耗时（秒，started_at→completed_at），无可统计项时为 0
+	AvgHandleSeconds int64 `json:"avg_handle_seconds"`
 }
 
 // BatchTaskReq 批量操作任务请求。

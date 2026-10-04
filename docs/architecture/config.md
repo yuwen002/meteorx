@@ -24,6 +24,7 @@ database:
   name: meteorx
   tls: false
   debug: false
+  timezone: Asia/Shanghai   # 业务时区：启动时强制 time.Local，与容器 TZ 解耦；留空默认 Asia/Shanghai
 
 redis:
   host: localhost
@@ -121,6 +122,12 @@ METEORX_OAUTH_STATE_TTL=5m
 2. config.yaml 中的值
 3. 环境变量（最高优先级）
 ```
+
+### 业务时区一致性
+
+MySQL `DATETIME` 列与时区无关（存储的是“挂钟”值），而连接串使用 `loc=Local`，因此 `time.Time` 的写入/读取都依赖进程的全局 `time.Local`。若仅靠容器 `TZ` 环境变量隐式决定时区，一旦某环境未设 `TZ`（直接跑二进制、换基础镜像等），`time.Local` 会退化为 UTC，导致存量数据整体偏移、任务提醒/逾期判断错位。
+
+为此在启动连接数据库前（`bootstrap.InitDB`）按 `database.timezone`（默认 `Asia/Shanghai`）强制 `time.Local = time.LoadLocation(tz)`，使时间语义与容器 `TZ` 解耦、开发/生产行为一致；并通过 `_ "time/tzdata"` 内嵌 IANA 时区库，保证 Windows 等无系统时区数据的环境也能加载。名称无效时保留系统默认并告警，不影响启动。默认仍为 +08，与既有生产数据含义一致，无需迁移。
 
 ### 配置校验
 

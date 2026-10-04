@@ -35,6 +35,16 @@ const (
 	TaskVisibilityTenant = "tenant"
 )
 
+// 任务重复周期常量（空字符串表示不重复）
+const (
+	// TaskRecurrenceDaily 每日重复
+	TaskRecurrenceDaily = "daily"
+	// TaskRecurrenceWeekly 每周重复
+	TaskRecurrenceWeekly = "weekly"
+	// TaskRecurrenceMonthly 每月重复
+	TaskRecurrenceMonthly = "monthly"
+)
+
 // Task 任务领域模型。
 // 记录一条待办/协作任务的完整信息：内容、状态、优先级、截止日、标签、归属与可见范围。
 type Task struct {
@@ -52,6 +62,9 @@ type Task struct {
 	RemindBefore *time.Duration
 	Tags         []string // 分类标签
 	Visibility   string   // 可见范围：personal / tenant
+	// Recurrence 重复周期：空表示不重复；daily/weekly/monthly 时，
+	// 完成该任务会自动按周期推进截止日生成下一条 pending 任务。
+	Recurrence string
 	// StartedAt 首次进入 in_progress 时自动记录，一旦开始不清空（退回 pending/完成均保留），
 	// 用于计算处理耗时（完成-开始）
 	StartedAt   *time.Time // 开始时间
@@ -94,4 +107,28 @@ func IsValidVisibility(v string) bool {
 		return true
 	}
 	return false
+}
+
+// IsValidRecurrence 判断给定字符串是否为合法的重复周期（空字符串表示不重复，亦视为合法）。
+func IsValidRecurrence(r string) bool {
+	switch r {
+	case "", TaskRecurrenceDaily, TaskRecurrenceWeekly, TaskRecurrenceMonthly:
+		return true
+	}
+	return false
+}
+
+// NextOccurrence 依据重复周期从 base 时间推算下一次截止/参考时间；
+// 周期非法或为空时返回 false，调用方据此不生成下一实例。
+func NextOccurrence(recurrence string, base time.Time) (time.Time, bool) {
+	switch recurrence {
+	case TaskRecurrenceDaily:
+		return base.AddDate(0, 0, 1), true
+	case TaskRecurrenceWeekly:
+		return base.AddDate(0, 0, 7), true
+	case TaskRecurrenceMonthly:
+		return base.AddDate(0, 1, 0), true
+	default:
+		return base, false
+	}
 }

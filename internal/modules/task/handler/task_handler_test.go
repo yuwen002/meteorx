@@ -18,6 +18,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // stubTaskService 实现 service.TaskServiceInterface，用于 handler 单测。
@@ -265,7 +266,7 @@ func TestTaskList_Success(t *testing.T) {
 
 func TestTaskStats_Success(t *testing.T) {
 	stub := &stubTaskService{statsFn: func(context.Context, repository.ListFilter) (*repository.TaskStatusStats, error) {
-		return &repository.TaskStatusStats{Pending: 2, Total: 3}, nil
+		return &repository.TaskStatusStats{Pending: 2, Completed: 1, Total: 3, AvgHandleSeconds: 7200}, nil
 	}}
 	router := newTaskRouter(stub)
 	req := withCtx(httptest.NewRequest(http.MethodGet, "/tasks/stats", nil), "t1", "u1")
@@ -273,6 +274,12 @@ func TestTaskStats_Success(t *testing.T) {
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
+	var body struct {
+		Data dto.TaskStatsResp `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.InDelta(t, 0.3333, body.Data.CompletionRate, 0.0001)
+	assert.Equal(t, int64(7200), body.Data.AvgHandleSeconds)
 }
 
 func TestTaskListTrash_Success(t *testing.T) {

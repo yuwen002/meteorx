@@ -72,3 +72,18 @@ func TestTaskReminderConfig_Overrides(t *testing.T) {
 		t.Fatalf("configured values should be returned as-is, got %+v", c)
 	}
 }
+
+func TestDatabaseConfig_TimezoneDefaultAndOverride(t *testing.T) {
+	// 未配置时默认 Asia/Shanghai（与生产容器 TZ 一致，保障存量数据语义不变）
+	if got := (DatabaseConfig{}).GetTimezone(); got != "Asia/Shanghai" {
+		t.Fatalf("expected default timezone Asia/Shanghai, got %q", got)
+	}
+	// 空/纯空白同样回落默认
+	if got := (DatabaseConfig{Timezone: "   "}).GetTimezone(); got != "Asia/Shanghai" {
+		t.Fatalf("expected default timezone for blank, got %q", got)
+	}
+	// 显式配置时去空格后原样返回
+	if got := (DatabaseConfig{Timezone: " UTC "}).GetTimezone(); got != "UTC" {
+		t.Fatalf("expected override UTC, got %q", got)
+	}
+}

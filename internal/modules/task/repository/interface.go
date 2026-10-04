@@ -31,6 +31,9 @@ type TaskStatusStats struct {
 	Completed  int64 // 已完成数量
 	Overdue    int64 // 已逾期（未完成且超过截止时间）数量
 	Total      int64 // 总数量
+	// AvgHandleSeconds 已完成任务平均处理耗时（秒），基于 started_at→completed_at，
+	// 仅统计两者均有值的已完成任务；无可统计项时为 0。
+	AvgHandleSeconds int64
 }
 
 // TaskRepository 任务仓储接口，定义任务数据的持久化操作。
@@ -41,8 +44,6 @@ type TaskRepository interface {
 	GetByID(ctx context.Context, id string) (*model.Task, error)
 	// Update 更新任务的可变字段（标题/描述/状态/优先级/截止日/标签/负责人）
 	Update(ctx context.Context, task *model.Task) error
-	// UpdateStatus 更新任务状态，置为 completed 时记录完成时间，其余状态清空完成时间
-	UpdateStatus(ctx context.Context, id, status string) error
 	// Delete 软删除任务
 	Delete(ctx context.Context, id string) error
 	// GetByIDUnscoped 按主键查询任务（包含已软删除记录，用于恢复/永久删除场景）

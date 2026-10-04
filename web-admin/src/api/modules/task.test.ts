@@ -76,6 +76,14 @@ describe('Task API', () => {
     expect(res.remind_before).toBe('2h0m0s')
   })
 
+  it('createTask 携带 recurrence 时应透传重复周期', async () => {
+    const payload: CreateTaskParams = { title: '周报', due_date: '2026-12-31 10:00:00', recurrence: 'weekly' }
+    vi.mocked(post).mockResolvedValue({ ...sampleTask, recurrence: 'weekly' })
+    const res = await createTask(payload)
+    expect(post).toHaveBeenCalledWith('/tasks', payload)
+    expect(res.recurrence).toBe('weekly')
+  })
+
   it('updateTask 应 PUT /tasks/{id}', async () => {
     vi.mocked(put).mockResolvedValue(sampleTask)
     await updateTask('t-1', { title: '改名' })
@@ -107,14 +115,16 @@ describe('Task API', () => {
   })
 
   it('getTaskStats 无参数时应以 undefined 请求 /tasks/stats', async () => {
-    vi.mocked(get).mockResolvedValue({ pending: 2, in_progress: 1, completed: 5, overdue: 0, total: 8 })
+    vi.mocked(get).mockResolvedValue({ pending: 2, in_progress: 1, completed: 5, overdue: 0, total: 8, completion_rate: 0.625, avg_handle_seconds: 7200 })
     const stats = await getTaskStats()
     expect(get).toHaveBeenCalledWith('/tasks/stats', undefined)
     expect(stats.pending).toBe(2)
+    expect(stats.completion_rate).toBe(0.625)
+    expect(stats.avg_handle_seconds).toBe(7200)
   })
 
   it('getTaskStats 指定 visibility 时应透传参数', async () => {
-    vi.mocked(get).mockResolvedValue({ pending: 0, in_progress: 0, completed: 0, overdue: 0, total: 0 })
+    vi.mocked(get).mockResolvedValue({ pending: 0, in_progress: 0, completed: 0, overdue: 0, total: 0, completion_rate: 0, avg_handle_seconds: 0 })
     await getTaskStats({ visibility: 'tenant' })
     expect(get).toHaveBeenCalledWith('/tasks/stats', { visibility: 'tenant' })
   })

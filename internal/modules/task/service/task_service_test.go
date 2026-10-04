@@ -790,3 +790,167 @@ func TestUpdate_SetAndClearRemindLead(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, task2.RemindBefore)
 }
+
+// ---- 负责人同租户校验 ----
+
+// stubDirectory 同时实现 UserNameResolver 与 TenantMemberChecker，模拟用户目录。
+// members 为租户成员集；不在集内且非创建人的用户视为非法负责人。
+type stubDirectory struct {
+	names   map[string]string
+	members map[string]bool
+}
+
+func (d stubDirectory) ResolveUserNames(_ context.Context, ids []string) (map[string]string, error) {
+	out := make(map[string]string, len(ids))
+	for _, id := range ids {
+		if n, ok := d.names[id]; ok {
+			out[id] = n
+		}
+	}
+	return out, nil
+}
+
+func (d stubDirectory) IsTenantMember(_ context.Context, _, userID string) (bool, error) {
+	return d.members[userID], nil
+}
+
+func newServiceWithDirectory(members map[string]bool) (*TaskService, *stubTaskRepo) {
+	repo := newStubTaskRepo()
+	return NewTaskServiceWithNames(repo, stubDirectory{names: map[string]string{}, members: members}), repo
+}
+
+func TestCreate_TenantAssigneeNotMember(t *testing.T) {
+	svc, _ := newServiceWithDirectory(map[string]bool{"u1": true})
+	_, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "协作", Visibility: model.TaskVisibilityTenant, AssigneeID: "u9",
+	})
+	assert.ErrorIs(t, err, ErrAssigneeInvalid)
+}
+
+func TestCreate_TenantAssigneeMember(t *testing.T) {
+	svc, _ := newServiceWithDirectory(map[string]bool{"u1": true, "u2": true})
+	task, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "协作", Visibility: model.TaskVisibilityTenant, AssigneeID: "u2",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "u2", task.AssigneeID)
+}
+
+func TestUpdate_AssigneeNotMember(t *testing.T) {
+	svc, repo := newServiceWithDirectory(map[string]bool{"u1": true})
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1",
+		Visibility: model.TaskVisibilityTenant, Status: model.TaskStatusPending, AssigneeID: "u1"}
+	_, err := svc.Update(context.Background(), "t1", "u1", "a",
+		dto.UpdateTaskReq{AssigneeID: ptr("u9")})
+	assert.ErrorIs(t, err, ErrAssigneeInvalid)
+}
+
+func TestBatchAssign_InvalidAssigneeShortCircuits(t *testing.T) {
+	svc, repo := newServiceWithDirectory(map[string]bool{"u1": true})
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1",
+		Visibility: model.TaskVisibilityTenant, Status: model.TaskStatusPending, AssigneeID: "u1"}
+	n, err := svc.BatchAssign(context.Background(), "t1", "u1", []string{"a"}, "u9")
+	assert.ErrorIs(t, err, ErrAssigneeInvalid)
+	assert.Equal(t, 0, n)
+	assert.Equal(t, "u1", repo.tasks["a"].AssigneeID) // 非法指派不生效
+}
+
+// ---- 周期/重复任务 ----
+
+func TestNextOccurrence(t *testing.T) {
+	base := time.Date(2026, 1, 10, 9, 0, 0, 0, time.Local)
+	d, ok := model.NextOccurrence(model.TaskRecurrenceDaily, base)
+	require.True(t, ok)
+	assert.Equal(t, base.AddDate(0, 0, 1), d)
+	d, ok = model.NextOccurrence(model.TaskRecurrenceWeekly, base)
+	require.True(t, ok)
+	assert.Equal(t, base.AddDate(0, 0, 7), d)
+	d, ok = model.NextOccurrence(model.TaskRecurrenceMonthly, base)
+	require.True(t, ok)
+	assert.Equal(t, base.AddDate(0, 1, 0), d)
+	// 空/非法周期不推进
+	_, ok = model.NextOccurrence("", base)
+	assert.False(t, ok)
+}
+
+func TestCreate_RecurrenceInvalid(t *testing.T) {
+	svc, _ := newService()
+	_, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "周期", DueDate: "2026-12-31 10:00:00", Recurrence: "yearly",
+	})
+	assert.ErrorIs(t, err, ErrInvalidRecurrence)
+}
+
+func TestCreate_RecurrenceRequiresDueDate(t *testing.T) {
+	svc, _ := newService()
+	_, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "周期无截止", Recurrence: model.TaskRecurrenceDaily,
+	})
+	assert.ErrorIs(t, err, ErrRecurrenceNeedsDue)
+}
+
+func findPendingCopy(repo *stubTaskRepo, excludeID string) *model.Task {
+	for id, t := range repo.tasks {
+		if id != excludeID && t.Status == model.TaskStatusPending {
+			return t
+		}
+	}
+	return nil
+}
+
+func TestComplete_RecurrenceSpawnsNextDaily(t *testing.T) {
+	svc, repo := newService()
+	task, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "每日站会", DueDate: "2026-12-31 10:00:00", Recurrence: model.TaskRecurrenceDaily,
+	})
+	require.NoError(t, err)
+	origDue := *task.DueDate
+	_, err = svc.Complete(context.Background(), "t1", "u1", task.ID)
+	require.NoError(t, err)
+	require.Len(t, repo.tasks, 2)
+	next := findPendingCopy(repo, task.ID)
+	require.NotNil(t, next)
+	assert.Equal(t, "每日站会", next.Title)
+	assert.Equal(t, model.TaskRecurrenceDaily, next.Recurrence)
+	require.NotNil(t, next.DueDate)
+	assert.True(t, next.DueDate.Equal(origDue.AddDate(0, 0, 1)))
+}
+
+func TestComplete_AlreadyCompletedDoesNotRespawn(t *testing.T) {
+	svc, repo := newService()
+	task, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "周报", DueDate: "2026-12-31 10:00:00", Recurrence: model.TaskRecurrenceWeekly,
+	})
+	require.NoError(t, err)
+	_, err = svc.Complete(context.Background(), "t1", "u1", task.ID)
+	require.NoError(t, err)
+	require.Len(t, repo.tasks, 2) // 首次完成生成 1 条
+	_, err = svc.Complete(context.Background(), "t1", "u1", task.ID)
+	require.NoError(t, err)
+	assert.Len(t, repo.tasks, 2) // 重复完成不再生成
+}
+
+func TestUpdate_TransitionToCompletedSpawnsNext(t *testing.T) {
+	svc, repo := newService()
+	task, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "月报", DueDate: "2026-01-31 10:00:00", Recurrence: model.TaskRecurrenceMonthly,
+	})
+	require.NoError(t, err)
+	_, err = svc.Update(context.Background(), "t1", "u1", task.ID,
+		dto.UpdateTaskReq{Status: ptr(model.TaskStatusCompleted)})
+	require.NoError(t, err)
+	require.Len(t, repo.tasks, 2)
+	next := findPendingCopy(repo, task.ID)
+	require.NotNil(t, next)
+	require.NotNil(t, next.DueDate)
+	assert.True(t, next.DueDate.Equal(task.DueDate.AddDate(0, 1, 0)))
+}
+
+func TestUpdate_SetRecurrenceWithoutDueRejected(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1",
+		Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusPending}
+	_, err := svc.Update(context.Background(), "t1", "u1", "a",
+		dto.UpdateTaskReq{Recurrence: ptr(model.TaskRecurrenceDaily)})
+	assert.ErrorIs(t, err, ErrRecurrenceNeedsDue)
+}

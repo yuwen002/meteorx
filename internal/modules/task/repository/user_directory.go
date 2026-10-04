@@ -49,3 +49,19 @@ func (d *UserDirectory) ResolveUserNames(ctx context.Context, ids []string) (map
 	}
 	return names, nil
 }
+
+// IsTenantMember 校验 userID 是否为指定 tenantID 下未删除的有效用户。
+// 供任务指派前拦截不存在或跨租户的负责人；Table 直查不绑定模型，需显式过滤软删除。
+func (d *UserDirectory) IsTenantMember(ctx context.Context, tenantID, userID string) (bool, error) {
+	if tenantID == "" || userID == "" {
+		return false, nil
+	}
+	var cnt int64
+	err := d.db.WithContext(ctx).Table("users").
+		Where("id = ? AND tenant_id = ? AND deleted_at IS NULL", userID, tenantID).
+		Count(&cnt).Error
+	if err != nil {
+		return false, err
+	}
+	return cnt > 0, nil
+}

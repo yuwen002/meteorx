@@ -29,6 +29,12 @@ var (
 	ErrInvalidDueDate = errors.New("invalid due date format")
 	// ErrInvalidRemindLead 提醒提前量不合法（无法解析或超出允许范围）
 	ErrInvalidRemindLead = errors.New("invalid remind lead time")
+	// ErrAssigneeInvalid 负责人不存在或不属于当前租户
+	ErrAssigneeInvalid = errors.New("assignee is not a member of this tenant")
+	// ErrInvalidRecurrence 重复周期不合法
+	ErrInvalidRecurrence = errors.New("invalid recurrence value")
+	// ErrRecurrenceNeedsDue 设置了重复周期但未提供截止时间（无法推算下一周期）
+	ErrRecurrenceNeedsDue = errors.New("recurring task requires a due date")
 	// ErrInvalidStatus 任务状态不合法
 	ErrInvalidStatus = errors.New("invalid task status")
 )
@@ -65,21 +71,33 @@ type UserNameResolver interface {
 	ResolveUserNames(ctx context.Context, ids []string) (map[string]string, error)
 }
 
-// TaskService 任务模块业务服务。
-type TaskService struct {
-	repo  repository.TaskRepository // 任务仓储
-	names UserNameResolver          // 可选的用户姓名解析器，为 nil 时不富化展示名
+// TenantMemberChecker 校验某用户是否为指定租户的成员，用于指派前拦截不存在/跨租户的负责人。
+// 由仓储层（UserDirectory）实现，服务层可选依赖：未实现时跳过校验，保持向后兼容。
+type TenantMemberChecker interface {
+	IsTenantMember(ctx context.Context, tenantID, userID string) (bool, error)
 }
 
-// NewTaskService 创建任务业务服务实例（不富化人员姓名）。
+// TaskService 任务模块业务服务。
+type TaskService struct {
+	repo    repository.TaskRepository // 任务仓储
+	names   UserNameResolver          // 可选的用户姓名解析器，为 nil 时不富化展示名
+	members TenantMemberChecker       // 可选的租户成员校验器，为 nil 时不校验负责人归属
+}
+
+// NewTaskService 创建任务业务服务实例（不富化人员姓名、不校验负责人归属）。
 func NewTaskService(repo repository.TaskRepository) *TaskService {
 	return &TaskService{repo: repo}
 }
 
 // NewTaskServiceWithNames 创建带人员姓名富化能力的任务业务服务实例。
 // names 为 nil 时行为等同 NewTaskService，响应中人员姓名为空。
+// 若 names 同时实现 TenantMemberChecker，则自动启用负责人同租户归属校验。
 func NewTaskServiceWithNames(repo repository.TaskRepository, names UserNameResolver) *TaskService {
-	return &TaskService{repo: repo, names: names}
+	s := &TaskService{repo: repo, names: names}
+	if checker, ok := names.(TenantMemberChecker); ok {
+		s.members = checker
+	}
+	return s
 }
 
 // Create 创建任务。缺省状态为 pending、优先级 normal、可见范围 personal；
@@ -99,6 +117,10 @@ func (s *TaskService) Create(ctx context.Context, tenantID, userID string, req d
 	if visibility == "" {
 		visibility = model.TaskVisibilityPersonal
 	}
+	recurrence := strings.TrimSpace(req.Recurrence)
+	if !model.IsValidRecurrence(recurrence) {
+		return nil, ErrInvalidRecurrence
+	}
 
 	dueDate, err := parseDueDate(req.DueDate)
 	if err != nil {
@@ -109,6 +131,10 @@ func (s *TaskService) Create(ctx context.Context, tenantID, userID string, req d
 		return nil, err
 	}
 
+	if recurrence != "" && dueDate == nil {
+		return nil, ErrRecurrenceNeedsDue
+	}
+
 	assignee := req.AssigneeID
 	// 个人任务负责人始终为创建人本人
 	if visibility == model.TaskVisibilityPersonal {
@@ -116,6 +142,9 @@ func (s *TaskService) Create(ctx context.Context, tenantID, userID string, req d
 	}
 	if assignee == "" {
 		assignee = userID
+	}
+	if err := s.validateAssignee(ctx, tenantID, userID, assignee); err != nil {
+		return nil, err
 	}
 
 	task := &model.Task{
@@ -131,6 +160,7 @@ func (s *TaskService) Create(ctx context.Context, tenantID, userID string, req d
 		RemindBefore: remindBefore,
 		Tags:         normalizeTags(req.Tags),
 		Visibility:   visibility,
+		Recurrence:   recurrence,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -175,6 +205,7 @@ func (s *TaskService) Update(ctx context.Context, tenantID, userID, id string, r
 	}
 
 	oldAssignee := task.AssigneeID
+	wasCompleted := task.Status == model.TaskStatusCompleted
 
 	if req.Title != nil {
 		task.Title = strings.TrimSpace(*req.Title)
@@ -188,10 +219,20 @@ func (s *TaskService) Update(ctx context.Context, tenantID, userID, id string, r
 	if req.Visibility != nil && *req.Visibility != "" {
 		task.Visibility = *req.Visibility
 	}
+	if req.Recurrence != nil {
+		r := strings.TrimSpace(*req.Recurrence)
+		if !model.IsValidRecurrence(r) {
+			return nil, ErrInvalidRecurrence
+		}
+		task.Recurrence = r
+	}
 	if req.AssigneeID != nil {
 		task.AssigneeID = *req.AssigneeID
 		if task.Visibility == model.TaskVisibilityPersonal {
 			task.AssigneeID = task.CreatorID
+		}
+		if err := s.validateAssignee(ctx, tenantID, task.CreatorID, task.AssigneeID); err != nil {
+			return nil, err
 		}
 	}
 	if req.Tags != nil {
@@ -218,10 +259,17 @@ func (s *TaskService) Update(ctx context.Context, tenantID, userID, id string, r
 	if req.Status != nil && *req.Status != "" {
 		applyStatusChange(task, *req.Status, time.Now())
 	}
+	if task.Recurrence != "" && task.DueDate == nil {
+		return nil, ErrRecurrenceNeedsDue
+	}
 	task.UpdatedAt = time.Now()
 
 	if err := s.repo.Update(ctx, task); err != nil {
 		return nil, err
+	}
+	// 本次从非完成首次转为完成，且任务设了重复周期时，自动生成下一周期实例
+	if task.Status == model.TaskStatusCompleted && !wasCompleted {
+		s.spawnNextOccurrence(ctx, task)
 	}
 	// 负责人发生变更且指向他人时，向新负责人发送站内提醒
 	if req.AssigneeID != nil && task.AssigneeID != oldAssignee && task.AssigneeID != task.CreatorID {
@@ -257,10 +305,15 @@ func (s *TaskService) changeStatus(ctx context.Context, tenantID, userID, id, st
 		return nil, ErrTaskForbidden
 	}
 	now := time.Now()
+	wasCompleted := task.Status == model.TaskStatusCompleted
 	applyStatusChange(task, status, now)
 	task.UpdatedAt = now
 	if err := s.repo.Update(ctx, task); err != nil {
 		return nil, err
+	}
+	// 首次从非完成转为完成时，若任务设了重复周期则自动生成下一周期实例
+	if status == model.TaskStatusCompleted && !wasCompleted {
+		s.spawnNextOccurrence(ctx, task)
 	}
 	s.enrichNames(ctx, task)
 	return task, nil
@@ -385,6 +438,10 @@ func (s *TaskService) BatchUpdateStatus(ctx context.Context, tenantID, userID st
 // BatchAssign 批量指派负责人，逐条复用更新逻辑（含归属校验与对新负责人的站内提醒），
 // 跳过无权/不存在的项，返回成功数。个人任务会被回写为创建人，仍计入成功。
 func (s *TaskService) BatchAssign(ctx context.Context, tenantID, userID string, ids []string, assigneeID string) (int, error) {
+	// 先校验新负责人为同租户成员，避免逐项 Update 静默吞错导致徒劳批量
+	if err := s.validateAssignee(ctx, tenantID, userID, assigneeID); err != nil {
+		return 0, err
+	}
 	affected := 0
 	aid := assigneeID
 	for _, id := range ids {
@@ -524,6 +581,55 @@ func (s *TaskService) enrichNames(ctx context.Context, tasks ...*model.Task) {
 	}
 }
 
+// validateAssignee 校验负责人为同租户成员：checker 未注入、负责人为空或即创建人时跳过；
+// 非成员返回 ErrAssigneeInvalid，校验查询失败则向上抛出错误（避免误放行脏数据）。
+func (s *TaskService) validateAssignee(ctx context.Context, tenantID, creatorID, assignee string) error {
+	if s.members == nil || assignee == "" || assignee == creatorID {
+		return nil
+	}
+	ok, err := s.members.IsTenantMember(ctx, tenantID, assignee)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrAssigneeInvalid
+	}
+	return nil
+}
+
+// spawnNextOccurrence 为设置了重复周期的任务生成下一周期实例：
+// 复制标题/描述/优先级/负责人/可见范围/提醒提前量/标签，重置为 pending 并按周期从原截止日推进。
+// 完成已落库后才调用，生成失败不阻断本次完成（静默跳过）。
+func (s *TaskService) spawnNextOccurrence(ctx context.Context, task *model.Task) {
+	if task.Recurrence == "" || task.DueDate == nil {
+		return
+	}
+	nextDue, ok := model.NextOccurrence(task.Recurrence, *task.DueDate)
+	if !ok {
+		return
+	}
+	now := time.Now()
+	due := nextDue
+	next := &model.Task{
+		ID:           idgen.New(),
+		TenantID:     task.TenantID,
+		CreatorID:    task.CreatorID,
+		AssigneeID:   task.AssigneeID,
+		Title:        task.Title,
+		Description:  task.Description,
+		Status:       model.TaskStatusPending,
+		Priority:     task.Priority,
+		DueDate:      &due,
+		RemindBefore: task.RemindBefore,
+		Tags:         append([]string(nil), task.Tags...),
+		Visibility:   task.Visibility,
+		Recurrence:   task.Recurrence,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	_ = s.repo.Create(ctx, next)
+}
+
 // loadUnscoped 按 ID 读取任务（含已软删除），将未找到错误归一化为 ErrTaskNotFound。
 func (s *TaskService) loadUnscoped(ctx context.Context, id string) (*model.Task, error) {
 	task, err := s.repo.GetByIDUnscoped(ctx, id)
@@ -629,6 +735,7 @@ func ToResp(task *model.Task) *dto.TaskResp {
 		Priority:     task.Priority,
 		Tags:         task.Tags,
 		Visibility:   task.Visibility,
+		Recurrence:   task.Recurrence,
 		CreatedAt:    task.CreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt:    task.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}

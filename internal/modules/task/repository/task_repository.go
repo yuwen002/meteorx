@@ -27,6 +27,7 @@ type TaskPO struct {
 	RemindBefore *int           `gorm:"comment:提醒提前量(分钟)"`
 	Tags         string         `gorm:"type:text;comment:标签(JSON数组)"`
 	Visibility   string         `gorm:"size:20;default:personal;index;comment:可见范围"`
+	Recurrence   string         `gorm:"size:20;comment:重复周期(daily/weekly/monthly)"`
 	StartedAt    *time.Time     `gorm:"comment:开始时间"`
 	CompletedAt  *time.Time     `gorm:"comment:完成时间"`
 	ReminderSent *time.Time     `gorm:"column:reminder_sent_at;comment:到期提醒发送时间"`
@@ -58,6 +59,7 @@ func (p TaskPO) toDomain() *model.Task {
 		DueDate:        p.DueDate,
 		Tags:           tags,
 		Visibility:     p.Visibility,
+		Recurrence:     p.Recurrence,
 		StartedAt:      p.StartedAt,
 		CompletedAt:    p.CompletedAt,
 		ReminderSentAt: p.ReminderSent,
@@ -91,6 +93,7 @@ func fromDomain(t *model.Task) TaskPO {
 		RemindBefore: remindBeforeMinutes(t.RemindBefore),
 		Tags:         string(tagsJSON),
 		Visibility:   t.Visibility,
+		Recurrence:   t.Recurrence,
 		StartedAt:    t.StartedAt,
 		CompletedAt:  t.CompletedAt,
 		ReminderSent: t.ReminderSentAt,
@@ -149,26 +152,13 @@ func (r *taskRepository) Update(ctx context.Context, task *model.Task) error {
 		"tags":             string(tagsJSON),
 		"assignee_id":      task.AssigneeID,
 		"visibility":       task.Visibility,
+		"recurrence":       task.Recurrence,
 		"started_at":       task.StartedAt,
 		"completed_at":     task.CompletedAt,
 		"reminder_sent_at": task.ReminderSentAt,
 		"updated_at":       time.Now(),
 	}
 	return r.db.WithContext(ctx).Model(&TaskPO{}).Where("id = ?", task.ID).Updates(updates).Error
-}
-
-// UpdateStatus 更新任务状态；置为 completed 时写入完成时间，其余状态清空完成时间。
-func (r *taskRepository) UpdateStatus(ctx context.Context, id, status string) error {
-	updates := map[string]interface{}{
-		"status":     status,
-		"updated_at": time.Now(),
-	}
-	if status == model.TaskStatusCompleted {
-		updates["completed_at"] = time.Now()
-	} else {
-		updates["completed_at"] = nil
-	}
-	return r.db.WithContext(ctx).Model(&TaskPO{}).Where("id = ?", id).Updates(updates).Error
 }
 
 // Delete 软删除任务。
@@ -361,5 +351,16 @@ func (r *taskRepository) Stats(ctx context.Context, f ListFilter) (*TaskStatusSt
 	if err := base().Count(&stats.Total).Error; err != nil {
 		return nil, err
 	}
+	// 平均处理耗时：对已完成且 started_at/completed_at 均有值的任务取秒级平均（依赖 MySQL TIMESTAMPDIFF）
+	var dur struct {
+		AvgHandleSeconds float64
+	}
+	if err := base().
+		Where("status = ? AND started_at IS NOT NULL AND completed_at IS NOT NULL", model.TaskStatusCompleted).
+		Select("AVG(TIMESTAMPDIFF(SECOND, started_at, completed_at)) AS avg_handle_seconds").
+		Scan(&dur).Error; err != nil {
+		return nil, err
+	}
+	stats.AvgHandleSeconds = int64(dur.AvgHandleSeconds)
 	return stats, nil
 }

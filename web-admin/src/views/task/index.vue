@@ -2,28 +2,40 @@
   <div class="page">
     <!-- 统计卡片 -->
     <el-row :gutter="16" class="stat-row">
-      <el-col :span="6">
+      <el-col :span="4">
         <el-card shadow="never" class="stat-card">
           <div class="stat-num">{{ stats.pending }}</div>
           <div class="stat-label">待办</div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="4">
         <el-card shadow="never" class="stat-card">
           <div class="stat-num">{{ stats.in_progress }}</div>
           <div class="stat-label">进行中</div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="4">
         <el-card shadow="never" class="stat-card">
           <div class="stat-num">{{ stats.completed }}</div>
           <div class="stat-label">已完成</div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="4">
         <el-card shadow="never" class="stat-card">
           <div class="stat-num danger">{{ stats.overdue }}</div>
           <div class="stat-label">已逾期</div>
+        </el-card>
+      </el-col>
+      <el-col :span="4">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-num">{{ (stats.completion_rate * 100).toFixed(1) }}%</div>
+          <div class="stat-label">完成率</div>
+        </el-card>
+      </el-col>
+      <el-col :span="4">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-num">{{ formatDuration(stats.avg_handle_seconds) }}</div>
+          <div class="stat-label">平均耗时</div>
         </el-card>
       </el-col>
     </el-row>
@@ -72,7 +84,12 @@
 
       <el-table v-loading="loading" :data="list" stripe style="width: 100%;" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="45" />
-        <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">
+            <el-tag v-if="row.recurrence" size="small" type="success" effect="plain" style="margin-right: 6px;">{{ recurrenceLabel(row.recurrence) }}</el-tag>
+            <span>{{ row.title }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="范围" width="90" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="row.visibility === 'tenant' ? 'warning' : 'info'">
@@ -163,6 +180,15 @@
           <el-input v-model="form.remind_before" placeholder="如 2h / 30m / 1d，留空使用全局默认" clearable />
           <div class="form-tip">仅在设置截止时间时生效；为空则按系统默认提醒窗口提醒。</div>
         </el-form-item>
+        <el-form-item label="重复周期">
+          <el-select v-model="form.recurrence" placeholder="不重复" style="width: 100%;">
+            <el-option label="不重复" value="" />
+            <el-option label="每日" value="daily" />
+            <el-option label="每周" value="weekly" />
+            <el-option label="每月" value="monthly" />
+          </el-select>
+          <div class="form-tip">选择周期需先设置截止时间；完成该任务后会自动按周期生成下一条待办。</div>
+        </el-form-item>
         <el-form-item label="标签">
           <el-select v-model="form.tags" multiple filterable allow-create default-first-option placeholder="输入后回车添加标签" style="width: 100%;">
             <el-option v-for="t in form.tags" :key="t" :label="t" :value="t" />
@@ -226,6 +252,7 @@ import {
   type TaskStatus,
   type TaskPriority,
   type TaskVisibility,
+  type TaskRecurrence,
 } from '@/api/modules/task'
 import { toPageResult } from '@/types/pagination'
 
@@ -239,7 +266,7 @@ const statusFilter = ref<'' | TaskStatus>('')
 const priorityFilter = ref<'' | TaskPriority>('')
 const visibilityFilter = ref<'' | TaskVisibility>('')
 
-const stats = reactive<TaskStats>({ pending: 0, in_progress: 0, completed: 0, overdue: 0, total: 0 })
+const stats = reactive<TaskStats>({ pending: 0, in_progress: 0, completed: 0, overdue: 0, total: 0, completion_rate: 0, avg_handle_seconds: 0 })
 
 // 批量选择
 const selected = ref<TaskItem[]>([])
@@ -266,6 +293,20 @@ function priorityLabel(p: string) {
 }
 function priorityTagType(p: string) {
   return ({ low: 'info', normal: '', high: 'warning', urgent: 'danger' } as Record<string, string>)[p] || ''
+}
+function recurrenceLabel(r: string) {
+  return ({ daily: '每日', weekly: '每周', monthly: '每月' } as Record<string, string>)[r] || r
+}
+// formatDuration 将秒数格式化为“X天/X小时/X分钟”可读时长；0 或无效返回 “-”。
+function formatDuration(seconds: number) {
+  if (!seconds || seconds <= 0) return '-'
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (d > 0) return `${d}天${h}小时`
+  if (h > 0) return `${h}小时${m}分钟`
+  if (m > 0) return `${m}分钟`
+  return `${Math.floor(seconds)}秒`
 }
 
 async function loadStats() {
@@ -311,6 +352,7 @@ const form = reactive({
   assignee_id: '',
   due_date: '',
   remind_before: '',
+  recurrence: '' as '' | TaskRecurrence,
   tags: [] as string[],
 })
 const rules: FormRules = {
@@ -327,6 +369,7 @@ function openDialog(row?: TaskItem) {
     form.assignee_id = row.assignee_id === row.creator_id ? '' : row.assignee_id
     form.due_date = row.due_date || ''
     form.remind_before = row.remind_before || ''
+    form.recurrence = (row.recurrence as '' | TaskRecurrence) || ''
     form.tags = [...(row.tags || [])]
   } else {
     form.title = ''
@@ -336,6 +379,7 @@ function openDialog(row?: TaskItem) {
     form.assignee_id = ''
     form.due_date = ''
     form.remind_before = ''
+    form.recurrence = ''
     form.tags = []
   }
   dialogVisible.value = true
@@ -355,6 +399,7 @@ async function submitForm() {
         assignee_id: form.visibility === 'tenant' ? form.assignee_id : undefined,
         due_date: form.due_date || undefined,
         remind_before: form.remind_before || undefined,
+        recurrence: form.recurrence,
         tags: form.tags,
       }
       if (editingId.value) {

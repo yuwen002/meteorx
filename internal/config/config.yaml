@@ -14,6 +14,7 @@ database:
   name: meteorx
   tls: false         # 修正：去掉引号
   debug: true        # 开启后在控制台输出 SQL 日志
+  timezone: Asia/Shanghai  # 业务时区：启动时强制 time.Local，使时间语义与容器 TZ 解耦；留空默认 Asia/Shanghai
   # 读写分离配置（如不需从库，留空即可）
   # replicas:
   #   - host: 192.168.1.101

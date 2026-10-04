@@ -72,6 +72,7 @@
 | remind_before | string | 任务级提醒提前量（Go Duration 字符串，如 `3h0m0s`），未设置时不返回该字段（表示使用全局默认） |
 | tags | []string | 分类标签，无标签时返回 `[]` |
 | visibility | string | 可见范围：`personal` / `tenant` |
+| recurrence | string | 重复周期：`daily` / `weekly` / `monthly`，不重复时不返回该字段 |
 | started_at | string | 开始时间，任务首次进入 `in_progress` 时自动记录，未开始不返回该字段 |
 | completed_at | string | 完成时间，仅 `completed` 状态有值，否则不返回该字段 |
 | deleted_at | string | 软删除时间，仅回收站列表返回，否则不返回该字段 |
@@ -93,6 +94,7 @@
 | tags | []string | 否 | max=10 | 标签列表 |
 | visibility | string | 否 | oneof personal/tenant | 可见范围，默认 `personal` |
 | assignee_id | string | 否 | max=26 | 负责人；`personal` 任务强制为创建人 |
+| recurrence | string | 否 | oneof daily/weekly/monthly | 重复周期；非空时必须同时设置 `due_date`，完成该任务后自动按周期生成下一条待办 |
 
 ### 3.3 UpdateTaskReq（更新任务请求）
 
@@ -109,6 +111,7 @@
 | tags | *[]string | max=10 | 标签 |
 | visibility | *string | oneof personal/tenant | 可见范围 |
 | assignee_id | *string | max=26 | 负责人；`personal` 任务会强制回写为创建人 |
+| recurrence | *string | oneof daily/weekly/monthly | 重复周期；**传空字符串表示取消重复**；非空时任务必须拥有截止时间 |
 
 ### 3.4 TaskStatsResp（任务统计响应）
 
@@ -119,6 +122,8 @@
 | completed | int64 | 已完成数量 |
 | overdue | int64 | 逾期数量（已过截止时间且未完成） |
 | total | int64 | 总数量 |
+| completion_rate | float64 | 完成率 = `completed / total`，取值 0~1（保留四位小数）；总数为 0 时为 0 |
+| avg_handle_seconds | int64 | 已完成任务平均处理耗时（秒），基于 `started_at`→`completed_at`，仅统计两者均有值的任务；无可统计项时为 0 |
 
 ### 3.5 BatchTaskReq（批量操作请求）
 
@@ -160,6 +165,8 @@
 - `status` 缺省为 `pending`，`priority` 缺省为 `normal`，`visibility` 缺省为 `personal`
 - `personal` 任务的负责人强制为创建人本人，忽略传入的 `assignee_id`
 - `tenant` 任务可将 `assignee_id` 指派给其他成员，为空时默认为创建人
+- 指派非创建人的负责人时，系统会校验其**存在且属于当前租户**（未删除的有效用户），否则返回 `400 负责人不存在或不属于当前租户`；未启用用户目录校验器时跳过该校验
+- `recurrence` 为重复周期，**设置非空值时必须同时提供 `due_date`**（否则返回 `400 周期性任务必须设置截止时间`）；任务完成后系统会按周期从原截止日推算并自动创建一条新的 `pending` 任务（见 4.16）
 - 若创建时直接指定 `status=completed`，会写入 `completed_at`
 - `due_date` 格式非法返回 `400`
 - `remind_before` 为任务级提醒提前量（仅在设置了 `due_date` 时生效）；无法解析或超出 `[0, 31天]` 范围返回 `400`；留空则使用全局默认提醒窗口
@@ -593,6 +600,7 @@
 
 **业务规则：**
 - `assignee_id` 必填，逐条复用更新逻辑（含归属校验），无权/不存在项静默跳过
+- 若 `assignee_id` 非操作人自身，会先校验其为**同租户有效成员**；非法则整体返回 `400 负责人不存在或不属于当前租户`（不会逐项吞错）
 - `personal` 任务会被强制回写为创建人（仍计入 `affected`）
 - `tenant` 任务指派给他人时，逐条向新负责人发送站内指派提醒
 - 返回实际生效数 `affected`
@@ -601,6 +609,22 @@
 ```json
 { "code": 200, "message": "success", "data": { "affected": 1 } }
 ```
+
+---
+
+### 4.16 重复任务机制
+
+任务可通过 `recurrence` 字段设定重复周期（`daily` / `weekly` / `monthly`），实现“完成一次、自动生成下一期”的循环待办。
+
+**触发条件：**
+- 仅当任务从**非完成状态首次转为 `completed`** 时生成下一实例（重复完成、重开后再完成不会重复生成）。
+- 该机制对单条完成、批量完成、批量改状态为 `completed`、以及更新中直接置 `completed` 均生效。
+
+**生成规则：**
+- 新任务为全新 ID、状态 `pending`，复制原任务的标题/描述/优先级/负责人/可见范围/标签/提醒提前量与重复周期。
+- 新任务截止时间 = 原任务截止时间按周期推进（daily +1 天 / weekly +7 天 / monthly +1 个月，基于原截止日而非完成日，保持节拍对齐）。
+- 周期任务必须拥有截止时间；若原任务无 `due_date` 则不生成下一实例。
+- 实例生成失败不会阻断本次完成（静默跳过）。
 
 ---
 

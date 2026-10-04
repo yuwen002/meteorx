@@ -748,7 +748,7 @@ client:
 
 ### 16.1 后端分层
 
-- `model/task.go`：`Task` 领域模型 + 状态（`pending`/`in_progress`/`completed`）、优先级（`low`/`normal`/`high`/`urgent`）、可见范围（`personal`/`tenant`）三组常量与校验函数
+- `model/task.go`：`Task` 领域模型 + 状态（`pending`/`in_progress`/`completed`）、优先级（`low`/`normal`/`high`/`urgent`）、可见范围（`personal`/`tenant`）三组常量与校验函数；新增重复周期（`daily`/`weekly`/`monthly`）常量与 `IsValidRecurrence`/`NextOccurrence`
 - `repository/`：GORM 仓储，`TaskPO` 以 JSON 文本存储标签，`gorm.DeletedAt` 软删除；`applyVisibility` 统一处理个人/团队查询隔离，默认按「未完成优先 + 优先级 + 创建时间」排序
 - `service/`：业务编排，`canView`/`canEdit` 归属校验，个人任务负责人强制为创建人，截止时间宽松解析
 - `handler/` + `module.go` + `dto/`：RESTful 接口，挂载于受保护分组
@@ -777,11 +777,24 @@ client:
 - 仓储新增 `FindDueForReminder`/`MarkReminderSent`；`service.SendDueReminders` 为系统级扫描入口；`notify.Manager.NotifyTaskReminder` 封装 WS 定向推送
 - 前端：全局 `App.vue` 监听 WS 消息，命中 `task_assigned`/`task_due` 时弹出 `ElNotification`，不再误触发公告刷新
 
+### 16.6 数据完整性与周期任务
+
+- 负责人同租户校验：`UserDirectory` 新增 `IsTenantMember`（按 `id + tenant_id + deleted_at IS NULL` 存活性判定）；`TaskService` 以**类型断言自动检测**该可选能力（无需改构造函数/装配），在创建/更新/批量指派时拦截不存在或跨租户的负责人，非法返回 `400`；未注入时跳过校验，保持向后兼容
+- 周期/重复任务：`tasks` 新增 `recurrence` 列；周期任务必须拥有截止时间；仅当任务从非完成**首次**转为 `completed` 时（单条/批量完成、批量改状态、更新置完成均生效），自动复制内容并按周期从原截止日推进生成下一条 `pending` 任务（daily +1天 / weekly +7天 / monthly +1月）；生成失败不阻断本次完成
+- 死代码清理：移除仓储层已不被生产代码调用的 `UpdateStatus`（接口/实现/用例），状态变更统一走 `Update`
+- 前端：`task.ts` 新增 `TaskRecurrence` 类型与 `recurrence` 字段；`index.vue` 新建/编辑表单加“重复周期”下拉，列表标题列展示“每日/每周/每月”徽章
+
+### 16.7 工时统计与业务时区一致性
+
+- 进度/工时统计：`TaskStatsResp` 新增 `completion_rate`（`completed/total`，handler 计算、保留四位小数）与 `avg_handle_seconds`（已完成任务基于 `started_at`→`completed_at` 的平均处理耗时）；仓储 `Stats` 新增一条 `AVG(TIMESTAMPDIFF(SECOND, ...))` 聚合（仅统计两时间均有值的已完成项，依赖 MySQL）；前端统计卡片由 4 张扩展为 6 张，新增“完成率”与“平均耗时”（`formatDuration` 按天/小时/分钟可读化）
+- 业务时区一致性：新增 `database.timezone` 配置（默认 `Asia/Shanghai`）；`bootstrap.InitDB` 在建连接前按该值强制 `time.Local = time.LoadLocation(tz)`，使 `time.Now()`/时间解析/DSN `loc=Local` 与容器 `TZ` 环境变量解耦，开发/生产行为一致；`_ "time/tzdata"` 内嵌 IANA 时区库保证 Windows 无系统时区库也能加载；名称无效时保留系统默认并告警。默认仍为 +08，存量数据含义不变、零迁移
+
 ### 16.5 验证状态
 
 - ✅ `go build ./...` / `go vet ./...` 通过
-- ✅ `go test ./internal/modules/task/...` service/handler/repository 全部通过（含到期提醒扫描/去重/截止日重置用例）
-- ✅ 前端 `vitest run`（task 用例 16 个）、`vue-tsc --noEmit` 通过
+- ✅ `go test ./internal/modules/task/...` service/handler/repository 全部通过（含到期提醒扫描/去重/截止日重置、负责人同租户校验、周期任务生成/去重、平均处理耗时聚合用例）
+- ✅ `go test ./internal/config/... ./internal/bootstrap/...` 通过（含 `GetTimezone` 默认/覆盖、`applyTimezone` 生效/无效名称保持用例）
+- ✅ 前端 `vitest run`（task 用例 20 个）、`vue-tsc --noEmit` 通过
 - ✅ OpenAPI / Apifox 已同步任务模块全部 13 条路由（提醒功能不新增 HTTP 接口，无需同步）
 - 📄 接口文档见 `docs/api/task-api.md`
 - ℹ️ 按要求暂不接入 AI 能力，代码结构保留后续叠加空间

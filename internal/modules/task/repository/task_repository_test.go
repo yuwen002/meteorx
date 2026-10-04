@@ -88,16 +88,6 @@ func TestTaskRepo_GetByID(t *testing.T) {
 	assert.Nil(t, task.DeletedAt)
 }
 
-func TestTaskRepo_UpdateStatus_Completed(t *testing.T) {
-	gormDB, mock := newTaskTestDB(t)
-	repo := NewTaskRepository(gormDB)
-
-	mock.ExpectExec("UPDATE `tasks` SET").
-		WillReturnResult(sqlmock.NewResult(0, 1))
-
-	require.NoError(t, repo.UpdateStatus(context.Background(), "id1", model.TaskStatusCompleted))
-}
-
 func TestTaskRepo_Delete_Soft(t *testing.T) {
 	gormDB, mock := newTaskTestDB(t)
 	repo := NewTaskRepository(gormDB)
@@ -152,6 +142,9 @@ func TestTaskRepo_Stats(t *testing.T) {
 		mock.ExpectQuery("SELECT count\\(\\*\\) FROM `tasks`").
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(c))
 	}
+	// 平均处理耗时聚合查询（AVG(TIMESTAMPDIFF(...))）
+	mock.ExpectQuery("SELECT AVG.TIMESTAMPDIFF.SECOND, started_at, completed_at.").
+		WillReturnRows(sqlmock.NewRows([]string{"avg_handle_seconds"}).AddRow(7200.0))
 
 	stats, err := repo.Stats(context.Background(), ListFilter{TenantID: "t1", UserID: "u1"})
 	require.NoError(t, err)
@@ -160,6 +153,7 @@ func TestTaskRepo_Stats(t *testing.T) {
 	assert.Equal(t, int64(5), stats.Completed)
 	assert.Equal(t, int64(1), stats.Overdue)
 	assert.Equal(t, int64(10), stats.Total)
+	assert.Equal(t, int64(7200), stats.AvgHandleSeconds)
 }
 
 func TestTaskRepo_GetByIDUnscoped_IncludesDeleted(t *testing.T) {

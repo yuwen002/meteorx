@@ -352,6 +352,10 @@ func (h *TaskHandler) BatchAssign(w http.ResponseWriter, r *http.Request) {
 	}
 	affected, err := h.svc.BatchAssign(r.Context(), tenantID, userID, req.IDs, req.AssigneeID)
 	if err != nil {
+		if errors.Is(err, service.ErrAssigneeInvalid) {
+			response.BadRequest(w, "负责人不存在或不属于当前租户")
+			return
+		}
 		response.Fail(w, http.StatusInternalServerError, "批量指派失败")
 		return
 	}
@@ -377,12 +381,22 @@ func (h *TaskHandler) Stats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.Success(w, dto.TaskStatsResp{
-		Pending:    stats.Pending,
-		InProgress: stats.InProgress,
-		Completed:  stats.Completed,
-		Overdue:    stats.Overdue,
-		Total:      stats.Total,
+		Pending:          stats.Pending,
+		InProgress:       stats.InProgress,
+		Completed:        stats.Completed,
+		Overdue:          stats.Overdue,
+		Total:            stats.Total,
+		CompletionRate:   completionRate(stats.Completed, stats.Total),
+		AvgHandleSeconds: stats.AvgHandleSeconds,
 	})
+}
+
+// completionRate 计算完成率（0~1，保留四位小数）；总数为 0 时返回 0。
+func completionRate(completed, total int64) float64 {
+	if total <= 0 {
+		return 0
+	}
+	return float64(int64(float64(completed)/float64(total)*10000+0.5)) / 10000
 }
 
 // currentIdentity 从上下文提取当前租户与用户 ID。
@@ -397,6 +411,12 @@ func writeServiceError(w http.ResponseWriter, err error, fallback string) {
 		response.BadRequest(w, "截止时间格式不正确")
 	case errors.Is(err, service.ErrInvalidRemindLead):
 		response.BadRequest(w, "提醒提前量不合法（形如 2h/30m，最长 31 天）")
+	case errors.Is(err, service.ErrAssigneeInvalid):
+		response.BadRequest(w, "负责人不存在或不属于当前租户")
+	case errors.Is(err, service.ErrInvalidRecurrence):
+		response.BadRequest(w, "重复周期不合法（仅支持 daily/weekly/monthly）")
+	case errors.Is(err, service.ErrRecurrenceNeedsDue):
+		response.BadRequest(w, "周期性任务必须设置截止时间")
 	case errors.Is(err, service.ErrTaskNotFound):
 		response.NotFound(w, "任务不存在")
 	case errors.Is(err, service.ErrTaskForbidden):

@@ -13,6 +13,8 @@ export type TaskStatus = 'pending' | 'in_progress' | 'completed'
 export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent'
 /** 可见范围 */
 export type TaskVisibility = 'personal' | 'tenant'
+/** 重复周期（空表示不重复） */
+export type TaskRecurrence = 'daily' | 'weekly' | 'monthly'
 
 /** 任务记录 */
 export interface TaskItem {
@@ -30,6 +32,7 @@ export interface TaskItem {
   remind_before?: string
   tags: string[]
   visibility: TaskVisibility
+  recurrence?: string
   started_at?: string
   completed_at?: string
   deleted_at?: string
@@ -48,6 +51,7 @@ export interface CreateTaskParams {
   tags?: string[]
   visibility?: TaskVisibility
   assignee_id?: string
+  recurrence?: TaskRecurrence | ''
 }
 
 /** 更新任务参数（仅提交需要修改的字段） */
@@ -61,6 +65,7 @@ export interface UpdateTaskParams {
   tags?: string[]
   visibility?: TaskVisibility
   assignee_id?: string
+  recurrence?: TaskRecurrence | ''
 }
 
 /** 任务列表查询参数 */
@@ -83,6 +88,10 @@ export interface TaskStats {
   completed: number
   overdue: number
   total: number
+  /** 完成率（completed/total），0~1 */
+  completion_rate: number
+  /** 已完成任务平均处理耗时（秒） */
+  avg_handle_seconds: number
 }
 
 /** 获取任务列表 */

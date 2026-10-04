@@ -214,9 +214,20 @@ type DatabaseConfig struct {
 	Name     string `mapstructure:"name"`
 	TLS      bool   `mapstructure:"tls"`
 	Debug    bool   `mapstructure:"debug"` // 开启后输出 SQL 日志
+	// Timezone 业务时区名称（如 Asia/Shanghai），启动时据此强制 time.Local，
+	// 使 time.Now()/时间解析/DSN loc=Local 与容器 TZ 环境变量解耦；为空时默认 Asia/Shanghai。
+	Timezone string `mapstructure:"timezone"`
 	// Replicas 只读从库列表（启用读写分离时配置）
 	// 配置后 GORM 自动将 SELECT 查询路由到从库，INSERT/UPDATE/DELETE 仍走主库
 	Replicas []DatabaseReplicaConfig `mapstructure:"replicas"`
+}
+
+// GetTimezone 返回业务时区名称，未配置时默认 Asia/Shanghai。
+func (c DatabaseConfig) GetTimezone() string {
+	if strings.TrimSpace(c.Timezone) == "" {
+		return "Asia/Shanghai"
+	}
+	return strings.TrimSpace(c.Timezone)
 }
 
 // RedisConfig Redis 连接配置。
