@@ -378,6 +378,7 @@ func (s *UserService) Delete(ctx context.Context, userID string) error {
 	return s.repo.Delete(ctx, userID)
 }
 
+// BelongsToTenant 判断用户是否属于指定租户，用户不存在或不匹配时返回 false。
 func (s *UserService) BelongsToTenant(ctx context.Context, userID, tenantID string) bool {
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {

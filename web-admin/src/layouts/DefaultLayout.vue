@@ -29,6 +29,10 @@
             <el-icon><Bell /></el-icon>
             <template #title>平台公告</template>
           </el-menu-item>
+          <el-menu-item index="/task">
+            <el-icon><List /></el-icon>
+            <template #title>任务管理</template>
+          </el-menu-item>
           <el-menu-item index="/tenant-settings">
             <el-icon><Setting /></el-icon>
             <template #title>租户设置</template>
@@ -200,6 +204,7 @@ import {
   Goods,
   HomeFilled,
   Lock,
+  List,
   Message,
   Monitor,
   OfficeBuilding,

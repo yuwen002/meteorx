@@ -253,6 +253,9 @@ func inferTags(pattern string) []string {
 	if strings.HasPrefix(pattern, "/api/v1/announcements") || strings.HasPrefix(pattern, "/api/v1/notification") {
 		return []string{"Notification"}
 	}
+	if strings.HasPrefix(pattern, "/api/v1/tasks") {
+		return []string{"Task"}
+	}
 	return []string{"API"}
 }
 
@@ -337,6 +340,7 @@ func buildRouter() *chi.Mux {
 			plan.RegisterPrivateRoutes(r, &planHandler.PlanHandler{})
 			registerFileRoutes(r)
 			registerWikiRoutes(r)
+			registerTaskRoutes(r)
 			notification.RegisterTenantRoutes(r, &notificationHandler.AnnouncementHandler{})
 
 			r.Group(func(r chi.Router) {
@@ -352,6 +356,25 @@ func buildRouter() *chi.Mux {
 	})
 
 	return r
+}
+
+// registerTaskRoutes 补充任务模块路由（实际由 task.InitModule 依赖 DB 注册，此处仅用于路由提取）。
+func registerTaskRoutes(r chi.Router) {
+	r.Route("/tasks", func(r chi.Router) {
+		r.Get("/stats", noop())
+		r.Get("/deleted", noop())
+		r.Post("/batch/complete", noop())
+		r.Post("/batch/delete", noop())
+		r.Get("/", noop())
+		r.Post("/", noop())
+		r.Get("/{id}", noop())
+		r.Put("/{id}", noop())
+		r.Delete("/{id}", noop())
+		r.Put("/{id}/restore", noop())
+		r.Delete("/{id}/permanent", noop())
+		r.Put("/{id}/complete", noop())
+		r.Put("/{id}/reopen", noop())
+	})
 }
 
 // registerFileRoutes 补充文件模块路由（实际由动态注册，此处仅用于路由提取）。
@@ -554,10 +577,14 @@ func syncApifox(codeSet map[string]routeEntry, apply bool) {
 		fmt.Println("\n===== 应用修复 =====")
 
 		addedCount := 0
+		rootFolder := firstApifoxRootFolder(collection)
 		for _, key := range missingKeys {
 			e := codeSet[key]
 			newItem := buildApifoxAPIItem(e.method, e.pattern)
 			targetGroup := findApifoxGroup(collection, e.pattern)
+			if targetGroup == nil && rootFolder != nil {
+				targetGroup = createApifoxGroup(rootFolder, inferApifoxGroupName(e.pattern))
+			}
 			if targetGroup != nil {
 				items, _ := targetGroup["items"].([]interface{})
 				targetGroup["items"] = append(items, newItem)
@@ -610,6 +637,36 @@ func findApifoxGroup(collection []interface{}, pattern string) map[string]interf
 		}
 	}
 	return nil
+}
+
+// firstApifoxRootFolder 返回 apiCollection 的首个根集合项（其 items 为各业务分组）。
+func firstApifoxRootFolder(collection []interface{}) map[string]interface{} {
+	for _, item := range collection {
+		if obj, ok := item.(map[string]interface{}); ok {
+			if _, hasItems := obj["items"]; hasItems {
+				return obj
+			}
+		}
+	}
+	return nil
+}
+
+// createApifoxGroup 在根集合项下新建一个业务分组文件夹并返回。
+func createApifoxGroup(rootFolder map[string]interface{}, groupName string) map[string]interface{} {
+	group := map[string]interface{}{
+		"id":                    nextApifoxID(),
+		"name":                  groupName,
+		"description":           "",
+		"items":                 []interface{}{},
+		"preProcessors":         []interface{}{},
+		"postProcessors":        []interface{}{},
+		"inheritPreProcessors":  map[string]interface{}{},
+		"inheritPostProcessors": map[string]interface{}{},
+	}
+	items, _ := rootFolder["items"].([]interface{})
+	rootFolder["items"] = append(items, group)
+	fmt.Printf("+ 新建分组 %s\n", groupName)
+	return group
 }
 
 // inferApifoxGroupName 根据路径前缀推断 Apifox 中文分组名。
@@ -676,6 +733,9 @@ func inferApifoxGroupName(pattern string) string {
 	}
 	if strings.HasPrefix(pattern, "/api/v1/wiki") {
 		return "知识库"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/tasks") {
+		return "任务管理"
 	}
 	if strings.HasPrefix(pattern, "/api/v1/ws") {
 		return "系统"

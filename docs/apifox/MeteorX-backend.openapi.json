@@ -1,6 +1,35 @@
 {
   "components": {
     "schemas": {
+      "APITokenResp": {
+        "properties": {
+          "allowed_paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_used_at": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "AcquireEditLockReq": {
         "properties": {
           "duration": {
@@ -2285,6 +2314,32 @@
         ],
         "type": "object"
       },
+      "BindOAuthReq": {
+        "properties": {
+          "code": {
+            "description": "授权码",
+            "type": "string"
+          },
+          "provider": {
+            "description": "OAuth 提供商",
+            "enum": [
+              "google",
+              "github"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "description": "CSRF 状态码",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "code",
+          "state"
+        ],
+        "type": "object"
+      },
       "CancelRequestResp": {
         "properties": {
           "applied_at": {
@@ -2391,6 +2446,58 @@
             "type": "string"
           },
           "updated_at": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateAPITokenReq": {
+        "properties": {
+          "allowed_paths": {
+            "description": "可访问的 URL 路径前缀列表；空表示不限制（默认权限）",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "expires_in": {
+            "description": "有效期，Go Duration 格式，如 720h（30天）；空表示使用默认值",
+            "type": "string"
+          },
+          "name": {
+            "description": "令牌名称",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "CreateAPITokenResp": {
+        "properties": {
+          "allowed_paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "token": {
+            "description": "明文令牌，仅创建时返回一次",
             "type": "string"
           }
         },
@@ -3465,6 +3572,24 @@
         },
         "type": "object"
       },
+      "OAuthAccountResp": {
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "provider": {
+            "description": "OAuth 提供商",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Pagination": {
         "description": "分页信息",
         "properties": {
@@ -3549,6 +3674,29 @@
           },
           "user_limit": {
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RefreshTokenReq": {
+        "properties": {
+          "refresh_token": {
+            "description": "刷新令牌",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ],
+        "type": "object"
+      },
+      "RefreshTokenResp": {
+        "properties": {
+          "refresh_token": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -3648,6 +3796,18 @@
         "required": [
           "new_password",
           "confirm_password"
+        ],
+        "type": "object"
+      },
+      "RevokeAPITokenReq": {
+        "properties": {
+          "id": {
+            "description": "令牌ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
         ],
         "type": "object"
       },
@@ -4163,6 +4323,22 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "UnbindOAuthReq": {
+        "properties": {
+          "provider": {
+            "description": "OAuth 提供商",
+            "enum": [
+              "google",
+              "github"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
         "type": "object"
       },
       "UpdateAlertRuleReq": {
@@ -4889,182 +5065,6 @@
           },
           "total_views": {
             "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "CreateAPITokenReq": {
-        "properties": {
-          "name": {
-            "description": "令牌名称",
-            "maxLength": 64,
-            "minLength": 1,
-            "type": "string"
-          },
-          "expires_in": {
-            "description": "有效期，Go Duration 格式，如 720h（30天）；空表示使用默认值",
-            "type": "string"
-          },
-          "allowed_paths": {
-            "description": "可访问的 URL 路径前缀列表；空表示不限制（默认权限）",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "type": "object"
-      },
-      "CreateAPITokenResp": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "token": {
-            "description": "明文令牌，仅创建时返回一次",
-            "type": "string"
-          },
-          "allowed_paths": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "expires_at": {
-            "type": "string"
-          },
-          "created_at": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "APITokenResp": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "allowed_paths": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "last_used_at": {
-            "type": "string"
-          },
-          "expires_at": {
-            "type": "string"
-          },
-          "created_at": {
-            "type": "string"
-          },
-          "revoked": {
-            "type": "boolean"
-          }
-        },
-        "type": "object"
-      },
-      "RevokeAPITokenReq": {
-        "properties": {
-          "id": {
-            "description": "令牌ID",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
-      },
-      "OAuthAccountResp": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "provider": {
-            "description": "OAuth 提供商",
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "created_at": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "UnbindOAuthReq": {
-        "properties": {
-          "provider": {
-            "description": "OAuth 提供商",
-            "enum": [
-              "google",
-              "github"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "provider"
-        ],
-        "type": "object"
-      },
-      "BindOAuthReq": {
-        "properties": {
-          "provider": {
-            "description": "OAuth 提供商",
-            "enum": [
-              "google",
-              "github"
-            ],
-            "type": "string"
-          },
-          "code": {
-            "description": "授权码",
-            "type": "string"
-          },
-          "state": {
-            "description": "CSRF 状态码",
-            "type": "string"
-          }
-        },
-        "required": [
-          "provider",
-          "code",
-          "state"
-        ],
-        "type": "object"
-      },
-      "RefreshTokenReq": {
-        "properties": {
-          "refresh_token": {
-            "description": "刷新令牌",
-            "type": "string"
-          }
-        },
-        "required": [
-          "refresh_token"
-        ],
-        "type": "object"
-      },
-      "RefreshTokenResp": {
-        "properties": {
-          "token": {
-            "type": "string"
-          },
-          "refresh_token": {
-            "type": "string"
           }
         },
         "type": "object"
@@ -10617,6 +10617,182 @@
         "summary": "移除用户单个角色",
         "tags": [
           "角色与权限"
+        ]
+      }
+    },
+    "/api/v1/tasks": {
+      "get": {
+        "description": "权限码: `tasks:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "获取tasks",
+        "tags": [
+          "Task"
+        ]
+      },
+      "post": {
+        "description": "权限码: `tasks:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "创建tasks",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/batch/complete": {
+      "post": {
+        "description": "权限码: `tasks:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "创建complete",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/batch/delete": {
+      "post": {
+        "description": "权限码: `tasks:batch_delete`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "创建delete",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/deleted": {
+      "get": {
+        "description": "权限码: `tasks:list_deleted`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "获取deleted",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/stats": {
+      "get": {
+        "description": "权限码: `tasks:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "获取stats",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/{id}": {
+      "delete": {
+        "description": "权限码: `tasks:delete`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "删除资源",
+        "tags": [
+          "Task"
+        ]
+      },
+      "get": {
+        "description": "权限码: `tasks:read`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "获取资源",
+        "tags": [
+          "Task"
+        ]
+      },
+      "put": {
+        "description": "权限码: `tasks:update`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "更新资源",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/{id}/complete": {
+      "put": {
+        "description": "权限码: `tasks:update`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "更新complete",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/{id}/permanent": {
+      "delete": {
+        "description": "权限码: `tasks:permanent_delete`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "删除permanent",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/{id}/reopen": {
+      "put": {
+        "description": "权限码: `tasks:update`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "更新reopen",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/{id}/restore": {
+      "put": {
+        "description": "权限码: `tasks:restore`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "更新restore",
+        "tags": [
+          "Task"
         ]
       }
     },

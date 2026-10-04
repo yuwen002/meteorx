@@ -165,6 +165,31 @@ func (m *Manager) NotifySubscriptionExpiry(ctx context.Context, tenantName strin
 	return results
 }
 
+// NotifyTaskReminder 任务提醒站内信
+// 通过 WebSocket 定向推送给指定用户（recipientID 为用户 ID），
+// reminderType 取值如 task_assigned / task_due，供前端区分展示。
+// 未注册 WebSocket 渠道或接收人为空时静默跳过。
+func (m *Manager) NotifyTaskReminder(ctx context.Context, recipientID, title, content, reminderType string, extra map[string]interface{}) []SendResult {
+	if recipientID == "" || !m.composite.HasChannel(ChannelWebSocket) {
+		return nil
+	}
+
+	payloadExtra := map[string]interface{}{"type": reminderType}
+	for k, v := range extra {
+		payloadExtra[k] = v
+	}
+
+	msg := &Message{
+		Title:      title,
+		Content:    content,
+		Channel:    ChannelWebSocket,
+		Priority:   PriorityNormal,
+		Recipients: []string{recipientID},
+		Extra:      payloadExtra,
+	}
+	return m.composite.Send(ctx, msg)
+}
+
 // itoa 简单的整数转字符串
 func itoa(n int) string {
 	if n == 0 {

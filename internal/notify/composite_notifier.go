@@ -1,4 +1,4 @@
-﻿package notify
+package notify
 
 import (
 	"context"
@@ -121,6 +121,8 @@ func (c *CompositeNotifier) ChannelCount() int {
 
 var errChannelNotFound = &channelError{msg: "channel not registered"}
 
+// channelError 通知渠道相关的错误，携带可读消息。
 type channelError struct{ msg string }
 
+// Error 实现 error 接口，返回渠道错误消息。
 func (e *channelError) Error() string { return e.msg }

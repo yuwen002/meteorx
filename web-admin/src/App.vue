@@ -8,6 +8,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, watch } from 'vue'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import { ElNotification } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useNotificationStore } from '@/stores/notification'
 import { useWebSocket, type WSMessage } from '@/composables/useWebSocket'
@@ -42,8 +43,19 @@ onMessage((msg: WSMessage) => {
       break
 
     case 'announcement':
-      // 收到新公告通知，刷新公告列表
-      notificationStore.loadAnnouncements()
+      // 任务提醒（指派/到期/逾期）弹出轻量通知，不刷新公告；
+      // 后端 WS 站内信统一以 announcement 消息下发，靠 payload.type 区分
+      if (msg.payload?.type === 'task_assigned' || msg.payload?.type === 'task_due') {
+        ElNotification({
+          title: msg.payload.title || '任务提醒',
+          message: msg.payload.content || '',
+          type: msg.payload.type === 'task_due' ? 'warning' : 'info',
+          duration: 6000
+        })
+      } else {
+        // 收到新公告通知，刷新公告列表
+        notificationStore.loadAnnouncements()
+      }
       break
 
     case 'unread_count':

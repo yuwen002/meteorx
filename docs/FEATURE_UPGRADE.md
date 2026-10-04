@@ -739,3 +739,47 @@ client:
 - ✅ `go build ./...` / `go vet ./internal/...` 全量通过
 - ✅ `go test ./internal/...` 全量通过（新增邀请过期单测）
 - ✅ 前端 `vitest run` 新增 21 个用例全部通过
+
+---
+
+## 十六、任务管理模块（个人待办 + 团队协作）
+
+新增 `internal/modules/task` 模块，将「个人待办」与「租户团队协作」统一为一套模型，通过 `visibility` 字段区分；不接入细粒度 RBAC，仅要求登录，靠数据归属实现访问控制。
+
+### 16.1 后端分层
+
+- `model/task.go`：`Task` 领域模型 + 状态（`pending`/`in_progress`/`completed`）、优先级（`low`/`normal`/`high`/`urgent`）、可见范围（`personal`/`tenant`）三组常量与校验函数
+- `repository/`：GORM 仓储，`TaskPO` 以 JSON 文本存储标签，`gorm.DeletedAt` 软删除；`applyVisibility` 统一处理个人/团队查询隔离，默认按「未完成优先 + 优先级 + 创建时间」排序
+- `service/`：业务编排，`canView`/`canEdit` 归属校验，个人任务负责人强制为创建人，截止时间宽松解析
+- `handler/` + `module.go` + `dto/`：RESTful 接口，挂载于受保护分组
+- `bootstrap/`：`router.go` 接入 `task.InitModule`；`migrate.go` 注册 `tasks` 非关键迁移
+
+### 16.2 回收站与批量操作
+
+- 回收站：`GET /tasks/deleted`（仅列出当前用户自己删除的任务）、`PUT /tasks/{id}/restore`（恢复）、`DELETE /tasks/{id}/permanent`（物理删除），均限创建人或 `superadmin`
+- 批量：`POST /tasks/batch/complete`、`POST /tasks/batch/delete`，逐条按单条归属规则校验，无权/不存在项静默跳过，返回 `affected` 生效数
+- 仓储层新增 `GetByIDUnscoped`/`ListDeleted`/`Restore`/`PermanentDelete`（基于 `Unscoped()`）
+- 修复：仓储 `Create` 因传入结构体值导致 `reflect.Value.Set` panic，改为传指针
+
+### 16.3 前端
+
+- `web-admin/src/api/modules/task.ts`：完整任务 API（含回收站与批量）
+- `web-admin/src/views/task/index.vue`：统计卡片 + 筛选 + 表格 + 新建/编辑弹窗 + 回收站抽屉 + 多选批量完成/删除
+- 路由与侧边栏菜单接入（`/task`，「任务管理」）
+
+### 16.4 任务提醒
+
+- 指派提醒：创建/更新任务将负责人指向他人时，通过全局 `notify.Manager` 向新负责人推送 `task_assigned` 站内信（WebSocket），通知器未初始化时静默跳过不影响主流程
+- 到期/逾期提醒：`TaskReminderJob`（`task/reminder_job.go`）每 30 分钟扫描一次，截止时间进入 24 小时窗口或已逾期且未提醒过的未完成任务，向负责人推送 `task_due`；`bootstrap` 中 `StartTaskReminderJob` 接线
+- 提醒去重：`tasks` 表新增 `reminder_sent_at` 列（`TaskPO.ReminderSent`），同一任务仅提醒一次；修改截止时间自动重置标记，新截止日可再次触发；单轮扫描上限 200 条
+- 仓储新增 `FindDueForReminder`/`MarkReminderSent`；`service.SendDueReminders` 为系统级扫描入口；`notify.Manager.NotifyTaskReminder` 封装 WS 定向推送
+- 前端：全局 `App.vue` 监听 WS 消息，命中 `task_assigned`/`task_due` 时弹出 `ElNotification`，不再误触发公告刷新
+
+### 16.5 验证状态
+
+- ✅ `go build ./...` / `go vet ./...` 通过
+- ✅ `go test ./internal/modules/task/...` service/handler/repository 全部通过（含到期提醒扫描/去重/截止日重置用例）
+- ✅ 前端 `vitest run`（task 用例 16 个）、`vue-tsc --noEmit` 通过
+- ✅ OpenAPI / Apifox 已同步任务模块全部 13 条路由（提醒功能不新增 HTTP 接口，无需同步）
+- 📄 接口文档见 `docs/api/task-api.md`
+- ℹ️ 按要求暂不接入 AI 能力，代码结构保留后续叠加空间

@@ -99,6 +99,7 @@ OpenAPI 路由总数: 225
 | `/api/v1/admin` | Admin |
 | `/api/v1/plan` | Plan |
 | `/api/v1/announcements`, `/api/v1/notification` | Notification |
+| `/api/v1/tasks` | Task |
 
 ## ⚠️ 注意事项
 

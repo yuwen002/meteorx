@@ -86,6 +86,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '成员邀请', icon: 'Message', permission: 'user:list' }
       },
       {
+        path: 'task',
+        name: 'Task',
+        component: () => import('@/views/task/index.vue'),
+        meta: { title: '任务管理', icon: 'List' }
+      },
+      {
         path: 'wiki',
         name: 'WikiSpaceList',
         component: () => import('@/views/wiki/index.vue'),

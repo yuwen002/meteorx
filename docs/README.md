@@ -13,6 +13,8 @@
 - [Wiki API](api/wiki-api.md) - 知识库管理
 - [运营看板 API](api/dashboard-api.md) - 数据统计
 - [公告 API](api/announcement-api.md) - 通知公告
+- [邀请 API](api/invitation-api.md) - 成员邀请与接受注册
+- [任务 API](api/task-api.md) - 个人待办与团队协作任务
 
 ### 架构设计文档
 - [多租户隔离架构](architecture/tenant.md)
@@ -47,6 +49,8 @@ docs/
 │   ├── audit-api.md
 │   ├── wiki-api.md
 │   ├── dashboard-api.md
+│   ├── invitation-api.md
+│   ├── task-api.md
 │   └── announcement-api.md
 ├── architecture/                # 架构设计文档
 │   ├── tenant.md

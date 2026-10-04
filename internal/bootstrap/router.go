@@ -32,6 +32,7 @@ import (
 	planSvc "meteorx/internal/modules/plan/service"
 	"meteorx/internal/modules/rbac"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
+	"meteorx/internal/modules/task"
 	"meteorx/internal/modules/tenant"
 	"meteorx/internal/modules/user"
 	userRepo "meteorx/internal/modules/user/repository"
@@ -215,6 +216,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 4.8 邀请管理接口（租户管理员邀请成员）
 			invitation.InitModule(r, db, *cfg)
 
+			// 4.9 任务管理接口（个人待办 + 租户团队协作，仅需登录）
+			task.InitModule(r, db)
+
 			// ========================================================
 			// 🔥 新增分组三：MaaS 平台运营后台特权接口 (Platform Admin Only)
 			// ========================================================
@@ -278,6 +282,13 @@ func StartCancelCleanupJob(ctx context.Context, db *gorm.DB) {
 func StartInvitationExpiryJob(ctx context.Context, db *gorm.DB) {
 	job := invitation.NewInvitationExpiryJob(db)
 	job.Start(ctx, time.Hour)
+}
+
+// StartTaskReminderJob 启动任务到期提醒定时任务
+// 周期扫描即将到期/已逾期且未提醒过的任务，向负责人推送站内提醒
+func StartTaskReminderJob(ctx context.Context, db *gorm.DB) {
+	job := task.NewTaskReminderJob(db)
+	job.Start(ctx)
 }
 
 // initIPLocator 根据配置初始化 IP 地理位置解析器

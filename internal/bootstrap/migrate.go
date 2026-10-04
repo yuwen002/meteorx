@@ -14,6 +14,7 @@ import (
 	notificationrepo "meteorx/internal/modules/notification/repository"
 	planrepo "meteorx/internal/modules/plan/repository"
 	rbacrepo "meteorx/internal/modules/rbac/repository"
+	taskrepo "meteorx/internal/modules/task/repository"
 	tenantrepo "meteorx/internal/modules/tenant/repository"
 	authrepo "meteorx/internal/modules/user/repository"
 	wikirepo "meteorx/internal/modules/wiki/repository"
@@ -57,6 +58,7 @@ func AutoMigrate(db *gorm.DB) error {
 		{"files", file.AutoMigrate},
 		{"notifications", notificationrepo.AutoMigrate},
 		{"invitations", invitationrepo.AutoMigrate},
+		{"tasks", taskrepo.AutoMigrate},
 		{"wiki", wikirepo.AutoMigrate},
 	}
 
