@@ -51,14 +51,27 @@ type TaskServiceInterface interface {
 	BatchDelete(ctx context.Context, tenantID, userID string, ids []string) (int, error)
 }
 
-// TaskService 任务模块业务服务。
-type TaskService struct {
-	repo repository.TaskRepository // 任务仓储
+// UserNameResolver 按用户 ID 批量解析展示名，供任务响应富化创建人/负责人姓名。
+// 由仓储层基于用户表实现，服务层通过依赖注入使用，避免直接耦合用户模块。
+type UserNameResolver interface {
+	ResolveUserNames(ctx context.Context, ids []string) (map[string]string, error)
 }
 
-// NewTaskService 创建任务业务服务实例。
+// TaskService 任务模块业务服务。
+type TaskService struct {
+	repo  repository.TaskRepository // 任务仓储
+	names UserNameResolver          // 可选的用户姓名解析器，为 nil 时不富化展示名
+}
+
+// NewTaskService 创建任务业务服务实例（不富化人员姓名）。
 func NewTaskService(repo repository.TaskRepository) *TaskService {
 	return &TaskService{repo: repo}
+}
+
+// NewTaskServiceWithNames 创建带人员姓名富化能力的任务业务服务实例。
+// names 为 nil 时行为等同 NewTaskService，响应中人员姓名为空。
+func NewTaskServiceWithNames(repo repository.TaskRepository, names UserNameResolver) *TaskService {
+	return &TaskService{repo: repo, names: names}
 }
 
 // Create 创建任务。缺省状态为 pending、优先级 normal、可见范围 personal；
@@ -109,9 +122,7 @@ func (s *TaskService) Create(ctx context.Context, tenantID, userID string, req d
 		UpdatedAt:   now,
 	}
 
-	if status == model.TaskStatusCompleted {
-		task.CompletedAt = &now
-	}
+	applyStatusChange(task, status, now)
 
 	if err := s.repo.Create(ctx, task); err != nil {
 		return nil, err
@@ -120,6 +131,7 @@ func (s *TaskService) Create(ctx context.Context, tenantID, userID string, req d
 	if task.AssigneeID != task.CreatorID {
 		notifyTaskAssigned(ctx, task)
 	}
+	s.enrichNames(ctx, task)
 	return task, nil
 }
 
@@ -132,6 +144,7 @@ func (s *TaskService) Get(ctx context.Context, tenantID, userID, id string) (*mo
 	if !canView(task, tenantID, userID) {
 		return nil, ErrTaskNotFound
 	}
+	s.enrichNames(ctx, task)
 	return task, nil
 }
 
@@ -181,13 +194,7 @@ func (s *TaskService) Update(ctx context.Context, tenantID, userID, id string, r
 		task.ReminderSentAt = nil
 	}
 	if req.Status != nil && *req.Status != "" {
-		task.Status = *req.Status
-		if task.Status == model.TaskStatusCompleted {
-			now := time.Now()
-			task.CompletedAt = &now
-		} else {
-			task.CompletedAt = nil
-		}
+		applyStatusChange(task, *req.Status, time.Now())
 	}
 	task.UpdatedAt = time.Now()
 
@@ -198,6 +205,7 @@ func (s *TaskService) Update(ctx context.Context, tenantID, userID, id string, r
 	if req.AssigneeID != nil && task.AssigneeID != oldAssignee && task.AssigneeID != task.CreatorID {
 		notifyTaskAssigned(ctx, task)
 	}
+	s.enrichNames(ctx, task)
 	return task, nil
 }
 
@@ -226,10 +234,14 @@ func (s *TaskService) changeStatus(ctx context.Context, tenantID, userID, id, st
 	if !canEdit(task, userID) {
 		return nil, ErrTaskForbidden
 	}
-	if err := s.repo.UpdateStatus(ctx, id, status); err != nil {
+	now := time.Now()
+	applyStatusChange(task, status, now)
+	task.UpdatedAt = now
+	if err := s.repo.Update(ctx, task); err != nil {
 		return nil, err
 	}
-	return s.load(ctx, id)
+	s.enrichNames(ctx, task)
+	return task, nil
 }
 
 // Delete 软删除任务。仅创建人可删除。
@@ -248,9 +260,14 @@ func (s *TaskService) Delete(ctx context.Context, tenantID, userID, id string) e
 	return s.repo.Delete(ctx, id)
 }
 
-// List 分页查询任务列表。
+// List 分页查询任务列表，并对结果富化人员展示名。
 func (s *TaskService) List(ctx context.Context, f repository.ListFilter) ([]*model.Task, int64, error) {
-	return s.repo.List(ctx, f)
+	tasks, total, err := s.repo.List(ctx, f)
+	if err != nil {
+		return nil, 0, err
+	}
+	s.enrichNames(ctx, tasks...)
+	return tasks, total, nil
 }
 
 // Stats 统计各状态任务数量。
@@ -258,9 +275,14 @@ func (s *TaskService) Stats(ctx context.Context, f repository.ListFilter) (*repo
 	return s.repo.Stats(ctx, f)
 }
 
-// ListTrash 分页查询当前用户的回收站任务。
+// ListTrash 分页查询当前用户的回收站任务，并对结果富化人员展示名。
 func (s *TaskService) ListTrash(ctx context.Context, f repository.ListFilter) ([]*model.Task, int64, error) {
-	return s.repo.ListDeleted(ctx, f)
+	tasks, total, err := s.repo.ListDeleted(ctx, f)
+	if err != nil {
+		return nil, 0, err
+	}
+	s.enrichNames(ctx, tasks...)
+	return tasks, total, nil
 }
 
 // Restore 恢复已软删除任务。仅创建人或超管可操作，跨租户视为不存在。
@@ -278,7 +300,12 @@ func (s *TaskService) Restore(ctx context.Context, tenantID, userID, id string) 
 	if err := s.repo.Restore(ctx, id); err != nil {
 		return nil, err
 	}
-	return s.load(ctx, id)
+	task, err = s.load(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	s.enrichNames(ctx, task)
+	return task, nil
 }
 
 // PermanentDelete 永久删除任务。仅创建人或超管可操作。
@@ -380,6 +407,53 @@ func notifyTaskAssigned(ctx context.Context, task *model.Task) {
 		map[string]interface{}{"task_id": task.ID, "tenant_id": task.TenantID})
 }
 
+// applyStatusChange 统一维护状态变更相关时间戳，供 Create/Update/状态切换复用：
+// 首次进入 in_progress 记录开始时间（一旦开始不再清空，用于计算处理耗时）；
+// 进入 completed 记录完成时间，离开 completed 时清空完成时间。
+func applyStatusChange(task *model.Task, status string, now time.Time) {
+	task.Status = status
+	if status == model.TaskStatusInProgress && task.StartedAt == nil {
+		task.StartedAt = &now
+	}
+	if status == model.TaskStatusCompleted {
+		task.CompletedAt = &now
+	} else {
+		task.CompletedAt = nil
+	}
+}
+
+// enrichNames 依据创建人/负责人 ID 批量解析展示名并写回任务的富化字段。
+// 未注入解析器或解析失败时静默跳过，不影响主流程。
+func (s *TaskService) enrichNames(ctx context.Context, tasks ...*model.Task) {
+	if s.names == nil || len(tasks) == 0 {
+		return
+	}
+	idSet := make(map[string]struct{}, len(tasks)*2)
+	for _, t := range tasks {
+		if t.CreatorID != "" {
+			idSet[t.CreatorID] = struct{}{}
+		}
+		if t.AssigneeID != "" {
+			idSet[t.AssigneeID] = struct{}{}
+		}
+	}
+	if len(idSet) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(idSet))
+	for id := range idSet {
+		ids = append(ids, id)
+	}
+	nameMap, err := s.names.ResolveUserNames(ctx, ids)
+	if err != nil || nameMap == nil {
+		return
+	}
+	for _, t := range tasks {
+		t.CreatorName = nameMap[t.CreatorID]
+		t.AssigneeName = nameMap[t.AssigneeID]
+	}
+}
+
 // loadUnscoped 按 ID 读取任务（含已软删除），将未找到错误归一化为 ErrTaskNotFound。
 func (s *TaskService) loadUnscoped(ctx context.Context, id string) (*model.Task, error) {
 	task, err := s.repo.GetByIDUnscoped(ctx, id)
@@ -459,21 +533,26 @@ func ToResp(task *model.Task) *dto.TaskResp {
 		return nil
 	}
 	resp := &dto.TaskResp{
-		ID:          task.ID,
-		TenantID:    task.TenantID,
-		CreatorID:   task.CreatorID,
-		AssigneeID:  task.AssigneeID,
-		Title:       task.Title,
-		Description: task.Description,
-		Status:      task.Status,
-		Priority:    task.Priority,
-		Tags:        task.Tags,
-		Visibility:  task.Visibility,
-		CreatedAt:   task.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt:   task.UpdatedAt.Format("2006-01-02 15:04:05"),
+		ID:           task.ID,
+		TenantID:     task.TenantID,
+		CreatorID:    task.CreatorID,
+		CreatorName:  task.CreatorName,
+		AssigneeID:   task.AssigneeID,
+		AssigneeName: task.AssigneeName,
+		Title:        task.Title,
+		Description:  task.Description,
+		Status:       task.Status,
+		Priority:     task.Priority,
+		Tags:         task.Tags,
+		Visibility:   task.Visibility,
+		CreatedAt:    task.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:    task.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}
 	if resp.Tags == nil {
 		resp.Tags = []string{}
+	}
+	if task.StartedAt != nil {
+		resp.StartedAt = task.StartedAt.Format("2006-01-02 15:04:05")
 	}
 	if task.DueDate != nil {
 		resp.DueDate = task.DueDate.Format("2006-01-02 15:04:05")

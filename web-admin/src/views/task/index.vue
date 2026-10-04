@@ -95,6 +95,9 @@
             <el-tag v-for="t in row.tags" :key="t" size="small" type="info" style="margin-right: 4px;">{{ t }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="负责人" min-width="100">
+          <template #default="{ row }">{{ row.assignee_name || '-' }}</template>
+        </el-table-column>
         <el-table-column label="截止时间" min-width="150">
           <template #default="{ row }">{{ row.due_date || '-' }}</template>
         </el-table-column>

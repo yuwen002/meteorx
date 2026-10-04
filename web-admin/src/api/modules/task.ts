@@ -19,7 +19,9 @@ export interface TaskItem {
   id: string
   tenant_id: string
   creator_id: string
+  creator_name?: string
   assignee_id: string
+  assignee_name?: string
   title: string
   description: string
   status: TaskStatus
@@ -27,6 +29,7 @@ export interface TaskItem {
   due_date?: string
   tags: string[]
   visibility: TaskVisibility
+  started_at?: string
   completed_at?: string
   deleted_at?: string
   created_at: string

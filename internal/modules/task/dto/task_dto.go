@@ -28,21 +28,24 @@ type UpdateTaskReq struct {
 
 // TaskResp 任务响应，返回给前端的任务详情。
 type TaskResp struct {
-	ID          string   `json:"id"`
-	TenantID    string   `json:"tenant_id"`
-	CreatorID   string   `json:"creator_id"`
-	AssigneeID  string   `json:"assignee_id"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Status      string   `json:"status"`
-	Priority    string   `json:"priority"`
-	DueDate     string   `json:"due_date,omitempty"`
-	Tags        []string `json:"tags"`
-	Visibility  string   `json:"visibility"`
-	CompletedAt string   `json:"completed_at,omitempty"`
-	DeletedAt   string   `json:"deleted_at,omitempty"`
-	CreatedAt   string   `json:"created_at"`
-	UpdatedAt   string   `json:"updated_at"`
+	ID           string   `json:"id"`
+	TenantID     string   `json:"tenant_id"`
+	CreatorID    string   `json:"creator_id"`
+	CreatorName  string   `json:"creator_name,omitempty"` // 创建人展示名（昵称优先，回退用户名）
+	AssigneeID   string   `json:"assignee_id"`
+	AssigneeName string   `json:"assignee_name,omitempty"` // 负责人展示名（昵称优先，回退用户名）
+	Title        string   `json:"title"`
+	Description  string   `json:"description"`
+	Status       string   `json:"status"`
+	Priority     string   `json:"priority"`
+	DueDate      string   `json:"due_date,omitempty"`
+	Tags         []string `json:"tags"`
+	Visibility   string   `json:"visibility"`
+	StartedAt    string   `json:"started_at,omitempty"`
+	CompletedAt  string   `json:"completed_at,omitempty"`
+	DeletedAt    string   `json:"deleted_at,omitempty"`
+	CreatedAt    string   `json:"created_at"`
+	UpdatedAt    string   `json:"updated_at"`
 }
 
 // TaskStatsResp 任务统计响应。

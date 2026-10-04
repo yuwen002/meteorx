@@ -15,7 +15,8 @@ import (
 // InitModule 装配任务依赖并注册需登录的任务路由。
 func InitModule(r chi.Router, db *gorm.DB) {
 	repo := repository.NewTaskRepository(db)
-	svc := service.NewTaskService(repo)
+	// 注入用户姓名解析器，使任务响应携带创建人/负责人展示名，前端无需二次查询
+	svc := service.NewTaskServiceWithNames(repo, repository.NewUserDirectory(db))
 	h := handler.NewTaskHandler(svc)
 	RegisterRoutes(r, h)
 }

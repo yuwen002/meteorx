@@ -26,6 +26,7 @@ type TaskPO struct {
 	DueDate      *time.Time     `gorm:"comment:截止时间"`
 	Tags         string         `gorm:"type:text;comment:标签(JSON数组)"`
 	Visibility   string         `gorm:"size:20;default:personal;index;comment:可见范围"`
+	StartedAt    *time.Time     `gorm:"comment:开始时间"`
 	CompletedAt  *time.Time     `gorm:"comment:完成时间"`
 	ReminderSent *time.Time     `gorm:"column:reminder_sent_at;comment:到期提醒发送时间"`
 	CreatedAt    time.Time      `gorm:"autoCreateTime;comment:创建时间"`
@@ -56,6 +57,7 @@ func (p TaskPO) toDomain() *model.Task {
 		DueDate:        p.DueDate,
 		Tags:           tags,
 		Visibility:     p.Visibility,
+		StartedAt:      p.StartedAt,
 		CompletedAt:    p.CompletedAt,
 		ReminderSentAt: p.ReminderSent,
 		CreatedAt:      p.CreatedAt,
@@ -83,6 +85,7 @@ func fromDomain(t *model.Task) TaskPO {
 		DueDate:      t.DueDate,
 		Tags:         string(tagsJSON),
 		Visibility:   t.Visibility,
+		StartedAt:    t.StartedAt,
 		CompletedAt:  t.CompletedAt,
 		ReminderSent: t.ReminderSentAt,
 	}
@@ -130,6 +133,7 @@ func (r *taskRepository) Update(ctx context.Context, task *model.Task) error {
 		"tags":             string(tagsJSON),
 		"assignee_id":      task.AssigneeID,
 		"visibility":       task.Visibility,
+		"started_at":       task.StartedAt,
 		"completed_at":     task.CompletedAt,
 		"reminder_sent_at": task.ReminderSentAt,
 		"updated_at":       time.Now(),

@@ -58,7 +58,9 @@
 | id | string | 任务 ID（26 位 ULID） |
 | tenant_id | string | 所属租户 ID |
 | creator_id | string | 创建人用户 ID |
+| creator_name | string | 创建人展示名（昵称优先，回退用户名），无法解析时不返回该字段 |
 | assignee_id | string | 负责人用户 ID |
+| assignee_name | string | 负责人展示名（昵称优先，回退用户名），无法解析时不返回该字段 |
 | title | string | 任务标题 |
 | description | string | 任务描述 |
 | status | string | 状态：`pending` / `in_progress` / `completed` |
@@ -66,10 +68,13 @@
 | due_date | string | 截止时间（`2006-01-02 15:04:05`），为空时不返回该字段 |
 | tags | []string | 分类标签，无标签时返回 `[]` |
 | visibility | string | 可见范围：`personal` / `tenant` |
+| started_at | string | 开始时间，任务首次进入 `in_progress` 时自动记录，未开始不返回该字段 |
 | completed_at | string | 完成时间，仅 `completed` 状态有值，否则不返回该字段 |
 | deleted_at | string | 软删除时间，仅回收站列表返回，否则不返回该字段 |
 | created_at | string | 创建时间 |
 | updated_at | string | 更新时间 |
+
+> `creator_name` / `assignee_name` 由服务端基于用户表批量解析后富化（昵称优先、回退用户名），前端无需再单独查询用户；解析失败时对应字段留空。
 
 ### 3.2 CreateTaskReq（创建任务请求）
 
@@ -161,7 +166,9 @@
     "id": "01M2Q3QXR8R1SNP95BASQ1EFCS",
     "tenant_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
     "creator_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "creator_name": "张三",
     "assignee_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "assignee_name": "张三",
     "title": "完成季度报告",
     "description": "整理 Q3 数据并输出结论",
     "status": "pending",
@@ -303,6 +310,7 @@
 - 仅**创建人**或（`tenant` 任务的）**负责人**可修改，否则返回 `403`
 - 跨租户访问返回 `404`
 - 将 `status` 改为 `completed` 会写入 `completed_at`，改为其它状态会清空 `completed_at`
+- 将 `status` 改为 `in_progress` 时，若尚未记录过开始时间则自动写入 `started_at`（一旦开始不再清空）
 - `due_date` 传空字符串表示清除截止时间
 
 **成功响应（200）：** 返回更新后的 `TaskResp`。
@@ -568,7 +576,7 @@
 | 状态 | 说明 |
 |------|------|
 | `pending` | 待办，任务尚未开始 |
-| `in_progress` | 进行中，任务正在处理 |
+| `in_progress` | 进行中，任务正在处理，首次进入时自动记录 `started_at` |
 | `completed` | 已完成，`completed_at` 有值 |
 
 ### 6.2 优先级

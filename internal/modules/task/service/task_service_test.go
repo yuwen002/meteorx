@@ -564,3 +564,100 @@ func TestCreate_TenantAssigneeNotifyNilSafe(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "u2", task.AssigneeID)
 }
+
+// ---- 开始时间 StartedAt ----
+
+func TestCreate_InProgressSetsStartedAt(t *testing.T) {
+	svc, _ := newService()
+	task, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "立即开始", Status: model.TaskStatusInProgress,
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, task.StartedAt)
+}
+
+func TestCreate_PendingHasNoStartedAt(t *testing.T) {
+	svc, _ := newService()
+	task, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{Title: "待办"})
+	require.NoError(t, err)
+	assert.Nil(t, task.StartedAt)
+}
+
+func TestUpdate_PendingToInProgressSetsStartedAt(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["id1"] = &model.Task{ID: "id1", TenantID: "t1", CreatorID: "u1",
+		Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusPending}
+	task, err := svc.Update(context.Background(), "t1", "u1", "id1",
+		dto.UpdateTaskReq{Status: ptr(model.TaskStatusInProgress)})
+	require.NoError(t, err)
+	assert.NotNil(t, task.StartedAt)
+}
+
+func TestStatusChange_StartedAtPreservedAcrossReopen(t *testing.T) {
+	// 已开始的任务完成后重新打开为进行中，应保留最初开始时间，不被覆盖
+	svc, repo := newService()
+	started := time.Now().Add(-5 * time.Hour)
+	repo.tasks["id1"] = &model.Task{ID: "id1", TenantID: "t1", CreatorID: "u1",
+		Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusCompleted, StartedAt: &started}
+	task, err := svc.Reopen(context.Background(), "t1", "u1", "id1", model.TaskStatusInProgress)
+	require.NoError(t, err)
+	require.NotNil(t, task.StartedAt)
+	assert.True(t, task.StartedAt.Equal(started), "开始时间应保持不变")
+}
+
+// ---- 姓名富化 ----
+
+// stubNames 内存版用户名解析器，实现 UserNameResolver。
+type stubNames struct{ m map[string]string }
+
+func (s stubNames) ResolveUserNames(_ context.Context, ids []string) (map[string]string, error) {
+	out := make(map[string]string, len(ids))
+	for _, id := range ids {
+		if n, ok := s.m[id]; ok {
+			out[id] = n
+		}
+	}
+	return out, nil
+}
+
+func TestGet_EnrichesNames(t *testing.T) {
+	repo := newStubTaskRepo()
+	repo.tasks["id1"] = &model.Task{ID: "id1", TenantID: "t1", CreatorID: "u1", AssigneeID: "u2",
+		Visibility: model.TaskVisibilityTenant, Status: model.TaskStatusPending}
+	svc := NewTaskServiceWithNames(repo, stubNames{map[string]string{"u1": "张三", "u2": "李四"}})
+	task, err := svc.Get(context.Background(), "t1", "u1", "id1")
+	require.NoError(t, err)
+	assert.Equal(t, "张三", task.CreatorName)
+	assert.Equal(t, "李四", task.AssigneeName)
+}
+
+func TestList_EnrichesNames(t *testing.T) {
+	repo := newStubTaskRepo()
+	repo.tasks["id1"] = &model.Task{ID: "id1", TenantID: "t1", CreatorID: "u1", AssigneeID: "u1", Status: model.TaskStatusPending}
+	svc := NewTaskServiceWithNames(repo, stubNames{map[string]string{"u1": "王五"}})
+	tasks, _, err := svc.List(context.Background(), repository.ListFilter{TenantID: "t1", UserID: "u1"})
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, "王五", tasks[0].CreatorName)
+}
+
+func TestNewTaskService_NamesNilSafe(t *testing.T) {
+	// 未注入解析器时，富化应为空且不报错
+	svc, repo := newService()
+	repo.tasks["id1"] = &model.Task{ID: "id1", TenantID: "t1", CreatorID: "u1", AssigneeID: "u1",
+		Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusPending}
+	task, err := svc.Get(context.Background(), "t1", "u1", "id1")
+	require.NoError(t, err)
+	assert.Empty(t, task.CreatorName)
+}
+
+func TestToResp_IncludesNamesAndStartedAt(t *testing.T) {
+	now := time.Now()
+	task := &model.Task{ID: "x", TenantID: "t1", CreatorID: "u1", CreatorName: "张三",
+		AssigneeID: "u2", AssigneeName: "李四", Visibility: model.TaskVisibilityTenant,
+		Status: model.TaskStatusInProgress, StartedAt: &now, CreatedAt: now, UpdatedAt: now}
+	resp := ToResp(task)
+	assert.Equal(t, "张三", resp.CreatorName)
+	assert.Equal(t, "李四", resp.AssigneeName)
+	assert.NotEmpty(t, resp.StartedAt)
+}
