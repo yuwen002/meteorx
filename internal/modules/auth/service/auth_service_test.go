@@ -196,6 +196,40 @@ func (s *AuthServiceTestSuite) TestLoginSuccess() {
 	s.Empty(perms)
 }
 
+// TestLoginSuccess_UpdatesLastLogin 登录成功后应回写最后登录时间。
+func (s *AuthServiceTestSuite) TestLoginSuccess_UpdatesLastLogin() {
+	seeded := s.seedUser("alice", "Passw0rd123!", false, 1)
+	s.urRepo.seedCodes("user-alice", []string{"editor"})
+	// 初始无登录时间
+	s.Nil(seeded.LastLoginAt)
+
+	u, _, _, _, err := s.svc.Login(s.ctx, dto.LoginReq{
+		TenantID: "tenant-001",
+		Username: "alice",
+		Password: "Passw0rd123!",
+	})
+
+	s.NoError(err)
+	s.Require().NotNil(u)
+	// 服务应对登录用户调用一次 UpdateLastLogin，并将 LastLoginAt 写入
+	s.Equal([]string{"user-alice"}, s.userRepo.lastLoginIDs)
+	s.NotNil(s.userRepo.users["user-alice"].LastLoginAt)
+}
+
+// TestLoginFailure_DoesNotUpdateLastLogin 密码错误时不应回写登录时间。
+func (s *AuthServiceTestSuite) TestLoginFailure_DoesNotUpdateLastLogin() {
+	s.seedUser("alice", "Passw0rd123!", false, 1)
+
+	_, _, _, _, err := s.svc.Login(s.ctx, dto.LoginReq{
+		TenantID: "tenant-001",
+		Username: "alice",
+		Password: "wrong-password",
+	})
+
+	s.Error(err)
+	s.Empty(s.userRepo.lastLoginIDs)
+}
+
 func (s *AuthServiceTestSuite) TestLoginMasterFallbackRole() {
 	s.seedUser("root", "Passw0rd123!", true, 1)
 

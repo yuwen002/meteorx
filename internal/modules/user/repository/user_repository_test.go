@@ -501,3 +501,15 @@ func TestCountAllUsers(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int64(42), count)
 }
+
+func TestUpdateLastLogin(t *testing.T) {
+	gormDB, mock := newTestDB(t)
+	repo := NewUserRepository(gormDB)
+
+	// 回写 last_login_at 与 updated_at，命中 id 条件
+	mock.ExpectExec("UPDATE `users` SET .+ WHERE id = \\?").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := repo.UpdateLastLogin(context.Background(), "u-001")
+	assert.NoError(t, err)
+}

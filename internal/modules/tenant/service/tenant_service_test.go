@@ -193,6 +193,21 @@ func (s *TenantServiceTestSuite) TestAdminDetail() {
 	s.Equal("Acme", got.Name)
 }
 
+// TestGetTenantUserCounts 批量统计租户用户数，应跳过空 ID 并按 tenantID 回传。
+func (s *TenantServiceTestSuite) TestGetTenantUserCounts() {
+	s.userRepo.counts["t-001"] = 3
+	s.userRepo.counts["t-002"] = 7
+
+	counts, err := s.svc.GetTenantUserCounts(s.ctx, []string{"t-001", "", "t-002"})
+	s.NoError(err)
+	s.Equal(int64(3), counts["t-001"])
+	s.Equal(int64(7), counts["t-002"])
+	// 空字符串 ID 被跳过，不应出现在结果中
+	s.Len(counts, 2)
+	_, ok := counts[""]
+	s.False(ok)
+}
+
 func (s *TenantServiceTestSuite) TestUpdateTenantStatus() {
 	s.seedTenant("t-001", "Acme", "acme")
 

@@ -227,15 +227,20 @@ var _ tenantRepo.TenantRepository = (*mockTenantRepo)(nil)
 
 type mockUserRepo struct {
 	userRepo.UserRepository
-	names map[string]bool
+	names  map[string]bool
+	counts map[string]int64 // tenantID -> 用户数，供 CountByTenant 返回
 }
 
 func newMockUserRepo() *mockUserRepo {
-	return &mockUserRepo{names: make(map[string]bool)}
+	return &mockUserRepo{names: make(map[string]bool), counts: make(map[string]int64)}
 }
 
 func (m *mockUserRepo) UsernameExists(_ context.Context, username string) (bool, error) {
 	return m.names[username], nil
+}
+
+func (m *mockUserRepo) CountByTenant(_ context.Context, tenantID string) (int64, error) {
+	return m.counts[tenantID], nil
 }
 
 func (m *mockUserRepo) Create(_ context.Context, u *userModel.User) error {

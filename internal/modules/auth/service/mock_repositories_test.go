@@ -18,10 +18,11 @@ import (
 
 type mockUserRepo struct {
 	userRepo.UserRepository
-	users     map[string]*userModel.User
-	byName    map[string]*userModel.User
-	byEmail   map[string]*userModel.User
-	createErr error
+	users        map[string]*userModel.User
+	byName       map[string]*userModel.User
+	byEmail      map[string]*userModel.User
+	createErr    error
+	lastLoginIDs []string // UpdateLastLogin 调用记录：userID
 }
 
 func newMockUserRepo() *mockUserRepo {
@@ -83,6 +84,7 @@ func (m *mockUserRepo) Update(_ context.Context, u *userModel.User) error {
 }
 
 func (m *mockUserRepo) UpdateLastLogin(_ context.Context, id string) error {
+	m.lastLoginIDs = append(m.lastLoginIDs, id)
 	if u, ok := m.users[id]; ok {
 		now := time.Now()
 		u.LastLoginAt = &now
