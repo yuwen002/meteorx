@@ -37,8 +37,8 @@
                 link
                 size="small"
                 :loading="sendVerifyLoading"
-                @click="handleSendEmailVerification"
                 style="margin-left: 4px;"
+                @click="handleSendEmailVerification"
               >
                 发送验证邮件
               </el-button>

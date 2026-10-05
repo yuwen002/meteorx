@@ -27,6 +27,8 @@
             <span class="result-title">{{ item.title }}</span>
             <span class="result-time">{{ item.updated_at?.replace('T', ' ').substring(0, 16) }}</span>
           </div>
+          <!-- 摘要已在 snippetHtml 内经 DOMPurify 消毒，v-html 可信 -->
+          <!-- eslint-disable-next-line vue/no-v-html -->
           <div class="result-snippet" v-html="snippetHtml(item)"></div>
         </div>
       </div>
@@ -52,6 +54,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { searchWiki, type WikiSearchItem } from '@/api/modules/wiki'
+import { sanitizeHtml } from '@/utils/sanitize'
 
 const router = useRouter()
 
@@ -75,7 +78,7 @@ function typeText(type: string) {
 }
 
 function snippetHtml(item: WikiSearchItem) {
-  return item.highlight || item.snippet || '（无摘要）'
+  return sanitizeHtml(item.highlight || item.snippet || '（无摘要）')
 }
 
 async function doSearch() {

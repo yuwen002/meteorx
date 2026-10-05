@@ -32,7 +32,9 @@
         </el-button>
       </header>
 
-      <main v-if="doc.content_html" class="markdown-body" v-html="doc.content_html"></main>
+      <!-- 正文已经后端转义+清洗，前端再经 DOMPurify 消毒，v-html 可信 -->
+      <!-- eslint-disable-next-line vue/no-v-html -->
+      <main v-if="doc.content_html" class="markdown-body" v-html="sanitizeHtml(doc.content_html)"></main>
       <pre v-else class="plain-content">{{ doc.content }}</pre>
 
       <footer class="share-footer">由 MeteorX 知识库生成 · 未经授权请勿转载</footer>
@@ -67,6 +69,7 @@
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
+import { sanitizeHtml } from '@/utils/sanitize'
 import { Download, Share } from '@element-plus/icons-vue'
 
 interface SharedDocumentView {

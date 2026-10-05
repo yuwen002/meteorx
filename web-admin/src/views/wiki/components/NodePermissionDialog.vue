@@ -3,7 +3,7 @@
     :model-value="modelValue"
     :title="`节点权限 — ${title || '未命名'}`"
     width="600px"
-    @update:modelValue="(v: boolean) => emit('update:modelValue', v)"
+    @update:model-value="(v: boolean) => emit('update:modelValue', v)"
     @open="load"
   >
     <div v-if="canListUsers" class="perm-toolbar">

@@ -94,11 +94,11 @@
     >
       <el-upload
         ref="uploadRef"
+        v-model:file-list="fileList"
         :auto-upload="false"
         :on-change="handleFileChange"
         :on-exceed="handleExceed"
         :limit="MAX_UPLOAD_COUNT"
-        v-model:file-list="fileList"
         :on-remove="handleFileRemove"
         drag
         multiple

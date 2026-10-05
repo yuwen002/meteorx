@@ -3,7 +3,7 @@
     :model-value="modelValue"
     title="成员管理"
     width="640px"
-    @update:modelValue="(v: boolean) => emit('update:modelValue', v)"
+    @update:model-value="(v: boolean) => emit('update:modelValue', v)"
     @open="load"
   >
     <div v-if="canManage && canListUsers" class="member-toolbar">

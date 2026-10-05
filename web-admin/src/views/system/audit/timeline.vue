@@ -30,7 +30,7 @@
     </el-card>
 
     <!-- 统计概览 -->
-    <el-row :gutter="16" class="stats-row" v-if="currentUser">
+    <el-row v-if="currentUser" :gutter="16" class="stats-row">
       <el-col :span="6">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
@@ -79,7 +79,7 @@
 
     <!-- 时间线 -->
     <div v-if="currentUser" class="timeline-container">
-      <div class="timeline-year" v-for="group in timelineData" :key="group.date">
+      <div v-for="group in timelineData" :key="group.date" class="timeline-year">
         <div class="timeline-date-header">
           <span class="date-badge">{{ group.date }}</span>
           <span class="date-count">共 {{ group.count }} 条操作</span>

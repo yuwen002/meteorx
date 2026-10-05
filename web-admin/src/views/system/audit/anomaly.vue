@@ -12,14 +12,14 @@
         </el-select>
         <span class="label" style="margin-left: 16px;">失败阈值：</span>
         <el-input-number v-model="threshold" :min="3" :max="100" style="width: 120px" />
-        <el-button type="primary" @click="detectAnomalies" :loading="loading">
+        <el-button type="primary" :loading="loading" @click="detectAnomalies">
           <el-icon><Search /></el-icon>开始检测
         </el-button>
       </div>
     </el-card>
 
     <!-- 统计 -->
-    <el-row :gutter="16" class="stats-row" v-if="anomalies.length > 0">
+    <el-row v-if="anomalies.length > 0" :gutter="16" class="stats-row">
       <el-col :span="6">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
@@ -67,7 +67,7 @@
     </el-row>
 
     <!-- 异常列表 -->
-    <el-card shadow="never" class="table-card" v-if="anomalies.length > 0">
+    <el-card v-if="anomalies.length > 0" shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
           <span>异常检测结果</span>

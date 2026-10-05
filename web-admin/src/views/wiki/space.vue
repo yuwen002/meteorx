@@ -1,5 +1,5 @@
 <template>
-  <div class="space-page" v-loading="loadingSpace">
+  <div v-loading="loadingSpace" class="space-page">
     <!-- 顶部导航 -->
     <div class="topbar">
       <el-button :icon="Back" circle @click="router.push('/wiki')" />
@@ -34,7 +34,7 @@
 
     <div class="workspace">
       <!-- 左侧：目录树 -->
-      <aside class="sidebar" v-loading="loadingTree">
+      <aside v-loading="loadingTree" class="sidebar">
         <div class="sidebar-head">
           <span class="title">目录</span>
           <div v-if="canEdit" class="tree-actions">
@@ -157,7 +157,9 @@
             <el-button v-if="canEdit" :icon="FolderAdd" @click="membersDialogVisible = true">成员</el-button>
           </div>
           <div class="doc-scroll">
-            <div class="doc-body article" v-html="currentDocument.content_html"></div>
+            <!-- 正文已经后端转义+清洗，前端再经 DOMPurify 消毒，v-html 可信 -->
+            <!-- eslint-disable-next-line vue/no-v-html -->
+            <div class="doc-body article" v-html="sanitizeHtml(currentDocument.content_html)"></div>
 
             <!-- 评论区 -->
             <CommentSection v-if="canEdit" :document-id="currentDocument.id" />
@@ -237,10 +239,12 @@
             ></textarea>
             <div
               v-if="editorMode !== 'editor'"
-              class="md-preview article"
               v-loading="previewLoading"
+              class="md-preview article"
             >
-              <div v-if="previewHtml" v-html="previewHtml"></div>
+              <!-- 实时预览已经后端转义+清洗，前端再经 DOMPurify 消毒 -->
+              <!-- eslint-disable-next-line vue/no-v-html -->
+              <div v-if="previewHtml" v-html="sanitizeHtml(previewHtml)"></div>
               <el-empty v-else description="输入内容后将自动渲染预览" :image-size="60" />
             </div>
           </div>
@@ -378,8 +382,8 @@
                 :key="dt.id"
                 :color="dt.tag?.color || '#409EFF'"
                 closable
-                @close="handleRemoveTag(dt.tag?.id || '')"
                 style="margin: 4px"
+                @close="handleRemoveTag(dt.tag?.id || '')"
               >
                 {{ dt.tag?.name }}
               </el-tag>
@@ -418,7 +422,9 @@
 
     <!-- 历史版本预览 -->
     <el-dialog v-model="revisionDialogVisible" title="版本预览" width="760px" top="5vh">
-      <div class="article" v-html="revisionPreviewHtml"></div>
+      <!-- 历史版本预览已经后端转义+清洗，前端再经 DOMPurify 消毒 -->
+      <!-- eslint-disable-next-line vue/no-v-html -->
+      <div class="article" v-html="sanitizeHtml(revisionPreviewHtml)"></div>
     </el-dialog>
 
     <!-- 版本对比对话框 -->
@@ -444,7 +450,9 @@
         </el-select>
         <el-button type="primary" :loading="loadingDiff" @click="loadDiff">对比</el-button>
       </div>
-      <div v-if="diffHtml" class="diff-view" v-html="diffHtml"></div>
+      <!-- 版本对比 HTML 已经后端转义+清洗，前端再经 DOMPurify 消毒 -->
+      <!-- eslint-disable-next-line vue/no-v-html -->
+      <div v-if="diffHtml" class="diff-view" v-html="sanitizeHtml(diffHtml)"></div>
       <el-empty v-else description="选择两个版本后点击对比查看差异" :image-size="80" />
     </el-dialog>
 
@@ -573,6 +581,7 @@ import {
 } from '@/api/modules/wiki'
 import { uploadFile, downloadFile } from '@/api/modules/file'
 import { useUserStore } from '@/stores/user'
+import { sanitizeHtml } from '@/utils/sanitize'
 import MembersDialog from './components/MembersDialog.vue'
 import NodePermissionDialog from './components/NodePermissionDialog.vue'
 import TagManager from './components/TagManager.vue'
