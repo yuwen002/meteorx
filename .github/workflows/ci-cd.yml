@@ -208,6 +208,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build, frontend, security]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    # Map secrets to job-level env so step-level `if` can gate on them
+    # (the `secrets` context is not available in step-level `if` expressions).
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     strategy:
       matrix:
         include:
@@ -226,13 +231,13 @@ jobs:
       - name: Login to Docker Hub
         # Skip publishing gracefully when Docker Hub credentials are not configured
         # (otherwise login-action fails with "Username and password required").
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Extract metadata
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -244,7 +249,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
       - name: Build and push
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
@@ -260,12 +265,17 @@ jobs:
     runs-on: ubuntu-latest
     needs: [docker]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Map secrets to job-level env so step-level `if` can gate on them
+    # (the `secrets` context is not available in step-level `if` expressions).
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
     environment: production
     steps:
       - uses: actions/checkout@v5
       - name: Copy docker-compose and config to server
         # Skip deploy gracefully when SSH/deployment secrets are not configured.
-        if: ${{ secrets.DEPLOY_HOST != '' && secrets.DEPLOY_SSH_KEY != '' }}
+        if: ${{ env.DEPLOY_HOST != '' && env.DEPLOY_SSH_KEY != '' }}
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -275,7 +285,7 @@ jobs:
           target: /opt/meteorx/
           strip_components: 0
       - name: Deploy via SSH
-        if: ${{ secrets.DEPLOY_HOST != '' && secrets.DEPLOY_SSH_KEY != '' }}
+        if: ${{ env.DEPLOY_HOST != '' && env.DEPLOY_SSH_KEY != '' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
