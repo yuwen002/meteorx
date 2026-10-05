@@ -201,6 +201,7 @@ func (r *stubUserRepo) UpdateEmailVerified(_ context.Context, userID string, ver
 func (r *stubUserRepo) GetByPhone(_ context.Context, phone string) (*userModel.User, error) {
 	return nil, errors.New("not found")
 }
+func (r *stubUserRepo) UpdateLastLogin(_ context.Context, _ string) error { return nil }
 
 type stubTenantRepo struct {
 	tenants map[string]*tenantModel.Tenant

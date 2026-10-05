@@ -62,4 +62,6 @@ type UserRepository interface {
 	UpdateEmailVerified(ctx context.Context, userID string, verified bool) error
 	// GetByPhone 根据手机号查询用户
 	GetByPhone(ctx context.Context, phone string) (*model.User, error)
+	// UpdateLastLogin 回写用户最后登录时间
+	UpdateLastLogin(ctx context.Context, userID string) error
 }

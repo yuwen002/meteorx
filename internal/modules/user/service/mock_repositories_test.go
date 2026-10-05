@@ -185,6 +185,14 @@ func (m *mockUserRepo) UpdateEmailVerified(_ context.Context, _ string, _ bool) 
 	return nil
 }
 
+func (m *mockUserRepo) UpdateLastLogin(_ context.Context, id string) error {
+	if u, ok := m.users[id]; ok {
+		now := time.Now()
+		u.LastLoginAt = &now
+	}
+	return nil
+}
+
 var _ userRepo.UserRepository = (*mockUserRepo)(nil)
 
 // ---------- 内存 mock：TenantRepository ----------

@@ -20,8 +20,12 @@ type UserPO struct {
 	EmailVerified bool           `gorm:"default:false;comment:邮箱是否已验证"`
 	Phone         string         `gorm:"size:20;comment:手机号"`
 	Avatar        string         `gorm:"size:500;comment:头像URL"`
+	Department    string         `gorm:"size:100;comment:所属部门"`
+	Position      string         `gorm:"size:100;comment:岗位/职务"`
+	Remark        string         `gorm:"size:255;comment:管理员备注"`
 	Status        int            `gorm:"default:1;comment:状态"`
 	IsMaster      bool           `gorm:"default:false;comment:是否为主管理员"`
+	LastLoginAt   *time.Time     `gorm:"comment:最后登录时间"`
 	CreatedAt     time.Time      `gorm:"autoCreateTime;comment:创建时间"`
 	UpdatedAt     time.Time      `gorm:"autoUpdateTime;comment:更新时间"`
 	DeletedAt     gorm.DeletedAt `gorm:"index;comment:删除时间"`
@@ -44,8 +48,12 @@ func (record UserPO) toDomain() *model.User {
 		EmailVerified: record.EmailVerified,
 		Phone:         record.Phone,
 		Avatar:        record.Avatar,
+		Department:    record.Department,
+		Position:      record.Position,
+		Remark:        record.Remark,
 		Status:        record.Status,
 		IsMaster:      record.IsMaster,
+		LastLoginAt:   record.LastLoginAt,
 		CreatedAt:     record.CreatedAt,
 		UpdatedAt:     record.UpdatedAt,
 	}
@@ -82,8 +90,12 @@ func (r *userRepository) Create(ctx context.Context, u *model.User) error {
 		EmailVerified: u.EmailVerified,
 		Phone:         u.Phone,
 		Avatar:        u.Avatar,
+		Department:    u.Department,
+		Position:      u.Position,
+		Remark:        u.Remark,
 		Status:        u.Status,
 		IsMaster:      u.IsMaster,
+		LastLoginAt:   u.LastLoginAt,
 	}
 	return r.db.WithContext(ctx).Create(&record).Error
 }
@@ -198,6 +210,9 @@ func (r *userRepository) Update(ctx context.Context, user *model.User) error {
 		"email_verified": user.EmailVerified,
 		"phone":          user.Phone,
 		"avatar":         user.Avatar,
+		"department":     user.Department,
+		"position":       user.Position,
+		"remark":         user.Remark,
 		"status":         user.Status,
 	}
 	if user.Password != "" {
@@ -551,4 +566,15 @@ func (r *userRepository) GetByPhone(ctx context.Context, phone string) (*model.U
 		return nil, err
 	}
 	return record.toDomain(), nil
+}
+
+// UpdateLastLogin 回写用户最后登录时间
+func (r *userRepository) UpdateLastLogin(ctx context.Context, userID string) error {
+	now := time.Now()
+	return r.db.WithContext(ctx).Model(&UserPO{}).
+		Where("id = ?", userID).
+		Updates(map[string]interface{}{
+			"last_login_at": now,
+			"updated_at":    now,
+		}).Error
 }

@@ -194,6 +194,11 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User,
 		return nil, nil, nil, "", errors.New("账号已被禁用")
 	}
 
+	// 回写最后登录时间（best-effort，失败不阻断登录）
+	now := time.Now()
+	user.LastLoginAt = &now
+	_ = s.userRepo.UpdateLastLogin(ctx, user.ID)
+
 	// 查询用户关联的角色编码列表
 	roleCodes, err := s.userRoleRepo.GetRoleCodesByUserID(ctx, user.ID)
 	if err != nil {

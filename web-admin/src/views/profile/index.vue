@@ -48,6 +48,14 @@
               <span>{{ userInfo.phone || '-' }}</span>
             </div>
             <div class="info-item">
+              <label>部门：</label>
+              <span>{{ userInfo.department || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <label>岗位：</label>
+              <span>{{ userInfo.position || '-' }}</span>
+            </div>
+            <div class="info-item">
               <label>租户ID：</label>
               <el-tag v-if="userInfo.tenant_id" size="small" type="info">{{ userInfo.tenant_id }}</el-tag>
               <span v-else>-</span>
@@ -62,6 +70,10 @@
               <label>主管理员：</label>
               <el-tag v-if="userInfo.is_master" type="danger" size="small">MASTER</el-tag>
               <span v-else style="color: #9ca3af">-</span>
+            </div>
+            <div class="info-item">
+              <label>最后登录：</label>
+              <span>{{ userInfo.last_login_at || '未登录' }}</span>
             </div>
             <div class="info-item">
               <label>创建时间：</label>
@@ -369,9 +381,12 @@ const userInfo = reactive({
   email_verified: false,
   phone: '',
   avatar: '',
+  department: '',
+  position: '',
   tenant_id: '',
   status: 1,
   is_master: false,
+  last_login_at: '',
   created_at: ''
 })
 const loading = ref(false)

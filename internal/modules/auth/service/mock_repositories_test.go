@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	rbacModel "meteorx/internal/modules/rbac/model"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
@@ -77,6 +78,14 @@ func (m *mockUserRepo) Update(_ context.Context, u *userModel.User) error {
 	m.byName[u.Username] = u
 	if u.Email != "" {
 		m.byEmail[u.Email] = u
+	}
+	return nil
+}
+
+func (m *mockUserRepo) UpdateLastLogin(_ context.Context, id string) error {
+	if u, ok := m.users[id]; ok {
+		now := time.Now()
+		u.LastLoginAt = &now
 	}
 	return nil
 }

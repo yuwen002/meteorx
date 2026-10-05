@@ -58,6 +58,7 @@ func (s *UserService) CreateMasterAdmin(ctx context.Context, req dto.CreateMaste
 		Password: hashedPassword,
 		Nickname: req.Nickname,
 		Email:    req.Email,
+		Remark:   req.Remark,
 		Status:   1,
 		IsMaster: true,
 	}
@@ -109,6 +110,15 @@ func (s *UserService) UpdateMasterAdmin(ctx context.Context, userID string, req 
 	}
 	if req.Email != "" {
 		user.Email = req.Email
+	}
+	if req.Department != "" {
+		user.Department = req.Department
+	}
+	if req.Position != "" {
+		user.Position = req.Position
+	}
+	if req.Remark != "" {
+		user.Remark = req.Remark
 	}
 	if req.Status != nil {
 		user.Status = *req.Status
@@ -272,14 +282,17 @@ func (s *UserService) AdminCreateTenantUser(ctx context.Context, req dto.AdminCr
 	}
 
 	user := &model.User{
-		ID:       idgen.New(),
-		TenantID: req.TenantID,
-		Username: req.Username,
-		Password: hashedPassword,
-		Nickname: req.Nickname,
-		Email:    req.Email,
-		Status:   1,
-		IsMaster: false,
+		ID:         idgen.New(),
+		TenantID:   req.TenantID,
+		Username:   req.Username,
+		Password:   hashedPassword,
+		Nickname:   req.Nickname,
+		Email:      req.Email,
+		Department: req.Department,
+		Position:   req.Position,
+		Remark:     req.Remark,
+		Status:     1,
+		IsMaster:   false,
 	}
 
 	if err := s.repo.Create(ctx, user); err != nil {
@@ -335,6 +348,15 @@ func (s *UserService) AdminUpdateTenantUser(ctx context.Context, tenantID, userI
 	}
 	if req.Email != "" {
 		user.Email = req.Email
+	}
+	if req.Department != "" {
+		user.Department = req.Department
+	}
+	if req.Position != "" {
+		user.Position = req.Position
+	}
+	if req.Remark != "" {
+		user.Remark = req.Remark
 	}
 	if req.Status != nil {
 		user.Status = *req.Status

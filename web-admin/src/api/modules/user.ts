@@ -17,8 +17,12 @@ export interface UserItem {
   email_verified?: boolean
   phone?: string
   avatar?: string
+  department?: string
+  position?: string
+  remark?: string
   status?: number
   is_master?: boolean
+  last_login_at?: string
   roles?: string[]        // 角色编码列表（兼容旧版）
   role_ids?: string[]     // 角色ID列表
   role_list?: UserRoleInfo[]  // 角色详细信息列表
@@ -33,12 +37,17 @@ export interface UserCreateParams {
   password: string
   nickname?: string
   email?: string
+  department?: string
+  position?: string
   role_ids?: string[]
 }
 
 export interface UserUpdateParams {
   nickname?: string
   email?: string
+  department?: string
+  position?: string
+  remark?: string
   status?: number
   password?: string
   role_ids?: string[]
@@ -50,6 +59,7 @@ export interface MasterAdminCreateParams {
   password: string
   nickname?: string
   email?: string
+  remark?: string
   role_id?: string  // 单个角色ID
 }
 
@@ -57,6 +67,9 @@ export interface MasterAdminCreateParams {
 export interface MasterAdminUpdateParams {
   nickname?: string
   email?: string
+  department?: string
+  position?: string
+  remark?: string
   status?: number
   password?: string
   role_id?: string  // 单个角色ID

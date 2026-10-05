@@ -86,6 +86,12 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="最后登录" prop="last_login_at" min-width="160">
+          <template #default="{ row }">
+            <span v-if="row.last_login_at">{{ row.last_login_at }}</span>
+            <span v-else style="color: #9ca3af">未登录</span>
+          </template>
+        </el-table-column>
         <el-table-column label="创建时间" prop="created_at" min-width="160" />
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
@@ -160,6 +166,15 @@
         </el-form-item>
         <el-form-item label="邮箱" prop="email">
           <el-input v-model="form.email" placeholder="请输入邮箱" />
+        </el-form-item>
+        <el-form-item v-if="dialogMode === 'edit'" label="部门" prop="department">
+          <el-input v-model="form.department" placeholder="请输入部门" maxlength="100" />
+        </el-form-item>
+        <el-form-item v-if="dialogMode === 'edit'" label="岗位" prop="position">
+          <el-input v-model="form.position" placeholder="请输入岗位" maxlength="100" />
+        </el-form-item>
+        <el-form-item label="备注" prop="remark">
+          <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="管理员备注" maxlength="255" />
         </el-form-item>
         <el-form-item label="角色" prop="role_id">
           <el-select v-model="form.role_id" placeholder="请选择角色" style="width: 100%">
@@ -248,6 +263,9 @@ const form = reactive({
   password: '',
   nickname: '',
   email: '',
+  department: '',
+  position: '',
+  remark: '',
   role_id: ''
 })
 
@@ -294,6 +312,9 @@ function openCreateDialog() {
   form.password = ''
   form.nickname = ''
   form.email = ''
+  form.department = ''
+  form.position = ''
+  form.remark = ''
   form.role_id = ''
   dialogVisible.value = true
 }
@@ -305,6 +326,9 @@ function openEditDialog(row: UserItem) {
   form.password = ''
   form.nickname = row.nickname || ''
   form.email = row.email || ''
+  form.department = row.department || ''
+  form.position = row.position || ''
+  form.remark = row.remark || ''
   form.role_id = row.role_ids && row.role_ids.length > 0 ? row.role_ids[0] : ''
   dialogVisible.value = true
 }
@@ -319,6 +343,7 @@ function handleSubmit() {
           password: form.password,
           nickname: form.nickname,
           email: form.email,
+          remark: form.remark,
           role_id: form.role_id
         }
         await createMasterAdmin(data)
@@ -327,6 +352,9 @@ function handleSubmit() {
         const data: MasterAdminUpdateParams = {
           nickname: form.nickname,
           email: form.email,
+          department: form.department,
+          position: form.position,
+          remark: form.remark,
           role_id: form.role_id
         }
         if (form.password) {

@@ -14,9 +14,13 @@ type User struct {
 	EmailVerified bool     // 邮箱是否已验证
 	Phone         string   // 手机号
 	Avatar        string   // 头像URL
+	Department    string   // 所属部门
+	Position      string   // 岗位/职务
+	Remark        string   // 管理员备注
 	Roles         []string // 角色编码列表（从 user_roles 表关联查询得到）
 	Status        int      // 1: 正常, 0: 禁用
 	IsMaster      bool
+	LastLoginAt   *time.Time // 最后登录时间
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DeletedAt     *time.Time

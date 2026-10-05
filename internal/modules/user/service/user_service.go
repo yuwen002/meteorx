@@ -15,6 +15,7 @@ import (
 	"meteorx/internal/modules/user/repository"
 	"meteorx/pkg/crypto"
 	"meteorx/pkg/idgen"
+	"time"
 )
 
 // 业务层哨兵错误：Handler 层通过 errors.Is 精确判定错误类型，
@@ -138,6 +139,10 @@ func (s *UserService) buildUserResp(ctx context.Context, user *model.User) (*dto
 		RoleIDs:    roleIDs,
 		Status:     user.Status,
 		IsMaster:   user.IsMaster,
+		Department: user.Department,
+		Position:   user.Position,
+		Remark:     user.Remark,
+		LastLoginAt: formatTimePtr(user.LastLoginAt),
 		CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt:  user.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}
@@ -216,18 +221,22 @@ func (s *UserService) buildUserRespList(ctx context.Context, users []*model.User
 		}
 
 		resp := &dto.UserResp{
-			ID:         user.ID,
-			TenantID:   user.TenantID,
-			TenantName: tenantNames[user.TenantID],
-			Username:   user.Username,
-			Nickname:   user.Nickname,
-			Email:      user.Email,
-			Roles:      roleCodes,
-			RoleIDs:    roleIDs,
-			RoleList:   roleList,
-			Status:     user.Status,
-			CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt:  user.UpdatedAt.Format("2006-01-02 15:04:05"),
+			ID:          user.ID,
+			TenantID:    user.TenantID,
+			TenantName:  tenantNames[user.TenantID],
+			Username:    user.Username,
+			Nickname:    user.Nickname,
+			Email:       user.Email,
+			Roles:       roleCodes,
+			RoleIDs:     roleIDs,
+			RoleList:    roleList,
+			Status:      user.Status,
+			Department:  user.Department,
+			Position:    user.Position,
+			Remark:      user.Remark,
+			LastLoginAt: formatTimePtr(user.LastLoginAt),
+			CreatedAt:   user.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:   user.UpdatedAt.Format("2006-01-02 15:04:05"),
 		}
 		if user.DeletedAt != nil {
 			resp.DeletedAt = user.DeletedAt.Format("2006-01-02 15:04:05")
@@ -287,14 +296,16 @@ func (s *UserService) Create(ctx context.Context, tenantID string, req dto.Creat
 	}
 
 	user := &model.User{
-		ID:       idgen.New(),
-		TenantID: tenantID,
-		Username: req.Username,
-		Password: hashedPassword,
-		Nickname: req.Nickname,
-		Email:    req.Email,
-		Status:   1,
-		IsMaster: false,
+		ID:         idgen.New(),
+		TenantID:   tenantID,
+		Username:   req.Username,
+		Password:   hashedPassword,
+		Nickname:   req.Nickname,
+		Email:      req.Email,
+		Department: req.Department,
+		Position:   req.Position,
+		Status:     1,
+		IsMaster:   false,
 	}
 
 	if err := s.repo.Create(ctx, user); err != nil {
@@ -321,6 +332,15 @@ func (s *UserService) Update(ctx context.Context, userID string, req dto.UpdateU
 	}
 	if req.Email != "" {
 		user.Email = req.Email
+	}
+	if req.Department != "" {
+		user.Department = req.Department
+	}
+	if req.Position != "" {
+		user.Position = req.Position
+	}
+	if req.Remark != "" {
+		user.Remark = req.Remark
 	}
 	if req.Status != nil {
 		user.Status = *req.Status
@@ -385,4 +405,12 @@ func (s *UserService) BelongsToTenant(ctx context.Context, userID, tenantID stri
 		return false
 	}
 	return user.TenantID == tenantID
+}
+
+// formatTimePtr 将可空时间指针格式化为字符串，nil 返回空串。
+func formatTimePtr(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return t.Format("2006-01-02 15:04:05")
 }

@@ -38,6 +38,12 @@
         <el-table-column prop="username" label="用户名" min-width="140" />
         <el-table-column prop="nickname" label="昵称" min-width="120" />
         <el-table-column prop="email" label="邮箱" min-width="180" />
+        <el-table-column prop="department" label="部门" min-width="120">
+          <template #default="{ row }">
+            <span v-if="row.department">{{ row.department }}</span>
+            <span v-else style="color: #9ca3af">-</span>
+          </template>
+        </el-table-column>
         <el-table-column v-if="userStore.isAdmin" prop="tenant_id" label="租户ID" min-width="180">
           <template #default="{ row }">
             <el-tag v-if="row.tenant_id" size="small" type="info">{{ row.tenant_id }}</el-tag>
@@ -53,6 +59,12 @@
           <template #default="{ row }">
             <el-tag v-if="row.is_master" type="danger" size="small">MASTER</el-tag>
             <span v-else style="color: #9ca3af">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="last_login_at" label="最后登录" width="180">
+          <template #default="{ row }">
+            <span v-if="row.last_login_at">{{ row.last_login_at }}</span>
+            <span v-else style="color: #9ca3af">未登录</span>
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180" />
@@ -224,6 +236,15 @@
         <el-form-item label="邮箱" prop="email">
           <el-input v-model="form.email" placeholder="请输入邮箱" />
         </el-form-item>
+        <el-form-item label="部门" prop="department">
+          <el-input v-model="form.department" placeholder="请输入部门" maxlength="100" />
+        </el-form-item>
+        <el-form-item label="岗位" prop="position">
+          <el-input v-model="form.position" placeholder="请输入岗位" maxlength="100" />
+        </el-form-item>
+        <el-form-item v-if="dialogMode === 'edit'" label="备注" prop="remark">
+          <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="管理员备注" maxlength="255" />
+        </el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="form.status">
             <el-radio :value="1">启用</el-radio>
@@ -393,6 +414,9 @@ const form = reactive<UserCreateParams & UserUpdateParams>({
   password: '',
   nickname: '',
   email: '',
+  department: '',
+  position: '',
+  remark: '',
   status: 1
 })
 
@@ -469,6 +493,9 @@ function openCreateDialog() {
   form.password = ''
   form.nickname = ''
   form.email = ''
+  form.department = ''
+  form.position = ''
+  form.remark = ''
   form.status = 1
   dialogVisible.value = true
 }
@@ -481,6 +508,9 @@ function openEditDialog(row: UserItem) {
   form.password = ''
   form.nickname = row.nickname || ''
   form.email = row.email || ''
+  form.department = row.department || ''
+  form.position = row.position || ''
+  form.remark = row.remark || ''
   form.status = row.status ?? 1
   dialogVisible.value = true
 }
@@ -496,13 +526,18 @@ async function submitForm() {
           username: form.username.trim(),
           password: form.password,
           nickname: form.nickname,
-          email: form.email
+          email: form.email,
+          department: form.department,
+          position: form.position
         })
         ElMessage.success('新增成功')
       } else if (editingId.value) {
         const updateData: UserUpdateParams = {
           nickname: form.nickname,
           email: form.email,
+          department: form.department,
+          position: form.position,
+          remark: form.remark,
           status: form.status
         }
         if (form.password) updateData.password = form.password
