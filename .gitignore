@@ -18,6 +18,10 @@ vendor/
 *.swo
 *~
 
+# Editor / AI tool directories (personal workspace, not shared source)
+.trae/
+.cursor/
+
 # Environment files
 .env
 .env.local
