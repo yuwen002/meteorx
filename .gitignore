@@ -5,6 +5,9 @@
 *.so
 *.dylib
 
+# Local build output directory
+/bin/
+
 # Go dependencies
 vendor/
 
@@ -55,5 +58,8 @@ coverage/
 /web-admin/src/components.d.ts
 qodana.yaml
 
+# Runtime data directory (SQLite/卷挂载等运行时产物，整体忽略，仅保留占位)
+/data/*
+!/data/.gitkeep
 # IP database file (large binary, should be downloaded separately)
 /data/ip2region.xdb
