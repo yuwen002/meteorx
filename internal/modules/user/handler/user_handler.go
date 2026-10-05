@@ -281,9 +281,13 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 用户只能修改自己的非敏感信息（昵称、邮箱），不能修改角色和状态
+	// 用户只能修改自己的非敏感信息（昵称、邮箱、手机号、头像），
+	// 角色、状态以及部门/岗位/备注均由管理员维护，禁止自助修改。
 	req.RoleIDs = nil
 	req.Status = nil
+	req.Department = ""
+	req.Position = ""
+	req.Remark = ""
 
 	user, err := h.svc.Update(r.Context(), userID, req)
 	if err != nil {

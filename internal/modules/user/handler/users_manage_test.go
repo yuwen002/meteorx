@@ -523,3 +523,24 @@ type userRespBody struct {
 	Username string   `json:"username"`
 	Roles    []string `json:"roles"`
 }
+
+// TestUpdateProfile_StripsAdminManagedFields 回归：自助资料接口禁止写入管理员维护字段。
+func TestUpdateProfile_StripsAdminManagedFields(t *testing.T) {
+	stub := &stubUserService{Resp: sampleUserResp("user-1")}
+	router := newUserRouter(stub)
+
+	// 用户尝试通过 /profile 越权写入部门/岗位/备注与状态
+	w := do(t, router, http.MethodPut, "/profile",
+		`{"nickname":"Alice","email":"a@b.com","department":"HACK","position":"BOSS","remark":"self-admin","status":0}`)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.NotNil(t, stub.GotUpdateReq)
+	// 非敏感字段照常透传
+	assert.Equal(t, "Alice", stub.GotUpdateReq.Nickname)
+	assert.Equal(t, "a@b.com", stub.GotUpdateReq.Email)
+	// 管理员字段与状态被强制清空，普通用户无法自助写入
+	assert.Empty(t, stub.GotUpdateReq.Department)
+	assert.Empty(t, stub.GotUpdateReq.Position)
+	assert.Empty(t, stub.GotUpdateReq.Remark)
+	assert.Nil(t, stub.GotUpdateReq.Status)
+}
