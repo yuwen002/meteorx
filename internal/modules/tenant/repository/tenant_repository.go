@@ -30,6 +30,8 @@ type TenantPO struct {
 	Status       int            `gorm:"comment:'状态：1-启用 0-禁用'"`                   // 租户状态：1-启用，0-禁用
 	Description  *string        `gorm:"size:255;comment:'租户简述'"`                  // 租户简述
 	ContactEmail *string        `gorm:"size:100;comment:'联系邮箱'"`                  // 联系邮箱
+	ContactPhone *string        `gorm:"size:20;comment:'联系电话'"`                  // 联系电话
+	Industry     *string        `gorm:"size:100;comment:'所属行业'"`                 // 所属行业
 	Region       *string        `gorm:"size:50;comment:'地区/数据中心'"`                // 地区/数据中心
 	Logo         *string        `gorm:"size:500;comment:'租户Logo URL'"`            // 租户 Logo URL
 	Extra        *string        `gorm:"type:text;comment:'扩展字段(JSON格式)'"`         // 扩展字段，存储 JSON 格式
@@ -71,6 +73,8 @@ func (record TenantPO) toDomain() *model.Tenant {
 		Status:       record.Status,
 		Description:  strVal(record.Description),
 		ContactEmail: strVal(record.ContactEmail),
+		ContactPhone: strVal(record.ContactPhone),
+		Industry:     strVal(record.Industry),
 		Region:       strVal(record.Region),
 		Logo:         strVal(record.Logo),
 		Extra:        strVal(record.Extra),
@@ -142,6 +146,8 @@ func (r *tenantRepository) Create(ctx context.Context, t *model.Tenant) error {
 		Status:       t.Status,
 		Description:  strPtr(t.Description),
 		ContactEmail: strPtr(t.ContactEmail),
+		ContactPhone: strPtr(t.ContactPhone),
+		Industry:     strPtr(t.Industry),
 		Region:       strPtr(t.Region),
 		Logo:         strPtr(t.Logo),
 		Extra:        strPtr(t.Extra),
@@ -207,6 +213,8 @@ func (r *tenantRepository) CreateTenantWithAdmin(ctx context.Context, t *model.T
 		Status:       t.Status,               // 租户状态
 		Description:  strPtr(t.Description),  // 租户描述
 		ContactEmail: strPtr(t.ContactEmail), // 联系邮箱
+		ContactPhone: strPtr(t.ContactPhone), // 联系电话
+		Industry:     strPtr(t.Industry),     // 所属行业
 		Region:       strPtr(t.Region),       // 租户所在区域
 		Logo:         strPtr(t.Logo),         // 租户Logo
 		Extra:        strPtr(t.Extra),        // 额外信息，以JSON格式存储
@@ -294,6 +302,12 @@ func (r *tenantRepository) Update(ctx context.Context, id string, t *model.Tenan
 	}
 	if t.ContactEmail != "" {
 		updates["contact_email"] = t.ContactEmail
+	}
+	if t.ContactPhone != "" {
+		updates["contact_phone"] = t.ContactPhone
+	}
+	if t.Industry != "" {
+		updates["industry"] = t.Industry
 	}
 	if t.Region != "" {
 		updates["region"] = t.Region

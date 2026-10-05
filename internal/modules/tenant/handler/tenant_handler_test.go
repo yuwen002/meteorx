@@ -95,6 +95,15 @@ func (s *tenantStub) GetTenantPlanBriefs(_ context.Context, _ []string) (map[str
 	return map[string]*planDto.TenantPlanBrief{"t-1": {PlanName: "专业版"}}, nil
 }
 
+func (s *tenantStub) GetTenantUserCounts(_ context.Context, ids []string) (map[string]int64, error) {
+	s.rec("GetTenantUserCounts")
+	counts := make(map[string]int64, len(ids))
+	for _, id := range ids {
+		counts[id] = 5
+	}
+	return counts, nil
+}
+
 func (s *tenantStub) AdminDetail(_ context.Context, id string) (*tenantModel.Tenant, error) {
 	s.rec("AdminDetail", id)
 	if s.err != nil {

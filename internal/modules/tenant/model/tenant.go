@@ -18,6 +18,8 @@ type Tenant struct {
 	Status       int
 	Description  string
 	ContactEmail string
+	ContactPhone string
+	Industry     string
 	Region       string
 	Logo         string
 	Extra        string

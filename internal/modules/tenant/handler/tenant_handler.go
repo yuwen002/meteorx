@@ -28,6 +28,7 @@ type TenantService interface {
 	UpdateTenantStatus(ctx context.Context, id string, status int) error
 	QueryTenantList(ctx context.Context, page, pageSize int, name string, status *int) ([]*model.Tenant, int64, error)
 	GetTenantPlanBriefs(ctx context.Context, tenantIDs []string) (map[string]*planDto.TenantPlanBrief, error)
+	GetTenantUserCounts(ctx context.Context, tenantIDs []string) (map[string]int64, error)
 	AdminDetail(ctx context.Context, id string) (*model.Tenant, error)
 	AdminUpdate(ctx context.Context, id string, req dto.AdminUpdateTenantReq) error
 	AdminDelete(ctx context.Context, id string) error
@@ -118,9 +119,12 @@ func (h *TenantHandler) AdminCreate(w http.ResponseWriter, r *http.Request) {
 		Status:       tenant.Status,
 		Description:  tenant.Description,
 		ContactEmail: tenant.ContactEmail,
+		ContactPhone: tenant.ContactPhone,
+		Industry:     tenant.Industry,
 		Region:       tenant.Region,
 		Logo:         tenant.Logo,
 		Extra:        tenant.Extra,
+		UserCount:    1, // 创建时默认包含 1 名初始管理员
 		CreatedAt:    tenant.CreatedAt,
 		UpdatedAt:    tenant.UpdatedAt,
 	}
@@ -201,6 +205,7 @@ func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 		tenantIDs[i] = t.ID
 	}
 	planBriefs, _ := h.svc.GetTenantPlanBriefs(r.Context(), tenantIDs)
+	userCounts, _ := h.svc.GetTenantUserCounts(r.Context(), tenantIDs)
 
 	// 4. 转换为 DTO
 	// 将查询到的租户数据转换为前端需要的响应格式
@@ -213,9 +218,12 @@ func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 			Status:       tenant.Status,
 			Description:  tenant.Description,
 			ContactEmail: tenant.ContactEmail,
+			ContactPhone: tenant.ContactPhone,
+			Industry:     tenant.Industry,
 			Region:       tenant.Region,
 			Logo:         tenant.Logo,
 			Extra:        tenant.Extra,
+			UserCount:    userCounts[tenant.ID],
 			CreatedAt:    tenant.CreatedAt,
 			UpdatedAt:    tenant.UpdatedAt,
 		}
@@ -262,11 +270,24 @@ func (h *TenantHandler) AdminDetail(w http.ResponseWriter, r *http.Request) {
 		Status:       tenant.Status,
 		Description:  tenant.Description,
 		ContactEmail: tenant.ContactEmail,
+		ContactPhone: tenant.ContactPhone,
+		Industry:     tenant.Industry,
 		Region:       tenant.Region,
 		Logo:         tenant.Logo,
 		Extra:        tenant.Extra,
 		CreatedAt:    tenant.CreatedAt,
 		UpdatedAt:    tenant.UpdatedAt,
+	}
+
+	// 3.1 补充用户数与套餐摘要
+	if counts, err := h.svc.GetTenantUserCounts(r.Context(), []string{tenant.ID}); err == nil {
+		respData.UserCount = counts[tenant.ID]
+	}
+	if briefs, err := h.svc.GetTenantPlanBriefs(r.Context(), []string{tenant.ID}); err == nil {
+		if brief, ok := briefs[tenant.ID]; ok {
+			respData.PlanName = brief.PlanName
+			respData.PlanExpired = brief.Expired
+		}
 	}
 
 	// 4. 返回成功响应
@@ -549,7 +570,17 @@ func (h *TenantHandler) GetCurrentTenant(w http.ResponseWriter, r *http.Request)
 
 	// 3. 转换为 DTO
 	converter := dto.TenantConverter{}
-	response.Success(w, converter.ToTenantResponse(tenant))
+	resp := converter.ToTenantResponse(tenant)
+
+	// 4. 补充当前套餐名称与到期状态（自助视图）
+	if briefs, err := h.svc.GetTenantPlanBriefs(r.Context(), []string{tenantID}); err == nil {
+		if brief, ok := briefs[tenantID]; ok && brief != nil {
+			resp.PlanName = brief.PlanName
+			resp.PlanExpired = brief.Expired
+		}
+	}
+
+	response.Success(w, resp)
 }
 
 // UpdateCurrentTenant 更新当前租户信息

@@ -11,6 +11,8 @@ type AdminCreateTenantReq struct {
 	Domain       string `json:"domain" validate:"required,hostname,min=3,max=30" label:"租户域名"`
 	Description  string `json:"description,omitempty" validate:"max=255" label:"租户描述"`
 	ContactEmail string `json:"contact_email,omitempty" validate:"omitempty,email,max=100" label:"联系邮箱"`
+	ContactPhone string `json:"contact_phone,omitempty" validate:"omitempty,max=20" label:"联系电话"`
+	Industry     string `json:"industry,omitempty" validate:"omitempty,max=100" label:"所属行业"`
 	Region       string `json:"region,omitempty" validate:"max=50" label:"地区"`
 	Logo         string `json:"logo,omitempty" validate:"omitempty,url,max=500" label:"Logo地址"`
 	Status       int    `json:"status" validate:"oneof=0 1" label:"租户状态"` // 运营后台允许指定状态(0:禁用 1:启用)
@@ -33,9 +35,12 @@ type AdminTenantResp struct {
 	Status       int       `json:"status"`
 	Description  string    `json:"description"`
 	ContactEmail string    `json:"contact_email"`
+	ContactPhone string    `json:"contact_phone"`
+	Industry     string    `json:"industry"`
 	Region       string    `json:"region"`
 	Logo         string    `json:"logo"`
 	Extra        string    `json:"extra"`
+	UserCount    int64     `json:"user_count"`             // 租户用户数
 	PlanName     string    `json:"plan_name,omitempty"`    // 当前套餐名称
 	PlanExpired  bool      `json:"plan_expired,omitempty"` // 套餐是否已过期
 	CreatedAt    time.Time `json:"created_at"`
@@ -54,6 +59,8 @@ type AdminUpdateTenantReq struct {
 	Domain       string `json:"domain,omitempty" validate:"omitempty,min=2,max=50,hostname" label:"租户域名"`
 	Description  string `json:"description,omitempty" validate:"omitempty,max=255" label:"租户描述"`
 	ContactEmail string `json:"contact_email,omitempty" validate:"omitempty,email,max=100" label:"联系邮箱"`
+	ContactPhone string `json:"contact_phone,omitempty" validate:"omitempty,max=20" label:"联系电话"`
+	Industry     string `json:"industry,omitempty" validate:"omitempty,max=100" label:"所属行业"`
 	Region       string `json:"region,omitempty" validate:"omitempty,max=50" label:"地区"`
 	Logo         string `json:"logo,omitempty" validate:"omitempty,url,max=500" label:"Logo地址"`
 	Extra        string `json:"extra,omitempty" validate:"omitempty,max=1000" label:"扩展字段"`

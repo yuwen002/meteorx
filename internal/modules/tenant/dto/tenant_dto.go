@@ -7,6 +7,8 @@ type RegisterTenantReq struct {
 	Domain       string `json:"domain" validate:"required,username,min=3,max=30" label:"租户域名"`
 	Description  string `json:"description,omitempty" validate:"max=255" label:"租户描述"`
 	ContactEmail string `json:"contact_email,omitempty" validate:"omitempty,email,max=100" label:"联系邮箱"`
+	ContactPhone string `json:"contact_phone,omitempty" validate:"omitempty,max=20" label:"联系电话"`
+	Industry     string `json:"industry,omitempty" validate:"omitempty,max=100" label:"所属行业"`
 	Region       string `json:"region,omitempty" validate:"max=50" label:"地区"`
 	Logo         string `json:"logo,omitempty" validate:"omitempty,url,max=500" label:"Logo地址"`
 	Extra        string `json:"extra,omitempty" validate:"max=1000" label:"扩展字段"`
@@ -35,9 +37,13 @@ type TenantResp struct {
 	Status       int    `json:"status"`
 	Description  string `json:"description,omitempty"`
 	ContactEmail string `json:"contact_email,omitempty"`
+	ContactPhone string `json:"contact_phone,omitempty"`
+	Industry     string `json:"industry,omitempty"`
 	Region       string `json:"region,omitempty"`
 	Logo         string `json:"logo,omitempty"`
 	Extra        string `json:"extra,omitempty"`
+	PlanName     string `json:"plan_name,omitempty"`    // 当前套餐名称
+	PlanExpired  bool   `json:"plan_expired,omitempty"` // 套餐是否已过期
 	CreatedAt    string `json:"created_at"`
 	UpdatedAt    string `json:"updated_at"`
 }
@@ -48,6 +54,8 @@ type UpdateCurrentTenantReq struct {
 	Logo         string `json:"logo,omitempty" validate:"omitempty,url,max=500" label:"Logo地址"`
 	Description  string `json:"description,omitempty" validate:"max=255" label:"租户描述"`
 	ContactEmail string `json:"contact_email,omitempty" validate:"omitempty,email,max=100" label:"联系邮箱"`
+	ContactPhone string `json:"contact_phone,omitempty" validate:"omitempty,max=20" label:"联系电话"`
+	Industry     string `json:"industry,omitempty" validate:"omitempty,max=100" label:"所属行业"`
 	Region       string `json:"region,omitempty" validate:"max=50" label:"地区"`
 	Extra        string `json:"extra,omitempty" validate:"max=1000" label:"扩展字段"`
 }

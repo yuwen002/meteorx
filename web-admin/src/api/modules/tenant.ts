@@ -8,9 +8,12 @@ export interface TenantItem {
   status: number
   description?: string
   contact_email?: string
+  contact_phone?: string
+  industry?: string
   region?: string
   logo?: string
   extra?: string
+  user_count?: number
   plan_name?: string
   plan_expired?: boolean
   created_at?: string
@@ -29,6 +32,8 @@ export interface CreateTenantParams {
   domain: string
   description?: string
   contact_email?: string
+  contact_phone?: string
+  industry?: string
   region?: string
   logo?: string
   status?: number
@@ -46,6 +51,8 @@ export interface UpdateTenantParams {
   domain?: string
   description?: string
   contact_email?: string
+  contact_phone?: string
+  industry?: string
   region?: string
   logo?: string
   extra?: string

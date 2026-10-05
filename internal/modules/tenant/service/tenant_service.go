@@ -87,6 +87,22 @@ func (s *TenantService) GetTenantPlanBriefs(ctx context.Context, tenantIDs []str
 	return s.planProvider.GetTenantPlansBrief(ctx, tenantIDs)
 }
 
+// GetTenantUserCounts 批量统计租户用户数（暴露给 handler 做运营列表增强）。
+func (s *TenantService) GetTenantUserCounts(ctx context.Context, tenantIDs []string) (map[string]int64, error) {
+	counts := make(map[string]int64, len(tenantIDs))
+	for _, id := range tenantIDs {
+		if id == "" {
+			continue
+		}
+		count, err := s.userRepo.CountByTenant(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		counts[id] = count
+	}
+	return counts, nil
+}
+
 // Register 注册新租户及其管理员用户
 // 该方法会生成租户ID和用户ID，加密管理员密码，创建租户和管理员用户模型，并通过事务持久化到数据库
 func (s *TenantService) Register(ctx context.Context, req dto.RegisterTenantReq) (*tenantModel.Tenant, error) {
@@ -132,6 +148,8 @@ func (s *TenantService) Register(ctx context.Context, req dto.RegisterTenantReq)
 		Domain:       req.Domain,
 		Description:  req.Description,
 		ContactEmail: req.ContactEmail,
+		ContactPhone: req.ContactPhone,
+		Industry:     req.Industry,
 		Region:       req.Region,
 		Logo:         req.Logo,
 		Extra:        req.Extra,
@@ -189,6 +207,8 @@ func (s *TenantService) AdminCreate(ctx context.Context, req dto.AdminCreateTena
 		Domain:       req.Domain,
 		Description:  req.Description,
 		ContactEmail: req.ContactEmail,
+		ContactPhone: req.ContactPhone,
+		Industry:     req.Industry,
 		Region:       req.Region,
 		Logo:         req.Logo,
 		Extra:        req.Extra,
@@ -272,6 +292,8 @@ func (s *TenantService) AdminUpdate(ctx context.Context, id string, req dto.Admi
 		Domain:       existingTenant.Domain, // 使用经过唯一性校验的域名
 		Description:  req.Description,
 		ContactEmail: req.ContactEmail,
+		ContactPhone: req.ContactPhone,
+		Industry:     req.Industry,
 		Region:       req.Region,
 		Logo:         req.Logo,
 		Extra:        req.Extra,
@@ -394,6 +416,8 @@ func (s *TenantService) UpdateCurrentTenant(ctx context.Context, tenantID string
 		Domain:       existingTenant.Domain,
 		Description:  existingTenant.Description,
 		ContactEmail: existingTenant.ContactEmail,
+		ContactPhone: existingTenant.ContactPhone,
+		Industry:     existingTenant.Industry,
 		Region:       existingTenant.Region,
 		Logo:         existingTenant.Logo,
 		Extra:        existingTenant.Extra,
@@ -418,6 +442,12 @@ func (s *TenantService) UpdateCurrentTenant(ctx context.Context, tenantID string
 	}
 	if req.ContactEmail != "" {
 		tenant.ContactEmail = req.ContactEmail
+	}
+	if req.ContactPhone != "" {
+		tenant.ContactPhone = req.ContactPhone
+	}
+	if req.Industry != "" {
+		tenant.Industry = req.Industry
 	}
 	if req.Region != "" {
 		tenant.Region = req.Region

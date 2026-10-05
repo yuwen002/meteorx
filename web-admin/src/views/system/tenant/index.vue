@@ -67,7 +67,18 @@
           </template>
         </el-table-column>
         <el-table-column prop="contact_email" label="联系邮箱" min-width="180" />
+        <el-table-column prop="contact_phone" label="联系电话" min-width="140">
+          <template #default="{ row }">
+            <span v-if="row.contact_phone">{{ row.contact_phone }}</span>
+            <span v-else style="color: #9ca3af">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="region" label="地区" width="100" />
+        <el-table-column label="用户数" width="90">
+          <template #default="{ row }">
+            <span>{{ row.user_count ?? 0 }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'info'">
@@ -355,6 +366,15 @@
         <el-form-item label="邮箱" prop="email">
           <el-input v-model="userForm.email" placeholder="请输入邮箱" />
         </el-form-item>
+        <el-form-item label="部门" prop="department">
+          <el-input v-model="userForm.department" placeholder="请输入部门" maxlength="100" />
+        </el-form-item>
+        <el-form-item label="岗位" prop="position">
+          <el-input v-model="userForm.position" placeholder="请输入岗位" maxlength="100" />
+        </el-form-item>
+        <el-form-item v-if="userDialogMode === 'edit'" label="备注" prop="remark">
+          <el-input v-model="userForm.remark" type="textarea" :rows="2" placeholder="管理员备注" maxlength="255" />
+        </el-form-item>
         <el-form-item label="角色" prop="role_ids">
           <el-select
             v-model="userForm.role_ids"
@@ -396,6 +416,12 @@
         </el-form-item>
         <el-form-item label="联系邮箱" prop="contact_email">
           <el-input v-model="form.contact_email" placeholder="请输入联系邮箱" />
+        </el-form-item>
+        <el-form-item label="联系电话" prop="contact_phone">
+          <el-input v-model="form.contact_phone" placeholder="请输入联系电话" maxlength="20" />
+        </el-form-item>
+        <el-form-item label="行业" prop="industry">
+          <el-input v-model="form.industry" placeholder="请输入所属行业" maxlength="100" />
         </el-form-item>
         <el-form-item label="地区" prop="region">
           <el-input v-model="form.region" placeholder="请输入地区" />
@@ -596,6 +622,9 @@ const userForm = reactive<UserCreateParams & UserUpdateParams & { role_ids: stri
   password: '',
   nickname: '',
   email: '',
+  department: '',
+  position: '',
+  remark: '',
   role_ids: []
 })
 const userRules: FormRules = {
@@ -710,6 +739,8 @@ const form = reactive<CreateTenantParams & UpdateTenantParams>({
   domain: '',
   description: '',
   contact_email: '',
+  contact_phone: '',
+  industry: '',
   region: '',
   logo: '',
   status: 1,
@@ -756,6 +787,8 @@ function openCreateDialog() {
   form.domain = ''
   form.description = ''
   form.contact_email = ''
+  form.contact_phone = ''
+  form.industry = ''
   form.region = ''
   form.logo = ''
   form.status = 1
@@ -770,6 +803,8 @@ function openEditDialog(row: TenantItem) {
   form.domain = row.domain
   form.description = row.description || ''
   form.contact_email = row.contact_email || ''
+  form.contact_phone = row.contact_phone || ''
+  form.industry = row.industry || ''
   form.region = row.region || ''
   form.logo = row.logo || ''
   dialogVisible.value = true
@@ -948,6 +983,9 @@ function openCreateUserDialog() {
   userForm.password = ''
   userForm.nickname = ''
   userForm.email = ''
+  userForm.department = ''
+  userForm.position = ''
+  userForm.remark = ''
   userForm.role_ids = []
   loadRoleList()
   userDialogVisible.value = true
@@ -960,6 +998,9 @@ function openEditUserDialog(row: UserItem) {
   userForm.username = row.username
   userForm.nickname = row.nickname
   userForm.email = row.email || ''
+  userForm.department = row.department || ''
+  userForm.position = row.position || ''
+  userForm.remark = row.remark || ''
   userForm.role_ids = row.role_ids || []
   loadRoleList()
   userDialogVisible.value = true
@@ -979,6 +1020,8 @@ async function submitUserForm() {
           password: userForm.password,
           nickname: userForm.nickname,
           email: userForm.email,
+          department: userForm.department,
+          position: userForm.position,
           role_ids: userForm.role_ids
         } as UserCreateParams)
         ElMessage.success('创建成功')
@@ -986,6 +1029,9 @@ async function submitUserForm() {
         await updateTenantUser(tenantId, editingUserId.value, {
           nickname: userForm.nickname,
           email: userForm.email,
+          department: userForm.department,
+          position: userForm.position,
+          remark: userForm.remark,
           role_ids: userForm.role_ids
         } as UserUpdateParams)
         ElMessage.success('更新成功')

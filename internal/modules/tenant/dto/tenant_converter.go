@@ -14,6 +14,8 @@ func (a *TenantConverter) ToTenantResponse(tenant *model.Tenant) *TenantResp {
 		Status:       tenant.Status,
 		Description:  tenant.Description,
 		ContactEmail: tenant.ContactEmail,
+		ContactPhone: tenant.ContactPhone,
+		Industry:     tenant.Industry,
 		Region:       tenant.Region,
 		Logo:         tenant.Logo,
 		Extra:        tenant.Extra,
