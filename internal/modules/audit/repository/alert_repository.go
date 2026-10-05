@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"meteorx/internal/modules/audit/model"
+	"meteorx/pkg/timeutil"
 	"meteorx/pkg/ulid"
 
 	"gorm.io/gorm"
@@ -267,8 +268,8 @@ func (r *alertRuleRepository) GetAlertStats(ctx context.Context, days int) (*mod
 	// 总告警数
 	r.db.WithContext(ctx).Model(&AuditAlertPO{}).Count(&stats.TotalAlerts)
 
-	// 今日告警数
-	today := time.Now().Truncate(24 * time.Hour)
+	// 今日告警数（按业务时区自然日边界，不能用 Truncate(24h) 的 UTC 截断）
+	today := timeutil.StartOfDay(time.Now())
 	r.db.WithContext(ctx).Model(&AuditAlertPO{}).Where("created_at >= ?", today).Count(&stats.TodayAlerts)
 
 	// 已通知数
@@ -318,7 +319,7 @@ func (r *alertRuleRepository) GetAlertStats(ctx context.Context, days int) (*mod
 		days = 7
 	}
 
-	startDate := time.Now().AddDate(0, 0, -days+1).Truncate(24 * time.Hour)
+	startDate := timeutil.StartOfDay(time.Now().AddDate(0, 0, -days+1))
 
 	var trendStats []struct {
 		Date    string

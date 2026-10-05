@@ -5,6 +5,7 @@ import (
 	"context"
 	"log/slog"
 	"meteorx/internal/modules/dashboard/model"
+	"meteorx/pkg/timeutil"
 	"time"
 
 	"gorm.io/gorm"
@@ -61,10 +62,11 @@ func (r *dashboardRepository) getTenantStats(ctx context.Context) (model.TenantS
 	var total, enabled, disabled, todayNew, weekNew, monthNew int64
 	db := r.db.WithContext(ctx)
 
-	startToday := time.Now().Truncate(24 * time.Hour)
-	startWeek := time.Now().AddDate(0, 0, -6)
-	startWeek = time.Date(startWeek.Year(), startWeek.Month(), startWeek.Day(), 0, 0, 0, 0, startWeek.Location())
-	startMonth := time.Date(time.Now().Year(), time.Now().Month(), 1, 0, 0, 0, 0, time.Now().Location())
+	now := time.Now()
+	// 统一使用业务时区的自然日/月边界，避免 Truncate(24h) 在 UTC 截断导致的跨时区偏差
+	startToday := timeutil.StartOfDay(now)
+	startWeek := timeutil.StartOfDay(now.AddDate(0, 0, -6))
+	startMonth := timeutil.StartOfMonth(now)
 
 	if err := db.Table("tenants").Count(&total).Error; err != nil {
 		return model.TenantStats{}, err
@@ -100,10 +102,11 @@ func (r *dashboardRepository) getUserStats(ctx context.Context) (model.UserStats
 	var total, todayNew, weekNew, monthNew int64
 	db := r.db.WithContext(ctx)
 
-	startToday := time.Now().Truncate(24 * time.Hour)
-	startWeek := time.Now().AddDate(0, 0, -6)
-	startWeek = time.Date(startWeek.Year(), startWeek.Month(), startWeek.Day(), 0, 0, 0, 0, startWeek.Location())
-	startMonth := time.Date(time.Now().Year(), time.Now().Month(), 1, 0, 0, 0, 0, time.Now().Location())
+	now := time.Now()
+	// 统一使用业务时区的自然日/月边界，避免 Truncate(24h) 在 UTC 截断导致的跨时区偏差
+	startToday := timeutil.StartOfDay(now)
+	startWeek := timeutil.StartOfDay(now.AddDate(0, 0, -6))
+	startMonth := timeutil.StartOfMonth(now)
 
 	if err := db.Table("users").Count(&total).Error; err != nil {
 		return model.UserStats{}, err
@@ -164,7 +167,7 @@ func (r *dashboardRepository) getAuditStats(ctx context.Context) (model.AuditSta
 	var total, today, success, failure int64
 	db := r.db.WithContext(ctx)
 
-	startToday := time.Now().Truncate(24 * time.Hour)
+	startToday := timeutil.StartOfDay(time.Now())
 
 	if err := db.Table("audit_logs").Count(&total).Error; err != nil {
 		return model.AuditStats{}, err
