@@ -85,11 +85,15 @@
 | email_verified | bool | 邮箱是否已验证 |
 | phone | string | 手机号 |
 | avatar | string | 头像 URL |
+| department | string | 所属部门 |
+| position | string | 岗位/职务 |
+| remark | string | 管理员备注 |
 | roles | []string | 角色编码列表（兼容） |
 | role_ids | []string | 角色 ID 列表 |
 | role_list | []UserRoleInfo | 角色详细信息列表 |
 | status | int | 状态：`1` 启用，`0` 禁用 |
 | is_master | bool | 是否为系统管理员 |
+| last_login_at | string | 最后登录时间（登录成功后回写，可为空） |
 | created_at | string | 创建时间 |
 | updated_at | string | 更新时间 |
 | deleted_at | string | 软删除时间（仅回收站有值） |
@@ -110,6 +114,8 @@
 | password | string | 是 | 6-32 | 初始密码 |
 | nickname | string | 是 | max=50 | 昵称 |
 | email | string | 否 | 邮箱格式 | 邮箱 |
+| department | string | 否 | max=100 | 所属部门 |
+| position | string | 否 | max=100 | 岗位/职务 |
 | role_ids | []string | 是 | min=1 | 分配的角色 ID 列表 |
 
 ### 2.4 UpdateUserReq（更新用户请求）
@@ -120,6 +126,9 @@
 | email | string | 否 | 邮箱格式 | 邮箱 |
 | phone | string | 否 | max=20 | 手机号 |
 | avatar | string | 否 | max=500 | 头像 URL |
+| department | string | 否 | max=100 | 所属部门 |
+| position | string | 否 | max=100 | 岗位/职务 |
+| remark | string | 否 | max=255 | 管理员备注 |
 | role_ids | []string | 否 | min=1 | 角色 ID 列表（覆盖式更新） |
 | status | *int | 否 | 0 或 1 | 启用/禁用 |
 

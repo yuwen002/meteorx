@@ -64,6 +64,8 @@
 | domain | string | 是 | username, 3-30 | 租户域名（唯一） |
 | description | string | 否 | max=255 | 租户描述 |
 | contact_email | string | 否 | 邮箱格式 | 联系邮箱 |
+| contact_phone | string | 否 | max=20 | 联系电话 |
+| industry | string | 否 | max=100 | 所属行业 |
 | region | string | 否 | max=50 | 所在地区 |
 | logo | string | 否 | URL 格式 | Logo 图片地址 |
 | extra | string | 否 | max=1000 | 扩展字段（JSON） |
@@ -89,6 +91,8 @@
 | logo | string | 否 | Logo URL |
 | description | string | 否 | 描述 |
 | contact_email | string | 否 | 联系邮箱 |
+| contact_phone | string | 否 | 联系电话 |
+| industry | string | 否 | 所属行业 |
 | region | string | 否 | 地区 |
 | extra | string | 否 | 扩展字段 |
 
@@ -102,9 +106,13 @@
 | status | int | 状态：1-正常，0-禁用 |
 | description | string | 描述 |
 | contact_email | string | 联系邮箱 |
+| contact_phone | string | 联系电话 |
+| industry | string | 所属行业 |
 | region | string | 地区 |
 | logo | string | Logo URL |
 | extra | string | 扩展字段 |
+| plan_name | string | 当前套餐名称（仅当前租户视图等有值） |
+| plan_expired | bool | 套餐是否已过期 |
 | created_at | string | 创建时间 |
 | updated_at | string | 更新时间 |
 
@@ -273,7 +281,28 @@
 
 **Query 参数：** page, page_size, keyword, status
 
-**成功响应（200）：** 分页响应
+**成功响应（200）：** 分页响应，每项为 AdminTenantResp
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | string | 租户 ID |
+| name | string | 租户名称 |
+| domain | string | 租户域名 |
+| status | int | 状态：1-正常，0-禁用 |
+| description | string | 描述 |
+| contact_email | string | 联系邮箱 |
+| contact_phone | string | 联系电话 |
+| industry | string | 所属行业 |
+| region | string | 地区 |
+| logo | string | Logo URL |
+| extra | string | 扩展字段 |
+| user_count | int64 | 该租户下的用户数 |
+| plan_name | string | 当前套餐名称 |
+| plan_expired | bool | 套餐是否已过期 |
+| created_at | string | 创建时间 |
+| updated_at | string | 更新时间 |
+
+**说明：** `GET /api/v1/admin/tenants/{id}/detail` 返回同一 AdminTenantResp 结构（含 user_count 与套餐摘要）；`POST /api/v1/admin/tenants` 创建成功后同样返回该结构，`user_count` 初始为 1（含初始管理员）。
 
 ### 3.8 管理员更新租户
 
