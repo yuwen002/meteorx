@@ -468,3 +468,230 @@ func TestIntegration_MiscQueries(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, doc.ID, got.ID)
 }
+
+// TestIntegration_ConcurrentIncrementViewCount 验证多协程并发自增浏览量时最终计数准确（原子 UPDATE）。
+func TestIntegration_ConcurrentIncrementViewCount(t *testing.T) {
+	repo, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+	ctx := testCtx("tenant-1", "user-1")
+
+	space := newSpace(t, repo, ctx, "并发浏览量空间")
+	node := &model.WikiNode{SpaceID: space.ID, Type: model.NodeTypeDocument, Title: "文档", Sort: 1}
+	require.NoError(t, repo.CreateNode(ctx, node))
+	doc := &model.Document{TenantID: "tenant-1", NodeID: node.ID, Content: "c", Format: "markdown", CurrentVer: 1}
+	require.NoError(t, repo.CreateDocument(ctx, doc))
+
+	const n = 50
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = repo.IncrementViewCount(ctx, doc.ID)
+		}()
+	}
+	wg.Wait()
+
+	got, err := repo.GetDocumentByID(ctx, doc.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(n), got.ViewCount, "并发自增后浏览量应精确等于请求次数")
+}
+
+// TestIntegration_ConcurrentDocumentUpdate 验证多写者并发基于同一版本号编辑文档时，
+// 乐观锁保证恰好一个提交成功、其余因版本冲突失败，且最终版本与内容为胜出者。
+func TestIntegration_ConcurrentDocumentUpdate(t *testing.T) {
+	repo, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+	ctx := testCtx("tenant-1", "user-1")
+
+	space := newSpace(t, repo, ctx, "并发编辑空间")
+	node := &model.WikiNode{SpaceID: space.ID, Type: model.NodeTypeDocument, Title: "文档", Sort: 1}
+	require.NoError(t, repo.CreateNode(ctx, node))
+	doc := &model.Document{TenantID: "tenant-1", NodeID: node.ID, Content: "v1", Format: "markdown", CurrentVer: 1}
+	require.NoError(t, repo.CreateDocument(ctx, doc))
+
+	writers := []struct {
+		content string
+		editor  string
+	}{
+		{"来自写者0的内容", "user-0"},
+		{"来自写者1的内容", "user-1"},
+	}
+	const count = 2
+	var wg sync.WaitGroup
+	errs := make([]error, count)
+	for i := 0; i < count; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			d := &model.Document{
+				ID:           doc.ID,
+				TenantID:     "tenant-1",
+				NodeID:       node.ID,
+				Content:      writers[i].content,
+				ContentHTML:  "<p>" + writers[i].content,
+				Format:       "markdown",
+				CurrentVer:   2,
+				LastEditedBy: writers[i].editor,
+			}
+			errs[i] = repo.UpdateDocument(ctx, d, 1) // 均基于版本 1 提交
+		}(i)
+	}
+	wg.Wait()
+
+	okCount, conflictCount := 0, 0
+	winnerContent := ""
+	for i, e := range errs {
+		if e == nil {
+			okCount++
+			winnerContent = writers[i].content
+		}
+		if errors.Is(e, ErrDocumentVersionConflict) {
+			conflictCount++
+		}
+	}
+	assert.Equal(t, 1, okCount, "恰好一个写者成功提交")
+	assert.Equal(t, count-1, conflictCount, "其余写者因版本冲突失败")
+
+	got, err := repo.GetDocumentByID(ctx, doc.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 2, got.CurrentVer)
+	assert.Equal(t, winnerContent, got.Content)
+}
+
+// TestIntegration_ExpireTrashItems_OnlyExpired 验证过期清理仅清除已过期项、不触碰未过期项。
+// 该用例锁定“定时任务重复/误清未到期数据”的风险。
+func TestIntegration_ExpireTrashItems_OnlyExpired(t *testing.T) {
+	repo, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+	ctx := testCtx("tenant-1", "user-1")
+
+	// 过期文档：软删文档并写入已过期回收站记录
+	space := newSpace(t, repo, ctx, "过期清理空间")
+	node := &model.WikiNode{SpaceID: space.ID, Type: model.NodeTypeDocument, Title: "文档", Sort: 1}
+	require.NoError(t, repo.CreateNode(ctx, node))
+	doc := &model.Document{TenantID: "tenant-1", NodeID: node.ID, Content: "c", Format: "markdown", CurrentVer: 1}
+	require.NoError(t, repo.CreateDocument(ctx, doc))
+	require.NoError(t, repo.DeleteDocument(ctx, doc.ID))
+	expiredDoc := &model.TrashItem{TenantID: "tenant-1", ItemType: model.TrashTypeDocument, ItemID: doc.ID, SpaceID: space.ID, Title: "文档", DeletedBy: "user-1", ExpiresAt: time.Now().Add(-time.Hour)}
+	require.NoError(t, repo.CreateTrashItem(ctx, expiredDoc))
+
+	// 未过期空间：空间仍在，写入未来过期回收站记录
+	futureSpace := newSpace(t, repo, ctx, "未过期空间")
+	futureTrash := &model.TrashItem{TenantID: "tenant-1", ItemType: model.TrashTypeSpace, ItemID: futureSpace.ID, SpaceID: futureSpace.ID, Title: "空间", DeletedBy: "user-1", ExpiresAt: time.Now().Add(time.Hour)}
+	require.NoError(t, repo.CreateTrashItem(ctx, futureTrash))
+
+	require.NoError(t, repo.ExpireTrashItems(ctx))
+
+	// 过期文档被物理清除，其回收站记录被清理
+	var d model.Document
+	assert.ErrorIs(t, repo.db.Unscoped().Where("id = ?", doc.ID).First(&d).Error, gorm.ErrRecordNotFound)
+	_, err := repo.GetTrashItem(ctx, expiredDoc.ID)
+	assert.Error(t, err)
+
+	// 未过期空间保持原样（仍可查询），其回收站记录保留
+	_, err = repo.GetSpaceByID(ctx, futureSpace.ID)
+	assert.NoError(t, err)
+	_, err = repo.GetTrashItem(ctx, futureTrash.ID)
+	assert.NoError(t, err)
+}
+
+// TestIntegration_ExpireTrashItems_Idempotent 验证过期清理可重复执行：第二次为 no-op 或容忍已清除实体，均不报错。
+func TestIntegration_ExpireTrashItems_Idempotent(t *testing.T) {
+	repo, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+	ctx := testCtx("tenant-1", "user-1")
+
+	space := newSpace(t, repo, ctx, "幂等空间")
+	node := &model.WikiNode{SpaceID: space.ID, Type: model.NodeTypeDocument, Title: "文档", Sort: 1}
+	require.NoError(t, repo.CreateNode(ctx, node))
+	doc := &model.Document{TenantID: "tenant-1", NodeID: node.ID, Content: "c", Format: "markdown", CurrentVer: 1}
+	require.NoError(t, repo.CreateDocument(ctx, doc))
+	require.NoError(t, repo.DeleteDocument(ctx, doc.ID))
+	item := &model.TrashItem{TenantID: "tenant-1", ItemType: model.TrashTypeDocument, ItemID: doc.ID, SpaceID: space.ID, Title: "文档", DeletedBy: "user-1", ExpiresAt: time.Now().Add(-time.Hour)}
+	require.NoError(t, repo.CreateTrashItem(ctx, item))
+
+	// 连续两次执行过期清理，均不应报错（第二次为 no-op 或容忍已清除实体）
+	require.NoError(t, repo.ExpireTrashItems(ctx))
+	require.NoError(t, repo.ExpireTrashItems(ctx))
+
+	var d model.Document
+	assert.ErrorIs(t, repo.db.Unscoped().Where("id = ?", doc.ID).First(&d).Error, gorm.ErrRecordNotFound)
+}
+
+// TestIntegration_ExpireTrashItems_DanglingItem 验证回收站记录指向已缺失实体时，过期清理忽略并返回成功（不中断任务）。
+func TestIntegration_ExpireTrashItems_DanglingItem(t *testing.T) {
+	repo, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+	ctx := testCtx("tenant-1", "user-1")
+
+	// 指向不存在实体的已过期回收站记录（实体已被外部提前物理清除）
+	dangling := &model.TrashItem{TenantID: "tenant-1", ItemType: model.TrashTypeDocument, ItemID: "ghost-doc", SpaceID: "ghost-space", Title: "幽灵", DeletedBy: "user-1", ExpiresAt: time.Now().Add(-time.Hour)}
+	require.NoError(t, repo.CreateTrashItem(ctx, dangling))
+
+	// 即使实体缺失，过期清理也应忽略并返回成功
+	require.NoError(t, repo.ExpireTrashItems(ctx))
+
+	// 缺失实体对应的回收站记录仍应被清理
+	_, err := repo.GetTrashItem(ctx, dangling.ID)
+	assert.Error(t, err)
+}
+
+// TestIntegration_ExpireTrashItems_AllTypes 验证过期清理对文档/节点/空间三类回收站记录均正确级联物理清除。
+func TestIntegration_ExpireTrashItems_AllTypes(t *testing.T) {
+	repo, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+	ctx := testCtx("tenant-1", "user-1")
+
+	// 文档类
+	dSpace := newSpace(t, repo, ctx, "文档型空间")
+	dNode := &model.WikiNode{SpaceID: dSpace.ID, Type: model.NodeTypeDocument, Title: "文档", Sort: 1}
+	require.NoError(t, repo.CreateNode(ctx, dNode))
+	doc := &model.Document{TenantID: "tenant-1", NodeID: dNode.ID, Content: "c", Format: "markdown", CurrentVer: 1}
+	require.NoError(t, repo.CreateDocument(ctx, doc))
+	require.NoError(t, repo.DeleteDocument(ctx, doc.ID))
+	docTrash := &model.TrashItem{TenantID: "tenant-1", ItemType: model.TrashTypeDocument, ItemID: doc.ID, SpaceID: dSpace.ID, Title: "文档", DeletedBy: "user-1", ExpiresAt: time.Now().Add(-time.Hour)}
+	require.NoError(t, repo.CreateTrashItem(ctx, docTrash))
+
+	// 节点类（含文档子节点）
+	nSpace := newSpace(t, repo, ctx, "节点型空间")
+	nFolder := &model.WikiNode{SpaceID: nSpace.ID, Type: model.NodeTypeFolder, Title: "目录", Sort: 1}
+	require.NoError(t, repo.CreateNode(ctx, nFolder))
+	nDocNode := &model.WikiNode{SpaceID: nSpace.ID, ParentID: nFolder.ID, Type: model.NodeTypeDocument, Title: "文档", Sort: 1}
+	require.NoError(t, repo.CreateNode(ctx, nDocNode))
+	nDoc := &model.Document{TenantID: "tenant-1", NodeID: nDocNode.ID, Content: "c", Format: "markdown", CurrentVer: 1}
+	require.NoError(t, repo.CreateDocument(ctx, nDoc))
+	require.NoError(t, repo.DeleteNode(ctx, nDocNode.ID))
+	require.NoError(t, repo.DeleteNode(ctx, nFolder.ID))
+	nodeTrash := &model.TrashItem{TenantID: "tenant-1", ItemType: model.TrashTypeNode, ItemID: nFolder.ID, SpaceID: nSpace.ID, Title: "目录", DeletedBy: "user-1", ExpiresAt: time.Now().Add(-time.Hour)}
+	require.NoError(t, repo.CreateTrashItem(ctx, nodeTrash))
+
+	// 空间类
+	sSpace := newSpace(t, repo, ctx, "空间型空间")
+	sFolder := &model.WikiNode{SpaceID: sSpace.ID, Type: model.NodeTypeFolder, Title: "目录", Sort: 1}
+	require.NoError(t, repo.CreateNode(ctx, sFolder))
+	sDocNode := &model.WikiNode{SpaceID: sSpace.ID, ParentID: sFolder.ID, Type: model.NodeTypeDocument, Title: "文档", Sort: 1}
+	require.NoError(t, repo.CreateNode(ctx, sDocNode))
+	sDoc := &model.Document{TenantID: "tenant-1", NodeID: sDocNode.ID, Content: "c", Format: "markdown", CurrentVer: 1}
+	require.NoError(t, repo.CreateDocument(ctx, sDoc))
+	require.NoError(t, repo.SoftDeleteSpaceTree(ctx, sSpace.ID))
+	require.NoError(t, repo.DeleteSpace(ctx, sSpace.ID))
+	spaceTrash := &model.TrashItem{TenantID: "tenant-1", ItemType: model.TrashTypeSpace, ItemID: sSpace.ID, SpaceID: sSpace.ID, Title: "空间", DeletedBy: "user-1", ExpiresAt: time.Now().Add(-time.Hour)}
+	require.NoError(t, repo.CreateTrashItem(ctx, spaceTrash))
+
+	require.NoError(t, repo.ExpireTrashItems(ctx))
+
+	// 三类实体均被物理清除，回收站记录均被清理
+	var d model.Document
+	assert.ErrorIs(t, repo.db.Unscoped().Where("id = ?", doc.ID).First(&d).Error, gorm.ErrRecordNotFound)
+	var nodeCount int64
+	require.NoError(t, repo.db.Unscoped().Model(&model.WikiNode{}).Where("id IN ?", []string{nFolder.ID, nDocNode.ID}).Count(&nodeCount).Error)
+	assert.Equal(t, int64(0), nodeCount)
+	var sp model.WikiSpace
+	assert.ErrorIs(t, repo.db.Unscoped().Where("id = ?", sSpace.ID).First(&sp).Error, gorm.ErrRecordNotFound)
+
+	for _, id := range []string{docTrash.ID, nodeTrash.ID, spaceTrash.ID} {
+		_, err := repo.GetTrashItem(ctx, id)
+		assert.Error(t, err)
+	}
+}

@@ -618,6 +618,10 @@ func (r *wikiRepository) ExpireTrashItems(ctx context.Context) error {
 				return err
 			}
 		}
+		// 无论目标实体是否存在，均清理该回收站条目自身，避免实体已缺失时遗留僵尸记录
+		if err := db.Where("id = ?", item.ID).Delete(&model.TrashItem{}).Error; err != nil {
+			return err
+		}
 	}
 	return nil
 }
