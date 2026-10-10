@@ -16,13 +16,21 @@ import (
 // 分享数据通过 token+可选密码访问，不依赖登录态与租户上下文；
 // 文档内嵌图片会在响应时动态重签短时效签名地址。
 func RegisterPublicShareRoute(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config) {
+	extH := newPublicShareHandler(gormDB, tx, cfg)
+	RegisterPublicShareRoutes(r, extH)
+}
+
+// newPublicShareHandler 装配公开分享所需的扩展处理器。
+func newPublicShareHandler(gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config) *handler.WikiHandlerExtended {
 	extRepo := repository.NewWikiRepositoryExtended(gormDB)
 	extSvc := service.NewWikiServiceExtended(extRepo, tx)
 	if cfg != nil {
 		extSvc.SetUploadSigner(cfg.File.UploadURL, cfg.File.UploadSignKey(cfg.JWT.Secret))
 	}
-	extH := handler.NewWikiHandlerExtended(extSvc)
+	return handler.NewWikiHandlerExtended(extSvc)
+}
 
-	// GET /api/v1/wiki/share/{token}?password=xxx
+// RegisterPublicShareRoutes 注册公开分享路由（纯路由注册，不含依赖装配）。
+func RegisterPublicShareRoutes(r chi.Router, extH *handler.WikiHandlerExtended) {
 	r.Get("/wiki/share/{token}", extH.AccessSharedDocument)
 }

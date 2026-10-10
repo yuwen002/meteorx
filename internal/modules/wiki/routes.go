@@ -1,46 +1,13 @@
-// Package wiki 提供知识库模块，支持知识空间、文档树、Markdown 编辑/渲染、版本管理、权限控制及全文搜索。
 package wiki
 
 import (
-	"meteorx/internal/config"
 	"meteorx/internal/modules/wiki/handler"
-	"meteorx/internal/modules/wiki/repository"
-	"meteorx/internal/modules/wiki/service"
-	"meteorx/internal/search"
-
-	db "meteorx/internal/pkg/db"
 
 	"github.com/go-chi/chi/v5"
-	"gorm.io/gorm"
 )
 
-// InitModule 初始化 Wiki 模块，注册路由与依赖
-func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config) {
-	repo := repository.NewWikiRepository(gormDB)
-	svc := service.NewWikiService(repo, tx)
-
-	// 初始化全文搜索引擎（配置为 none 时降级为数据库 LIKE 搜索）
-	searchCfg := search.Config{
-		Provider:    cfg.Search.Provider,
-		Host:        cfg.Search.Host,
-		APIKey:      cfg.Search.APIKey,
-		IndexPrefix: cfg.Search.IndexPrefix,
-	}
-	engine := search.NewEngine(searchCfg)
-	indexer := search.NewWikiIndexer(engine, repo, repo)
-	svc.SetWikiIndexer(indexer)
-
-	// 文档内嵌 /uploads 图片签名支持（与文件模块共用访问基址与独立签名密钥）
-	if cfg != nil {
-		svc.SetUploadSigner(cfg.File.UploadURL, cfg.File.UploadSignKey(cfg.JWT.Secret))
-	}
-	h := handler.NewWikiHandler(svc)
-
-	// 初始化扩展服务
-	extRepo := repository.NewWikiRepositoryExtended(gormDB)
-	extSvc := service.NewWikiServiceExtended(extRepo, tx)
-	extH := handler.NewWikiHandlerExtended(extSvc)
-
+// RegisterRoutes 注册 Wiki 模块所有路由（需登录 + 自动权限校验）。
+func RegisterRoutes(r chi.Router, h *handler.WikiHandler, extH *handler.WikiHandlerExtended) {
 	r.Route("/wiki", func(r chi.Router) {
 		r.Get("/stats", h.GetStats) // Wiki 统计数据
 		r.Get("/search", h.Search)  // Wiki 搜索（标题+内容）
