@@ -1,0 +1,18 @@
+internal/modules/dashboard/repository/dashboard_repository_test.go
+  h_a3f313f3d96276 1-138
+internal/modules/invitation/repository/invitation_repository_test.go
+  h_a3f313f3d96276 1-165
+internal/modules/tenant/service/tenant_settings_service_test.go
+  h_a3f313f3d96276 1-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "ac2ebe840142388a2cb2baa45ac7b3de4f4dd2e2",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
