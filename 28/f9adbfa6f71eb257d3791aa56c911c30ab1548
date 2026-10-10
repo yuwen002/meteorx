@@ -1,0 +1,52 @@
+internal/modules/wiki/repository/mock_repository.go
+  s_f00af1d8c88a9e::t_4d0aca7bee7256 104-108
+  s_f00af1d8c88a9e::t_7834ce9ee03f9f 29-30
+internal/modules/wiki/repository/sqlite_helper.go
+  s_f00af1d8c88a9e::t_4411e4cac93330 20,26-27,29-30,32-39
+  s_f00af1d8c88a9e::t_fb634154b655cc 13
+internal/modules/wiki/service/wiki_space_service_test.go
+  s_f00af1d8c88a9e::t_d82a587dac33dd 119-120,139-142,156
+internal/modules/wiki/repository/wiki_repository.go
+  s_f00af1d8c88a9e::t_8995a0536a8b8c 83-85
+  s_f00af1d8c88a9e::t_df933f84ba5c15 639-662,664-687
+internal/modules/wiki/repository/wiki_repository_coverage_test.go
+  s_f00af1d8c88a9e::t_029ca95015353c 5-6
+  s_f00af1d8c88a9e::t_c0f55ace9e6f90 224-470
+internal/modules/wiki/repository/wiki_repository_integration_test.go
+  s_f00af1d8c88a9e::t_4afa248e0d7d4d 275-322
+  s_f00af1d8c88a9e::t_9ffdea6f215b38 323-376
+internal/modules/wiki/model/wiki.go
+  s_f00af1d8c88a9e::t_fb46d22956a826 83
+  s_f00af1d8c88a9e::t_70f8b521ba8b6b 21
+  s_f00af1d8c88a9e::t_1ff3ae486feb8b 4-8
+  s_f00af1d8c88a9e::t_9247f1f8350c8f 49
+internal/modules/wiki/repository/wiki_repository_test.go
+  s_f00af1d8c88a9e::t_509b4af9cd0d60 54
+  s_f00af1d8c88a9e::t_186f31a8925829 83
+  s_f00af1d8c88a9e::t_7932c2e1e00a86 114
+  s_f00af1d8c88a9e::t_c3e43d5bc621ea 176
+  s_f00af1d8c88a9e::t_4feec7281af5be 70
+  s_f00af1d8c88a9e::t_ffc26832759ca7 113
+  s_f00af1d8c88a9e::t_e94d983e1f71e8 100
+  s_f00af1d8c88a9e::t_8f2acdbe0ba73c 126,140,158
+  s_f00af1d8c88a9e::t_7e4c47e5014dd8 144,162
+internal/modules/wiki/service/wiki_space_service.go
+  s_f00af1d8c88a9e::t_ed5d34ac8a8533 113-115,128-129,132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "28f9adbfa6f71eb257d3791aa56c911c30ab1548",
+  "prompts": {},
+  "sessions": {
+    "s_f00af1d8c88a9e": {
+      "agent_id": {
+        "tool": "codebuddy",
+        "id": "eaafc3a9536348a0be0c326daac2fb23",
+        "model": "hy3"
+      },
+      "human_author": "liuxingyu <yuwen002@163.com>",
+      "generated_lines": 682
+    }
+  }
+}
