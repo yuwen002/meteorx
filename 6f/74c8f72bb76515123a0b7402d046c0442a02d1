@@ -1,0 +1,18 @@
+internal/modules/wiki/public_routes.go
+  h_a3f313f3d96276 19-24,30-31,33-34
+internal/modules/wiki/module.go
+  h_a3f313f3d96276 1-48
+internal/modules/wiki/routes.go
+  h_a3f313f3d96276 9-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "6f74c8f72bb76515123a0b7402d046c0442a02d1",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
