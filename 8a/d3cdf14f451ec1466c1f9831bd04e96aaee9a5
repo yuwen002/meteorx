@@ -1,0 +1,22 @@
+internal/modules/wiki/repository/wiki_repository_coverage_test.go
+  s_f00af1d8c88a9e::t_0c6d384fa7d2f9 471-697
+internal/modules/wiki/repository/wiki_repository.go
+  s_f00af1d8c88a9e::t_fff9eb7d9835f3 621-624
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "8ad3cdf14f451ec1466c1f9831bd04e96aaee9a5",
+  "prompts": {},
+  "sessions": {
+    "s_f00af1d8c88a9e": {
+      "agent_id": {
+        "tool": "codebuddy",
+        "id": "eaafc3a9536348a0be0c326daac2fb23",
+        "model": "hy3"
+      },
+      "human_author": "liuxingyu <yuwen002@163.com>",
+      "generated_lines": 231
+    }
+  }
+}
