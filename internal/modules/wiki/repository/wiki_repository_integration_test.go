@@ -182,7 +182,7 @@ func TestIntegration_DocumentCRUD(t *testing.T) {
 	// 3. 更新文档（创建新版本）
 	doc.Content = "更新内容"
 	doc.ContentHTML = "<h1>更新内容</h1>"
-	doc.CurrentVer = 2 // 手动设置新版本号
+	doc.CurrentVer = 2                                   // 手动设置新版本号
 	require.NoError(t, repo.UpdateDocument(ctx, doc, 1)) // expectedVer=1
 	got, err = repo.GetDocumentByNodeID(ctx, node.ID)
 	require.NoError(t, err)
@@ -272,4 +272,106 @@ func TestIntegration_TrashBin(t *testing.T) {
 	assert.Equal(t, int64(1), total)
 	assert.Len(t, items, 1)
 	assert.Equal(t, space.ID, items[0].ItemID)
+}
+
+// TestIntegration_SoftDeleteKeepsRow 验证空间/节点/文档删除为「软删」而非硬删：
+// 删除后正常查询不可见，但 Unscoped 仍能取到且 deleted_at 已填充，且清空后可恢复。
+// 该用例锁定此前模型 DeletedAt 为 *time.Time 时 GORM 不识别软删、实际执行硬删的缺陷。
+func TestIntegration_SoftDeleteKeepsRow(t *testing.T) {
+	repo, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+
+	ctx := testCtx("tenant-1", "user-1")
+
+	space := &model.WikiSpace{Name: "软删空间", Visibility: model.VisibilityTenant, CreatedBy: "user-1"}
+	require.NoError(t, repo.CreateSpace(ctx, space))
+	node := &model.WikiNode{SpaceID: space.ID, Type: model.NodeTypeFolder, Title: "软删节点"}
+	require.NoError(t, repo.CreateNode(ctx, node))
+	doc := &model.Document{TenantID: "tenant-1", NodeID: node.ID, Content: "x", Format: "markdown", CurrentVer: 1}
+	require.NoError(t, repo.CreateDocument(ctx, doc))
+
+	// 删除空间（级联删除节点与文档由 service 层负责；此处仅验证仓储层各自软删）
+	require.NoError(t, repo.DeleteSpace(ctx, space.ID))
+	require.NoError(t, repo.DeleteNode(ctx, node.ID))
+	require.NoError(t, repo.DeleteDocument(ctx, doc.ID))
+
+	// 正常查询均不可见
+	_, err := repo.GetSpaceByID(ctx, space.ID)
+	assert.Error(t, err)
+	_, err = repo.GetNodeByID(ctx, node.ID)
+	assert.Error(t, err)
+	_, err = repo.GetDocumentByNodeID(ctx, node.ID)
+	assert.Error(t, err)
+
+	// Unscoped 仍可取到，且 deleted_at 已填充
+	var sp model.WikiSpace
+	require.NoError(t, repo.db.Unscoped().First(&sp, "id = ?", space.ID).Error)
+	assert.False(t, sp.DeletedAt.Time.IsZero())
+
+	var nd model.WikiNode
+	require.NoError(t, repo.db.Unscoped().First(&nd, "id = ?", node.ID).Error)
+	assert.False(t, nd.DeletedAt.Time.IsZero())
+
+	var dm model.Document
+	require.NoError(t, repo.db.Unscoped().First(&dm, "id = ?", doc.ID).Error)
+	assert.False(t, dm.DeletedAt.Time.IsZero())
+
+	// 恢复（清空 deleted_at）后正常查询可见
+	require.NoError(t, repo.db.Unscoped().Model(&model.WikiNode{}).Where("id = ?", node.ID).Update("deleted_at", nil).Error)
+	_, err = repo.GetNodeByID(ctx, node.ID)
+	assert.NoError(t, err)
+}
+
+// TestIntegration_SpaceDeleteCascadesAndRestores 验证删除空间会级联软删整棵子树（节点+文档），
+// 且恢复空间能整体还原子树内容，避免“删空间后内容仍可达”或“恢复空间后子树丢失”。
+func TestIntegration_SpaceDeleteCascadesAndRestores(t *testing.T) {
+	repo, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+
+	ctx := testCtx("tenant-1", "user-1")
+
+	space := &model.WikiSpace{Name: "级联空间", Visibility: model.VisibilityTenant, CreatedBy: "user-1"}
+	require.NoError(t, repo.CreateSpace(ctx, space))
+	folder := &model.WikiNode{SpaceID: space.ID, Type: model.NodeTypeFolder, Title: "目录", Sort: 1}
+	require.NoError(t, repo.CreateNode(ctx, folder))
+	docNode := &model.WikiNode{SpaceID: space.ID, ParentID: folder.ID, Type: model.NodeTypeDocument, Title: "文档", Sort: 1}
+	require.NoError(t, repo.CreateNode(ctx, docNode))
+	doc := &model.Document{TenantID: "tenant-1", NodeID: docNode.ID, Content: "c", Format: "markdown", CurrentVer: 1}
+	require.NoError(t, repo.CreateDocument(ctx, doc))
+
+	// 服务层语义：先批量级联软删子树，再软删空间
+	require.NoError(t, repo.SoftDeleteSpaceTree(ctx, space.ID))
+	require.NoError(t, repo.DeleteSpace(ctx, space.ID))
+
+	// 正常查询：空间/节点/文档均不可见
+	_, err := repo.GetSpaceByID(ctx, space.ID)
+	assert.Error(t, err)
+	nodes, err := repo.ListNodesBySpace(ctx, space.ID)
+	require.NoError(t, err)
+	assert.Empty(t, nodes)
+	_, err = repo.GetDocumentByNodeID(ctx, docNode.ID)
+	assert.Error(t, err)
+
+	// Unscoped：子树与空间行仍存在（仅被软删）
+	var allNodes []model.WikiNode
+	require.NoError(t, repo.db.Unscoped().Where("space_id = ?", space.ID).Find(&allNodes).Error)
+	assert.Len(t, allNodes, 2)
+	for _, n := range allNodes {
+		assert.False(t, n.DeletedAt.Time.IsZero())
+	}
+	var sp model.WikiSpace
+	require.NoError(t, repo.db.Unscoped().First(&sp, "id = ?", space.ID).Error)
+	assert.False(t, sp.DeletedAt.Time.IsZero())
+
+	// 恢复空间（级联恢复整棵子树）
+	require.NoError(t, repo.RestoreSpace(ctx, space.ID))
+
+	_, err = repo.GetSpaceByID(ctx, space.ID)
+	assert.NoError(t, err)
+	nodes, err = repo.ListNodesBySpace(ctx, space.ID)
+	require.NoError(t, err)
+	assert.Len(t, nodes, 2)
+	gotDoc, err := repo.GetDocumentByNodeID(ctx, docNode.ID)
+	require.NoError(t, err)
+	assert.Equal(t, doc.ID, gotDoc.ID)
 }

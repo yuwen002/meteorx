@@ -6,7 +6,6 @@ import (
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/modules/wiki/dto"
 	"meteorx/internal/modules/wiki/model"
-	"meteorx/internal/modules/wiki/repository"
 	apperrors "meteorx/internal/pkg/apperrors"
 
 	"gorm.io/gorm"
@@ -111,7 +110,9 @@ func (s *wikiService) UpdateSpace(ctx context.Context, id string, userID string,
 	return s.buildSpaceResp(ctx, space, "")
 }
 
-// DeleteSpace 删除 Space，级联软删空间下所有节点和文档，再创建回收站记录并软删空间
+// DeleteSpace 删除 Space：批量软删整棵子树（节点与文档），写入一条空间回收站记录，再软删空间本身。
+// 采用“单条空间回收站记录 + 级联软删子树”的设计，避免为海量子节点各自生成回收站条目导致回收站膨胀，
+// 并保证“恢复空间”时能够整体还原子树。
 func (s *wikiService) DeleteSpace(ctx context.Context, id string, tenantID string) error {
 	userID := contextx.GetUserID(ctx)
 	if err := s.CheckSpacePermission(ctx, id, userID, "space:delete"); err != nil {
@@ -124,58 +125,16 @@ func (s *wikiService) DeleteSpace(ctx context.Context, id string, tenantID strin
 	}
 
 	return s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
-		nodes, err := s.repo.ListNodesBySpace(txCtx, id)
-		if err != nil {
+		// 级联软删空间下所有节点与文档（不写子级回收站）
+		if err := s.repo.SoftDeleteSpaceTree(txCtx, id); err != nil {
 			return err
 		}
-
-		for _, node := range nodes {
-			if err := s.softDeleteNodeAndDescendants(txCtx, node, userID); err != nil {
-				return err
-			}
-		}
-
+		// 写一条空间回收站记录（恢复时按空间整体还原）
 		if err := s.MoveToTrash(txCtx, model.TrashTypeSpace, id, id, space.Name, userID); err != nil {
 			return err
 		}
-
 		return s.repo.DeleteSpace(txCtx, id)
 	})
-}
-
-// softDeleteNodeAndDescendants 级联软删节点及其所有后代（含关联文档）
-func (s *wikiService) softDeleteNodeAndDescendants(ctx context.Context, node *model.WikiNode, userID string) error {
-	children, err := s.repo.ListChildNodes(ctx, node.ID)
-	if err != nil {
-		return err
-	}
-
-	for _, child := range children {
-		if err := s.softDeleteNodeAndDescendants(ctx, child, userID); err != nil {
-			return err
-		}
-	}
-
-	if node.Type == model.NodeTypeDocument {
-		doc, err := s.repo.GetDocumentByNodeID(ctx, node.ID)
-		if err != nil && err != repository.ErrDocumentNotFound {
-			return err
-		}
-		if doc != nil {
-			if err := s.MoveToTrash(ctx, model.TrashTypeDocument, doc.ID, node.SpaceID, node.Title, userID); err != nil {
-				return err
-			}
-			if err := s.repo.DeleteDocument(ctx, doc.ID); err != nil {
-				return err
-			}
-		}
-	}
-
-	if err := s.MoveToTrash(ctx, model.TrashTypeNode, node.ID, node.SpaceID, node.Title, userID); err != nil {
-		return err
-	}
-
-	return s.repo.DeleteNode(ctx, node.ID)
 }
 
 // buildSpaceResp 构建 Space 响应结构（包含成员数、节点数、当前用户角色）

@@ -116,7 +116,8 @@ func TestListMembers_ReturnsMembers(t *testing.T) {
 	assert.Len(t, members, 2)
 }
 
-// TestDeleteSpace_CascadesSoftDeleteToNodesAndDocuments 验证删除 Space 时级联软删其下所有节点和文档。
+// TestDeleteSpace_CascadesSoftDeleteToNodesAndDocuments 验证删除 Space 时通过批量级联软删整棵子树，
+// 并仅生成一条空间回收站记录（不再为子节点/文档各自生成回收站条目）。
 func TestDeleteSpace_CascadesSoftDeleteToNodesAndDocuments(t *testing.T) {
 	txManager, mock := newTxManager(t)
 	repo := repository.NewMockWikiRepository()
@@ -127,23 +128,6 @@ func TestDeleteSpace_CascadesSoftDeleteToNodesAndDocuments(t *testing.T) {
 		Role:    model.SpaceRoleOwner,
 	}))
 
-	// 注入节点和文档数据
-	repo.ListNodesBySpaceFn = func(ctx context.Context, spaceID string) ([]*model.WikiNode, error) {
-		return []*model.WikiNode{
-			{ID: "node-1", SpaceID: "space-1", Type: model.NodeTypeDocument, Title: "文档节点"},
-			{ID: "node-2", SpaceID: "space-1", Type: model.NodeTypeFolder, Title: "文件夹节点"},
-		}, nil
-	}
-	repo.ListChildNodesFn = func(ctx context.Context, parentID string) ([]*model.WikiNode, error) {
-		return nil, nil
-	}
-	repo.GetDocumentByNodeIDFn = func(ctx context.Context, nodeID string) (*model.Document, error) {
-		if nodeID == "node-1" {
-			return &model.Document{ID: "doc-1", NodeID: "node-1"}, nil
-		}
-		return nil, repository.ErrDocumentNotFound
-	}
-
 	// 设置事务 mock 期望
 	mock.ExpectBegin()
 	mock.ExpectCommit()
@@ -152,9 +136,10 @@ func TestDeleteSpace_CascadesSoftDeleteToNodesAndDocuments(t *testing.T) {
 	err := svc.DeleteSpace(serviceCtx("tenant-1"), "space-1", "tenant-1")
 
 	assert.NoError(t, err)
-	assert.Equal(t, 2, repo.DeleteNodeCalls, "应调用 DeleteNode 两次（两个节点）")
-	assert.Equal(t, 1, repo.DeleteDocumentCalls, "应调用 DeleteDocument 一次（仅文档节点有关联文档）")
-	assert.GreaterOrEqual(t, repo.CreateTrashItemCalls, 3, "应创建至少 3 条回收站记录（空间+2节点+1文档）")
+	assert.Equal(t, 1, repo.SoftDeleteSpaceTreeCalls, "应调用一次批量级联软删")
+	assert.Equal(t, 0, repo.DeleteNodeCalls, "不应再逐节点删除")
+	assert.Equal(t, 0, repo.DeleteDocumentCalls, "不应再逐文档删除")
+	assert.Equal(t, 1, repo.CreateTrashItemCalls, "仅生成一条空间回收站记录")
 }
 
 // TestDeleteSpace_RollbackOnError 验证级联删除中途失败时整体回滚。
@@ -168,18 +153,7 @@ func TestDeleteSpace_RollbackOnError(t *testing.T) {
 		Role:    model.SpaceRoleOwner,
 	}))
 
-	repo.ListNodesBySpaceFn = func(ctx context.Context, spaceID string) ([]*model.WikiNode, error) {
-		return []*model.WikiNode{
-			{ID: "node-1", SpaceID: "space-1", Type: model.NodeTypeDocument, Title: "文档"},
-		}, nil
-	}
-	repo.ListChildNodesFn = func(ctx context.Context, parentID string) ([]*model.WikiNode, error) {
-		return nil, nil
-	}
-	repo.GetDocumentByNodeIDFn = func(ctx context.Context, nodeID string) (*model.Document, error) {
-		return &model.Document{ID: "doc-1", NodeID: "node-1"}, nil
-	}
-	repo.DeleteDocumentErr = errors.New("数据库错误")
+	repo.SoftDeleteSpaceTreeErr = errors.New("数据库错误")
 
 	// 设置事务 mock 期望：开始事务后回滚
 	mock.ExpectBegin()

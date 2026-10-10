@@ -80,6 +80,9 @@ type WikiRepository interface {
 	RestoreSpace(ctx context.Context, id string) error
 	RestoreNodeTree(ctx context.Context, id string) error
 
+	// SoftDeleteSpaceTree 批量软删空间下全部节点与文档（不写子级回收站，避免回收站膨胀）
+	SoftDeleteSpaceTree(ctx context.Context, spaceID string) error
+
 	// 回收站实体物理清除：连同关联数据与 trash 记录一并删除
 	PurgeDocument(ctx context.Context, id string) error
 	PurgeNodeTree(ctx context.Context, id string) error
@@ -633,9 +636,55 @@ func (r *wikiRepository) RestoreDocument(ctx context.Context, id string) error {
 	return nil
 }
 
-// RestoreSpace 恢复被软删的空间
+// SoftDeleteSpaceTree 批量软删空间下全部节点与文档（不写子级回收站，避免回收站膨胀）。
+// 文档通过其所属节点归属空间进行过滤；节点与文档均按租户隔离。
+func (r *wikiRepository) SoftDeleteSpaceTree(ctx context.Context, spaceID string) error {
+	db := r.getDB(ctx)
+	tenantID := tenantctx.TenantID(ctx)
+
+	// 文档：所属节点在空间内
+	if err := db.Model(&model.Document{}).
+		Where("tenant_id = ? AND node_id IN (SELECT id FROM wiki_nodes WHERE space_id = ? AND tenant_id = ?)",
+			tenantID, spaceID, tenantID).
+		Delete(&model.Document{}).Error; err != nil {
+		return err
+	}
+	// 节点
+	if err := db.Model(&model.WikiNode{}).
+		Where("tenant_id = ? AND space_id = ?", tenantID, spaceID).
+		Delete(&model.WikiNode{}).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// RestoreSpace 恢复被软删的空间，并级联恢复其下整棵子树（节点与文档）。
+// 同时清理该空间下可能残留的子节点/文档回收站记录（整库恢复后这些条目已无意义）。
 func (r *wikiRepository) RestoreSpace(ctx context.Context, id string) error {
-	res := r.getDB(ctx).Unscoped().Model(&model.WikiSpace{}).Where("id = ?", id).Update("deleted_at", nil)
+	db := r.getDB(ctx)
+	tenantID := tenantctx.TenantID(ctx)
+
+	// 文档：所属节点在空间内
+	if err := db.Unscoped().Model(&model.Document{}).
+		Where("tenant_id = ? AND node_id IN (SELECT id FROM wiki_nodes WHERE space_id = ? AND tenant_id = ?)",
+			tenantID, id, tenantID).
+		Update("deleted_at", nil).Error; err != nil {
+		return err
+	}
+	// 节点
+	if err := db.Unscoped().Model(&model.WikiNode{}).
+		Where("tenant_id = ? AND space_id = ?", tenantID, id).
+		Update("deleted_at", nil).Error; err != nil {
+		return err
+	}
+	// 清理残留的子级回收站记录（仅保留空间自身一条）
+	if err := db.Where("space_id = ? AND item_type IN ?", id,
+		[]string{model.TrashTypeNode, model.TrashTypeDocument}).
+		Delete(&model.TrashItem{}).Error; err != nil {
+		return err
+	}
+
+	res := db.Unscoped().Model(&model.WikiSpace{}).Where("id = ?", id).Update("deleted_at", nil)
 	if res.Error != nil {
 		return res.Error
 	}

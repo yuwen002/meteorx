@@ -1,7 +1,11 @@
 // Package model 定义 Wiki 模块的领域模型，包括空间、节点、文档、版本和权限实体。
 package model
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 // WikiSpace Wiki 知识空间领域模型，是文档树的顶层容器。
 type WikiSpace struct {
@@ -14,7 +18,7 @@ type WikiSpace struct {
 	CreatedBy   string    `gorm:"index;size:26"`
 	CreatedAt   time.Time `gorm:"index"`
 	UpdatedAt   time.Time
-	DeletedAt   *time.Time `gorm:"index"`
+	DeletedAt   gorm.DeletedAt `gorm:"index"`
 }
 
 const (
@@ -42,7 +46,7 @@ type WikiNode struct {
 	Status    int       `gorm:"not null;default:1"`
 	CreatedAt time.Time `gorm:"index"`
 	UpdatedAt time.Time
-	DeletedAt *time.Time `gorm:"index"`
+	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
 const (
@@ -76,7 +80,7 @@ type Document struct {
 	ReviewedAt    *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
-	DeletedAt     *time.Time
+	DeletedAt     gorm.DeletedAt
 }
 
 const (

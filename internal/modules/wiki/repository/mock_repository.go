@@ -22,18 +22,20 @@ type MockWikiRepository struct {
 	GetNodeFn func(ctx context.Context, id string) (*model.WikiNode, error)
 
 	// 删除行为注入
-	DeleteDocumentErr               error // 非 nil 时 DeleteDocument 返回该错误
-	DeleteDocumentCalls             int   // 记录 DeleteDocument 被调用的次数
-	DeleteNodeCalls                 int   // 记录 DeleteNode 被调用的次数
-	DeleteAttachmentsByDocumentCalls int  // 记录 DeleteAttachmentsByDocument 被调用的次数
+	DeleteDocumentErr                error // 非 nil 时 DeleteDocument 返回该错误
+	DeleteDocumentCalls              int   // 记录 DeleteDocument 被调用的次数
+	DeleteNodeCalls                  int   // 记录 DeleteNode 被调用的次数
+	DeleteAttachmentsByDocumentCalls int   // 记录 DeleteAttachmentsByDocument 被调用的次数
+	SoftDeleteSpaceTreeErr           error // 非 nil 时 SoftDeleteSpaceTree 返回该错误
+	SoftDeleteSpaceTreeCalls         int   // 记录 SoftDeleteSpaceTree 被调用的次数
 
 	// 回收站行为注入
-	GetTrashItemErr      error   // 非 nil 时 GetTrashItem 优先返回该错误
-	RestoreErr           error   // 非 nil 时 RestoreSpace/RestoreDocument/RestoreNodeTree 返回该错误
-	PurgeErr             error   // 非 nil 时 PurgeSpaceTree/PurgeDocument/PurgeNodeTree 返回该错误
-	DeleteTrashItemErr   error   // 非 nil 时 DeleteTrashItem 返回该错误
-	DeleteTrashItemCalls int     // 记录 DeleteTrashItem 被调用的次数
-	CreateTrashItemCalls int     // 记录 CreateTrashItem 被调用的次数
+	GetTrashItemErr      error            // 非 nil 时 GetTrashItem 优先返回该错误
+	RestoreErr           error            // 非 nil 时 RestoreSpace/RestoreDocument/RestoreNodeTree 返回该错误
+	PurgeErr             error            // 非 nil 时 PurgeSpaceTree/PurgeDocument/PurgeNodeTree 返回该错误
+	DeleteTrashItemErr   error            // 非 nil 时 DeleteTrashItem 返回该错误
+	DeleteTrashItemCalls int              // 记录 DeleteTrashItem 被调用的次数
+	CreateTrashItemCalls int              // 记录 CreateTrashItem 被调用的次数
 	LastCreatedTrash     *model.TrashItem // 最近一次 CreateTrashItem 写入的项目
 
 	// 查询函数注入
@@ -41,7 +43,7 @@ type MockWikiRepository struct {
 	ListChildNodesFn      func(ctx context.Context, parentID string) ([]*model.WikiNode, error)
 	GetDocumentByNodeIDFn func(ctx context.Context, nodeID string) (*model.Document, error)
 	// SearchNodesByTitleFn 可注入，覆盖 SearchNodesByTitle 默认行为（返回 nil, nil）
-	SearchNodesByTitleFn      func(ctx context.Context, tenantID, spaceID, query string) ([]*model.WikiNode, error)
+	SearchNodesByTitleFn func(ctx context.Context, tenantID, spaceID, query string) ([]*model.WikiNode, error)
 	// SearchDocumentsByContentFn 可注入，覆盖 SearchDocumentsByContent 默认行为（返回 nil, nil）
 	SearchDocumentsByContentFn func(ctx context.Context, tenantID, spaceID, query string) ([]*model.Document, error)
 
@@ -97,6 +99,11 @@ func (m *MockWikiRepository) UpdateSpace(ctx context.Context, space *model.WikiS
 func (m *MockWikiRepository) DeleteSpace(ctx context.Context, id string) error {
 	delete(m.spaces, id)
 	return nil
+}
+
+func (m *MockWikiRepository) SoftDeleteSpaceTree(ctx context.Context, spaceID string) error {
+	m.SoftDeleteSpaceTreeCalls++
+	return m.SoftDeleteSpaceTreeErr
 }
 
 func (m *MockWikiRepository) CreateNode(ctx context.Context, node *model.WikiNode) error {
