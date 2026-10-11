@@ -2,12 +2,14 @@ package wiki
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
 	dbpkg "meteorx/internal/pkg/db"
 	"meteorx/internal/modules/wiki/repository"
 	"meteorx/internal/modules/wiki/service"
+	"meteorx/internal/notify"
 
 	"gorm.io/gorm"
 )
@@ -59,7 +61,15 @@ func (j *WikiTrashExpiryJob) RunOnce(ctx context.Context) (int, error) {
 	start := time.Now()
 	n, err := j.runOnce(ctx)
 	if err != nil {
-		j.logger.Printf("[WikiTrashExpiryJob] 过期清理失败 (耗时 %s): %v", time.Since(start), err)
+		dur := time.Since(start)
+		j.logger.Printf("[WikiTrashExpiryJob] 过期清理失败 (耗时 %s): %v", dur, err)
+		// 接入真实告警通道：若已初始化全局通知管理器，则推送高优先级运维告警；
+		// 未配置任何渠道（email/webhook/ws）时为 no-op，不影响定时任务主流程。
+		if gm := notify.GetGlobalManager(); gm != nil {
+			gm.NotifyAlert(ctx, "回收站过期清理失败",
+				fmt.Sprintf("Wiki 回收站过期清理定时任务执行失败（耗时 %s）：%v", dur, err),
+				notify.PriorityHigh, nil)
+		}
 		return n, err
 	}
 	if n > 0 {

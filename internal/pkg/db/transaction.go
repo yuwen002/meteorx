@@ -26,12 +26,17 @@ func (m *TxManager) DB() *gorm.DB {
 // WithTx 在一个事务内执行 fn，并将 tx 存入上下文供下游仓库复用。
 func (m *TxManager) WithTx(ctx context.Context, fn func(ctx context.Context, tx *gorm.DB) error) error {
 	return m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		txCtx := context.WithValue(ctx, txKey{}, tx)
-		return fn(txCtx, tx)
+		return fn(CtxWithTx(ctx, tx), tx)
 	})
 }
 
 type txKey struct{}
+
+// CtxWithTx 将事务 DB 存入上下文，使基于 GetDB 的仓库方法自动加入该事务。
+// 供不持有 TxManager 的组件（如仓储内部自行分批开事务）复用同一事务传递机制。
+func CtxWithTx(ctx context.Context, tx *gorm.DB) context.Context {
+	return context.WithValue(ctx, txKey{}, tx)
+}
 
 // GetTx 从上下文读取事务 DB，不存在时返回 nil。
 func GetTx(ctx context.Context) *gorm.DB {

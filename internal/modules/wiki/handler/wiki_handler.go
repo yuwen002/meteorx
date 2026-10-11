@@ -2,9 +2,12 @@
 package handler
 
 import (
+	"encoding/json"
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
+	"meteorx/internal/middleware"
+	"meteorx/internal/modules/audit/model"
 	"meteorx/internal/modules/wiki/dto"
 	"meteorx/internal/modules/wiki/service"
 	"meteorx/pkg/pagination"
@@ -572,10 +575,40 @@ func (h *WikiHandler) PermanentDeleteTrashItem(w http.ResponseWriter, r *http.Re
 func (h *WikiHandler) TriggerTrashExpiry(w http.ResponseWriter, r *http.Request) {
 	n, err := h.svc.ExpireTrashItems(r.Context())
 	if err != nil {
+		// 显式审计：记录手动触发失败（含错误信息），与中间件通用 HTTP 审计互补。
+		h.recordTrashExpiryAudit(r, model.ResultFailure, model.RiskHigh, "", err.Error())
 		response.FailError(w, err)
 		return
 	}
+	// 显式审计：记录手动触发成功，响应体携带本次清理数量（业务语义化的操作日志）。
+	body, _ := json.Marshal(map[string]interface{}{"purged": n})
+	h.recordTrashExpiryAudit(r, model.ResultSuccess, model.RiskMedium, string(body), "")
 	response.Success(w, map[string]interface{}{"purged": n})
+}
+
+// recordTrashExpiryAudit 为「手动触发回收站过期清理」写入一条业务审计日志。
+// 复用中间件提供的全局批量审计处理器（无则为直接写入），无需在 handler 注入 AuditService。
+// 失败/成功均记入，与中间件对原始 HTTP 请求的通用审计互补。
+func (h *WikiHandler) recordTrashExpiryAudit(r *http.Request, result, riskLevel, respBody, errMsg string) {
+	userID := contextx.GetUserID(r.Context())
+	username := userID
+	if username == "" {
+		username = "anonymous"
+	}
+	req := middleware.NewAuditLogReq(r)
+	req.UserID = userID
+	req.Username = username
+	req.TenantID = contextx.GetTenantID(r.Context())
+	req.Module = "wiki"
+	req.Action = "trash_expire"
+	req.Resource = "wiki_trash"
+	req.Result = result
+	req.RiskLevel = riskLevel
+	req.RequestID = contextx.GetRequestID(r.Context())
+	req.TraceID = contextx.GetTraceID(r.Context())
+	req.ResponseBody = respBody
+	req.ErrorMessage = errMsg
+	middleware.RecordAuditLog(r.Context(), &req)
 }
 
 // Search 搜索 Wiki（标题 + 内容，自动过滤无权限内容）

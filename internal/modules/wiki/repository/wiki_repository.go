@@ -4,6 +4,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"meteorx/internal/common/tenantctx"
@@ -73,7 +74,7 @@ type WikiRepository interface {
 	ListTrashItems(ctx context.Context, tenantID string, spaceID string, itemType string, page, pageSize int) ([]*model.TrashItem, int64, error)
 	GetTrashItem(ctx context.Context, id string) (*model.TrashItem, error)
 	DeleteTrashItem(ctx context.Context, id string) error
-	ExpireTrashItems(ctx context.Context) (int, error)
+	ExpireTrashItems(ctx context.Context, limit int) (int, error)
 
 	// 回收站实体恢复：将软删数据（deleted_at 置空）真实还原
 	RestoreDocument(ctx context.Context, id string) error
@@ -596,34 +597,47 @@ func (r *wikiRepository) DeleteTrashItem(ctx context.Context, id string) error {
 }
 
 // ExpireTrashItems 清理过期的回收站项目：同时物理清除对应软删实体，避免数据永久残留。
-// 返回本次清理的回收站项目数量。
-func (r *wikiRepository) ExpireTrashItems(ctx context.Context) (int, error) {
-	db := r.getDB(ctx)
+// 单轮最多处理 limit 条（按 expires_at 升序），返回值等于 limit 时表示仍有积压待下轮处理。
+// 每个条目单独事务（多表级联物理删除 + 回收站行清理原子提交），
+// 单条失败仅回滚该条目并保留回收站记录下轮重试，不中断其余条目；
+// 返回本轮成功清理数量与首个条目错误（供调用方感知异常，其余条目已正常处理）。
+func (r *wikiRepository) ExpireTrashItems(ctx context.Context, limit int) (int, error) {
 	var items []model.TrashItem
-	if err := db.Where("expires_at < ?", time.Now()).Find(&items).Error; err != nil {
+	if err := r.getDB(ctx).Where("expires_at < ?", time.Now()).
+		Order("expires_at ASC").Limit(limit).Find(&items).Error; err != nil {
 		return 0, err
 	}
+	purged := 0
+	var firstErr error
 	for _, item := range items {
-		switch item.ItemType {
-		case model.TrashTypeDocument:
-			if err := r.PurgeDocument(ctx, item.ItemID); err != nil {
-				return 0, err
+		err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			txCtx := db.CtxWithTx(ctx, tx)
+			switch item.ItemType {
+			case model.TrashTypeDocument:
+				if err := r.PurgeDocument(txCtx, item.ItemID); err != nil {
+					return err
+				}
+			case model.TrashTypeNode:
+				if err := r.PurgeNodeTree(txCtx, item.ItemID); err != nil {
+					return err
+				}
+			case model.TrashTypeSpace:
+				if err := r.PurgeSpaceTree(txCtx, item.ItemID); err != nil {
+					return err
+				}
 			}
-		case model.TrashTypeNode:
-			if err := r.PurgeNodeTree(ctx, item.ItemID); err != nil {
-				return 0, err
+			// 无论目标实体是否存在，均清理该回收站条目自身，避免实体已缺失时遗留僵尸记录
+			return r.DeleteTrashItem(txCtx, item.ID)
+		})
+		if err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("清理回收站条目 %s(%s/%s) 失败: %w", item.ID, item.ItemType, item.ItemID, err)
 			}
-		case model.TrashTypeSpace:
-			if err := r.PurgeSpaceTree(ctx, item.ItemID); err != nil {
-				return 0, err
-			}
+			continue
 		}
-		// 无论目标实体是否存在，均清理该回收站条目自身，避免实体已缺失时遗留僵尸记录
-		if err := db.Where("id = ?", item.ID).Delete(&model.TrashItem{}).Error; err != nil {
-			return 0, err
-		}
+		purged++
 	}
-	return len(items), nil
+	return purged, firstErr
 }
 
 // ===================== 回收站实体恢复 =====================
@@ -776,8 +790,11 @@ func (r *wikiRepository) PurgeDocument(ctx context.Context, id string) error {
 	if err := r.purgeDocumentCascade(ctx, id); err != nil {
 		return err
 	}
-	// 文档可能已不存在（best-effort 物理清除，不依赖其存在）
-	db.Unscoped().Where("id = ?", id).Delete(&model.Document{})
+	// 文档可能已不存在（RowsAffected==0 视为已清理，幂等）；但真实 DB 错误必须上抛，
+	// 否则会误删回收站记录使软删实体成为无人可发现的孤儿数据
+	if res := db.Unscoped().Where("id = ?", id).Delete(&model.Document{}); res.Error != nil {
+		return res.Error
+	}
 	// 无论文档是否存在，均清理其回收站记录，避免僵尸数据
 	return db.Where("item_id = ? AND item_type = ?", id, model.TrashTypeDocument).Delete(&model.TrashItem{}).Error
 }
@@ -877,8 +894,11 @@ func (r *wikiRepository) PurgeSpaceTree(ctx context.Context, id string) error {
 	if err := r.deleteTrashFor(ctx, nodeIDs, docIDs); err != nil {
 		return err
 	}
-	// 空间可能已不存在（best-effort 物理清除）
-	db.Unscoped().Where("id = ?", id).Delete(&model.WikiSpace{})
+	// 空间可能已不存在（RowsAffected==0 视为已清理，幂等）；真实 DB 错误必须上抛，
+	// 避免丢失唯一清理入口后形成永久残留的孤儿数据
+	if res := db.Unscoped().Where("id = ?", id).Delete(&model.WikiSpace{}); res.Error != nil {
+		return res.Error
+	}
 	// 无论空间是否存在，均清理其回收站记录，避免僵尸数据
 	return db.Where("item_id = ? AND item_type = ?", id, model.TrashTypeSpace).Delete(&model.TrashItem{}).Error
 }

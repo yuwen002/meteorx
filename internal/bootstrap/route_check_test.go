@@ -167,6 +167,7 @@ func registerWikiRoutes(r chi.Router) {
 		r.Get("/trash", noopHandler())
 		r.Post("/trash/{id}/restore", noopHandler())
 		r.Delete("/trash/{id}", noopHandler())
+		r.Post("/admin/trash/expire", noopHandler())
 
 		r.Route("/spaces", func(r chi.Router) {
 			r.Get("/", noopHandler())

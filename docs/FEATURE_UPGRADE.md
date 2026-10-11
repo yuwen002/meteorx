@@ -891,12 +891,49 @@ client:
 - `web-admin/src/views/wiki/trash.vue` 头部「刷新」旁新增「清理过期」按钮（`type=warning`），通过 `v-if="isSuperAdmin"` 限定仅 `userStore.isAdmin`（即 `is_master` 超级管理员）可见；点击二次确认后调用，按清理数量反馈（>0 成功提示，否则提示无过期项），并刷新列表。
 - 与后端 `RequiresMasterAdmin()` 保护一致：非超级管理员在 UI 上直接看不到该入口。
 
-### 19.5 验证状态
+### 19.5 失败告警接入真实通道
+- `expiry_job.go` 的 `RunOnce` 在清理失败时，除保留 `logger.Printf` 日志外，额外通过 `notify.GetGlobalManager().NotifyAlert(...)` 推送**高优先级运维告警**（`ruleName="回收站过期清理失败"`、含耗时与错误详情）。
+- 复用平台统一的 `notify.Manager`（email / webhook / WebSocket 渠道），未配置任何渠道时为 no-op，不阻塞定时任务主流程——即「有渠道才真正告警，无渠道仅留日志」。
+
+### 19.6 手动触发写审计/操作日志
+- `WikiHandler.TriggerTrashExpiry` 在成功/失败时均通过 `middleware.RecordAuditLog`（全局批量审计处理器，无则直写）写入一条业务审计日志：`module=wiki`、`action=trash_expire`、`resource=wiki_trash`、成功 `RiskLevel=medium` / 失败 `RiskLevel=high`，成功时响应体携带清理数量 `{"purged": N}`、失败时记录 `error_message`。
+- 与中间件对原始 HTTP 请求的通用审计互补：通用审计记录「谁、何时、什么路径」，本条目额外记录「业务动作与清理结果」，便于在审计台按 `trash_expire` 动作过滤运维操作。
+
+### 19.7 路由冒烟测试镜像
+- `internal/bootstrap/route_check_test.go` 的 `registerWikiRoutes` 镜像补充 `POST /wiki/admin/trash/expire`，使 `TestAllRoutes_DerivePermissionCode` 覆盖该端点（推导权限码 `wiki:create`）。
+
+### 19.8 验证状态
 - ✅ `go build ./...` 通过
 - ✅ `go vet ./internal/modules/wiki/... ./internal/bootstrap/...` 通过
-- ✅ `go test ./internal/modules/wiki/...` 全量通过
+- ✅ `go test ./internal/modules/wiki/... ./internal/bootstrap/...` 全量通过
   - 新增 `TestIntegration_PurgeDocument_CleansTrashWhenEntityMissing` / `TestIntegration_PurgeSpaceTree_CleansTrashWhenEntityMissing`（#2 幂等清理）
   - 更新 `TestWikiTrashExpiryJob_RunOnce` / `TestWikiTrashExpiryJob_StartStopsWithContext` 断言清理计数
   - 新增 `TestTriggerTrashExpiry`（superadmin 放行 + 非管理员 403 + 计数透传）
   - 新增/更新 `TestNotifySubscribers`（评论/编辑订阅通知）
+  - `TestAllRoutes_DerivePermissionCode` 覆盖新增运维端点（权限码 `wiki:create`）
 - ✅ 前端 `vue-tsc --noEmit` 对 `wiki.ts` / `trash.vue` 无类型错误
+
+---
+
+## 二十、代码评审问题修复（清理链路与通知装配）
+
+针对 HEAD 提交评审发现的 1 个 Critical + 3 个 Major 问题逐项修复。
+
+### 20.1 文档编辑订阅通知装配修复（Critical）
+- 问题：`notifySubscribers` 依赖 `WikiRepositoryExtended` 类型断言，而 `module.go` 主服务注入的是 `NewWikiRepository` 基础实现（不实现扩展接口），生产环境下编辑通知静默失效。
+- 修复：`module.go` 统一改用 `NewWikiRepositoryExtended`（继承 `WikiRepository`）同时装配主服务与扩展服务；`notifySubscribers` 断言失败分支补 `log` 告警，同类装配错误不再静默。
+- 回归测试：`TestNotifyDocumentEdited_BaseService` 按模块装配方式（`NewWikiService` + 扩展仓储）验证编辑通知真实送达订阅者。
+
+### 20.2 评论 @提及去重实现（Major）
+- 问题：`CreateComment` 中 `mentioned` 集合收集后从未被消费，既被 @ 又是订阅者的用户收到 `mention` + `comment` 两条重复通知。
+- 修复：`notifySubscribers` 参数由单一 `excludeUserID` 改为排除集合 `map[string]struct{}`；评论事件传入「作者 + 全部被 @ 者」，编辑事件传入「编辑者」。
+- 回归测试：`TestNotifySubscribers_MentionDedup`。
+
+### 20.3 Purge* 幂等口径修正（Major）
+- 问题：幂等化后 `PurgeDocument` / `PurgeSpaceTree` 丢弃了物理删除的 `res.Error`，将「记录不存在（幂等成立）」与「真实 DB 报错」合并处理；后者发生时仍删除回收站记录并返回 nil，软删实体失去唯一清理入口成为永久残留的孤儿数据，且日志误报成功。
+- 修复：`RowsAffected == 0` 视为已清理（保持幂等），但 `res.Error != nil` 必须上抛，交由外层事务回滚保留回收站记录下轮重试。
+
+### 20.4 过期清理事务化 / 分批 / 互斥（Major）
+- 仓储层 `ExpireTrashItems(ctx, limit)`：新增单轮上限（按 `expires_at` 升序取批）；每个条目单独开启事务（级联物理清除 + 回收站行原子提交），单条失败仅回滚该条目、不中断其余条目，返回「成功数 + 首个错误」。`db` 包新增 `CtxWithTx` 供仓储内部事务复用上下文传递机制。
+- 服务层 `ExpireTrashItems`：循环分批直至排空积压（每批 200 条）；进程内 `sync.Mutex.TryLock` 互斥，定时任务与运维端点并发触发时后到者跳过并记日志；上下文被取消（如 HTTP 客户端超时断开）时安全停止，条目级事务保证不会留下半删数据。
+- 集成测试：`TestIntegration_ExpireTrashItems_Limit`（分批上限与顺序）、`TestIntegration_ExpireTrashItems_FailureIsolation`（DROP 版本表模拟真实 DB 错误，验证失败条目保留/成功条目不受影响）。

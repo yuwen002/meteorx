@@ -298,7 +298,7 @@ func (m *MockWikiRepository) DeleteTrashItem(ctx context.Context, id string) err
 	return m.DeleteTrashItemErr
 }
 
-func (m *MockWikiRepository) ExpireTrashItems(ctx context.Context) (int, error) {
+func (m *MockWikiRepository) ExpireTrashItems(ctx context.Context, limit int) (int, error) {
 	return 0, nil
 }
 

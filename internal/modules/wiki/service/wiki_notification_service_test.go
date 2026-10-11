@@ -96,8 +96,8 @@ func TestNotifySubscribers(t *testing.T) {
 	require.NoError(t, db.Create(&model.DocumentSubscription{ID: "sub-2", DocumentID: doc.ID, TenantID: "tenant-1", NodeID: "node-1", UserID: "commenter", NotifyType: model.NotifyTypeComment}).Error)
 	require.NoError(t, db.Create(&model.DocumentSubscription{ID: "sub-3", DocumentID: doc.ID, TenantID: "tenant-1", NodeID: "node-1", UserID: "editor2", NotifyType: model.NotifyTypeEdit}).Error)
 
-	// 评论事件：应通知 subAll 与 commenter，不通知 editor2；作者 owner 排除
-	svc.notifySubscribers(ctx, doc.ID, "owner", model.NotifyTypeComment, model.NotificationTypeComment, "你订阅的文档有新评论", "评论内容", "comment-1", "comment")
+	// 评论事件：应通知 subAll 与 commenter，不通知 editor2；作者 owner 与已被 @ 的 subAll 均在排除集
+	svc.notifySubscribers(ctx, doc.ID, map[string]struct{}{"owner": {}}, model.NotifyTypeComment, model.NotificationTypeComment, "你订阅的文档有新评论", "评论内容", "comment-1", "comment")
 
 	subAllNotifs, _, err := extRepo.ListNotifications(ctx, "subAll", 1, 10)
 	require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestNotifySubscribers(t *testing.T) {
 	assert.Empty(t, authorNotifs, "作者本人应被排除")
 
 	// 编辑事件：应通知 subAll 与 editor2，不通知 commenter
-	svc.notifySubscribers(ctx, doc.ID, "owner", model.NotifyTypeEdit, model.NotificationTypeEdit, "你订阅的文档有更新", "文档标题", doc.ID, "document")
+	svc.notifySubscribers(ctx, doc.ID, map[string]struct{}{"owner": {}}, model.NotifyTypeEdit, model.NotificationTypeEdit, "你订阅的文档有更新", "文档标题", doc.ID, "document")
 
 	editor2Notifs, _, _ := extRepo.ListNotifications(ctx, "editor2", 1, 10)
 	require.Len(t, editor2Notifs, 1, "edit-only 订阅者应收到编辑通知")
@@ -123,4 +123,36 @@ func TestNotifySubscribers(t *testing.T) {
 
 	commenterEditNotifs, _, _ := extRepo.ListNotifications(ctx, "commenter", 1, 10)
 	assert.Len(t, commenterEditNotifs, 1, "commenter 在编辑事件中不应新增通知（仍只有之前的评论通知）")
+}
+
+// TestNotifySubscribers_MentionDedup 验证 @提及去重：既被 @ 又是订阅者的用户，
+// 在评论订阅通知中应被排除（已单独收到 mention 通知，不重复打扰）。
+func TestNotifySubscribers_MentionDedup(t *testing.T) {
+	svc, extRepo, db, ctx, doc, _ := setupNotificationTest(t)
+	require.NoError(t, db.Create(&model.DocumentSubscription{ID: "sub-1", DocumentID: doc.ID, TenantID: "tenant-1", NodeID: "node-1", UserID: "subAll", NotifyType: model.NotifyTypeAll}).Error)
+
+	// 模拟 CreateComment 的排除集：评论作者 owner + 被 @ 者 subAll
+	exclude := map[string]struct{}{"owner": {}, "subAll": {}}
+	svc.notifySubscribers(ctx, doc.ID, exclude, model.NotifyTypeComment, model.NotificationTypeComment, "你订阅的文档有新评论", "评论内容", "comment-1", "comment")
+
+	notifs, _, err := extRepo.ListNotifications(ctx, "subAll", 1, 10)
+	require.NoError(t, err)
+	assert.Empty(t, notifs, "已被 @ 的订阅者不应重复收到评论订阅通知")
+}
+
+// TestNotifyDocumentEdited_BaseService 验证模块装配契约：主服务（wikiService）注入扩展仓储时，
+// 编辑通知可正常送达订阅者。锁定回归：若退回注入 NewWikiRepository 基础实现，
+// notifySubscribers 断言失败会使生产环境编辑通知静默失效。
+func TestNotifyDocumentEdited_BaseService(t *testing.T) {
+	_, extRepo, db, ctx, doc, _ := setupNotificationTest(t)
+	require.NoError(t, db.Create(&model.DocumentSubscription{ID: "sub-1", DocumentID: doc.ID, TenantID: "tenant-1", NodeID: "node-1", UserID: "subAll", NotifyType: model.NotifyTypeAll}).Error)
+
+	// 与 module.go 主服务装配方式一致：NewWikiService + 扩展仓储
+	baseSvc := NewWikiService(repository.NewWikiRepositoryExtended(db), dbpkg.NewTxManager(db))
+	require.NoError(t, baseSvc.NotifyDocumentEdited(ctx, doc.ID, "editor", "文档标题"))
+
+	notifs, _, err := extRepo.ListNotifications(ctx, "subAll", 1, 10)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1, "扩展仓储装配下编辑通知应送达订阅者")
+	assert.Equal(t, model.NotificationTypeEdit, notifs[0].Type)
 }

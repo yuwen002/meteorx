@@ -22,8 +22,11 @@ func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, cfg *config.Con
 
 // initHandlers 装配 Wiki 模块所有处理器，返回主处理器和扩展处理器。
 func initHandlers(gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config) (*handler.WikiHandler, *handler.WikiHandlerExtended) {
-	repo := repository.NewWikiRepository(gormDB)
-	svc := service.NewWikiService(repo, tx)
+	// 统一使用扩展仓储：它继承 WikiRepository，且额外实现订阅/通知等扩展方法。
+	// 主服务内部 notifySubscribers 依赖 WikiRepositoryExtended 类型断言，
+	// 若注入 NewWikiRepository 的基础实现会使文档编辑通知静默失效。
+	extRepo := repository.NewWikiRepositoryExtended(gormDB)
+	svc := service.NewWikiService(extRepo, tx)
 
 	searchCfg := search.Config{
 		Provider:    cfg.Search.Provider,
@@ -32,7 +35,7 @@ func initHandlers(gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config) (*handl
 		IndexPrefix: cfg.Search.IndexPrefix,
 	}
 	engine := search.NewEngine(searchCfg)
-	indexer := search.NewWikiIndexer(engine, repo, repo)
+	indexer := search.NewWikiIndexer(engine, extRepo, extRepo)
 	svc.SetWikiIndexer(indexer)
 
 	if cfg != nil {
@@ -40,7 +43,6 @@ func initHandlers(gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config) (*handl
 	}
 	h := handler.NewWikiHandler(svc)
 
-	extRepo := repository.NewWikiRepositoryExtended(gormDB)
 	extSvc := service.NewWikiServiceExtended(extRepo, tx)
 	extH := handler.NewWikiHandlerExtended(extSvc)
 

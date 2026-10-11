@@ -3,13 +3,17 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"meteorx/internal/modules/wiki/model"
 
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,10 +27,10 @@ func newSpace(t *testing.T, repo *wikiRepository, ctx context.Context, name stri
 	return sp
 }
 
-// expireOK 调用过期清理并断言无错误（兼容 ExpireTrashItems 返回 (int, error) 的签名）。
+// expireOK 调用过期清理并断言无错误（单轮上限传足量以排空测试数据）。
 func expireOK(t *testing.T, repo *wikiRepository, ctx context.Context) {
 	t.Helper()
-	_, err := repo.ExpireTrashItems(ctx)
+	_, err := repo.ExpireTrashItems(ctx, 1000)
 	require.NoError(t, err)
 }
 
@@ -674,6 +678,92 @@ func TestIntegration_ExpireTrashItems_DanglingItem(t *testing.T) {
 
 	// 缺失实体对应的回收站记录仍应被清理
 	_, err := repo.GetTrashItem(ctx, dangling.ID)
+	assert.Error(t, err)
+}
+
+// TestIntegration_ExpireTrashItems_Limit 验证单轮清理不超过 limit 条（按 expires_at 升序优先），
+// 剩余积压留待下轮，避免大批量场景一次载入全部条目。
+func TestIntegration_ExpireTrashItems_Limit(t *testing.T) {
+	repo, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+	ctx := testCtx("tenant-1", "user-1")
+
+	// 3 条过期时间不同的悬空条目（实体均不存在，可安全清理）
+	for i, off := range []time.Duration{-3 * time.Hour, -2 * time.Hour, -time.Hour} {
+		item := &model.TrashItem{
+			ID:        fmt.Sprintf("trash-limit-%d", i),
+			TenantID:  "tenant-1",
+			ItemType:  model.TrashTypeDocument,
+			ItemID:    fmt.Sprintf("missing-doc-%d", i),
+			SpaceID:   "ghost-space",
+			Title:     "幽灵",
+			DeletedBy: "user-1",
+			ExpiresAt: time.Now().Add(off),
+		}
+		require.NoError(t, repo.CreateTrashItem(ctx, item))
+	}
+
+	purged, err := repo.ExpireTrashItems(ctx, 2)
+	require.NoError(t, err)
+	assert.Equal(t, 2, purged, "单轮应恰好清理 limit 条")
+
+	var remain []model.TrashItem
+	require.NoError(t, repo.db.Where("id LIKE ?", "trash-limit-%").Find(&remain).Error)
+	require.Len(t, remain, 1, "剩余 1 条留待下轮")
+	// expires_at 升序：最晚过期的那条应保留
+	assert.Equal(t, "trash-limit-2", remain[0].ID)
+}
+
+// expireFailSeq 为失败隔离用例分配独立内存库（避免 DropTable 污染共享库的其他用例）。
+var expireFailSeq uint64
+
+// TestIntegration_ExpireTrashItems_FailureIsolation 验证单条清理失败仅回滚该条目并保留回收站记录，
+// 不中断其余条目；函数返回成功数量与首个错误（供调用方感知异常）。
+func TestIntegration_ExpireTrashItems_FailureIsolation(t *testing.T) {
+	// 独立内存库：用例会 DROP 版本表制造真实 DB 错误，不得影响共享库其他用例
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:wiki_expire_fail_%d?mode=memory&cache=shared", atomic.AddUint64(&expireFailSeq, 1))), &gorm.Config{
+		Logger: logger.Discard,
+	})
+	require.NoError(t, err)
+	require.NoError(t, AutoMigrate(db))
+	t.Cleanup(func() {
+		sqlDB, _ := db.DB()
+		if sqlDB != nil {
+			sqlDB.Close()
+		}
+	})
+	repo := &wikiRepository{db: db}
+	ctx := testCtx("tenant-1", "user-1")
+
+	// 条目 1：实体存在但版本表被移除，purge 级联删除必然失败（模拟真实 DB 错误）
+	space := newSpace(t, repo, ctx, "失败隔离空间")
+	node := &model.WikiNode{SpaceID: space.ID, Type: model.NodeTypeDocument, Title: "文档", Sort: 1}
+	require.NoError(t, repo.CreateNode(ctx, node))
+	doc := &model.Document{TenantID: "tenant-1", NodeID: node.ID, Content: "c", Format: "markdown", CurrentVer: 1}
+	require.NoError(t, repo.CreateDocument(ctx, doc))
+	require.NoError(t, repo.DeleteDocument(ctx, doc.ID))
+	broken := &model.TrashItem{TenantID: "tenant-1", ItemType: model.TrashTypeDocument, ItemID: doc.ID, SpaceID: space.ID, Title: "文档", DeletedBy: "user-1", ExpiresAt: time.Now().Add(-2 * time.Hour)}
+	require.NoError(t, repo.CreateTrashItem(ctx, broken))
+
+	// 条目 2：悬空节点条目（实体缺失，幂等可清理，purge 路径不经过已删除的版本表），
+	// 应不受条目 1 失败影响
+	dangling := &model.TrashItem{TenantID: "tenant-1", ItemType: model.TrashTypeNode, ItemID: "ghost-node", SpaceID: "ghost-space", Title: "幽灵节点", DeletedBy: "user-1", ExpiresAt: time.Now().Add(-time.Hour)}
+	require.NoError(t, repo.CreateTrashItem(ctx, dangling))
+
+	require.NoError(t, repo.db.Migrator().DropTable(&model.DocumentRevision{}))
+
+	purged, err := repo.ExpireTrashItems(ctx, 100)
+	assert.Error(t, err, "存在失败条目时应返回错误")
+	assert.Equal(t, 1, purged, "悬空条目仍应被成功清理")
+
+	// 失败条目：事务回滚，文档实体与回收站记录均保留，等待下轮重试
+	_, err = repo.GetTrashItem(ctx, broken.ID)
+	assert.NoError(t, err, "清理失败的条目不应丢失回收站记录")
+	var d model.Document
+	assert.NoError(t, repo.db.Unscoped().Where("id = ?", doc.ID).First(&d).Error, "失败条目事务应回滚，文档未被删除")
+
+	// 成功条目：回收站记录已移除
+	_, err = repo.GetTrashItem(ctx, dangling.ID)
 	assert.Error(t, err)
 }
 

@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
+	"sync"
 	"time"
 
 	"meteorx/internal/common/contextx"
@@ -13,6 +15,15 @@ import (
 
 	"gorm.io/gorm"
 )
+
+// expireBatchSize 过期清理单轮扫描上限：避免积压场景下一次载入并串行清除全部条目
+// 导致 HTTP 手动触发入口超时（前端 axios 15s）后在级联中途被 context 取消。
+const expireBatchSize = 200
+
+// expireTrashMu 进程内互斥：定时任务与手动运维端点（或多入口并发）同时触发时，
+// 后到者直接跳过，避免重复扫描与交叉清除。
+// 注：多副本部署时需各副本各自调度，重复执行由条目级事务与幂等 purge 保障安全。
+var expireTrashMu sync.Mutex
 
 // ListTrashItems 列出回收站项目（分页，支持 Space 和类型过滤）
 func (s *wikiService) ListTrashItems(ctx context.Context, tenantID string, spaceID string, itemType string, page, pageSize int) ([]*dto.TrashItemResp, int64, error) {
@@ -79,10 +90,29 @@ func (s *wikiService) RestoreTrashItem(ctx context.Context, id string, userID st
 }
 
 // PermanentDeleteTrashItem 永久删除回收站项目：物理清除实体及其关联数据，避免软删数据永久残留。
-// ExpireTrashItems 清理已过期的回收站项目（定时任务入口，跨租户全局扫描）。
-// 直接委托仓储执行过期物理清除，不依赖调用者租户上下文，返回清理数量。
+// ExpireTrashItems 清理已过期的回收站项目（定时任务/运维端点入口，跨租户全局扫描）。
+// 分批直至排空过期积压（每批 expireBatchSize 条，仓储内逐条事务）；
+// 已有清理在执行时直接跳过（TryLock），不依赖调用者租户上下文，返回清理数量。
 func (s *wikiService) ExpireTrashItems(ctx context.Context) (int, error) {
-	return s.repo.ExpireTrashItems(ctx)
+	if !expireTrashMu.TryLock() {
+		log.Printf("[WikiTrash] 过期清理已有实例在执行，本次跳过")
+		return 0, nil
+	}
+	defer expireTrashMu.Unlock()
+
+	total := 0
+	for {
+		n, err := s.repo.ExpireTrashItems(ctx, expireBatchSize)
+		total += n
+		if err != nil {
+			// 单条失败不阻断已完成的计数，上抛供调用方记录告警；剩余条目留待下轮
+			return total, err
+		}
+		if n < expireBatchSize || ctx.Err() != nil {
+			// 本轮未触及上限即已排空；上下文被取消时同样停止，避免无意义循环
+			return total, nil
+		}
+	}
 }
 
 func (s *wikiService) PermanentDeleteTrashItem(ctx context.Context, id string, userID string) error {
