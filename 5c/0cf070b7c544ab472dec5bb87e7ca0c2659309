@@ -1,0 +1,96 @@
+internal/modules/wiki/service/wiki_trash_service.go
+  s_f00af1d8c88a9e::t_90aeffbfa635e7 83-84
+  s_f00af1d8c88a9e::t_4ca981eb51c324 82,85-87
+internal/modules/wiki/expiry_job.go
+  s_f00af1d8c88a9e::t_334a1de3b21926 43-44,51-52,57-68
+  s_f00af1d8c88a9e::t_bb22e475b32c06 1-42,45-50,53-56,69
+internal/modules/wiki/handler/wiki_handler.go
+  h_a3f313f3d96276 568-580
+  s_f00af1d8c88a9e::t_14c6ba22b884b2 315-316
+internal/bootstrap/app.go
+  s_f00af1d8c88a9e::t_95d5c4253fee84 100-102
+  s_f00af1d8c88a9e::t_cb6647535d3f11 103
+internal/modules/wiki/service/wiki_service.go
+  s_f00af1d8c88a9e::t_7ab8e6b5203fd0 96-97
+  s_f00af1d8c88a9e::t_e8e3a31fc6f6de 50-51
+internal/modules/wiki/service/wiki_notification_service_test.go
+  s_f00af1d8c88a9e::t_a572a7557d6202 9
+  s_f00af1d8c88a9e::t_52982789572940 1-4,7-8,10-21,29-32,34-39,41-89,93-94,98,101-107,110-111,113-114,126
+  s_f00af1d8c88a9e::t_c657364b0140bb 95,97
+  s_f00af1d8c88a9e::t_c20645cdd5b2c6 40
+  s_f00af1d8c88a9e::t_9838251a8c6f71 5-6,22-28,33
+  s_f00af1d8c88a9e::t_7d5280a09e58e4 90-92,96,99-100,108-109,112,115-125
+internal/modules/wiki/service/wiki_document_service.go
+  s_f00af1d8c88a9e::t_1cc76f19b714ef 335-370
+docs/FEATURE_UPGRADE.md
+  s_f00af1d8c88a9e::t_391603bf5ab628 800-832,834-839
+  s_f00af1d8c88a9e::t_706dfd73f5d863 868-888,895-900
+  s_f00af1d8c88a9e::t_ff2490b816d26a 833
+  s_f00af1d8c88a9e::t_a3d4c4dbae10f4 889-894,901-902
+  s_f00af1d8c88a9e::t_c8de7ff2c5e5b5 840-859,866-867
+  s_f00af1d8c88a9e::t_ca45ed05ad3e0b 860-865
+internal/modules/wiki/routes.go
+  s_f00af1d8c88a9e::t_7e8428a8088ffc 21-23
+internal/modules/wiki/repository/wiki_repository_coverage_test.go
+  s_f00af1d8c88a9e::t_1cc249a630be93 199-231
+  s_f00af1d8c88a9e::t_c30e29d0ec84ce 257,624,655-656,673,722
+docs/architecture/wiki.md
+  s_f00af1d8c88a9e::t_022a1845ee32d3 249
+  s_f00af1d8c88a9e::t_b5c5ef2382c842 265-274
+internal/bootstrap/router.go
+  h_a3f313f3d96276 287-293
+internal/modules/wiki/service/wiki_service_extended.go
+  s_f00af1d8c88a9e::t_fa34276c55f156 1167-1207
+  s_f00af1d8c88a9e::t_a5e5e80045a131 253,255,260-261,265
+  s_f00af1d8c88a9e::t_35eecfb83cc9e0 266
+internal/modules/wiki/repository/mock_repository.go
+  s_f00af1d8c88a9e::t_dac220773fd36c 301-302
+internal/modules/wiki/handler/wiki_handler_test.go
+  s_f00af1d8c88a9e::t_1e85d063387ed3 385-413
+  s_f00af1d8c88a9e::t_067e862061aefa 170-174
+  s_f00af1d8c88a9e::t_946262ad89c086 165-169
+  s_f00af1d8c88a9e::t_e9c62fe147b160 32
+  s_f00af1d8c88a9e::t_8baa14477d10c5 13
+  s_f00af1d8c88a9e::t_09adf6605c75cd 342-344
+internal/modules/wiki/service/wiki_publish_service.go
+  s_f00af1d8c88a9e::t_7a117074e886b7 160-162
+  s_f00af1d8c88a9e::t_0cd102a193c5cf 116-118
+  s_f00af1d8c88a9e::t_ba58fd4e7723e6 75-77
+internal/modules/wiki/repository/wiki_repository.go
+  s_f00af1d8c88a9e::t_21a59049d16260 880-882
+  s_f00af1d8c88a9e::t_29c737170c04a9 76
+  h_a3f313f3d96276 771-773,779,781
+internal/modules/wiki/expiry_job_test.go
+  s_f00af1d8c88a9e::t_bd467fde877852 1-73,77
+  s_f00af1d8c88a9e::t_b531629a5944f9 74-76
+internal/modules/wiki/model/wiki.go
+  s_f00af1d8c88a9e::t_65a7f13e064aa8 378
+web-admin/src/views/wiki/trash.vue
+  s_f00af1d8c88a9e::t_984fad114d8655 9-11,83,88
+  h_a3f313f3d96276 107
+  s_f00af1d8c88a9e::t_08f6873d715c16 180-206
+web-admin/src/api/modules/wiki.ts
+  s_f00af1d8c88a9e::t_2cf15601035949 352-356
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "5c0cf070b7c544ab472dec5bb87e7ca0c2659309",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  },
+  "sessions": {
+    "s_f00af1d8c88a9e": {
+      "agent_id": {
+        "tool": "codebuddy",
+        "id": "eaafc3a9536348a0be0c326daac2fb23",
+        "model": "hy3"
+      },
+      "human_author": "liuxingyu <yuwen002@163.com>",
+      "generated_lines": 697
+    }
+  }
+}
