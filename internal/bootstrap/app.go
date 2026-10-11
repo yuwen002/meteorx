@@ -97,7 +97,10 @@ func StartApp() {
 	// 7.3 启动邀请过期清理定时任务（将过期 pending 邀请置为 expired）
 	StartInvitationExpiryJob(ctx, db)
 
-	// 7.4 启动任务到期提醒定时任务（即将到期/已逾期任务站内提醒）
+	// 7.4 启动 Wiki 回收站过期清理定时任务（物理清除过期回收站项目及其关联实体）
+	StartWikiTrashExpiryJob(ctx, db)
+
+	// 7.5 启动任务到期提醒定时任务（即将到期/已逾期任务站内提醒）
 	StartTaskReminderJob(ctx, db, cfg)
 
 	// 7. 构造 http.Server 以支持优雅关闭

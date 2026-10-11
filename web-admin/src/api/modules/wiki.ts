@@ -349,6 +349,11 @@ export function permanentDeleteTrashItem(id: string) {
   return request.delete<unknown, void>(`/wiki/trash/${id}`)
 }
 
+// 手动触发回收站过期清理（超级管理员，立即清除已过期的回收站项目）
+export function expireTrash() {
+  return request.post<unknown, { purged: number }>('/wiki/admin/trash/expire')
+}
+
 // ============================================================
 // 全局搜索
 // ============================================================

@@ -375,6 +375,7 @@ const (
 	NotificationTypeComment = "comment"
 	NotificationTypeMention = "mention"
 	NotificationTypeShare   = "share"
+	NotificationTypeReview  = "review"
 )
 
 // TableName 返回通知表名 wiki_notifications。

@@ -47,6 +47,8 @@ type WikiService interface {
 	GetDocument(ctx context.Context, nodeID string, userID string) (*dto.DocumentResp, error)
 	// UpdateDocument 更新文档（事务保证 + Revision 自动创建）
 	UpdateDocument(ctx context.Context, id string, userID string, req *dto.UpdateDocumentReq) (*dto.DocumentResp, error)
+	// NotifyDocumentEdited 文档被用户编辑后，通知关注「编辑/全部」变更的订阅者（不含编辑者）
+	NotifyDocumentEdited(ctx context.Context, documentID, userID, title string) error
 	// DeleteDocument 删除文档（进入回收站 + 级联删除附件）
 	DeleteDocument(ctx context.Context, id string) error
 
@@ -91,6 +93,8 @@ type WikiService interface {
 	RestoreTrashItem(ctx context.Context, id string, userID string) error
 	// PermanentDeleteTrashItem 永久删除回收站项目
 	PermanentDeleteTrashItem(ctx context.Context, id string, userID string) error
+	// ExpireTrashItems 清理已过期的回收站项目（定时任务入口，跨租户全局扫描），返回清理数量
+	ExpireTrashItems(ctx context.Context) (int, error)
 
 	// ========== Search ==========
 	// Search 搜索 Wiki（标题 + 内容，自动过滤无权限内容）

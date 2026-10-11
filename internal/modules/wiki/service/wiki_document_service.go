@@ -333,3 +333,39 @@ func (s *wikiService) RestoreRevision(ctx context.Context, documentID string, ve
 	}
 	return resp, nil
 }
+
+// NotifyDocumentEdited 在文档被用户编辑后，通知订阅了该文档且关注「编辑/全部」变更的用户（不含编辑者本人）。
+// 与回收站恢复等内部重写路径区分：仅由 HTTP 更新入口显式调用，避免恢复操作误触发编辑通知。
+func (s *wikiService) NotifyDocumentEdited(ctx context.Context, documentID, userID, title string) error {
+	s.notifySubscribers(ctx, documentID, userID, model.NotifyTypeEdit, model.NotificationTypeEdit, "你订阅的文档有更新", title, documentID, "document")
+	return nil
+}
+
+// notifySubscribers 通知订阅了文档且关注指定事件类型（subscriptionType）的用户，排除触发者本人。
+// 订阅类型为 all 的用户始终收到。底层仓储需为 WikiRepositoryExtended（运行时由 NewWikiServiceExtended 注入）。
+func (s *wikiService) notifySubscribers(ctx context.Context, documentID, excludeUserID, subscriptionType, notifyType, title, content, relatedID, relatedType string) {
+	extRepo, ok := s.repo.(repository.WikiRepositoryExtended)
+	if !ok {
+		return
+	}
+	subs, err := extRepo.ListSubscriptions(ctx, documentID)
+	if err != nil {
+		return
+	}
+	for _, sub := range subs {
+		if sub.UserID == excludeUserID {
+			continue
+		}
+		if sub.NotifyType != model.NotifyTypeAll && sub.NotifyType != subscriptionType {
+			continue
+		}
+		_ = extRepo.CreateNotification(ctx, &model.Notification{
+			UserID:      sub.UserID,
+			Type:        notifyType,
+			Title:       title,
+			Content:     content,
+			RelatedID:   relatedID,
+			RelatedType: relatedType,
+		})
+	}
+}

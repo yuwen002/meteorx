@@ -246,7 +246,7 @@ MoveToTrash() — 创建 TrashItem (expires_at = now + 30 days)
     ↓
 30 天内可恢复
     ↓
-30 天后自动过期（定时任务清理）
+30 天后自动过期（由 WikiTrashExpiryJob 定时清理）
 ```
 
 ### 恢复逻辑
@@ -261,6 +261,16 @@ RestoreTrashItem:
      └── document → restoreDocumentFromTrash
   4. 删除 TrashItem 记录
 ```
+
+### 定时清理任务
+
+过期回收站项目由后台定时任务 `WikiTrashExpiryJob` 自动物理清除（避免过期数据无限堆积）：
+
+- **入口**：`wiki.NewWikiTrashExpiryJob(db)`，在应用启动时经 `bootstrap/app.go` 的 `StartWikiTrashExpiryJob(ctx, db)` 拉起，绑定应用主 `context` 以支持优雅关闭。
+- **间隔**：1 小时（与邀请过期清理一致）。
+- **行为**：跨租户全局扫描 `expires_at < now` 的回收站项目，按 `item_type` 物理清除关联实体——`document → PurgeDocument`、`node → PurgeNodeTree`、`space → PurgeSpaceTree`（级联清理版本、附件、子节点、分享链接等），随后删除回收站记录本身。
+- **健壮性**：若关联实体已被先行删除（如用户手动永久删除），任务对该项容忍 `ErrDocumentNotFound / ErrWikiNodeNotFound / ErrWikiSpaceNotFound`，并仍清理回收站记录，避免遗留僵尸数据。
+- **手动触发**：暴露 `RunOnce(ctx)`，供运维或测试手动执行一次扫描。
 
 ---
 

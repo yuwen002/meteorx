@@ -312,6 +312,8 @@ func (h *WikiHandler) UpdateDocument(w http.ResponseWriter, r *http.Request) {
 		response.FailError(w, err)
 		return
 	}
+	// 编辑成功后通知关注「编辑/全部」变更的订阅者（通知失败不影响编辑主流程）
+	_ = h.svc.NotifyDocumentEdited(r.Context(), id, userID, doc.Title)
 	response.Success(w, doc)
 }
 
@@ -561,6 +563,19 @@ func (h *WikiHandler) PermanentDeleteTrashItem(w http.ResponseWriter, r *http.Re
 		return
 	}
 	response.Success(w, nil)
+}
+
+// TriggerTrashExpiry 运维手动触发回收站过期清理（平台超级管理员）。
+// 跨租户全局扫描并物理清除已过期的回收站项目，返回本次清理数量。
+// 与定时任务共享同一清理逻辑（service.ExpireTrashItems），仅入口不同。
+// POST /api/v1/wiki/admin/trash/expire
+func (h *WikiHandler) TriggerTrashExpiry(w http.ResponseWriter, r *http.Request) {
+	n, err := h.svc.ExpireTrashItems(r.Context())
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, map[string]interface{}{"purged": n})
 }
 
 // Search 搜索 Wiki（标题 + 内容，自动过滤无权限内容）

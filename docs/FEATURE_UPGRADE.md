@@ -798,3 +798,105 @@ client:
 - ✅ OpenAPI / Apifox 已同步任务模块全部 13 条路由（提醒功能不新增 HTTP 接口，无需同步）
 - 📄 接口文档见 `docs/api/task-api.md`
 - ℹ️ 按要求暂不接入 AI 能力，代码结构保留后续叠加空间
+
+---
+
+## 十七、Wiki 回收站与删除链路加固
+
+针对 Wiki 模块删除/回收站链路做一致性加固，并补齐过期清理的线上定时任务与测试覆盖。
+
+### 17.1 软删除类型修正
+
+- Wiki 实体（`WikiSpace` / `WikiNode` / `Document` 等）的 `DeletedAt` 由 `*time.Time` 改为 `gorm.DeletedAt`，统一 GORM 软删语义。
+- 涉及 `internal/modules/wiki/model/wiki.go`；修正后 `Unscoped` 物理删除与回收站恢复行为正确，避免手动管理时间戳导致软删未生效。
+
+### 17.2 空间删除级联
+
+- 删除空间时级联软删其下全部节点/文档子树并写入回收站，保证回收站恢复与 `GetWikiStats` 统计一致性。
+- 修复「空间已删但子树仍被计入统计」的统计偏差（`repository/wiki_repository.go` 的 `SoftDeleteSpaceTree` / `DeleteSpace`）。
+
+### 17.3 回收站过期清理定时任务接线
+
+- 新增 `internal/modules/wiki/expiry_job.go`：`WikiTrashExpiryJob`（结构对齐 `invitation/expiry_job.go`），含 `NewWikiTrashExpiryJob(db)` / `Start(ctx, interval)` / `RunOnce(ctx)`。
+- `internal/bootstrap/router.go` 新增 `StartWikiTrashExpiryJob`，`internal/bootstrap/app.go` 启动时拉起（间隔 1 小时，绑定 app context 支持优雅取消）。
+- 行为：跨租户全局扫描 `expires_at < now` 的回收站项目，按 `item_type` 物理清除关联实体（`document → PurgeDocument`、`node → PurgeNodeTree`、`space → PurgeSpaceTree`，级联清理版本/附件/子节点/分享链接等）后删除回收站记录；关联实体已缺失时容忍 `ErrDocumentNotFound / ErrWikiNodeNotFound / ErrWikiSpaceNotFound` 并仍清理回收站记录，避免僵尸数据。
+- `service/wiki_trash_service.go` 暴露 `ExpireTrashItems(ctx)` 作为定时任务入口。
+
+### 17.4 测试覆盖扩充
+
+- `repository/wiki_repository_coverage_test.go`：真实 SQLite 集成测试覆盖回收站恢复/物理清除、统计（含删除后归零）、搜索（租户隔离）、版本、附件、节点权限、零散查询。
+- 并发与过期任务：`TestIntegration_ConcurrentIncrementViewCount`（浏览量原子自增）、`TestIntegration_ConcurrentDocumentUpdate`（乐观锁冲突）、`wiki/expiry_job_test.go` 的 `TestWikiTrashExpiryJob_RunOnce` / `TestWikiTrashExpiryJob_StartStopsWithContext`（任务接线与优雅关闭）。
+
+### 17.5 功能完整性核查
+
+- 核查 `Comment` / `EditLock` / `ReviewComment` / `DocumentTemplate` / `DocumentAccessLog` / `DocumentSubscription` / `Notification` 七个已迁移模型，确认 service + handler + route + 前端四层均完整连通，无「只建表未接功能」的半成品。
+- 唯一缺口（已在第十八节补上）：Wiki 通知生成此前仅来自评论 @提及，订阅变更与审核动作不会自动产生通知。现已补全评论/编辑订阅通知与审核流程通知（见十八）。
+
+### 17.6 验证状态
+
+- ✅ `go build ./...` 通过
+- ✅ `go vet ./internal/modules/wiki/... ./internal/bootstrap/...` 通过
+- ✅ `go test ./internal/modules/wiki/...` 全量通过（repository / service / handler 均 PASS）
+- 📄 架构文档见 `docs/architecture/wiki.md`（回收站「定时清理任务」小节）
+
+---
+
+## 十八、Wiki 订阅与审核通知补全
+
+针对 17.5 核查发现的缺口——Wiki 通知此前仅由评论 @提及生成，订阅变更与审核动作不会自动产生通知——补全相关链路。
+
+### 18.1 评论触发订阅通知
+- `service/wiki_service_extended.go` 的 `CreateComment`：在发送 @提及通知之外，额外通知该文档的订阅者（订阅类型为 `all` 或 `comment`），排除评论作者本人与已被 @提及者，避免重复打扰。
+- 新增辅助方法 `notifyCommentSubscribers`，抽离订阅者筛选与通知逻辑便于测试。
+
+### 18.2 审核流程通知
+- `SubmitForReview`：提交审核后，通知空间内具有审核权限的成员（`owner` / `admin` 角色），排除提交者本人。
+- `ApproveDocument` / `RejectDocument`：审核结论（通过/驳回）通知文档作者（最后编辑者 `LastEditedBy`），排除审核人本人。
+- 新增辅助方法 `notifyReviewers`（按空间成员角色筛选）、`notifyAuthorReviewResult`。
+
+### 18.3 新增通知类型
+- `model/wiki.go` 新增常量 `NotificationTypeReview = "review"`，用于审核类通知（此前仅有 `mention` / `comment` / `share` / `document_edit`）。
+
+### 18.4 编辑事件通知
+- 新增 `WikiService.NotifyDocumentEdited(ctx, documentID, userID, title)`，在文档被**用户编辑**后通知订阅类型为 `all` / `edit` 的订阅者，排除编辑者本人。
+- 入口由 HTTP `UpdateDocument`（`handler/wiki_handler.go`）在编辑成功后显式调用；与 `restoreDocumentFromTrash` 内部重写路径区分，避免恢复操作误触发编辑通知。
+- 统一辅助方法 `notifySubscribers`（base `wikiService`）按事件类型与订阅类型过滤，评论（`NotifyTypeComment`）与编辑（`NotifyTypeEdit`）共用，避免重复逻辑。
+
+### 18.5 验证状态
+- ✅ `go build ./...` 通过
+- ✅ `go vet ./internal/modules/wiki/...` 通过
+- ✅ `go test ./internal/modules/wiki/...` 全量通过（新增/更新 `wiki_notification_service_test.go`：`TestNotifyReviewers` / `TestNotifyAuthorReviewResult` / `TestNotifySubscribers` 覆盖审核人、作者、评论/编辑订阅者通知的正向与排除路径）
+
+---
+
+## 十九、回收站过期清理健壮性与可观测性
+
+在第十七节已接线的过期清理任务基础上，补齐「实体缺失时的健壮性」与「运行可观测性 + 运维手动触发」。
+
+### 19.1 Purge* 实体缺失时主动清理回收站记录（健壮性）
+- 原 `PurgeDocument` / `PurgeSpaceTree` 在目标实体已缺失（如先被手动永久删除）时返回 `ErrDocumentNotFound` / `ErrWikiSpaceNotFound`，且在此之前不清理回收站记录，可能遗留僵尸记录。
+- 现改为**幂等**：实体可能已被先行删除时仍清理其级联关联与回收站记录并返回 nil——`PurgeDocument` 通过 `item_id + item_type` 删除 trash 记录，`PurgeSpaceTree` 删除空间自身 trash 记录。`PurgeNodeTree` 因 `collectNodeIDs` 始终包含请求 id，本就具备该能力，保持不动。
+- 效果：任何直接调用 `Purge*` 的路径（含未来新增调用方）都不会遗留僵尸回收站记录；`ExpireTrashItems` 与 `PermanentDeleteTrashItem` 的兜底清理因此更稳。
+
+### 19.2 过期清理计数与失败告警（可观测性）
+- `ExpireTrashItems`（repo / service / `WikiService` 接口）由 `error` 改为返回 `(int, error)` 的**清理计数**。
+- 定时任务 `WikiTrashExpiryJob.RunOnce(ctx) (int, error)`：成功且清理数 > 0 时记录 `清理 N 个回收站项目, 耗时 ...`；失败时记录错误（作为告警信号）；无清理则不刷屏。`Start` 复用 `RunOnce` 的日志，避免重复。
+
+### 19.3 运维手动触发端点
+- 新增 `POST /api/v1/wiki/admin/trash/expire`，由 `WikiHandler.TriggerTrashExpiry` 处理，复用 `service.ExpireTrashItems`（与定时任务同一逻辑，仅入口不同），返回 `{"purged": N}`。
+- 路由经 `middleware.RequiresMasterAdmin()` 保护，仅平台超级管理员（`role=superadmin`）可调用，避免任意用户触发跨租户清理。
+
+### 19.4 前端回收站「清理过期」按钮
+- `web-admin/src/api/modules/wiki.ts` 新增 `expireTrash()`，调用 `POST /wiki/admin/trash/expire`，返回 `{ purged: number }`。
+- `web-admin/src/views/wiki/trash.vue` 头部「刷新」旁新增「清理过期」按钮（`type=warning`），通过 `v-if="isSuperAdmin"` 限定仅 `userStore.isAdmin`（即 `is_master` 超级管理员）可见；点击二次确认后调用，按清理数量反馈（>0 成功提示，否则提示无过期项），并刷新列表。
+- 与后端 `RequiresMasterAdmin()` 保护一致：非超级管理员在 UI 上直接看不到该入口。
+
+### 19.5 验证状态
+- ✅ `go build ./...` 通过
+- ✅ `go vet ./internal/modules/wiki/... ./internal/bootstrap/...` 通过
+- ✅ `go test ./internal/modules/wiki/...` 全量通过
+  - 新增 `TestIntegration_PurgeDocument_CleansTrashWhenEntityMissing` / `TestIntegration_PurgeSpaceTree_CleansTrashWhenEntityMissing`（#2 幂等清理）
+  - 更新 `TestWikiTrashExpiryJob_RunOnce` / `TestWikiTrashExpiryJob_StartStopsWithContext` 断言清理计数
+  - 新增 `TestTriggerTrashExpiry`（superadmin 放行 + 非管理员 403 + 计数透传）
+  - 新增/更新 `TestNotifySubscribers`（评论/编辑订阅通知）
+- ✅ 前端 `vue-tsc --noEmit` 对 `wiki.ts` / `trash.vue` 无类型错误

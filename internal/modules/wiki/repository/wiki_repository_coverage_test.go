@@ -23,6 +23,13 @@ func newSpace(t *testing.T, repo *wikiRepository, ctx context.Context, name stri
 	return sp
 }
 
+// expireOK 调用过期清理并断言无错误（兼容 ExpireTrashItems 返回 (int, error) 的签名）。
+func expireOK(t *testing.T, repo *wikiRepository, ctx context.Context) {
+	t.Helper()
+	_, err := repo.ExpireTrashItems(ctx)
+	require.NoError(t, err)
+}
+
 // TestIntegration_RestoreDocument 验证文档软删后可通过 RestoreDocument 真实还原，
 // 且对不存在的文档返回 ErrDocumentNotFound。
 func TestIntegration_RestoreDocument(t *testing.T) {
@@ -189,6 +196,39 @@ func TestIntegration_PurgeSpaceTree(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestIntegration_PurgeDocument_CleansTrashWhenEntityMissing 验证 PurgeDocument 在文档实体已缺失时
+// 仍清理回收站记录（幂等），不返回错误，避免遗留僵尸回收站记录。
+func TestIntegration_PurgeDocument_CleansTrashWhenEntityMissing(t *testing.T) {
+	repo, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+	ctx := testCtx("tenant-1", "user-1")
+
+	// 仅创建回收站记录，对应文档实体并不存在
+	trash := &model.TrashItem{TenantID: "tenant-1", ItemType: model.TrashTypeDocument, ItemID: "ghost-doc", SpaceID: "space-1", Title: "幽灵文档", DeletedBy: "user-1"}
+	require.NoError(t, repo.CreateTrashItem(ctx, trash))
+
+	require.NoError(t, repo.PurgeDocument(ctx, "ghost-doc"))
+
+	_, err := repo.GetTrashItem(ctx, trash.ID)
+	assert.Error(t, err, "实体缺失时回收站记录仍应被清理")
+}
+
+// TestIntegration_PurgeSpaceTree_CleansTrashWhenEntityMissing 验证 PurgeSpaceTree 在空间实体已缺失时
+// 仍清理回收站记录（幂等），不返回错误。
+func TestIntegration_PurgeSpaceTree_CleansTrashWhenEntityMissing(t *testing.T) {
+	repo, cleanup := setupIntegrationTest(t)
+	defer cleanup()
+	ctx := testCtx("tenant-1", "user-1")
+
+	trash := &model.TrashItem{TenantID: "tenant-1", ItemType: model.TrashTypeSpace, ItemID: "ghost-space", SpaceID: "ghost-space", Title: "幽灵空间", DeletedBy: "user-1"}
+	require.NoError(t, repo.CreateTrashItem(ctx, trash))
+
+	require.NoError(t, repo.PurgeSpaceTree(ctx, "ghost-space"))
+
+	_, err := repo.GetTrashItem(ctx, trash.ID)
+	assert.Error(t, err, "实体缺失时回收站记录仍应被清理")
+}
+
 // TestIntegration_ExpireTrashItems 验证过期回收站记录触发对应实体物理清除并清理记录。
 func TestIntegration_ExpireTrashItems(t *testing.T) {
 	repo, cleanup := setupIntegrationTest(t)
@@ -214,7 +254,7 @@ func TestIntegration_ExpireTrashItems(t *testing.T) {
 	}
 	require.NoError(t, repo.CreateTrashItem(ctx, item))
 
-	require.NoError(t, repo.ExpireTrashItems(ctx))
+	expireOK(t, repo, ctx)
 
 	var d model.Document
 	assert.ErrorIs(t, repo.db.Unscoped().Where("id = ?", doc.ID).First(&d).Error, gorm.ErrRecordNotFound)
@@ -581,7 +621,7 @@ func TestIntegration_ExpireTrashItems_OnlyExpired(t *testing.T) {
 	futureTrash := &model.TrashItem{TenantID: "tenant-1", ItemType: model.TrashTypeSpace, ItemID: futureSpace.ID, SpaceID: futureSpace.ID, Title: "空间", DeletedBy: "user-1", ExpiresAt: time.Now().Add(time.Hour)}
 	require.NoError(t, repo.CreateTrashItem(ctx, futureTrash))
 
-	require.NoError(t, repo.ExpireTrashItems(ctx))
+	expireOK(t, repo, ctx)
 
 	// 过期文档被物理清除，其回收站记录被清理
 	var d model.Document
@@ -612,8 +652,8 @@ func TestIntegration_ExpireTrashItems_Idempotent(t *testing.T) {
 	require.NoError(t, repo.CreateTrashItem(ctx, item))
 
 	// 连续两次执行过期清理，均不应报错（第二次为 no-op 或容忍已清除实体）
-	require.NoError(t, repo.ExpireTrashItems(ctx))
-	require.NoError(t, repo.ExpireTrashItems(ctx))
+	expireOK(t, repo, ctx)
+	expireOK(t, repo, ctx)
 
 	var d model.Document
 	assert.ErrorIs(t, repo.db.Unscoped().Where("id = ?", doc.ID).First(&d).Error, gorm.ErrRecordNotFound)
@@ -630,7 +670,7 @@ func TestIntegration_ExpireTrashItems_DanglingItem(t *testing.T) {
 	require.NoError(t, repo.CreateTrashItem(ctx, dangling))
 
 	// 即使实体缺失，过期清理也应忽略并返回成功
-	require.NoError(t, repo.ExpireTrashItems(ctx))
+	expireOK(t, repo, ctx)
 
 	// 缺失实体对应的回收站记录仍应被清理
 	_, err := repo.GetTrashItem(ctx, dangling.ID)
@@ -679,7 +719,7 @@ func TestIntegration_ExpireTrashItems_AllTypes(t *testing.T) {
 	spaceTrash := &model.TrashItem{TenantID: "tenant-1", ItemType: model.TrashTypeSpace, ItemID: sSpace.ID, SpaceID: sSpace.ID, Title: "空间", DeletedBy: "user-1", ExpiresAt: time.Now().Add(-time.Hour)}
 	require.NoError(t, repo.CreateTrashItem(ctx, spaceTrash))
 
-	require.NoError(t, repo.ExpireTrashItems(ctx))
+	expireOK(t, repo, ctx)
 
 	// 三类实体均被物理清除，回收站记录均被清理
 	var d model.Document

@@ -79,6 +79,12 @@ func (s *wikiService) RestoreTrashItem(ctx context.Context, id string, userID st
 }
 
 // PermanentDeleteTrashItem 永久删除回收站项目：物理清除实体及其关联数据，避免软删数据永久残留。
+// ExpireTrashItems 清理已过期的回收站项目（定时任务入口，跨租户全局扫描）。
+// 直接委托仓储执行过期物理清除，不依赖调用者租户上下文，返回清理数量。
+func (s *wikiService) ExpireTrashItems(ctx context.Context) (int, error) {
+	return s.repo.ExpireTrashItems(ctx)
+}
+
 func (s *wikiService) PermanentDeleteTrashItem(ctx context.Context, id string, userID string) error {
 	item, err := s.repo.GetTrashItem(ctx, id)
 	if err != nil {

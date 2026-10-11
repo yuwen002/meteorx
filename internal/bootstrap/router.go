@@ -284,6 +284,13 @@ func StartInvitationExpiryJob(ctx context.Context, db *gorm.DB) {
 	job.Start(ctx, time.Hour)
 }
 
+// StartWikiTrashExpiryJob 启动 Wiki 回收站过期清理定时任务
+// 周期性物理清除已过 expires_at 的回收站项目及其关联实体（文档/节点树/空间树）
+func StartWikiTrashExpiryJob(ctx context.Context, db *gorm.DB) {
+	job := wiki.NewWikiTrashExpiryJob(db)
+	job.Start(ctx, time.Hour)
+}
+
 // StartTaskReminderJob 启动任务到期提醒定时任务
 // 周期扫描即将到期/已逾期且未提醒过的任务，向负责人推送站内提醒
 // 提醒窗口/扫描间隔/逾期冷却期/单轮上限均由配置注入

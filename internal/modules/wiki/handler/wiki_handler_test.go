@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"meteorx/internal/common/contextx"
+	"meteorx/internal/middleware"
 	"meteorx/internal/modules/wiki/dto"
 	"meteorx/internal/modules/wiki/handler"
 	"meteorx/internal/modules/wiki/service"
@@ -28,6 +29,7 @@ type stubWikiService struct {
 	err    error
 	calls  []string
 	params map[string][]string
+	purged int
 }
 
 func newStubWiki() *stubWikiService {
@@ -158,6 +160,16 @@ func (s *stubWikiService) UpdateDocument(_ context.Context, id, userID string, r
 		return nil, s.err
 	}
 	return &dto.DocumentResp{ID: id}, nil
+}
+
+func (s *stubWikiService) NotifyDocumentEdited(_ context.Context, documentID, userID, title string) error {
+	s.rec("NotifyDocumentEdited", documentID, userID, title)
+	return s.err
+}
+
+func (s *stubWikiService) ExpireTrashItems(_ context.Context) (int, error) {
+	s.rec("ExpireTrashItems")
+	return s.purged, s.err
 }
 
 func (s *stubWikiService) DeleteDocument(_ context.Context, id string) error {
@@ -327,6 +339,9 @@ func registerMainRoutes(r chi.Router, h *handler.WikiHandler) {
 	r.Post("/trash/{id}/restore", h.RestoreTrashItem)
 	r.Delete("/trash/{id}", h.PermanentDeleteTrashItem)
 
+	// 运维：手动触发回收站过期清理（仅平台超级管理员）
+	r.With(middleware.RequiresMasterAdmin()).Post("/admin/trash/expire", h.TriggerTrashExpiry)
+
 	r.Route("/spaces", func(r chi.Router) {
 		r.Get("/", h.ListSpaces)
 		r.Post("/", h.CreateSpace)
@@ -365,6 +380,35 @@ func registerMainRoutes(r chi.Router, h *handler.WikiHandler) {
 		r.Get("/{documentId}/attachments", h.ListAttachments)
 		r.Delete("/attachments/{id}", h.DeleteAttachment)
 	})
+}
+
+// TestTriggerTrashExpiry 验证运维手动触发端点：非超级管理员被拒绝（403），超级管理员可触发并返回清理数量。
+func TestTriggerTrashExpiry(t *testing.T) {
+	stub := newStubWiki()
+	stub.purged = 7
+
+	// 默认身份为 admin（非 superadmin）→ 403
+	router := newWikiRouter(stub)
+	w := doWiki(t, router, http.MethodPost, "/admin/trash/expire", "", nil)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+
+	// 超级管理员身份 → 200 且透传清理数量
+	saRouter := chi.NewRouter()
+	saRouter.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := contextx.SetVars(r.Context(), testTenant, testUser, []string{"superadmin"})
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	})
+	saRouter.Post("/admin/trash/expire", handler.NewWikiHandler(stub).TriggerTrashExpiry)
+	w2 := doWiki(t, saRouter, http.MethodPost, "/admin/trash/expire", "", nil)
+	assert.Equal(t, http.StatusOK, w2.Code)
+
+	var resp struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w2.Body.Bytes(), &resp))
+	assert.Equal(t, float64(7), resp.Data["purged"])
 }
 
 func newWikiRouter(stub *stubWikiService) http.Handler {

@@ -73,7 +73,7 @@ type WikiRepository interface {
 	ListTrashItems(ctx context.Context, tenantID string, spaceID string, itemType string, page, pageSize int) ([]*model.TrashItem, int64, error)
 	GetTrashItem(ctx context.Context, id string) (*model.TrashItem, error)
 	DeleteTrashItem(ctx context.Context, id string) error
-	ExpireTrashItems(ctx context.Context) error
+	ExpireTrashItems(ctx context.Context) (int, error)
 
 	// 回收站实体恢复：将软删数据（deleted_at 置空）真实还原
 	RestoreDocument(ctx context.Context, id string) error
@@ -595,35 +595,35 @@ func (r *wikiRepository) DeleteTrashItem(ctx context.Context, id string) error {
 	return r.getDB(ctx).Where("id = ?", id).Delete(&model.TrashItem{}).Error
 }
 
-// ExpireTrashItems 清理过期的回收站项目
-// ExpireTrashItems 清理已过期的回收站项目：同时物理清除对应软删实体，避免数据永久残留。
-func (r *wikiRepository) ExpireTrashItems(ctx context.Context) error {
+// ExpireTrashItems 清理过期的回收站项目：同时物理清除对应软删实体，避免数据永久残留。
+// 返回本次清理的回收站项目数量。
+func (r *wikiRepository) ExpireTrashItems(ctx context.Context) (int, error) {
 	db := r.getDB(ctx)
 	var items []model.TrashItem
 	if err := db.Where("expires_at < ?", time.Now()).Find(&items).Error; err != nil {
-		return err
+		return 0, err
 	}
 	for _, item := range items {
 		switch item.ItemType {
 		case model.TrashTypeDocument:
-			if err := r.PurgeDocument(ctx, item.ItemID); err != nil && !errors.Is(err, ErrDocumentNotFound) {
-				return err
+			if err := r.PurgeDocument(ctx, item.ItemID); err != nil {
+				return 0, err
 			}
 		case model.TrashTypeNode:
-			if err := r.PurgeNodeTree(ctx, item.ItemID); err != nil && !errors.Is(err, ErrWikiNodeNotFound) {
-				return err
+			if err := r.PurgeNodeTree(ctx, item.ItemID); err != nil {
+				return 0, err
 			}
 		case model.TrashTypeSpace:
-			if err := r.PurgeSpaceTree(ctx, item.ItemID); err != nil && !errors.Is(err, ErrWikiSpaceNotFound) {
-				return err
+			if err := r.PurgeSpaceTree(ctx, item.ItemID); err != nil {
+				return 0, err
 			}
 		}
 		// 无论目标实体是否存在，均清理该回收站条目自身，避免实体已缺失时遗留僵尸记录
 		if err := db.Where("id = ?", item.ID).Delete(&model.TrashItem{}).Error; err != nil {
-			return err
+			return 0, err
 		}
 	}
-	return nil
+	return len(items), nil
 }
 
 // ===================== 回收站实体恢复 =====================
@@ -768,19 +768,17 @@ func (r *wikiRepository) purgeDocumentCascade(ctx context.Context, documentID st
 	return nil
 }
 
-// PurgeDocument 永久删除文档及其关联数据与回收站记录
+// PurgeDocument 永久删除文档及其关联数据与回收站记录。
+// 文档实体可能已被先行删除（如手动永久删除或过期任务），缺失时视为已清理：
+// 仍会清理其级联关联与回收站记录并返回 nil（幂等），避免遗留僵尸回收站记录。
 func (r *wikiRepository) PurgeDocument(ctx context.Context, id string) error {
 	db := r.getDB(ctx)
 	if err := r.purgeDocumentCascade(ctx, id); err != nil {
 		return err
 	}
-	res := db.Unscoped().Where("id = ?", id).Delete(&model.Document{})
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return ErrDocumentNotFound
-	}
+	// 文档可能已不存在（best-effort 物理清除，不依赖其存在）
+	db.Unscoped().Where("id = ?", id).Delete(&model.Document{})
+	// 无论文档是否存在，均清理其回收站记录，避免僵尸数据
 	return db.Where("item_id = ? AND item_type = ?", id, model.TrashTypeDocument).Delete(&model.TrashItem{}).Error
 }
 
@@ -879,14 +877,9 @@ func (r *wikiRepository) PurgeSpaceTree(ctx context.Context, id string) error {
 	if err := r.deleteTrashFor(ctx, nodeIDs, docIDs); err != nil {
 		return err
 	}
-	res := db.Unscoped().Where("id = ?", id).Delete(&model.WikiSpace{})
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return ErrWikiSpaceNotFound
-	}
-	// 空间自身的回收站记录
+	// 空间可能已不存在（best-effort 物理清除）
+	db.Unscoped().Where("id = ?", id).Delete(&model.WikiSpace{})
+	// 无论空间是否存在，均清理其回收站记录，避免僵尸数据
 	return db.Where("item_id = ? AND item_type = ?", id, model.TrashTypeSpace).Delete(&model.TrashItem{}).Error
 }
 

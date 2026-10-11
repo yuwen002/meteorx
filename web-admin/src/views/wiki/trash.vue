@@ -6,6 +6,9 @@
           <h3>回收站</h3>
           <p class="tip">被删除的空间、目录与文档会在此保留 30 天，过期后自动清除。</p>
         </div>
+        <el-button v-if="isSuperAdmin" type="warning" :loading="expiring" @click="handleExpire">
+          <el-icon><Delete /></el-icon>清理过期
+        </el-button>
         <el-button @click="load">
           <el-icon><Refresh /></el-icon>刷新
         </el-button>
@@ -77,19 +80,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
-import { Refresh } from '@element-plus/icons-vue'
+import { Refresh, Delete } from '@element-plus/icons-vue'
 import {
   listTrash,
   restoreTrashItem,
   permanentDeleteTrashItem,
+  expireTrash,
   type WikiTrashItem
 } from '@/api/modules/wiki'
 
 const router = useRouter()
+const userStore = useUserStore()
+const isSuperAdmin = computed(() => userStore.isAdmin)
 
 const list = ref<WikiTrashItem[]>([])
 const total = ref(0)
@@ -97,6 +104,7 @@ const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
 const operating = ref(false)
+const expiring = ref(false)
 const activeType = ref('')
 
 function tagType(type: string): 'success' | 'danger' | 'warning' | 'info' {
@@ -166,6 +174,33 @@ async function permanentDelete(row: WikiTrashItem) {
     await load()
   } finally {
     operating.value = false
+  }
+}
+
+async function handleExpire() {
+  try {
+    await ElMessageBox.confirm(
+      '将立即清除所有已过期的回收站项目，此操作不可撤销，确定继续吗？',
+      '清理过期项目',
+      { type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  expiring.value = true
+  try {
+    const res = await expireTrash()
+    const purged = res?.purged ?? 0
+    if (purged > 0) {
+      ElMessage.success(`已清理 ${purged} 个过期项目`)
+    } else {
+      ElMessage.info('没有需要清理的过期项目')
+    }
+    await load()
+  } catch {
+    // 错误提示由响应拦截器统一处理
+  } finally {
+    expiring.value = false
   }
 }
 

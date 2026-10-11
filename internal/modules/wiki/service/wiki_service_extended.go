@@ -250,23 +250,20 @@ func (s *wikiServiceExtended) CreateComment(ctx context.Context, req *dto.Create
 		return nil, err
 	}
 
+	mentioned := make(map[string]struct{})
 	if len(req.MentionIDs) > 0 {
-		mentionedIDs := strings.Split(req.MentionIDs, ",")
-		for _, mentionedID := range mentionedIDs {
+		for _, mentionedID := range strings.Split(req.MentionIDs, ",") {
 			mentionedID = strings.TrimSpace(mentionedID)
 			if mentionedID == "" {
 				continue
 			}
-			_ = s.getExtendedRepo().CreateNotification(ctx, &model.Notification{
-				UserID:      mentionedID,
-				Type:        model.NotificationTypeMention,
-				Title:       "有人在评论中提到了你",
-				Content:     req.Content,
-				RelatedID:   comment.ID,
-				RelatedType: "comment",
-			})
+			mentioned[mentionedID] = struct{}{}
+			s.notify(ctx, mentionedID, model.NotificationTypeMention, "有人在评论中提到了你", req.Content, comment.ID, "comment")
 		}
 	}
+
+	// 通知订阅了该文档且关注评论/全部变更的用户（不含评论作者与已被 @ 提及者，避免重复打扰）
+	s.notifySubscribers(ctx, req.DocumentID, userID, model.NotifyTypeComment, model.NotificationTypeComment, "你订阅的文档有新评论", req.Content, comment.ID, "comment")
 
 	return s.buildCommentResp(ctx, comment)
 }
@@ -1166,4 +1163,45 @@ func (s *wikiServiceExtended) ImportDocument(ctx context.Context, documentID str
 		Content: string(content),
 		Format:  format,
 	})
+}
+
+// notify 创建一条站内通知（忽略空接收人；通知写入失败仅记录不影响主流程）。
+func (s *wikiServiceExtended) notify(ctx context.Context, userID, notifyType, title, content, relatedID, relatedType string) {
+	if userID == "" {
+		return
+	}
+	_ = s.getExtendedRepo().CreateNotification(ctx, &model.Notification{
+		UserID:      userID,
+		Type:        notifyType,
+		Title:       title,
+		Content:     content,
+		RelatedID:   relatedID,
+		RelatedType: relatedType,
+	})
+}
+
+// notifyReviewers 通知空间内具有审核权限的成员（Owner / Admin）有待审文档，排除触发者本人。
+func (s *wikiServiceExtended) notifyReviewers(ctx context.Context, doc *model.Document, node *model.WikiNode, excludeUserID string) {
+	members, err := s.repo.ListMembers(ctx, node.SpaceID)
+	if err != nil {
+		return
+	}
+	for _, m := range members {
+		if m.UserID == excludeUserID {
+			continue
+		}
+		if m.Role != model.SpaceRoleOwner && m.Role != model.SpaceRoleAdmin {
+			continue
+		}
+		s.notify(ctx, m.UserID, model.NotificationTypeReview, "有文档待你审核", node.Title, doc.ID, "document")
+	}
+}
+
+// notifyAuthorReviewResult 通知文档作者（最后编辑者）审核结论，排除审核人本人。
+func (s *wikiServiceExtended) notifyAuthorReviewResult(ctx context.Context, doc *model.Document, node *model.WikiNode, reviewerID, result string) {
+	author := doc.LastEditedBy
+	if author == "" || author == reviewerID {
+		return
+	}
+	s.notify(ctx, author, model.NotificationTypeReview, fmt.Sprintf("你的文档已%s审核", result), node.Title, doc.ID, "document")
 }

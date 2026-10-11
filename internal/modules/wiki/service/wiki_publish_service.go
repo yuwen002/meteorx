@@ -72,6 +72,9 @@ func (s *wikiServiceExtended) SubmitForReview(ctx context.Context, documentID st
 		})
 	}
 
+	// 通知空间内具有审核权限的成员（Owner / Admin）有待审文档
+	s.notifyReviewers(ctx, doc, node, userID)
+
 	return &dto.DocumentPublishStatusResp{
 		DocumentID:    documentID,
 		NodeID:        doc.NodeID,
@@ -109,6 +112,9 @@ func (s *wikiServiceExtended) ApproveDocument(ctx context.Context, documentID st
 		Content:    req.Comment,
 		ReviewerID: userID,
 	})
+
+	// 通知文档作者（最后编辑者）审核已通过
+	s.notifyAuthorReviewResult(ctx, doc, node, userID, "通过")
 
 	return &dto.DocumentPublishStatusResp{
 		DocumentID:    documentID,
@@ -150,6 +156,9 @@ func (s *wikiServiceExtended) RejectDocument(ctx context.Context, documentID str
 		Content:    req.Comment,
 		ReviewerID: userID,
 	})
+
+	// 通知文档作者（最后编辑者）审核被驳回
+	s.notifyAuthorReviewResult(ctx, doc, node, userID, "驳回")
 
 	return &dto.DocumentPublishStatusResp{
 		DocumentID:    documentID,

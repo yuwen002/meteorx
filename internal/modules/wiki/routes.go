@@ -1,6 +1,7 @@
 package wiki
 
 import (
+	"meteorx/internal/middleware"
 	"meteorx/internal/modules/wiki/handler"
 
 	"github.com/go-chi/chi/v5"
@@ -16,6 +17,9 @@ func RegisterRoutes(r chi.Router, h *handler.WikiHandler, extH *handler.WikiHand
 		r.Get("/trash", h.ListTrashItems)                   // 回收站列表
 		r.Post("/trash/{id}/restore", h.RestoreTrashItem)   // 从回收站恢复
 		r.Delete("/trash/{id}", h.PermanentDeleteTrashItem) // 永久删除
+
+		// 运维：手动触发回收站过期清理（仅平台超级管理员）
+		r.With(middleware.RequiresMasterAdmin()).Post("/admin/trash/expire", h.TriggerTrashExpiry)
 
 		// Spaces 空间管理
 		r.Route("/spaces", func(r chi.Router) {
