@@ -1,0 +1,28 @@
+internal/bootstrap/route_check_test.go
+  s_f00af1d8c88a9e::t_a6bbdff6da96f3 170
+internal/modules/wiki/handler/wiki_handler.go
+  s_f00af1d8c88a9e::t_2b4ff8dde718df 5,9-10
+  s_f00af1d8c88a9e::t_db996df7b52806 578-579,583-585,589-613
+docs/FEATURE_UPGRADE.md
+  s_f00af1d8c88a9e::t_c1adcab18ef83c 894-896,898-900,902,904-905,908,913-914
+internal/modules/wiki/expiry_job.go
+  s_f00af1d8c88a9e::t_2c685640f00bd2 5,12
+  s_f00af1d8c88a9e::t_5e770b1707ca64 64-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "fafbe5a29dd7c7c0b1b6b534e5e1fec5c803b32d",
+  "prompts": {},
+  "sessions": {
+    "s_f00af1d8c88a9e": {
+      "agent_id": {
+        "tool": "codebuddy",
+        "id": "eaafc3a9536348a0be0c326daac2fb23",
+        "model": "hy3"
+      },
+      "human_author": "liuxingyu <yuwen002@163.com>",
+      "generated_lines": 59
+    }
+  }
+}
