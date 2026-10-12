@@ -18,6 +18,8 @@ import (
 	authHandler "meteorx/internal/modules/auth/handler"
 	dashboard "meteorx/internal/modules/dashboard"
 	dashboardHandler "meteorx/internal/modules/dashboard/handler"
+	export "meteorx/internal/modules/export"
+	exportHandler "meteorx/internal/modules/export/handler"
 	notification "meteorx/internal/modules/notification"
 	notificationHandler "meteorx/internal/modules/notification/handler"
 	oauth "meteorx/internal/modules/oauth"
@@ -256,6 +258,9 @@ func inferTags(pattern string) []string {
 	if strings.HasPrefix(pattern, "/api/v1/tasks") {
 		return []string{"Task"}
 	}
+	if strings.HasPrefix(pattern, "/api/v1/exports") {
+		return []string{"Export"}
+	}
 	return []string{"API"}
 }
 
@@ -281,6 +286,11 @@ func inferSummary(method, pattern string) string {
 		"POST /api/v1/auth/oauth/bind":               "绑定第三方账号",
 		"POST /api/v1/auth/oauth/unbind":             "解绑第三方账号",
 		"POST /api/v1/auth/oauth/token/refresh":      "刷新 OAuth Token",
+		"GET /api/v1/exports":                        "导出任务列表",
+		"POST /api/v1/exports":                       "创建导出任务",
+		"GET /api/v1/exports/{id}":                   "导出任务详情",
+		"GET /api/v1/exports/{id}/download":          "下载导出文件",
+		"DELETE /api/v1/exports/{id}":                "删除导出任务",
 	}
 	key := method + " " + pattern
 	if s, ok := knownSummaries[key]; ok {
@@ -342,6 +352,7 @@ func buildRouter() *chi.Mux {
 			registerWikiRoutes(r)
 			registerTaskRoutes(r)
 			notification.RegisterTenantRoutes(r, &notificationHandler.AnnouncementHandler{})
+			export.RegisterRoutes(r, &exportHandler.ExportHandler{}, nil)
 
 			r.Group(func(r chi.Router) {
 				tenant.RegisterAdminRoutes(r, &tenantHandler.TenantHandler{}, nil)
@@ -737,6 +748,9 @@ func inferApifoxGroupName(pattern string) string {
 	}
 	if strings.HasPrefix(pattern, "/api/v1/tasks") {
 		return "任务管理"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/exports") {
+		return "数据导出"
 	}
 	if strings.HasPrefix(pattern, "/api/v1/ws") {
 		return "系统"

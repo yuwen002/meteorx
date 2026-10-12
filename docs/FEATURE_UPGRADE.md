@@ -969,3 +969,52 @@ client:
 - ✅ `go build ./...` / `go vet` 通过
 - ✅ `go test -count=1` jwt、auth/service、wiki 全子包通过
 - ⏳ 前端构建与本地运行时验证见提交记录
+
+---
+
+## 二十二、异步数据导出与下载中心（Export）
+
+**后端新增 `internal/modules/export` 模块**
+- 路由（登录即可，自动权限推导 `export:*`）：
+  - `GET /api/v1/exports` → `export:list` 导出任务列表
+  - `POST /api/v1/exports` → `export:create` 创建导出任务（指定资源类型）
+  - `GET /api/v1/exports/{id}` → `export:read` 任务详情（仅任务可见可下载）
+  - `GET /api/v1/exports/{id}/download` 下载 CSV（`Content-Disposition` 附件 + `http.ServeFile`）
+  - `DELETE /api/v1/exports/{id}` → `export:delete` 删除任务与文件
+- 新建表 `export_jobs`（AutoMigrate 迁移），任务状态机：pending → running → success/failed
+- 异步执行：worker 池周期拉取 pending 任务，按资源类型分派注册表中的 exporter，当前支持 user / task / audit_log / wiki_document 四类
+- CSV 流式分批写出，默认批大小 1000、worker 数 3、保留 7 天；均可通过 `export.*` 配置段覆盖（dir/retention_days/worker_count/batch_size）
+- 过期清理 `ExportExpiryJob`：每 6 小时扫描超过 `expires_at` 的任务，单轮上限 200 条，删除 CSV 文件与数据库记录
+- 租户隔离：任务仅在本租户范围内可见、可下载、可删除
+
+**前端新增 `web-admin/src/views/export/index.vue`（下载中心）**
+- 路由 `/export` + 侧边栏「下载中心」菜单；任务列表（状态/分页）、创建导出、状态轮询、下载与删除
+
+---
+
+## 二十三、租户健康度看板（Dashboard）
+
+**后端扩展 `internal/modules/dashboard` 模块**
+- `GET /api/v1/admin/dashboard/tenants-health` → `admin:dashboard:list` 全量租户健康度列表（支持分级/关键字筛选，附总数与 healthy/moderate/at_risk 分级汇总）
+- `GET /api/v1/admin/dashboard/tenants-health/{id}` 单租户健康度详情
+- 评分模型（0-100）：订阅状态（生效 40 / 到期 15 / 取消或无订阅 0）+ 近 7 天活跃（30 × min(1, 审计数/20)）+ 资源足迹（30 × min(1, (用户+任务+文档)/100)）
+- 分级：≥70 healthy、≥40 moderate、<40 at_risk；全部基于既有数据表聚合直查，无新增表
+
+**前端新增 `web-admin/src/views/system/dashboard/tenant-health.vue`**
+- 路由 `/system/dashboard/tenant-health`（仅平台管理员可见）；分级分布卡片、健康度表格（评分进度条/分级标签）、单租户详情
+
+---
+
+## 二十四、租户套餐配额与 API 限流（Plan）
+
+**后端**
+- `Plan` 模型扩展三类配额：`StorageLimit`（字节）、`ApiRateLimit`（次/分钟）、`WikiSpaceLimit`（个）；-1 表示不限，未显式设置（0）创建时归一化为 -1
+- 租户 API 限流中间件 `internal/middleware/tenant_rate_limit.go`：自然分钟窗口 Redis `INCR` + 首次 `EXPIRE 60s`（key `tenant:rate:{id}:{minute}`），本地 5 分钟缓存套餐速率避免查库；超限返回 429 + `Retry-After`；无租户/不限/Redis 不可用/查询失败均 fail-open 放行
+- 文件上传存储配额校验：`FileService.Upload` 写入前比对 `SumSizeByTenant` 已用 + 本次大小与配额，超限返回 507（Insufficient Storage）
+- Wiki 空间创建配额校验：`CreateSpace` 进入事务前比对 `CountSpacesByTenant` 与配额，超限返回 402（`ErrTenantLimit`）
+- 当前套餐用量回填：`GetCurrentPlan` 可选注入 `StorageUsageProvider`/`WikiUsageProvider` 填充 `current_storage`/`current_wiki_spaces`（best-effort，失败保持零值）
+- 配额提供者解耦：`plan.NewQuotaService(db)` 返回具体 `*PlanService`，以结构类型同时满足 middleware/file/wiki 各消费方定义的最小配额接口，避免模块间循环依赖
+
+**前端**
+- 套餐管理（`system/plan/index.vue`）：列表新增存储配额/API 速率/Wiki 空间三列；新建/编辑对话框支持三项配额配置，存储以 GB 输入并与字节互相换算，-1 统一显示「不限」
+- 租户套餐配置弹窗（`system/tenant/index.vue`）：用户/存储/Wiki 空间三条用量进度条，超 100% 显示异常色

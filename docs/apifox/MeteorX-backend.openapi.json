@@ -5459,6 +5459,34 @@
         ]
       }
     },
+    "/api/v1/admin/dashboard/tenants-health": {
+      "get": {
+        "description": "权限码: `admin:dashboard:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "获取tenants-health",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/dashboard/tenants-health/{id}": {
+      "get": {
+        "description": "权限码: `admin:dashboard:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "获取资源",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
     "/api/v1/admin/plans": {
       "get": {
         "parameters": [
@@ -8719,6 +8747,72 @@
         ]
       }
     },
+    "/api/v1/exports": {
+      "get": {
+        "description": "权限码: `exports:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "导出任务列表",
+        "tags": [
+          "Export"
+        ]
+      },
+      "post": {
+        "description": "权限码: `exports:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "创建导出任务",
+        "tags": [
+          "Export"
+        ]
+      }
+    },
+    "/api/v1/exports/{id}": {
+      "delete": {
+        "description": "权限码: `exports:delete`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "删除导出任务",
+        "tags": [
+          "Export"
+        ]
+      },
+      "get": {
+        "description": "权限码: `exports:read`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "导出任务详情",
+        "tags": [
+          "Export"
+        ]
+      }
+    },
+    "/api/v1/exports/{id}/download": {
+      "get": {
+        "description": "权限码: `exports:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "下载导出文件",
+        "tags": [
+          "Export"
+        ]
+      }
+    },
     "/api/v1/files": {
       "get": {
         "parameters": [
@@ -11326,26 +11420,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
                   "properties": {
                     "code": {
-                      "type": "integer",
-                      "example": 0
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "success"
+                      "example": 0,
+                      "type": "integer"
                     },
                     "data": {
-                      "type": "object",
                       "properties": {
                         "purged": {
-                          "type": "integer",
-                          "description": "本次清理的回收站项目数"
+                          "description": "本次清理的回收站项目数",
+                          "type": "integer"
                         }
-                      }
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "example": "success",
+                      "type": "string"
                     }
-                  }
+                  },
+                  "type": "object"
                 }
               }
             },
