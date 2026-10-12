@@ -72,7 +72,7 @@ func TestExpireTrashItems_DistributedLockAcquireRelease(t *testing.T) {
 // 本次调用应直接跳过：不产生任何清理，也不得误删他人的锁。
 func TestExpireTrashItems_LockHeldByOtherInstance(t *testing.T) {
 	svc, db, mr, _ := setupExpireLockTest(t, "trash-lock-2")
-	mr.Set(expireLockKey, "other-instance-token")
+	require.NoError(t, mr.Set(expireLockKey, "other-instance-token"))
 
 	purged, err := svc.ExpireTrashItems(context.Background())
 	require.NoError(t, err)

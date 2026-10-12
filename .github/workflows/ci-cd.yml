@@ -8,7 +8,10 @@ on:
     branches: [ main ]
 
 env:
-  GO_VERSION: '1.26'
+  # 固定到已打补丁的最新修订版：go.mod 目标为 go 1.26.0，而 govulncheck 会将
+  # 被调用的标准库漏洞（net/http、crypto/* 等，修复于 go1.26.1~1.26.9）视为失败。
+  # 使用未打补丁的 go1.26.0 会让 Security Scan 硬阻塞整条流水线，故锁定 1.26.9。
+  GO_VERSION: '1.26.9'
   NODE_VERSION: '22'
 
 jobs:
@@ -26,9 +29,10 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
-          # v2.4.0 is the first release whose binary is built with Go 1.25,
-          # required because go.mod declares `go 1.25.0` (older binaries exit 3 on load).
-          version: v2.4.0
+          # golangci-lint 仅支持 <= 其构建时所用 Go 版本的目标模块；v2.4.0 由 Go 1.25
+          # 构建，加载 go.mod 的 go 1.26.0 会 exit 3。v2.9.0 是首个用 Go 1.26 构建、
+          # 支持 go1.26 的发布版，故升级至此。
+          version: v2.9.0
           args: --timeout=5m
           only-new-issues: true
 
