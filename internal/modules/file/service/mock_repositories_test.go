@@ -107,6 +107,16 @@ func (m *mockFileRepo) GetDeletedList(_ context.Context, _ string, _ int, _ int)
 	return out, int64(len(out)), nil
 }
 
+func (m *mockFileRepo) SumSizeByTenant(_ context.Context, tenantID string) (int64, error) {
+	var total int64
+	for _, f := range m.files {
+		if f.TenantID == tenantID {
+			total += f.FileSize
+		}
+	}
+	return total, nil
+}
+
 func (m *mockFileRepo) Restore(_ context.Context, id string) error {
 	if f, ok := m.deleted[id]; ok {
 		delete(m.deleted, id)

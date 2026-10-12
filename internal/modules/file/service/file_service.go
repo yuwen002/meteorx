@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -18,22 +19,37 @@ import (
 	"meteorx/pkg/logger"
 )
 
+// ErrStorageQuotaExceeded 租户存储配额不足，上传被拒绝。
+var ErrStorageQuotaExceeded = errors.New("storage quota exceeded")
+
+// StorageQuotaProvider 提供租户存储配额上限（字节），-1 表示不限制。
+type StorageQuotaProvider interface {
+	GetTenantStorageLimit(ctx context.Context, tenantID string) (int64, error)
+}
+
 // FileService 文件服务
 type FileService struct {
 	repo    repository.FileRepository
 	storage storage.Storage
+	quota   StorageQuotaProvider
 }
 
-// NewFileService 创建文件服务实例
-func NewFileService(repo repository.FileRepository, storage storage.Storage) *FileService {
+// NewFileService 创建文件服务实例；quota 可为 nil，表示不做存储配额校验。
+func NewFileService(repo repository.FileRepository, storage storage.Storage, quota StorageQuotaProvider) *FileService {
 	return &FileService{
 		repo:    repo,
 		storage: storage,
+		quota:   quota,
 	}
 }
 
 // Upload 上传文件
 func (s *FileService) Upload(ctx context.Context, fileHeader *multipart.FileHeader, tenantID, userID string) (*dto.UploadFileResp, error) {
+	// 上传前存储配额校验：仅在配置了配额提供者时生效，查询失败按 fail-open 放行
+	if err := s.checkStorageQuota(ctx, tenantID, fileHeader.Size); err != nil {
+		return nil, err
+	}
+
 	// 打开上传的文件
 	file, err := fileHeader.Open()
 	if err != nil {
@@ -105,6 +121,31 @@ func (s *FileService) Upload(ctx context.Context, fileHeader *multipart.FileHead
 		FileType:     fileRecord.FileType,
 		URL:          s.storage.GetURL(fileRecord.FilePath),
 	}, nil
+}
+
+func (s *FileService) checkStorageQuota(ctx context.Context, tenantID string, incoming int64) error {
+	if s.quota == nil || tenantID == "" {
+		return nil
+	}
+	limit, err := s.quota.GetTenantStorageLimit(ctx, tenantID)
+	if err != nil {
+		// 配额查询失败：fail-open，不阻断上传
+		logger.Warnf("[FileService] storage quota lookup failed for tenant %s: %v", tenantID, err)
+		return nil
+	}
+	if limit < 0 {
+		// -1 表示不限制
+		return nil
+	}
+	used, err := s.repo.SumSizeByTenant(ctx, tenantID)
+	if err != nil {
+		logger.Warnf("[FileService] storage usage sum failed for tenant %s: %v", tenantID, err)
+		return nil
+	}
+	if used+incoming > limit {
+		return fmt.Errorf("%w: 存储用量 %d 字节，本次上传 %d 字节将超出配额上限 %d 字节", ErrStorageQuotaExceeded, used, incoming, limit)
+	}
+	return nil
 }
 
 // GetByID 获取文件详情（同时校验文件归属于当前租户/用户）

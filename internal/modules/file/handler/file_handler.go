@@ -4,6 +4,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"meteorx/internal/common/response"
 	"meteorx/internal/config"
 	"meteorx/internal/modules/file/dto"
+	fileservice "meteorx/internal/modules/file/service"
 	"meteorx/pkg/pagination"
 
 	"github.com/go-chi/chi/v5"
@@ -92,6 +94,10 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	// 调用服务上传文件
 	result, err := h.service.Upload(r.Context(), header, tenantID, userID)
 	if err != nil {
+		if errors.Is(err, fileservice.ErrStorageQuotaExceeded) {
+			response.Fail(w, http.StatusInsufficientStorage, "存储空间不足，无法上传该文件")
+			return
+		}
 		response.Fail(w, http.StatusInternalServerError, "文件上传失败: "+err.Error())
 		return
 	}

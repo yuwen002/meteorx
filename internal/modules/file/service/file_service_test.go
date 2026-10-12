@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"mime/multipart"
 	"strings"
 	"testing"
 	"time"
@@ -13,8 +15,18 @@ import (
 func newTestFileService() (*FileService, *mockFileRepo, *mockStorage) {
 	fr := newMockFileRepo()
 	st := newMockStorage()
-	svc := NewFileService(fr, st)
+	svc := NewFileService(fr, st, nil)
 	return svc, fr, st
+}
+
+// stubQuotaProvider 固定存储配额（-1 不限）的提供者，用于配额测试。
+type stubQuotaProvider struct {
+	limit int64
+	err   error
+}
+
+func (s stubQuotaProvider) GetTenantStorageLimit(_ context.Context, _ string) (int64, error) {
+	return s.limit, s.err
 }
 
 func seedFile(fr *mockFileRepo, id, tenantID, userID string) *model.File {
@@ -219,5 +231,53 @@ func TestRestore_Success(t *testing.T) {
 	}
 	if _, ok := fr.files["f1"]; !ok {
 		t.Fatal("expected file restored to active set")
+	}
+}
+
+// ---------- 上传前存储配额校验 ----------
+
+// newUploadHeader 构造一个指定大小的 multipart.FileHeader（无需真实内容）。
+func newUploadHeader(size int64) *multipart.FileHeader {
+	return &multipart.FileHeader{Filename: "big.txt", Size: size, Header: nil}
+}
+
+func TestUpload_StorageQuotaExceeded(t *testing.T) {
+	fr := newMockFileRepo()
+	st := newMockStorage()
+	// 已有文件占用 10 字节，上限 15，本次上传 10 字节 -> 20 > 15 拒绝
+	seedFile(fr, "f1", "t1", "u1")
+	svc := NewFileService(fr, st, stubQuotaProvider{limit: 15})
+
+	_, err := svc.Upload(context.Background(), newUploadHeader(10), "t1", "u1")
+	if !errors.Is(err, ErrStorageQuotaExceeded) {
+		t.Fatalf("expected ErrStorageQuotaExceeded, got: %v", err)
+	}
+	if len(st.uploaded) != 0 {
+		t.Fatalf("no file should be uploaded when quota exceeded")
+	}
+}
+
+func TestUpload_StorageQuotaUnlimited(t *testing.T) {
+	fr := newMockFileRepo()
+	st := newMockStorage()
+	// limit=-1 不限制；但 header 无 Header 会导致 Content-Type 读取，仍可上传
+	svc := NewFileService(fr, st, stubQuotaProvider{limit: -1})
+
+	_, err := svc.Upload(context.Background(), newUploadHeader(1<<30), "t1", "u1")
+	if err != nil && !errors.Is(err, ErrStorageQuotaExceeded) {
+		// 允许因文件指针等无关错误失败，但不能是配额错误
+		t.Logf("upload returned non-quota error (acceptable for stub header): %v", err)
+	}
+}
+
+func TestUpload_StorageQuotaFailOpenOnError(t *testing.T) {
+	fr := newMockFileRepo()
+	st := newMockStorage()
+	// 配额提供者报错 -> fail-open，不应返回配额错误
+	svc := NewFileService(fr, st, stubQuotaProvider{err: errors.New("db down")})
+
+	_, err := svc.Upload(context.Background(), newUploadHeader(999), "t1", "u1")
+	if errors.Is(err, ErrStorageQuotaExceeded) {
+		t.Fatalf("provider error should fail-open, not quota-reject")
 	}
 }

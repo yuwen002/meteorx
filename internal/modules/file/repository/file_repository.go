@@ -136,3 +136,13 @@ func (r *FileRepositoryImpl) Restore(ctx context.Context, id string) error {
 		Where("id = ?", id).
 		Update("deleted_at", nil).Error
 }
+
+// SumSizeByTenant 统计租户当前有效文件的存储总用量（字节）
+func (r *FileRepositoryImpl) SumSizeByTenant(ctx context.Context, tenantID string) (int64, error) {
+	var total int64
+	err := r.db.WithContext(ctx).Model(&model.File{}).
+		Where("tenant_id = ? AND deleted_at IS NULL", tenantID).
+		Select("COALESCE(SUM(file_size), 0)").
+		Scan(&total).Error
+	return total, err
+}

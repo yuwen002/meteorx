@@ -42,6 +42,11 @@ func NewQuotaVerifier(db *gorm.DB) repository.QuotaVerifier {
 
 // NewQuotaRateProvider 创建租户 API 速率配额提供者（供限流中间件注入）
 func NewQuotaRateProvider(db *gorm.DB) middleware.QuotaRateProvider {
+	return NewQuotaService(db)
+}
+
+// NewQuotaService 创建套餐配额服务（具体类型，同时满足存储/速率等配额查询接口，供 file、wiki 等模块注入）
+func NewQuotaService(db *gorm.DB) *service.PlanService {
 	planRepo := repository.NewPlanRepository(db)
 	subRepo := repository.NewSubscriptionRepository(db)
 	userRepo := userrepository.NewUserRepository(db)

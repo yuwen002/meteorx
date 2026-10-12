@@ -499,3 +499,21 @@ func (s *PlanService) GetTenantApiRate(ctx context.Context, tenantID string) (in
 	}
 	return plan.ApiRateLimit, nil
 }
+
+// GetTenantStorageLimit 获取租户当前套餐的存储配额上限（字节）。
+// 无生效订阅或套餐未设置时返回 -1（不限制），供文件上传配额校验调用。
+func (s *PlanService) GetTenantStorageLimit(ctx context.Context, tenantID string) (int64, error) {
+	sub, err := s.subRepo.GetActiveByTenant(ctx, tenantID)
+	if err != nil {
+		return 0, err
+	}
+	if sub == nil {
+		// 无生效订阅：不限制
+		return -1, nil
+	}
+	plan, err := s.planRepo.GetByID(ctx, sub.PlanID)
+	if err != nil {
+		return 0, err
+	}
+	return plan.StorageLimit, nil
+}

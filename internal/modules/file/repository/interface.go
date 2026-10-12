@@ -38,6 +38,9 @@ type FileRepository interface {
 	// GetDeletedList 获取已删除文件列表
 	GetDeletedList(ctx context.Context, tenantID string, page, pageSize int) ([]*model.File, int64, error)
 
+	// SumSizeByTenant 统计租户当前有效（未软删除）文件的存储总用量（字节）
+	SumSizeByTenant(ctx context.Context, tenantID string) (int64, error)
+
 	// Restore 恢复已删除文件
 	Restore(ctx context.Context, id string) error
 }
