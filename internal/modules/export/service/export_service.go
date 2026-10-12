@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"time"
 
 	"meteorx/internal/modules/export/dto"
 	"meteorx/internal/modules/export/model"
 	"meteorx/internal/modules/export/repository"
+	"meteorx/pkg/logger"
 	"meteorx/pkg/ulid"
 )
 
@@ -115,6 +117,29 @@ func (s *ExportService) Delete(ctx context.Context, id, tenantID, userID string,
 
 // Config 返回服务配置（供 handler 层构造文件路径等）
 func (s *ExportService) Config() Config { return s.config }
+
+// CleanupExpired 删除已过期（expires_at < now）的导出任务及其 CSV 文件，返回成功清理的记录数。
+// limit 为单轮扫描上限；文件删除失败不阻断记录删除，仅告警。
+func (s *ExportService) CleanupExpired(ctx context.Context, now time.Time, limit int) (int64, error) {
+	jobs, err := s.repo.ListExpired(ctx, now, limit)
+	if err != nil {
+		return 0, err
+	}
+	var n int64
+	for _, j := range jobs {
+		if j.FilePath != "" {
+			if err := os.Remove(j.FilePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+				logger.Warnf("[Export] 删除过期文件 %s 失败: %v", j.FilePath, err)
+			}
+		}
+		if err := s.repo.Delete(ctx, j.ID); err != nil {
+			logger.Warnf("[Export] 删除过期任务 %s 失败: %v", j.ID, err)
+			continue
+		}
+		n++
+	}
+	return n, nil
+}
 
 // Repo 暴露仓储给 worker 使用
 func (s *ExportService) Repo() repository.ExportRepository { return s.repo }

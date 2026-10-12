@@ -316,6 +316,13 @@ func StartExportWorkerJob(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 	export.StartExportWorker(ctx, db, *cfg)
 }
 
+// StartExportExpiryJob 启动导出文件过期清理定时任务
+// 周期性删除超过保留期的导出 CSV 文件与对应任务记录
+func StartExportExpiryJob(ctx context.Context, db *gorm.DB, cfg *config.Config) {
+	job := export.NewExportExpiryJob(db, *cfg)
+	job.Start(ctx, 6*time.Hour)
+}
+
 // initIPLocator 根据配置初始化 IP 地理位置解析器
 func initIPLocator(cfg *config.Config) iplocation.IPLocator {
 	provider := cfg.IPLocation.Provider
