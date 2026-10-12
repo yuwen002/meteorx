@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"meteorx/internal/modules/audit"
 	"meteorx/internal/modules/dashboard"
+	"meteorx/internal/modules/export"
 	"meteorx/internal/modules/notification"
 	"meteorx/internal/pkg/emailer"
 	"meteorx/pkg/iplocation"
@@ -219,6 +220,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 
 			// 4.9 任务管理接口（个人待办 + 租户团队协作，仅需登录）
 			task.InitModule(r, db)
+
+			// 4.10 数据导出接口（下载中心，异步 CSV 导出）
+			export.InitModule(r, db, *cfg)
 
 			// ========================================================
 			// 🔥 新增分组三：MaaS 平台运营后台特权接口 (Platform Admin Only)

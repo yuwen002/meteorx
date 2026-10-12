@@ -9,6 +9,7 @@ import (
 	"meteorx/pkg/logger"
 
 	"meteorx/internal/modules/audit/repository"
+	exportrepo "meteorx/internal/modules/export/repository"
 	"meteorx/internal/modules/file"
 	invitationrepo "meteorx/internal/modules/invitation/repository"
 	notificationrepo "meteorx/internal/modules/notification/repository"
@@ -60,6 +61,7 @@ func AutoMigrate(db *gorm.DB) error {
 		{"invitations", invitationrepo.AutoMigrate},
 		{"tasks", taskrepo.AutoMigrate},
 		{"wiki", wikirepo.AutoMigrate},
+		{"export_jobs", exportrepo.AutoMigrate},
 	}
 
 	for _, m := range nonCritical {

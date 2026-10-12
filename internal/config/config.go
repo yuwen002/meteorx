@@ -25,6 +25,16 @@ type Config struct {
 	OTel         OTelConfig         `mapstructure:"otel"`
 	Search       SearchConfig       `mapstructure:"search"`
 	TaskReminder TaskReminderConfig `mapstructure:"task_reminder"`
+	Export       ExportConfig       `mapstructure:"export"`
+}
+
+// ExportConfig 数据导出模块配置。
+// 未配置或零值时由 buildServiceConfig 回落内置默认。
+type ExportConfig struct {
+	Dir           string `mapstructure:"dir"`             // 导出文件目录，默认 data/exports
+	RetentionDays int    `mapstructure:"retention_days"`  // 文件保留天数，默认 7
+	WorkerCount   int    `mapstructure:"worker_count"`    // worker 池大小，默认 3
+	BatchSize     int    `mapstructure:"batch_size"`      // CSV flush 阈值，默认 1000
 }
 
 // TaskReminderConfig 任务到期提醒定时任务配置。
