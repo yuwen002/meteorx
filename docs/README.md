@@ -15,6 +15,7 @@
 - [公告 API](api/announcement-api.md) - 通知公告
 - [邀请 API](api/invitation-api.md) - 成员邀请与接受注册
 - [任务 API](api/task-api.md) - 个人待办与团队协作任务
+- [导出 API](api/export-api.md) - 异步数据导出与下载中心
 
 ### 架构设计文档
 - [多租户隔离架构](architecture/tenant.md)
@@ -51,6 +52,7 @@ docs/
 │   ├── dashboard-api.md
 │   ├── invitation-api.md
 │   ├── task-api.md
+│   ├── export-api.md
 │   └── announcement-api.md
 ├── architecture/                # 架构设计文档
 │   ├── tenant.md

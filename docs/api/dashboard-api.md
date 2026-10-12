@@ -13,6 +13,8 @@
 | 方法 | 路径 | 功能 | 权限码 |
 |------|------|------|--------|
 | GET | `/admin/dashboard/overview` | 平台运营数据总览 | `admin:dashboard:list` |
+| GET | `/admin/dashboard/tenants-health` | 租户健康度列表（含分级汇总） | `admin:dashboard:list` |
+| GET | `/admin/dashboard/tenants-health/{id}` | 单租户健康度详情 | `admin:dashboard:list` |
 
 ---
 
@@ -67,6 +69,40 @@
 | failure | int64 | 失败数（result=failure） |
 | action_stats | map\<string,int64\> | 按操作类型统计 |
 | module_stats | map\<string,int64\> | 按模块统计 |
+
+### 2.6 TenantHealthItemResp（单租户健康度）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| tenant_id | string | 租户 ID |
+| tenant_name | string | 租户名称 |
+| status | int | 租户状态：1-启用 0-禁用 |
+| plan_name | string | 当前套餐名称（无订阅时为空） |
+| subscription_status | int | 订阅状态：0-无订阅 1-生效 2-到期 3-取消 |
+| subscription_expires_at | string\|null | 订阅到期时间（null=长期有效） |
+| days_remaining | int | 订阅剩余天数（-1=长期有效） |
+| user_count | int64 | 用户总数 |
+| active_user_count | int64 | 有效用户数 |
+| task_count | int64 | 任务总数 |
+| task_completed_count | int64 | 已完成任务数 |
+| wiki_doc_count | int64 | Wiki 文档总数 |
+| storage_used | int64 | 存储占用（字节） |
+| audit_count_7d | int64 | 近 7 天审计日志数 |
+| last_activity_at | string\|null | 最近活动时间 |
+| health_score | int | 健康度评分（0-100） |
+| health_level | string | 健康分级：`healthy` / `moderate` / `at_risk` |
+
+### 2.7 TenantHealthListResp（健康度列表响应）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| items | TenantHealthItemResp[] | 当前页健康度明细 |
+| total | int64 | 租户总数 |
+| page | int | 页码 |
+| page_size | int | 每页条数 |
+| healthy | int64 | healthy 分级租户数（全量统计） |
+| moderate | int64 | moderate 分级租户数（全量统计） |
+| at_risk | int64 | at_risk 分级租户数（全量统计） |
 
 ---
 
@@ -130,6 +166,40 @@
 - 订阅状态：`1` active、`2` expired、`3` cancelled。
 - 审计结果：`success` / `failure`。
 - 该接口聚合多张表，数据量较大时建议配合定时任务缓存（当前为实时聚合）。
+
+### 3.2 租户健康度列表
+
+`GET /api/v1/admin/dashboard/tenants-health`
+
+**Query 参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| page | int | 页码，默认 1 |
+| page_size | int | 每页条数 |
+| keyword | string | 按租户名称模糊匹配 |
+
+**成功响应（200）：** TenantHealthListResp（含分页与 healthy/moderate/at_risk 三级分布汇总）
+
+**评分模型（0-100，三项相加）：**
+
+| 维度 | 满分 | 规则 |
+|------|------|------|
+| 订阅状态 | 40 | 生效 40 / 到期 15 / 取消或无订阅 0 |
+| 近 7 天活跃 | 30 | 30 × min(1, 审计日志数 / 20) |
+| 资源足迹 | 30 | 30 × min(1, (用户+任务+Wiki文档) / 100) |
+
+**分级：** `health_score ≥ 70` → healthy；`≥ 40` → moderate；`< 40` → at_risk。
+
+**业务说明：** 全部指标基于既有数据表聚合直查（租户/订阅/用户/任务/Wiki/文件/审计），无新增表。
+
+### 3.3 单租户健康度详情
+
+`GET /api/v1/admin/dashboard/tenants-health/{id}`
+
+**成功响应（200）：** TenantHealthItemResp
+
+**错误响应：** 租户不存在返回 404。
 
 ---
 
