@@ -7,6 +7,9 @@ export interface PlanItem {
   code: string
   description?: string
   user_limit: number
+  storage_limit: number
+  api_rate_limit: number
+  wiki_space_limit: number
   price: number
   status: number
   subscriber_cnt?: number
@@ -21,6 +24,11 @@ export interface CurrentPlan {
   plan_code: string
   user_limit: number
   current_users: number
+  storage_limit: number
+  current_storage: number
+  wiki_space_limit: number
+  current_wiki_spaces: number
+  api_rate_limit: number
   started_at?: string
   expires_at?: string
   status: number
@@ -32,6 +40,9 @@ export interface CreatePlanParams {
   code: string
   description?: string
   user_limit: number
+  storage_limit: number
+  api_rate_limit: number
+  wiki_space_limit: number
   price: number
   status: number
 }
@@ -40,6 +51,9 @@ export interface UpdatePlanParams {
   name?: string
   description?: string
   user_limit?: number
+  storage_limit?: number
+  api_rate_limit?: number
+  wiki_space_limit?: number
   price?: number
   status?: number
 }

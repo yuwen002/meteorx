@@ -29,6 +29,26 @@ type PlanService struct {
 	planRepo repository.PlanRepository
 	subRepo  repository.SubscriptionRepository
 	userRepo repository.UserCounter
+
+	// 用量统计提供者（可选注入，用于 GetCurrentPlan 回填存储/空间实时用量）
+	storageUsage StorageUsageProvider
+	wikiUsage    WikiUsageProvider
+}
+
+// StorageUsageProvider 统计租户已用存储字节（由文件仓储实现）。
+type StorageUsageProvider interface {
+	SumSizeByTenant(ctx context.Context, tenantID string) (int64, error)
+}
+
+// WikiUsageProvider 统计租户有效知识空间数量（由 Wiki 仓储实现）。
+type WikiUsageProvider interface {
+	CountSpacesByTenant(ctx context.Context, tenantID string) (int64, error)
+}
+
+// SetUsageProviders 注入存储/空间用量提供者（供当前套餐查询回填用量）。
+func (s *PlanService) SetUsageProviders(storage StorageUsageProvider, wiki WikiUsageProvider) {
+	s.storageUsage = storage
+	s.wikiUsage = wiki
 }
 
 // NewPlanService 创建套餐服务
@@ -335,6 +355,17 @@ func (s *PlanService) GetCurrentPlan(ctx context.Context, tenantID string) (*dto
 		ApiRateLimit:   plan.ApiRateLimit,
 		StartedAt:      sub.StartedAt.Format("2006-01-02 15:04:05"),
 		Status:         sub.Status,
+	}
+	// 回填存储与 Wiki 空间实时用量（未注入提供者时保持为 0）
+	if s.storageUsage != nil {
+		if used, err := s.storageUsage.SumSizeByTenant(ctx, tenantID); err == nil {
+			resp.CurrentStorage = used
+		}
+	}
+	if s.wikiUsage != nil {
+		if cnt, err := s.wikiUsage.CountSpacesByTenant(ctx, tenantID); err == nil {
+			resp.CurrentWikiSpaces = cnt
+		}
 	}
 	if sub.ExpiresAt != nil {
 		exp := sub.ExpiresAt.Format("2006-01-02 15:04:05")

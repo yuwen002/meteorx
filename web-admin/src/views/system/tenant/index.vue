@@ -482,6 +482,16 @@
             <span class="usage-text">{{ currentPlan.current_users }} / {{ currentPlan.user_limit === -1 ? '不限' : currentPlan.user_limit }}</span>
           </div>
           <div class="plan-info-item">
+            <span class="label">存储用量</span>
+            <el-progress :percentage="planStoragePercent" :status="planStoragePercent >= 100 ? 'exception' : undefined" style="width: 300px" />
+            <span class="usage-text">{{ formatSize(currentPlan.current_storage) }} / {{ currentPlan.storage_limit === -1 ? '不限' : formatSize(currentPlan.storage_limit) }}</span>
+          </div>
+          <div class="plan-info-item">
+            <span class="label">Wiki空间</span>
+            <el-progress :percentage="planWikiPercent" :status="planWikiPercent >= 100 ? 'exception' : undefined" style="width: 300px" />
+            <span class="usage-text">{{ currentPlan.current_wiki_spaces }} / {{ currentPlan.wiki_space_limit === -1 ? '不限' : currentPlan.wiki_space_limit }}</span>
+          </div>
+          <div class="plan-info-item">
             <span class="label">生效时间</span>
             <span>{{ currentPlan.started_at || '-' }}</span>
           </div>
@@ -691,6 +701,27 @@ const planUsagePercent = computed(() => {
   if (!currentPlan.value || currentPlan.value.user_limit === -1 || currentPlan.value.user_limit <= 0) return 0
   return Math.min(100, Math.round((currentPlan.value.current_users / currentPlan.value.user_limit) * 100))
 })
+const planStoragePercent = computed(() => {
+  if (!currentPlan.value || currentPlan.value.storage_limit === -1 || currentPlan.value.storage_limit <= 0) return 0
+  return Math.min(100, Math.round((currentPlan.value.current_storage / currentPlan.value.storage_limit) * 100))
+})
+const planWikiPercent = computed(() => {
+  if (!currentPlan.value || currentPlan.value.wiki_space_limit === -1 || currentPlan.value.wiki_space_limit <= 0) return 0
+  return Math.min(100, Math.round((currentPlan.value.current_wiki_spaces / currentPlan.value.wiki_space_limit) * 100))
+})
+
+// formatSize 将字节数格式化为可读大小
+function formatSize(bytes: number): string {
+  if (!bytes || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let val = bytes
+  let i = 0
+  while (val >= 1024 && i < units.length - 1) {
+    val /= 1024
+    i++
+  }
+  return `${val.toFixed(i === 0 ? 0 : 2)} ${units[i]}`
+}
 
 // 打开套餐配置弹窗
 async function openPlanDialog(row: TenantItem) {

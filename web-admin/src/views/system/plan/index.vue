@@ -26,6 +26,24 @@
             <span v-else>{{ row.user_limit }} 人</span>
           </template>
         </el-table-column>
+        <el-table-column label="存储配额" width="120">
+          <template #default="{ row }">
+            <span v-if="row.storage_limit === -1">不限</span>
+            <span v-else>{{ formatSize(row.storage_limit) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="API速率" width="120">
+          <template #default="{ row }">
+            <span v-if="row.api_rate_limit === -1">不限</span>
+            <span v-else>{{ row.api_rate_limit }} 次/分</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="Wiki空间" width="110">
+          <template #default="{ row }">
+            <span v-if="row.wiki_space_limit === -1">不限</span>
+            <span v-else>{{ row.wiki_space_limit }} 个</span>
+          </template>
+        </el-table-column>
         <el-table-column label="月费" width="110">
           <template #default="{ row }">
             <span v-if="row.price === 0">
@@ -71,7 +89,7 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="dialogMode === 'create' ? '新增套餐' : '编辑套餐'" width="520px" :close-on-click-modal="false">
+    <el-dialog v-model="dialogVisible" :title="dialogMode === 'create' ? '新增套餐' : '编辑套餐'" width="560px" :close-on-click-modal="false">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="套餐名称" prop="name"><el-input v-model="form.name" placeholder="如：标准版" /></el-form-item>
         <el-form-item label="套餐编码" prop="code">
@@ -79,6 +97,18 @@
         </el-form-item>
         <el-form-item label="用户数上限" prop="user_limit">
           <el-input-number v-model="form.user_limit" :min="-1" :max="999999" />
+          <span class="tip">-1 表示不限</span>
+        </el-form-item>
+        <el-form-item label="存储配额(GB)" prop="storage_limit">
+          <el-input-number v-model="form.storage_limit" :min="-1" :max="102400" :precision="0" />
+          <span class="tip">-1 表示不限，单位为 GB</span>
+        </el-form-item>
+        <el-form-item label="API速率(分)" prop="api_rate_limit">
+          <el-input-number v-model="form.api_rate_limit" :min="-1" :max="1000000" :step="60" />
+          <span class="tip">每分钟请求数上限，-1 表示不限</span>
+        </el-form-item>
+        <el-form-item label="Wiki空间数" prop="wiki_space_limit">
+          <el-input-number v-model="form.wiki_space_limit" :min="-1" :max="100000" />
           <span class="tip">-1 表示不限</span>
         </el-form-item>
         <el-form-item label="月费价格" prop="price">
@@ -148,10 +178,28 @@ const form = reactive({
   name: '',
   code: '',
   user_limit: -1,
+  storage_limit: -1, // 表单内以 GB 为单位存储，-1 表示不限
+  api_rate_limit: -1,
+  wiki_space_limit: -1,
   price: 0,
   status: 1,
   description: ''
 })
+
+const GB = 1024 * 1024 * 1024
+
+// formatSize 将字节数格式化为可读大小
+function formatSize(bytes: number): string {
+  if (bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let val = bytes
+  let i = 0
+  while (val >= 1024 && i < units.length - 1) {
+    val /= 1024
+    i++
+  }
+  return `${val.toFixed(i === 0 ? 0 : 2)} ${units[i]}`
+}
 
 const rules: FormRules = {
   name: [{ required: true, message: '请输入套餐名称', trigger: 'blur' }],
@@ -165,6 +213,9 @@ function openCreateDialog() {
   form.name = ''
   form.code = ''
   form.user_limit = -1
+  form.storage_limit = -1
+  form.api_rate_limit = -1
+  form.wiki_space_limit = -1
   form.price = 0
   form.status = 1
   form.description = ''
@@ -177,10 +228,28 @@ function openEditDialog(row: PlanItem) {
   form.name = row.name
   form.code = row.code
   form.user_limit = row.user_limit
+  // 后端存储为字节，回填表单时换算为 GB（-1 保持不限）
+  form.storage_limit = row.storage_limit === -1 ? -1 : Math.round(row.storage_limit / GB)
+  form.api_rate_limit = row.api_rate_limit
+  form.wiki_space_limit = row.wiki_space_limit
   form.price = row.price
   form.status = row.status
   form.description = row.description || ''
   dialogVisible.value = true
+}
+
+// buildPayload 将表单（GB 单位）转换为后端需要的字节配额载荷
+function buildPayload() {
+  return {
+    name: form.name,
+    description: form.description,
+    user_limit: form.user_limit,
+    storage_limit: form.storage_limit === -1 ? -1 : form.storage_limit * GB,
+    api_rate_limit: form.api_rate_limit,
+    wiki_space_limit: form.wiki_space_limit,
+    price: form.price,
+    status: form.status
+  }
 }
 
 async function submitForm() {
@@ -189,11 +258,12 @@ async function submitForm() {
     if (!valid) return
     saving.value = true
     try {
+      const payload = buildPayload()
       if (dialogMode.value === 'create') {
-        await createPlan({ ...form })
+        await createPlan({ ...payload, code: form.code })
         ElMessage.success('新增成功')
       } else if (editingId.value) {
-        await updatePlan(editingId.value, { ...form })
+        await updatePlan(editingId.value, payload)
         ElMessage.success('更新成功')
       }
       dialogVisible.value = false

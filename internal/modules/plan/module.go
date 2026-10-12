@@ -3,12 +3,14 @@ package plan
 
 import (
 	"meteorx/internal/middleware"
+	filerepo "meteorx/internal/modules/file/repository"
 	"meteorx/internal/modules/plan/handler"
 	"meteorx/internal/modules/plan/repository"
 	"meteorx/internal/modules/plan/service"
 	rbacrepo "meteorx/internal/modules/rbac/repository"
 	rbacsvc "meteorx/internal/modules/rbac/service"
 	userrepository "meteorx/internal/modules/user/repository"
+	wikirepo "meteorx/internal/modules/wiki/repository"
 
 	"github.com/go-chi/chi/v5"
 	"gorm.io/gorm"
@@ -20,6 +22,8 @@ func initHandler(db *gorm.DB) *handler.PlanHandler {
 	subRepo := repository.NewSubscriptionRepository(db)
 	userRepo := userrepository.NewUserRepository(db)
 	svc := service.NewPlanService(planRepo, subRepo, userRepo)
+	// 回填当前套餐的存储与 Wiki 空间用量（复用两个模块仓储的租户级统计方法）
+	svc.SetUsageProviders(filerepo.NewFileRepository(db), wikirepo.NewWikiRepository(db))
 	return handler.NewPlanHandler(svc)
 }
 
