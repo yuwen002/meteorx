@@ -23,6 +23,10 @@ var (
 	ErrExportQueueFull = errors.New("导出队列已满，请稍后再试")
 )
 
+// MaxActiveJobsPerTenant 单租户未完结（pending/running）导出任务数上限，
+// 达到上限后新建任务返回 ErrExportQueueFull（429），防止队列被单租户占满。
+const MaxActiveJobsPerTenant = 10
+
 // Config 导出服务配置
 type Config struct {
 	Dir           string // 导出文件目录
@@ -47,6 +51,13 @@ func NewExportService(repo repository.ExportRepository, cfg Config) *ExportServi
 func (s *ExportService) CreateExport(ctx context.Context, tenantID, userID string, req dto.CreateExportReq) (*model.ExportJob, error) {
 	if !model.ValidResourceType(req.Resource) {
 		return nil, ErrInvalidResource
+	}
+	// 队列上限准入：未完结任务达上限时拒绝新建，查询失败时不阻断创建（fail-open）
+	active, err := s.repo.CountActiveByTenant(ctx, tenantID)
+	if err != nil {
+		logger.Warnf("[Export] 统计未完结任务失败，跳过上限检查: tenant=%s err=%v", tenantID, err)
+	} else if active >= MaxActiveJobsPerTenant {
+		return nil, ErrExportQueueFull
 	}
 	filters := "{}"
 	if req.Filters != nil {

@@ -46,6 +46,25 @@ func TestService_CreateExport_InvalidResource(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidResource)
 }
 
+func TestService_CreateExport_QueueFull(t *testing.T) {
+	svc, _ := newService(t, 7)
+	ctx := context.Background()
+
+	// 先达到上限：连续创建 MaxActiveJobsPerTenant 个 pending 任务
+	for i := 0; i < MaxActiveJobsPerTenant; i++ {
+		_, err := svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{Resource: model.ResourceUser})
+		require.NoError(t, err)
+	}
+
+	// 第 11 个被拒绝：队列已满
+	_, err := svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{Resource: model.ResourceUser})
+	require.ErrorIs(t, err, ErrExportQueueFull)
+
+	// 上限按租户隔离：其他租户不受影响
+	_, err = svc.CreateExport(ctx, "t2", "u2", dto.CreateExportReq{Resource: model.ResourceUser})
+	require.NoError(t, err)
+}
+
 func TestService_GetByID_Ownership(t *testing.T) {
 	svc, _ := newService(t, 7)
 	ctx := context.Background()

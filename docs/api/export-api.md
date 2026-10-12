@@ -80,6 +80,7 @@ pending ──worker 拉取──▶ running ──▶ completed
 
 **业务规则：**
 - `resource` 不在支持列表内返回 400（`不支持的资源类型`）
+- 队列上限准入：本租户未完结（pending/running）任务数 ≥ 10 时返回 429；配额计数查询异常时不阻断创建（fail-open）
 - 任务落库即返回，不阻塞请求；由 worker 池异步执行
 - `expires_at` = 当前时间 + `export.retention_days`（默认 7 天）
 
@@ -148,7 +149,7 @@ pending ──worker 拉取──▶ running ──▶ completed
 | 403 | 无权访问该导出任务（跨归属访问） |
 | 404 | 导出任务不存在 |
 | 409 | 任务未完成时请求下载 |
-| 429 | 导出队列已满（服务定义了该错误映射，预留限流） |
+| 429 | 导出队列已满：本租户未完结（pending/running）任务数达到上限 `MaxActiveJobsPerTenant = 10` |
 
 ### 4.3 配置项（`internal/config/config.yaml`）
 

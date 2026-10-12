@@ -132,6 +132,33 @@ func TestExportRepo_ListByUser_Ownership(t *testing.T) {
 	require.Equal(t, "j1", items[0].ID)
 }
 
+func TestExportRepo_CountActiveByTenant(t *testing.T) {
+	db := newExportTestDB(t)
+	repo := NewExportRepository(db)
+	ctx := context.Background()
+	require.NoError(t, repo.Create(ctx, newJob("p1", model.ExportStatusPending, time.Now().Add(time.Hour))))
+	require.NoError(t, repo.Create(ctx, newJob("r1", model.ExportStatusRunning, time.Now().Add(time.Hour))))
+	require.NoError(t, repo.Create(ctx, newJob("c1", model.ExportStatusCompleted, time.Now().Add(time.Hour))))
+	require.NoError(t, repo.Create(ctx, newJob("f1", model.ExportStatusFailed, time.Now().Add(time.Hour))))
+
+	// 另一租户的任务不计入
+	other := newJob("t2p", model.ExportStatusPending, time.Now().Add(time.Hour))
+	other.TenantID = "t2"
+	require.NoError(t, repo.Create(ctx, other))
+
+	count, err := repo.CountActiveByTenant(ctx, "t1")
+	require.NoError(t, err)
+	require.Equal(t, int64(2), count, "仅 pending/running 计入未完结")
+
+	count, err = repo.CountActiveByTenant(ctx, "t2")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), count)
+
+	count, err = repo.CountActiveByTenant(ctx, "t-none")
+	require.NoError(t, err)
+	require.Equal(t, int64(0), count)
+}
+
 func TestExportRepo_Delete(t *testing.T) {
 	db := newExportTestDB(t)
 	repo := NewExportRepository(db)

@@ -83,6 +83,8 @@ type ExportRepository interface {
 	MarkFailed(ctx context.Context, id, errMsg string, completedAt time.Time) error
 	// ListExpired 查询已过期待清理的任务
 	ListExpired(ctx context.Context, now time.Time, limit int) ([]*model.ExportJob, error)
+	// CountActiveByTenant 统计指定租户未完结（pending/running）的任务数，用于队列上限准入检查
+	CountActiveByTenant(ctx context.Context, tenantID string) (int64, error)
 	Delete(ctx context.Context, id string) error
 }
 
@@ -201,6 +203,14 @@ func (r *exportRepository) ListExpired(ctx context.Context, now time.Time, limit
 		items[i] = po.toDomain()
 	}
 	return items, nil
+}
+
+func (r *exportRepository) CountActiveByTenant(ctx context.Context, tenantID string) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&ExportJobPO{}).
+		Where("tenant_id = ? AND status IN ?", tenantID, []string{model.ExportStatusPending, model.ExportStatusRunning}).
+		Count(&count).Error
+	return count, err
 }
 
 func (r *exportRepository) Delete(ctx context.Context, id string) error {

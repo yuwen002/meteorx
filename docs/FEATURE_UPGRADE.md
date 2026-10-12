@@ -982,7 +982,7 @@ client:
   - `GET /api/v1/exports/{id}/download` 下载 CSV（`Content-Disposition` 附件 + `http.ServeFile`）
   - `DELETE /api/v1/exports/{id}` → `export:delete` 删除任务与文件
 - 新建表 `export_jobs`（AutoMigrate 迁移），任务状态机：pending → running → success/failed
-- 异步执行：worker 池周期拉取 pending 任务，按资源类型分派注册表中的 exporter，当前支持 user / task / audit_log / wiki_document 四类
+- 异步执行：worker 池周期拉取 pending 任务，按资源类型分派注册表中的 exporter，当前支持 user / task / audit_log / wiki_document 四类；队列上限准入：单租户未完结（pending/running）任务数达 `MaxActiveJobsPerTenant = 10` 时新建返回 429
 - CSV 流式分批写出，默认批大小 1000、worker 数 3、保留 7 天；均可通过 `export.*` 配置段覆盖（dir/retention_days/worker_count/batch_size）
 - 过期清理 `ExportExpiryJob`：每 6 小时扫描超过 `expires_at` 的任务，单轮上限 200 条，删除 CSV 文件与数据库记录
 - 租户隔离：任务仅在本租户范围内可见、可下载、可删除
