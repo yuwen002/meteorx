@@ -40,6 +40,14 @@ func NewQuotaVerifier(db *gorm.DB) repository.QuotaVerifier {
 	return service.NewPlanService(planRepo, subRepo, userRepo)
 }
 
+// NewQuotaRateProvider 创建租户 API 速率配额提供者（供限流中间件注入）
+func NewQuotaRateProvider(db *gorm.DB) middleware.QuotaRateProvider {
+	planRepo := repository.NewPlanRepository(db)
+	subRepo := repository.NewSubscriptionRepository(db)
+	userRepo := userrepository.NewUserRepository(db)
+	return service.NewPlanService(planRepo, subRepo, userRepo)
+}
+
 // InitAdminModule 平台管理员套餐管理接口
 func InitAdminModule(r chi.Router, db *gorm.DB) {
 	h := initHandler(db)

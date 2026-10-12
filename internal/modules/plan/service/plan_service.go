@@ -481,3 +481,21 @@ func (s *PlanService) CheckUserLimit(ctx context.Context, tenantID string) (bool
 }
 
 var _ repository.QuotaVerifier = (*PlanService)(nil)
+
+// GetTenantApiRate 获取租户当前套餐的 API 速率上限（每分钟请求数）。
+// 无生效订阅或套餐未设置时返回 -1（不限制），供限流中间件调用。
+func (s *PlanService) GetTenantApiRate(ctx context.Context, tenantID string) (int, error) {
+	sub, err := s.subRepo.GetActiveByTenant(ctx, tenantID)
+	if err != nil {
+		return 0, err
+	}
+	if sub == nil {
+		// 无生效订阅：不限制，避免阻塞未购买套餐的租户
+		return -1, nil
+	}
+	plan, err := s.planRepo.GetByID(ctx, sub.PlanID)
+	if err != nil {
+		return 0, err
+	}
+	return plan.ApiRateLimit, nil
+}

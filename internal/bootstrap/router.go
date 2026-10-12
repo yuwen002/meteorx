@@ -164,6 +164,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			apiTokenValidator := authSvc.NewAPITokenService(apiTokenRepo, userRepo.NewUserRepository(db), rbacRepo.NewUserRoleRepository(db), rbacRepo.NewRolePermissionRepository(db), rdb, cfg.Auth)
 			r.Use(middleware.Auth(tokenHelper, blacklistChecker, cfg.Server.Mode, cfg.Server.TestBypass, apiTokenValidator))
 
+			// 【租户级限流】依据套餐 API 速率配额（每分钟请求数）限流，Redis 不可用/未设置配额时 fail-open 放行
+			r.Use(middleware.TenantRateLimit(plan.NewQuotaRateProvider(db), rdb))
+
 			// 审计日志中间件：自动记录所有请求（挂载在认证之后，确保能获取用户信息）
 			repo := auditRepo.NewAuditLogRepository(db)
 			ipLocator := initIPLocator(cfg)
