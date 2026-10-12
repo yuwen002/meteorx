@@ -75,17 +75,30 @@ func strVal(s *string) string {
 	return *s
 }
 
+// normalizeUnlimited 将存量套餐配额字段的 0 归一为 -1（不限）。
+// 0 是配额列引入前遗留行的默认值，不是合法业务值（写路径 CreatePlan 同样将 0 归一为 -1）；
+// 若不归一，消费端以 limit < 0 判不限会把 0 当成「上限为 0」而拦截全部上传/请求/建空间。
+func normalizeUnlimited[T int | int64](v T) T {
+	if v == 0 {
+		var unlimited T = -1
+		return unlimited
+	}
+	return v
+}
+
 // toDomain 将套餐持久化模型转换为领域模型。
+// 四个配额字段读路径统一做 0→-1 归一化，保证展示（前端以 -1 渲染「不限」）
+// 与强制路径（GetTenant*Limit 系列）语义一致。
 func (p PlanPO) toDomain() *model.Plan {
 	plan := &model.Plan{
 		ID:             p.ID,
 		Name:           strVal(p.Name),
 		Code:           p.Code,
 		Description:    strVal(p.Description),
-		UserLimit:      p.UserLimit,
-		StorageLimit:   p.StorageLimit,
-		ApiRateLimit:   p.ApiRateLimit,
-		WikiSpaceLimit: p.WikiSpaceLimit,
+		UserLimit:      normalizeUnlimited(p.UserLimit),
+		StorageLimit:   normalizeUnlimited(p.StorageLimit),
+		ApiRateLimit:   normalizeUnlimited(p.ApiRateLimit),
+		WikiSpaceLimit: normalizeUnlimited(p.WikiSpaceLimit),
 		Price:          p.Price,
 		Status:         p.Status,
 		CreatedAt:      p.CreatedAt,
