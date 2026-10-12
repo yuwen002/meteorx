@@ -33,6 +33,10 @@
             <el-icon><List /></el-icon>
             <template #title>任务管理</template>
           </el-menu-item>
+          <el-menu-item index="/export">
+            <el-icon><Download /></el-icon>
+            <template #title>数据导出</template>
+          </el-menu-item>
           <el-menu-item index="/tenant-settings">
             <el-icon><Setting /></el-icon>
             <template #title>租户设置</template>
@@ -198,6 +202,7 @@ import {
   CloseBold,
   Connection,
   Document,
+  Download,
   Expand,
   Fold,
   Folder,

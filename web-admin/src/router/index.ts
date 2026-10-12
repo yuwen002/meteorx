@@ -92,6 +92,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '任务管理', icon: 'List' }
       },
       {
+        path: 'export',
+        name: 'Export',
+        component: () => import('@/views/export/index.vue'),
+        meta: { title: '数据导出', icon: 'Download' }
+      },
+      {
         path: 'wiki',
         name: 'WikiSpaceList',
         component: () => import('@/views/wiki/index.vue'),
