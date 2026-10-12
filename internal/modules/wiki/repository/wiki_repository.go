@@ -32,6 +32,8 @@ type WikiRepository interface {
 	ListSpaces(ctx context.Context, tenantID string, userID string, keyword string, page, pageSize int) ([]*model.WikiSpace, int64, error)
 	UpdateSpace(ctx context.Context, space *model.WikiSpace) error
 	DeleteSpace(ctx context.Context, id string) error
+	// CountSpacesByTenant 统计租户当前有效（未软删）的知识空间数量，用于创建前配额校验
+	CountSpacesByTenant(ctx context.Context, tenantID string) (int64, error)
 
 	CreateNode(ctx context.Context, node *model.WikiNode) error
 	GetNodeByID(ctx context.Context, id string) (*model.WikiNode, error)
@@ -219,6 +221,13 @@ func (r *wikiRepository) DeleteSpace(ctx context.Context, id string) error {
 		return ErrWikiSpaceNotFound
 	}
 	return result.Error
+}
+
+// CountSpacesByTenant 统计租户当前有效的知识空间数量（自动排除软删）。
+func (r *wikiRepository) CountSpacesByTenant(ctx context.Context, tenantID string) (int64, error) {
+	var count int64
+	err := r.getDB(ctx).Model(&model.WikiSpace{}).Where("tenant_id = ?", tenantID).Count(&count).Error
+	return count, err
 }
 
 // CreateNode 新建 Wiki 节点，自动补齐 ID、租户ID与时间戳。

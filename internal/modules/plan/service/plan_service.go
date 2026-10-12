@@ -517,3 +517,21 @@ func (s *PlanService) GetTenantStorageLimit(ctx context.Context, tenantID string
 	}
 	return plan.StorageLimit, nil
 }
+
+// GetTenantWikiSpaceLimit 获取租户当前套餐的 Wiki 空间数量上限。
+// 无生效订阅或套餐未设置时返回 -1（不限制），供 Wiki 创建空间配额校验调用。
+func (s *PlanService) GetTenantWikiSpaceLimit(ctx context.Context, tenantID string) (int, error) {
+	sub, err := s.subRepo.GetActiveByTenant(ctx, tenantID)
+	if err != nil {
+		return 0, err
+	}
+	if sub == nil {
+		// 无生效订阅：不限制
+		return -1, nil
+	}
+	plan, err := s.planRepo.GetByID(ctx, sub.PlanID)
+	if err != nil {
+		return 0, err
+	}
+	return plan.WikiSpaceLimit, nil
+}

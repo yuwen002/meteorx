@@ -13,6 +13,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// stubSpaceQuota 固定 Wiki 空间数量上限的配额提供者。
+type stubSpaceQuota struct {
+	limit int
+	err   error
+}
+
+func (s stubSpaceQuota) GetTenantWikiSpaceLimit(_ context.Context, _ string) (int, error) {
+	return s.limit, s.err
+}
+
 func seedSpace(t *testing.T, repo *repository.MockWikiRepository, id string, name string, visibility int) {
 	t.Helper()
 	space := &model.WikiSpace{
@@ -164,4 +174,52 @@ func TestDeleteSpace_RollbackOnError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "数据库错误")
+}
+
+// ---------- 创建空间前配额校验 ----------
+
+// TestCreateSpace_QuotaExceeded 已达上限时拒绝创建，不进入事务。
+func TestCreateSpace_QuotaExceeded(t *testing.T) {
+	txManager, _ := newTxManager(t)
+	repo := repository.NewMockWikiRepository()
+	seedSpace(t, repo, "s1", "A", model.VisibilityTenant)
+	seedSpace(t, repo, "s2", "B", model.VisibilityTenant)
+	// 已有 2 个，上限 2 -> 拒绝
+	svc := NewWikiService(repo, txManager, WithSpaceQuota(stubSpaceQuota{limit: 2}))
+
+	_, err := svc.CreateSpace(serviceCtx("tenant-1"), "tenant-1", "user-1", &dto.CreateWikiSpaceReq{Name: "C"})
+
+	var appErr *apperrors.AppError
+	assert.True(t, errors.As(err, &appErr), "应为 AppError")
+	if appErr != nil {
+		assert.Equal(t, 402, appErr.StatusCode)
+	}
+}
+
+// TestCreateSpace_QuotaUnlimited 上限为 -1 时放行创建。
+func TestCreateSpace_QuotaUnlimited(t *testing.T) {
+	txManager, mock := newTxManager(t)
+	repo := repository.NewMockWikiRepository()
+	mock.ExpectBegin()
+	mock.ExpectCommit()
+	svc := NewWikiService(repo, txManager, WithSpaceQuota(stubSpaceQuota{limit: -1}))
+
+	_, err := svc.CreateSpace(serviceCtx("tenant-1"), "tenant-1", "user-1", &dto.CreateWikiSpaceReq{Name: "C"})
+	assert.NoError(t, err)
+}
+
+// TestCreateSpace_QuotaFailOpenOnError 配额查询失败时 fail-open，不因配额拒绝。
+func TestCreateSpace_QuotaFailOpenOnError(t *testing.T) {
+	txManager, mock := newTxManager(t)
+	repo := repository.NewMockWikiRepository()
+	mock.ExpectBegin()
+	mock.ExpectCommit()
+	svc := NewWikiService(repo, txManager, WithSpaceQuota(stubSpaceQuota{err: errors.New("db down")}))
+
+	_, err := svc.CreateSpace(serviceCtx("tenant-1"), "tenant-1", "user-1", &dto.CreateWikiSpaceReq{Name: "C"})
+	// 放行后正常创建（若因 stub 其他原因失败也不应是配额 402）
+	var appErr *apperrors.AppError
+	if errors.As(err, &appErr) {
+		assert.NotEqual(t, 402, appErr.StatusCode)
+	}
 }

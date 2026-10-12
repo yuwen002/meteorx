@@ -4,6 +4,7 @@ package wiki
 import (
 	"meteorx/internal/cache"
 	"meteorx/internal/config"
+	"meteorx/internal/modules/plan"
 	"meteorx/internal/modules/wiki/handler"
 	"meteorx/internal/modules/wiki/repository"
 	"meteorx/internal/modules/wiki/service"
@@ -29,7 +30,7 @@ func initHandlers(gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config, rdb *ca
 	// 主服务内部 notifySubscribers 依赖 WikiRepositoryExtended 类型断言，
 	// 若注入 NewWikiRepository 的基础实现会使文档编辑通知静默失效。
 	extRepo := repository.NewWikiRepositoryExtended(gormDB)
-	svc := service.NewWikiService(extRepo, tx, service.WithExpireCacheLock(rdb))
+	svc := service.NewWikiService(extRepo, tx, service.WithExpireCacheLock(rdb), service.WithSpaceQuota(plan.NewQuotaService(gormDB)))
 
 	searchCfg := search.Config{
 		Provider:    cfg.Search.Provider,

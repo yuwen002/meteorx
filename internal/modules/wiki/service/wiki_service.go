@@ -134,6 +134,9 @@ type wikiService struct {
 	// expireCache 回收站过期清理分布式锁使用的 Redis 实例（nil/不可用时降级为进程内互斥）
 	expireCache *cache.Redis
 
+	// spaceQuota 创建空间前的配额提供者（nil 时不校验），依据套餐 WikiSpaceLimit 限制租户空间数量
+	spaceQuota SpaceQuotaProvider
+
 	// uploadBaseURL 对外访问 /uploads 的基础地址（如 http://host:8081/uploads）；
 	// uploadSignKey 与文件存储一致的上传签名密钥。两者为空时禁用文档图片动态重签。
 	uploadBaseURL string
@@ -148,6 +151,11 @@ type Option func(*wikiService)
 // 未注入（或 Redis 不可用）时仅依赖进程内互斥，单副本部署下行为不变。
 func WithExpireCacheLock(rdb *cache.Redis) Option {
 	return func(s *wikiService) { s.expireCache = rdb }
+}
+
+// WithSpaceQuota 注入租户 Wiki 空间配额提供者（创建空间前校验，nil 时不校验）。
+func WithSpaceQuota(p SpaceQuotaProvider) Option {
+	return func(s *wikiService) { s.spaceQuota = p }
 }
 
 // NewWikiService 创建 Wiki Service 实例

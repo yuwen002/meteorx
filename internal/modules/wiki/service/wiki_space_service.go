@@ -11,8 +11,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// SpaceQuotaProvider 提供租户 Wiki 空间数量上限，-1 表示不限制。
+type SpaceQuotaProvider interface {
+	GetTenantWikiSpaceLimit(ctx context.Context, tenantID string) (int, error)
+}
+
 // CreateSpace 创建 Wiki Space，并将创建者自动添加为 Owner
 func (s *wikiService) CreateSpace(ctx context.Context, tenantID string, userID string, req *dto.CreateWikiSpaceReq) (*dto.WikiSpaceResp, error) {
+	// 创建前空间数量配额校验：仅在注入了配额提供者时生效，查询失败按 fail-open 放行
+	if err := s.checkSpaceQuota(ctx, tenantID); err != nil {
+		return nil, err
+	}
 	var resp *dto.WikiSpaceResp
 	err := s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
 		space := &model.WikiSpace{
@@ -48,6 +57,30 @@ func (s *wikiService) CreateSpace(ctx context.Context, tenantID string, userID s
 		return nil, err
 	}
 	return resp, nil
+}
+
+// checkSpaceQuota 校验租户当前空数量是否已达套餐上限。未注入配额提供者、上限为 -1 或查询失败时不拦截。
+func (s *wikiService) checkSpaceQuota(ctx context.Context, tenantID string) error {
+	if s.spaceQuota == nil || tenantID == "" {
+		return nil
+	}
+	limit, err := s.spaceQuota.GetTenantWikiSpaceLimit(ctx, tenantID)
+	if err != nil {
+		// 配额查询失败：fail-open，不阻断创建
+		return nil
+	}
+	if limit < 0 {
+		// -1 表示不限制
+		return nil
+	}
+	count, err := s.repo.CountSpacesByTenant(ctx, tenantID)
+	if err != nil {
+		return nil
+	}
+	if count >= int64(limit) {
+		return apperrors.Newf(apperrors.ErrTenantLimit, "已达套餐 Wiki 空间数量上限（%d），无法创建新空间", limit)
+	}
+	return nil
 }
 
 // GetSpace 获取 Space 详情，需有 read 权限

@@ -12,6 +12,8 @@ import (
 type MockWikiRepository struct {
 	// CreateSpaceErr 若非 nil，CreateSpace 返回该错误
 	CreateSpaceErr error
+	// CountSpacesByTenantErr 若非 nil，CountSpacesByTenant 返回该错误（模拟配额查询失败）
+	CountSpacesByTenantErr error
 	// AddMemberErr 若非 nil，AddMember 返回该错误
 	AddMemberErr error
 	// UpdateDocumentErr 若非 nil，UpdateDocument 返回该错误
@@ -99,6 +101,19 @@ func (m *MockWikiRepository) UpdateSpace(ctx context.Context, space *model.WikiS
 func (m *MockWikiRepository) DeleteSpace(ctx context.Context, id string) error {
 	delete(m.spaces, id)
 	return nil
+}
+
+func (m *MockWikiRepository) CountSpacesByTenant(_ context.Context, tenantID string) (int64, error) {
+	if m.CountSpacesByTenantErr != nil {
+		return 0, m.CountSpacesByTenantErr
+	}
+	var count int64
+	for _, s := range m.spaces {
+		if s.TenantID == tenantID {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func (m *MockWikiRepository) SoftDeleteSpaceTree(ctx context.Context, spaceID string) error {
