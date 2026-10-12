@@ -12,6 +12,8 @@ import (
 
 	"meteorx/internal/cache"
 	"meteorx/internal/config"
+
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
 const rateLimitPrefix = "rate_limit:"
@@ -74,21 +76,15 @@ func (r *RateLimiter) Allow(ctx context.Context, identifier string) (bool, error
 	return true, nil
 }
 
-// GetClientIP 获取客户端真实 IP
+// GetClientIP 获取客户端真实 IP（防伪造）。
+// 优先取 chi ClientIPFromXFF 中间件基于可信代理 CIDR 从 XFF 链解析后写入 context 的结果
+// （右起逐段跳过可信段，首个不可信地址即客户端，伪造头部无法冒充）；
+// 未经该中间件时回退 RemoteAddr，绝不直接信任 X-Forwarded-For / X-Real-IP 裸头。
 func GetClientIP(r *http.Request) string {
-	// 优先从 X-Forwarded-For 获取
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff != "" {
-		return xff
+	if ip := chimiddleware.GetClientIP(r.Context()); ip != "" {
+		return ip
 	}
 
-	// 从 X-Real-IP 获取
-	xri := r.Header.Get("X-Real-IP")
-	if xri != "" {
-		return xri
-	}
-
-	// 从 RemoteAddr 获取
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr

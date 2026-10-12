@@ -270,8 +270,8 @@ func (h *AuditHandler) exportCSV(w http.ResponseWriter, logs []*dto.AuditLogResp
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 
-	// 添加 BOM 以支持 Excel 中文显示
-	w.Write([]byte{0xEF, 0xBB, 0xBF})
+	// 添加 BOM 以支持 Excel 中文显示（导出流已部分写出，失败无法回退，显式忽略）
+	_, _ = w.Write([]byte{0xEF, 0xBB, 0xBF})
 
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
@@ -279,7 +279,7 @@ func (h *AuditHandler) exportCSV(w http.ResponseWriter, logs []*dto.AuditLogResp
 	// 写入表头
 	headers := []string{"日志ID", "请求ID", "会话ID", "链路ID", "用户ID", "用户名", "租户ID", "模块", "操作", "风险等级", "资源", "资源ID",
 		"HTTP方法", "请求路径", "来源页面", "状态码", "结果", "客户端IP", "IP位置", "设备信息", "用户代理", "耗时(ms)", "标签", "错误信息", "操作时间"}
-	writer.Write(headers)
+	_ = writer.Write(headers)
 
 	// 写入数据
 	for _, log := range logs {
@@ -317,7 +317,7 @@ func (h *AuditHandler) exportCSV(w http.ResponseWriter, logs []*dto.AuditLogResp
 			log.ErrorMessage,
 			log.CreatedAt,
 		}
-		writer.Write(record)
+		_ = writer.Write(record)
 	}
 }
 

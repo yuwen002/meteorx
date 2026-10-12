@@ -102,7 +102,7 @@ func (l *HTTPAPILocator) queryIPAPI(ctx context.Context, ip string) (*IPLocation
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ip-api returned status: %d", resp.StatusCode)
@@ -163,7 +163,7 @@ func (l *HTTPAPILocator) queryIPInfo(ctx context.Context, ip string) (*IPLocatio
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ipinfo returned status: %d", resp.StatusCode)

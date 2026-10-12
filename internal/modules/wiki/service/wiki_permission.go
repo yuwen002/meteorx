@@ -63,13 +63,6 @@ var spaceRolePermissions = map[string]map[string]bool{
 	},
 }
 
-// 节点权限到动作的映射
-var nodePermToAction = map[string]string{
-	model.NodePermView:   "read",
-	model.NodePermEdit:   "update",
-	model.NodePermDelete: "delete",
-}
-
 // CheckSpacePermission 检查用户在 Space 中的权限
 func (s *wikiService) CheckSpacePermission(ctx context.Context, spaceID, userID string, action string) error {
 	member, err := s.repo.GetMember(ctx, spaceID, userID)

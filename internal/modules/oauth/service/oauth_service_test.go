@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"testing"
 
 	"meteorx/internal/config"
@@ -15,7 +16,7 @@ func newTestOAuthService(cfg config.OAuthConfig) *OAuthService {
 func TestGetRedirectURL_UnsupportedProvider(t *testing.T) {
 	svc := newTestOAuthService(config.OAuthConfig{})
 
-	_, _, err := svc.GetRedirectURL(nil, "unknown")
+	_, _, err := svc.GetRedirectURL(context.TODO(), "unknown")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported provider")
 }
@@ -23,7 +24,7 @@ func TestGetRedirectURL_UnsupportedProvider(t *testing.T) {
 func TestGetRedirectURL_GoogleDisabled(t *testing.T) {
 	svc := newTestOAuthService(config.OAuthConfig{})
 
-	_, _, err := svc.GetRedirectURL(nil, "google")
+	_, _, err := svc.GetRedirectURL(context.TODO(), "google")
 	assert.Error(t, err)
 	assert.Equal(t, ErrOAuthProviderDisabled, err)
 }
@@ -31,7 +32,7 @@ func TestGetRedirectURL_GoogleDisabled(t *testing.T) {
 func TestGetRedirectURL_GitHubDisabled(t *testing.T) {
 	svc := newTestOAuthService(config.OAuthConfig{})
 
-	_, _, err := svc.GetRedirectURL(nil, "github")
+	_, _, err := svc.GetRedirectURL(context.TODO(), "github")
 	assert.Error(t, err)
 	assert.Equal(t, ErrOAuthProviderDisabled, err)
 }
@@ -47,7 +48,7 @@ func TestGetRedirectURL_GoogleEnabled(t *testing.T) {
 	}
 	svc := newTestOAuthService(cfg)
 
-	url, state, err := svc.GetRedirectURL(nil, "google")
+	url, state, err := svc.GetRedirectURL(context.TODO(), "google")
 	assert.NoError(t, err)
 	assert.Contains(t, url, "accounts.google.com")
 	assert.Contains(t, url, "google-client-id")
@@ -67,7 +68,7 @@ func TestGetRedirectURL_GitHubEnabled(t *testing.T) {
 	}
 	svc := newTestOAuthService(cfg)
 
-	url, state, err := svc.GetRedirectURL(nil, "github")
+	url, state, err := svc.GetRedirectURL(context.TODO(), "github")
 	assert.NoError(t, err)
 	assert.Contains(t, url, "github.com")
 	assert.Contains(t, url, "github-client-id")
@@ -115,7 +116,7 @@ func TestBuildGitHubRedirectURL_ContainsState(t *testing.T) {
 func TestLogin_UnsupportedProvider(t *testing.T) {
 	svc := newTestOAuthService(config.OAuthConfig{})
 
-	_, _, _, _, _, _, err := svc.Login(nil, "unknown", "code123", "state123", "tenant-id")
+	_, _, _, _, _, _, err := svc.Login(context.TODO(), "unknown", "code123", "state123", "tenant-id")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported provider")
 }
@@ -144,12 +145,12 @@ func TestGenerateState(t *testing.T) {
 
 func TestValidateAndConsumeState_NoRedis(t *testing.T) {
 	svc := newTestOAuthService(config.OAuthConfig{})
-	err := svc.validateAndConsumeState(nil, "any-state")
+	err := svc.validateAndConsumeState(context.TODO(), "any-state")
 	assert.NoError(t, err, "without Redis, state validation should be skipped")
 }
 
 func TestSaveState_NoRedis(t *testing.T) {
 	svc := newTestOAuthService(config.OAuthConfig{})
-	err := svc.saveState(nil, "any-state")
+	err := svc.saveState(context.TODO(), "any-state")
 	assert.NoError(t, err, "without Redis, state saving should be skipped")
 }

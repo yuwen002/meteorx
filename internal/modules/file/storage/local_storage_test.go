@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"net/url"
 	"strconv"
 	"strings"
@@ -69,7 +70,7 @@ func TestLocalStorageGetURL_Signed(t *testing.T) {
 func TestLocalStoragePresignURL(t *testing.T) {
 	t.Run("respects explicit expiration", func(t *testing.T) {
 		s := NewLocalStorage("./uploads", storageTestBase, storageTestKey)
-		raw, err := s.PresignURL(nil, storageTestFileKey, 60)
+		raw, err := s.PresignURL(context.TODO(), storageTestFileKey, 60)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -85,7 +86,7 @@ func TestLocalStoragePresignURL(t *testing.T) {
 
 	t.Run("defaults to DefaultTTL when expiration not given", func(t *testing.T) {
 		s := NewLocalStorage("./uploads", storageTestBase, storageTestKey)
-		raw, err := s.PresignURL(nil, storageTestFileKey, 0)
+		raw, err := s.PresignURL(context.TODO(), storageTestFileKey, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -97,7 +98,7 @@ func TestLocalStoragePresignURL(t *testing.T) {
 
 	t.Run("unsigned when no key configured", func(t *testing.T) {
 		s := NewLocalStorage("./uploads", storageTestBase, "")
-		raw, err := s.PresignURL(nil, storageTestFileKey, 60)
+		raw, err := s.PresignURL(context.TODO(), storageTestFileKey, 60)
 		if err != nil {
 			t.Fatal(err)
 		}

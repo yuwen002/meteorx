@@ -12,10 +12,17 @@ import (
 	"meteorx/internal/middleware"
 )
 
-// SetupMiddleware 集中配置全局中间件
-func SetupMiddleware(r *chi.Mux, allowedOrigins []string) {
+// SetupMiddleware 集中配置全局中间件。
+// trustedProxies 为可信反向代理 CIDR 列表，用于从 X-Forwarded-For 链解析真实客户端 IP：
+// 非空时右起逐段跳过命中可信段的地址，首个不可信地址即客户端；
+// 为空时取 XFF 最右一条（仅适用于本服务前只有一层 nginx 反代的部署，
+// 因为 nginx 总会把真实对端追加到最右）。解析结果写入请求 context，
+// 由 security.GetClientIP / chimiddleware.GetClientIP 读取，不修改 RemoteAddr。
+func SetupMiddleware(r *chi.Mux, allowedOrigins []string, trustedProxies []string) {
 	r.Use(middleware.GlobalErrorHandler)
-	r.Use(chimiddleware.RealIP)
+	// 替代已弃用的 chimiddleware.RealIP：后者无条件信任最左 XFF/True-Client-IP/X-Real-IP，
+	// 可被客户端伪造审计来源 IP（GHSA-3fxj-6jh8-hvhx）
+	r.Use(chimiddleware.ClientIPFromXFF(trustedProxies...))
 	r.Use(chimiddleware.Timeout(60 * time.Second))
 
 	r.Use(CorsMiddleware(allowedOrigins))

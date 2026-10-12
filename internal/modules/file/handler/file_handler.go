@@ -65,7 +65,7 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		response.Fail(w, http.StatusBadRequest, "未找到上传文件")
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// 验证文件类型
 	mimeType := header.Header.Get("Content-Type")
@@ -336,7 +336,7 @@ func (h *FileHandler) Download(w http.ResponseWriter, r *http.Request) {
 		response.Fail(w, http.StatusNotFound, "文件不存在或下载失败")
 		return
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
 	w.Header().Set("Content-Type", "application/octet-stream")

@@ -479,7 +479,7 @@ func TestIntegration_MiscQueries(t *testing.T) {
 	assert.Equal(t, s1.ID, spaces[0].ID)
 
 	// 关键词过滤
-	spaces, total, err = repo.ListSpaces(ctx, "tenant-1", "", "Alpha", 1, 10)
+	_, total, err = repo.ListSpaces(ctx, "tenant-1", "", "Alpha", 1, 10)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), total)
 
@@ -729,7 +729,7 @@ func TestIntegration_ExpireTrashItems_FailureIsolation(t *testing.T) {
 	t.Cleanup(func() {
 		sqlDB, _ := db.DB()
 		if sqlDB != nil {
-			sqlDB.Close()
+			_ = sqlDB.Close()
 		}
 	})
 	repo := &wikiRepository{db: db}

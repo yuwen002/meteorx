@@ -109,7 +109,7 @@ func NewWikiServiceExtended(repo repository.WikiRepository, tx *db.TxManager) Wi
 }
 
 func (s *wikiServiceExtended) getExtendedRepo() repository.WikiRepositoryExtended {
-	return s.wikiService.repo.(repository.WikiRepositoryExtended)
+	return s.repo.(repository.WikiRepositoryExtended)
 }
 
 // CreateTag 创建租户级标签。
@@ -575,7 +575,8 @@ func (s *wikiServiceExtended) buildShareLinkResp(ctx context.Context, link *mode
 
 func (s *wikiServiceExtended) generateToken() string {
 	b := make([]byte, 32)
-	rand.Read(b)
+	// crypto/rand.Read 在现代 Go 中恒返回 nil error，显式忽略以消除 errcheck
+	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }
 
@@ -1011,9 +1012,9 @@ func (s *wikiServiceExtended) GetEditLock(ctx context.Context, documentID string
 
 // BatchDeleteNodes 在单个事务内批量删除多个节点，任一失败则整体回滚。
 func (s *wikiServiceExtended) BatchDeleteNodes(ctx context.Context, nodeIDs []string) error {
-	return s.wikiService.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
+	return s.tx.WithTx(ctx, func(txCtx context.Context, _ *gorm.DB) error {
 		for _, nodeID := range nodeIDs {
-			if err := s.wikiService.DeleteNode(txCtx, nodeID); err != nil {
+			if err := s.DeleteNode(txCtx, nodeID); err != nil {
 				return err
 			}
 		}
@@ -1031,7 +1032,7 @@ func (s *wikiServiceExtended) BatchMoveNodes(ctx context.Context, nodeIDs []stri
 	}
 
 	for _, node := range nodes {
-		if err := s.wikiService.CheckNodePermission(ctx, node.ID, userID, "update"); err != nil {
+		if err := s.CheckNodePermission(ctx, node.ID, userID, "update"); err != nil {
 			return err
 		}
 	}

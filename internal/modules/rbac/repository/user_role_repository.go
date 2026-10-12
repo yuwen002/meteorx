@@ -21,15 +21,6 @@ func (UserRolePO) TableName() string {
 	return "user_roles"
 }
 
-// toDomain 将持久化对象转换为领域模型 model.UserRole。
-func (record UserRolePO) toDomain() *model.UserRole {
-	return &model.UserRole{
-		UserID:    record.UserID,
-		RoleID:    record.RoleID,
-		CreatedAt: record.CreatedAt,
-	}
-}
-
 // userRoleRepository UserRoleRepository 的 GORM 实现。
 type userRoleRepository struct {
 	db *gorm.DB

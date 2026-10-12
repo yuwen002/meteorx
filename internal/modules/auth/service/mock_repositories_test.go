@@ -172,10 +172,6 @@ func newMockRolePermRepo() *mockRolePermRepo {
 	}
 }
 
-func (m *mockRolePermRepo) seed(roleID string, codes []string) {
-	m.codesByRole[roleID] = append([]string{}, codes...)
-}
-
 func (m *mockRolePermRepo) GetPermissionCodesByRoleID(_ context.Context, roleID string) ([]string, error) {
 	return m.codesByRole[roleID], nil
 }

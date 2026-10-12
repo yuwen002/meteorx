@@ -35,7 +35,7 @@ func Auth(helper *jwt.TokenHelper, checker TokenBlacklistChecker, appMode string
 			}
 
 			parts := strings.SplitN(authHeader, " ", 2)
-			if !(len(parts) == 2 && parts[0] == "Bearer") {
+			if len(parts) != 2 || parts[0] != "Bearer" {
 				http.Error(w, "无效的 Token 格式", http.StatusUnauthorized)
 				return
 			}

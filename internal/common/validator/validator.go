@@ -142,11 +142,6 @@ func getValidationErrorMessage(e validator.FieldError) string {
 	}
 }
 
-// getErrorMessage 将验证错误转换为中文消息（保留原函数以兼容）
-func getErrorMessage(e validator.FieldError) string {
-	return getValidationErrorMessage(e)
-}
-
 // ValidateJSON 验证JSON请求体
 func ValidateJSON(w http.ResponseWriter, r *http.Request, target interface{}) bool {
 	if err := json.NewDecoder(r.Body).Decode(target); err != nil {

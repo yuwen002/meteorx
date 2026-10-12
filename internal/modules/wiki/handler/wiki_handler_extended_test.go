@@ -302,11 +302,6 @@ func newWikiShareRouter(stub *stubWikiService) http.Handler {
 	return r
 }
 
-func (s *stubWikiService) assertNotCalled(t *testing.T, method string) {
-	t.Helper()
-	assert.NotContains(t, s.calls, method)
-}
-
 // ================= 标签 =================
 
 func TestWikiCreateTag_Success(t *testing.T) {

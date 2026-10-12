@@ -50,12 +50,12 @@ func (s *LocalStorage) Upload(ctx context.Context, reader io.Reader, originalNam
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// 复制数据
 	if _, err := io.Copy(file, reader); err != nil {
-		// 如果复制失败，删除已创建的文件
-		os.Remove(fullPath)
+		// 如果复制失败，删除已创建的文件；清理失败无需阻断（返回主错误）
+		_ = os.Remove(fullPath)
 		return "", fmt.Errorf("failed to write file: %w", err)
 	}
 
@@ -125,7 +125,7 @@ func (s *LocalStorage) UploadFromMultipartFile(ctx context.Context, file *multip
 	if err != nil {
 		return "", fmt.Errorf("failed to open uploaded file: %w", err)
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	return s.Upload(ctx, src, file.Filename)
 }

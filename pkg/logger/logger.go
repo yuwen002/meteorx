@@ -124,7 +124,7 @@ func Close() {
 			asyncWriterInstance.Close()
 		}
 		if rotWriter != nil {
-			rotWriter.Close()
+			_ = rotWriter.Close()
 		}
 	})
 }
@@ -290,7 +290,7 @@ func (w *rotatingWriter) openFile() error {
 
 func (w *rotatingWriter) rotate() error {
 	if w.file != nil {
-		w.file.Close()
+		_ = w.file.Close()
 		w.file = nil
 	}
 

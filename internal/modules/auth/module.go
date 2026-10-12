@@ -14,6 +14,7 @@ import (
 	"meteorx/internal/modules/auth/service"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
 	userrepo "meteorx/internal/modules/user/repository"
+	"meteorx/pkg/logger"
 )
 
 // InitModule 装配认证依赖（仓储/服务/处理器）并注册公开认证路由，返回 AuthHandler 供后续需登录路由复用。
@@ -33,7 +34,9 @@ func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, rdb *cache.Redis) 
 
 // InitAPITokenModule 迁移 API Token 表、装配依赖并注册需登录的 API Token 管理路由。
 func InitAPITokenModule(r chi.Router, db *gorm.DB, cfg config.Config, rdb *cache.Redis) {
-	db.AutoMigrate(&model.APIToken{})
+	if err := db.AutoMigrate(&model.APIToken{}); err != nil {
+		logger.Warnf("[auth] AutoMigrate APIToken failed: %v", err)
+	}
 
 	apiTokenRepo := repository.NewAPITokenRepository(db)
 	uRepo := userrepo.NewUserRepository(db)

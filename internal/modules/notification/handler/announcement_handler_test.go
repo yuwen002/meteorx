@@ -24,7 +24,6 @@ type stubAnnouncementService struct {
 	resp        *dto.AnnouncementResp
 	listResp    *dto.AnnouncementListResp
 	publisher   string
-	createID    string
 	updateID    string
 	statusID    string
 	status      int

@@ -60,9 +60,9 @@ func (c *Client) ReadPump() {
 	}()
 
 	c.conn.SetReadLimit(maxMessageSize)
-	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	_ = c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.conn.SetPongHandler(func(string) error {
-		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		_ = c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
 	})
 
@@ -158,25 +158,25 @@ func (c *Client) Close() {
 
 	c.closed = true
 	close(c.done)
-	c.conn.Close()
+	_ = c.conn.Close()
 }
 
 // writeJSON 设置写截止后以 JSON 写入一条消息。
 func (c *Client) writeJSON(msg *Message) error {
-	c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+	_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 	return c.conn.WriteJSON(msg)
 }
 
 // writePingMessage 设置写截止后发送心跳 Ping。
 func (c *Client) writePingMessage() error {
-	c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+	_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 	return c.conn.WriteMessage(websocket.PingMessage, nil)
 }
 
 // writeCloseMessage 发送关闭帧。
 func (c *Client) writeCloseMessage() {
-	c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-	c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+	_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+	_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 }
 
 // ServeWS 处理 WebSocket 升级请求

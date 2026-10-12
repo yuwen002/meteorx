@@ -280,7 +280,7 @@ func TestAsyncWriter_BufferFull(t *testing.T) {
 
 	// 写入大量数据，缓冲区满时不应阻塞
 	for i := 0; i < 100; i++ {
-		aw.Write([]byte("x\n"))
+		_, _ = aw.Write([]byte("x\n"))
 	}
 
 	// 等待写入完成
@@ -316,7 +316,7 @@ func TestRotatingWriter_Rotate(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	rw.Close()
+	_ = rw.Close()
 
 	// 验证备份文件存在
 	files, err := filepath.Glob(logPath + ".*")
@@ -338,9 +338,9 @@ func TestRotatingWriter_CleanOldBackups(t *testing.T) {
 	// 创建一些旧的备份文件
 	for i := 0; i < 5; i++ {
 		backupPath := fmt.Sprintf("%s.20250101-%06d", logPath, i)
-		os.WriteFile(backupPath, []byte("old backup"), 0644)
+		_ = os.WriteFile(backupPath, []byte("old backup"), 0644)
 		// 设置不同的修改时间
-		os.Chtimes(backupPath, time.Now(), time.Now().Add(-time.Duration(5-i)*time.Hour))
+		_ = os.Chtimes(backupPath, time.Now(), time.Now().Add(-time.Duration(5-i)*time.Hour))
 	}
 
 	rw := &rotatingWriter{
@@ -350,10 +350,10 @@ func TestRotatingWriter_CleanOldBackups(t *testing.T) {
 	}
 
 	// 写入并触发轮转（会调用 cleanOldBackups）
-	rw.openFile()
-	rw.Write([]byte("test data\n"))
-	rw.rotate()
-	rw.Close()
+	_ = rw.openFile()
+	_, _ = rw.Write([]byte("test data\n"))
+	_ = rw.rotate()
+	_ = rw.Close()
 
 	// 验证只保留了 3 个备份 + 当前文件
 	matches, _ := filepath.Glob(logPath + ".*")

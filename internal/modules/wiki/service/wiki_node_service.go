@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
 	"sort"
 
 	"meteorx/internal/common/contextx"
@@ -74,6 +75,7 @@ func (s *wikiService) CreateNode(ctx context.Context, spaceID string, userID str
 		if s.indexer != nil {
 			if idxErr := s.indexer.IndexNode(context.Background(), resp.ID); idxErr != nil {
 				// 索引失败不影响业务，仅记录日志
+				log.Printf("[wiki] index node %s failed: %v", resp.ID, idxErr)
 			}
 		}
 		return resp, nil
@@ -109,6 +111,7 @@ func (s *wikiService) CreateNode(ctx context.Context, spaceID string, userID str
 	if s.indexer != nil {
 		if idxErr := s.indexer.IndexNode(context.Background(), node.ID); idxErr != nil {
 			// 索引失败不影响业务
+			log.Printf("[wiki] index node %s failed: %v", node.ID, idxErr)
 		}
 	}
 
@@ -345,6 +348,7 @@ func (s *wikiService) DeleteNode(ctx context.Context, id string) error {
 		// 递归删除子节点的索引也一并清理
 		if idxErr := s.indexer.DeleteNode(context.Background(), id); idxErr != nil {
 			// 索引删除失败不影响业务
+			log.Printf("[wiki] delete index node %s failed: %v", id, idxErr)
 		}
 	}
 	return err

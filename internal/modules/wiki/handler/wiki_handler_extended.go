@@ -503,19 +503,19 @@ func (h *WikiHandlerExtended) ExportDocument(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.WriteHeader(http.StatusOK)
-	w.Write(content)
+	_, _ = w.Write(content)
 }
 
 // ImportDocument 上传文件导入为新修订 POST /wiki/documents/{id}/import（multipart）
 func (h *WikiHandlerExtended) ImportDocument(w http.ResponseWriter, r *http.Request) {
-	r.ParseMultipartForm(32 << 20) // 32MB
+	_ = r.ParseMultipartForm(32 << 20) // 32MB
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		response.BadRequest(w, "file is required")
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	content, err := io.ReadAll(file)
 	if err != nil {

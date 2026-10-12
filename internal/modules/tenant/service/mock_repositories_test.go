@@ -323,10 +323,6 @@ type mockSettingsRepo struct {
 	settings map[string]*tenantModel.TenantSettings
 }
 
-func newMockSettingsRepo() *mockSettingsRepo {
-	return &mockSettingsRepo{settings: make(map[string]*tenantModel.TenantSettings)}
-}
-
 func (m *mockSettingsRepo) GetByTenantID(_ context.Context, tenantID string) (*tenantModel.TenantSettings, error) {
 	if s, ok := m.settings[tenantID]; ok {
 		return s, nil

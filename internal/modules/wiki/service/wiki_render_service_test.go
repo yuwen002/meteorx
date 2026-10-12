@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -55,7 +56,7 @@ func TestRenderPreviewSanitizesAndSigns(t *testing.T) {
 	svc.SetUploadSigner("http://host:8081/uploads", "test-secret")
 
 	html, err := svc.RenderPreview(
-		nil,
+		context.TODO(),
 		"<script>alert(1)</script>\n<textarea onclick='x()'>hi</textarea>\n\n![](/uploads/evil.png)",
 		"markdown",
 	)
@@ -75,7 +76,7 @@ func TestRenderPreviewSanitizesAndSigns(t *testing.T) {
 
 func TestRenderPreviewRejectsUnknownFormat(t *testing.T) {
 	svc := &wikiService{markdownSvc: NewMarkdownService()}
-	if _, err := svc.RenderPreview(nil, "# hi", "html"); err == nil {
+	if _, err := svc.RenderPreview(context.TODO(), "# hi", "html"); err == nil {
 		t.Fatal("未知格式应返回错误")
 	}
 }

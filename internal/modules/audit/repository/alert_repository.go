@@ -251,13 +251,6 @@ func serializeJSON(v interface{}) string {
 	return string(data)
 }
 
-func deserializeJSON(data string, v interface{}) error {
-	if data == "" {
-		return nil
-	}
-	return json.Unmarshal([]byte(data), v)
-}
-
 // GetAlertStats 获取告警统计数据
 func (r *alertRuleRepository) GetAlertStats(ctx context.Context, days int) (*model.AlertStats, error) {
 	stats := &model.AlertStats{

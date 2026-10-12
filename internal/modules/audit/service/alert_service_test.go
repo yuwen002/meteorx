@@ -123,7 +123,8 @@ func (s *AlertServiceTestSuite) TestListRules() {
 			NotifyChannels: []string{model.NotifyChannelEmail},
 			NotifyTargets:  []string{"admin@example.com"},
 		}
-		s.svc.CreateRule(s.ctx, req)
+		_, err := s.svc.CreateRule(s.ctx, req)
+		s.NoError(err)
 	}
 
 	rules, err := s.svc.ListRules(s.ctx)

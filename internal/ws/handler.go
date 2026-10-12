@@ -74,7 +74,7 @@ func (h *Handler) GetHub() *Hub {
 // Health 检查 WebSocket 服务状态
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":      "ok",
 		"connections": h.hub.Count(),
 	})

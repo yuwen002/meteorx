@@ -91,7 +91,7 @@ func TestAssignPlanAndCheckUserLimit(t *testing.T) {
 	// 用户数来到 100，应超限
 	mock := svc.userRepo.(*mockUserRepo)
 	mock.userCounts["tenant-1"] = 100
-	over, users, limit, err = svc.CheckUserLimit(context.Background(), "tenant-1")
+	_, users, limit, err = svc.CheckUserLimit(context.Background(), "tenant-1")
 	if err != ErrUserLimitExceeded {
 		t.Fatalf("expected ErrUserLimitExceeded, got %v", err)
 	}
@@ -151,11 +151,13 @@ func TestExpireSubscriptions(t *testing.T) {
 
 	// 分配 30 天前到期的套餐（手动插入过期订阅）
 	expired := time.Now().Add(-30 * 24 * time.Hour)
-	subRepo.Create(context.Background(), &model.TenantSubscription{
+	if err := subRepo.Create(context.Background(), &model.TenantSubscription{
 		ID: "sub-1", TenantID: "tenant-expired", PlanID: plan.ID,
 		Status: model.SubscriptionActive, StartedAt: time.Now().Add(-60 * 24 * time.Hour),
 		ExpiresAt: &expired,
-	})
+	}); err != nil {
+		t.Fatalf("seed expired subscription failed: %v", err)
+	}
 
 	// 分配长期有效的套餐
 	if err := svc.AssignPlan(context.Background(), "tenant-active", dto.AssignPlanReq{PlanID: plan.ID}); err != nil {

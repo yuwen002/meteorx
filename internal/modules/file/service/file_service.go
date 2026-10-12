@@ -39,7 +39,7 @@ func (s *FileService) Upload(ctx context.Context, fileHeader *multipart.FileHead
 	if err != nil {
 		return nil, fmt.Errorf("failed to open uploaded file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// 计算文件MD5
 	md5Hash, err := s.calculateMD5(file)
@@ -63,7 +63,9 @@ func (s *FileService) Upload(ctx context.Context, fileHeader *multipart.FileHead
 	}
 
 	// 重置文件指针
-	file.Seek(0, 0)
+	if _, err := file.Seek(0, 0); err != nil {
+		return nil, fmt.Errorf("failed to reset file pointer: %w", err)
+	}
 
 	// 上传文件到存储
 	filePath, err := s.storage.Upload(ctx, file, fileHeader.Filename)
@@ -87,8 +89,10 @@ func (s *FileService) Upload(ctx context.Context, fileHeader *multipart.FileHead
 	}
 
 	if err := s.repo.Create(ctx, fileRecord); err != nil {
-		// 如果数据库插入失败，删除已上传的文件
-		s.storage.Delete(ctx, filePath)
+		// 如果数据库插入失败，删除已上传的文件；清理失败只记日志，主错误照常返回
+		if delErr := s.storage.Delete(ctx, filePath); delErr != nil {
+			logger.Warnf("[FileService] warning: cleanup failed for %s: %v", filePath, delErr)
+		}
 		return nil, fmt.Errorf("failed to create file record: %w", err)
 	}
 

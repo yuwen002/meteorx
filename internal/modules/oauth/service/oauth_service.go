@@ -496,7 +496,7 @@ func (s *OAuthService) exchangeGoogleCode(ctx context.Context, code string) (*dt
 	if err != nil {
 		return nil, ErrOAuthExchangeFailed
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
@@ -520,7 +520,7 @@ func (s *OAuthService) exchangeGoogleCode(ctx context.Context, code string) (*dt
 	if err != nil {
 		return nil, ErrOAuthUserInfoFailed
 	}
-	defer userResp.Body.Close()
+	defer func() { _ = userResp.Body.Close() }()
 
 	userBody, _ := io.ReadAll(userResp.Body)
 	if userResp.StatusCode != http.StatusOK {
@@ -564,7 +564,7 @@ func (s *OAuthService) exchangeGitHubCode(ctx context.Context, code string) (*dt
 	if err != nil {
 		return nil, ErrOAuthExchangeFailed
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
@@ -589,7 +589,7 @@ func (s *OAuthService) exchangeGitHubCode(ctx context.Context, code string) (*dt
 	if err != nil {
 		return nil, ErrOAuthUserInfoFailed
 	}
-	defer userResp.Body.Close()
+	defer func() { _ = userResp.Body.Close() }()
 
 	userBody, _ := io.ReadAll(userResp.Body)
 	if userResp.StatusCode != http.StatusOK {
@@ -638,7 +638,7 @@ func (s *OAuthService) fetchGitHubPrimaryEmail(ctx context.Context, accessToken 
 	if err != nil {
 		return ""
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(resp.Body)
 	var emails []struct {

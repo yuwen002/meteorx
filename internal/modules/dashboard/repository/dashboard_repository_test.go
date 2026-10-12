@@ -114,7 +114,7 @@ func TestNewDashboardRepository(t *testing.T) {
 	repo := NewDashboardRepository(gormDB)
 	assert.NotNil(t, repo)
 
-	var _ DashboardRepository = repo
+	var _ = repo
 }
 
 func TestDashboardModel_JSON(t *testing.T) {

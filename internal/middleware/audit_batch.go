@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 
@@ -105,7 +106,8 @@ func (p *AuditBatchProcessor) flush() {
 
 	// 使用处理器持有的 context（支持优雅取消）
 	if err := p.svc.BatchCreateLogs(p.ctx, reqs); err != nil {
-		// 记录错误但不阻塞（生产环境可接入日志系统）
+		// 记录错误但不阻塞
+		log.Printf("[audit] batch create logs failed: %v", err)
 	}
 }
 

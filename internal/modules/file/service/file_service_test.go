@@ -192,7 +192,7 @@ func TestDownload_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Download error: %v", err)
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 }
 
 // ---------- Restore ----------

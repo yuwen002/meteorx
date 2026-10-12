@@ -14,7 +14,7 @@ type requestIDKey struct{}
 // GenerateRequestID 生成一个 32 位十六进制随机请求 ID。
 func GenerateRequestID() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }
 

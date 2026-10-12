@@ -52,7 +52,8 @@ func (s *wikiService) CreateDocument(ctx context.Context, nodeID string, userID 
 	// 同步索引到搜索引擎
 	if s.indexer != nil {
 		if idxErr := s.indexer.IndexNode(context.Background(), nodeID); idxErr != nil {
-			// 索引失败不影响业务
+			// 索引失败不影响业务，仅记录告警便于后续重建索引排查
+			log.Printf("[wiki] index node %s failed: %v", nodeID, idxErr)
 		}
 	}
 
@@ -150,7 +151,8 @@ func (s *wikiService) UpdateDocument(ctx context.Context, id string, userID stri
 	// 文档内容变更后同步索引
 	if s.indexer != nil {
 		if idxErr := s.indexer.IndexNode(context.Background(), resp.NodeID); idxErr != nil {
-			// 索引失败不影响业务
+			// 索引失败不影响业务，仅记录告警
+			log.Printf("[wiki] reindex node %s failed: %v", resp.NodeID, idxErr)
 		}
 	}
 	return resp, nil
@@ -186,7 +188,8 @@ func (s *wikiService) DeleteDocument(ctx context.Context, id string) error {
 	// 从搜索引擎中删除文档索引
 	if err == nil && s.indexer != nil {
 		if idxErr := s.indexer.DeleteNode(context.Background(), doc.NodeID); idxErr != nil {
-			// 索引删除失败不影响业务
+			// 索引删除失败不影响业务，仅记录告警
+			log.Printf("[wiki] delete index node %s failed: %v", doc.NodeID, idxErr)
 		}
 	}
 	return err

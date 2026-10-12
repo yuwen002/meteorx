@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 	"meteorx/pkg/idgen"
-	"net"
+	"meteorx/pkg/security"
 	"net/http"
 	"strings"
 	"time"
@@ -128,13 +128,8 @@ func recordAuditLog(ctx context.Context, auditSvc *service.AuditService, ipLocat
 		result = model.ResultFailure
 	}
 
-	// 获取客户端IP
-	clientIP := stripPort(r.RemoteAddr)
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		clientIP = stripPort(strings.Split(forwarded, ",")[0])
-	} else if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
-		clientIP = stripPort(realIP)
-	}
+	// 获取客户端IP（经可信代理解析，防 XFF/X-Real-IP 头部伪造）
+	clientIP := security.GetClientIP(r)
 
 	// 解析IP地理位置
 	var ipLocation string
@@ -284,7 +279,7 @@ func NewAuditLogReq(r *http.Request) dto.CreateAuditLogReq {
 	return dto.CreateAuditLogReq{
 		Method:     r.Method,
 		Path:       r.URL.Path,
-		ClientIP:   stripPort(r.RemoteAddr),
+		ClientIP:   security.GetClientIP(r),
 		UserAgent:  r.UserAgent(),
 		DeviceInfo: ParseDeviceInfo(r.UserAgent()),
 		Referer:    r.Referer(),
@@ -462,13 +457,4 @@ func getTraceID(r *http.Request) string {
 
 	// 自动生成追踪ID
 	return idgen.NewUUID()
-}
-
-// stripPort 从 host:port 格式中剥离端口号，兼容 IPv4 和 IPv6
-func stripPort(addr string) string {
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return addr
-	}
-	return host
 }

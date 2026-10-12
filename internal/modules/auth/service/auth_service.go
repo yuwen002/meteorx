@@ -267,8 +267,8 @@ func (s *AuthService) Logout(ctx context.Context, tokenString string) (userID, u
 	// 计算 token 剩余有效期
 	now := time.Now()
 	var expiration time.Duration
-	if claims.ExpiresAt != nil && claims.ExpiresAt.Time.After(now) {
-		expiration = claims.ExpiresAt.Time.Sub(now)
+	if claims.ExpiresAt != nil && claims.ExpiresAt.After(now) {
+		expiration = claims.ExpiresAt.Sub(now)
 	} else {
 		return userID, username, tenantID, nil
 	}

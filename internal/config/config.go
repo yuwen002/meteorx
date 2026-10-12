@@ -190,6 +190,10 @@ type ServerConfig struct {
 	// TestBypass 允许固定调试 Token "123456789" 以超级管理员身份直登。
 	// 仅当 app.mode != release 且显式开启时才生效；默认关闭，生产切勿开启。
 	TestBypass bool `mapstructure:"test_bypass"`
+	// TrustedProxies 可信反向代理 CIDR 列表（如 "172.16.0.0/12"、"127.0.0.1/32"）。
+	// 解析客户端真实 IP 时右起跳过命中这些段的 XFF 条目，取首个不可信地址；
+	// 为空时回落为“取 XFF 最右一条”，仅适用于前置单层 nginx 的部署。
+	TrustedProxies []string `mapstructure:"trusted_proxies"`
 }
 
 // DatabaseReplicaConfig 从库（只读副本）配置

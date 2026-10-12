@@ -106,7 +106,8 @@ func (r *Redis) GetSet(ctx context.Context, key string, value interface{}) (stri
 	if !r.IsAvailable() {
 		return "", ErrRedisUnavailable
 	}
-	return r.Client.GetSet(ctx, key, value).Result()
+	// GETSET 已废弃（Redis 6.2.0+），改用 SET ... GET 返回旧值
+	return r.Client.SetArgs(ctx, key, value, redis.SetArgs{Get: true}).Result()
 }
 
 // TTL 返回键的剩余存活时间。

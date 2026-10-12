@@ -23,6 +23,7 @@ func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, cfg *config.Con
 }
 
 // initHandlers 装配 Wiki 模块所有处理器，返回主处理器和扩展处理器。
+// cfg 为必需依赖（搜索/上传签名/JWT 密钥均取自其中），调用方不得传 nil。
 func initHandlers(gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config, rdb *cache.Redis) (*handler.WikiHandler, *handler.WikiHandlerExtended) {
 	// 统一使用扩展仓储：它继承 WikiRepository，且额外实现订阅/通知等扩展方法。
 	// 主服务内部 notifySubscribers 依赖 WikiRepositoryExtended 类型断言，
@@ -40,9 +41,7 @@ func initHandlers(gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config, rdb *ca
 	indexer := search.NewWikiIndexer(engine, extRepo, extRepo)
 	svc.SetWikiIndexer(indexer)
 
-	if cfg != nil {
-		svc.SetUploadSigner(cfg.File.UploadURL, cfg.File.UploadSignKey(cfg.JWT.Secret))
-	}
+	svc.SetUploadSigner(cfg.File.UploadURL, cfg.File.UploadSignKey(cfg.JWT.Secret))
 	h := handler.NewWikiHandler(svc)
 
 	extSvc := service.NewWikiServiceExtended(extRepo, tx)

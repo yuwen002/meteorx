@@ -19,5 +19,4 @@ var _ repository.QuotaVerifier = quotaVerifierFunc(nil)
 
 // 包装真实业务错误，使 errors.Is 能匹配
 var errPlanExpiredMock = fmt.Errorf("mock: %w", planService.ErrPlanExpired)
-var errUserLimitExceededMock = fmt.Errorf("mock: %w", planService.ErrUserLimitExceeded)
 var errGenericMock = fmt.Errorf("mock generic error")

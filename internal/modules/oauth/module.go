@@ -15,11 +15,14 @@ import (
 	rbacRepo "meteorx/internal/modules/rbac/repository"
 	tenantRepo "meteorx/internal/modules/tenant/repository"
 	userrepo "meteorx/internal/modules/user/repository"
+	"meteorx/pkg/logger"
 )
 
 // InitModule 迁移 OAuth 账号表、装配依赖并注册公开的 OAuth 授权/回调路由。
 func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, tokenHelper *jwt.TokenHelper, rdb *cache.Redis) {
-	db.AutoMigrate(&model.OAuthAccount{})
+	if err := db.AutoMigrate(&model.OAuthAccount{}); err != nil {
+		logger.Warnf("[oauth] AutoMigrate OAuthAccount failed: %v", err)
+	}
 
 	uRepo := userrepo.NewUserRepository(db)
 	rRepo := rbacRepo.NewRoleRepository(db)

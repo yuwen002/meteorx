@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"meteorx/pkg/logger"
+	"meteorx/pkg/security"
 
 	"github.com/google/uuid"
 )
@@ -49,8 +50,8 @@ func Logger(next http.Handler) http.Handler {
 		// 计算耗时
 		duration := time.Since(start)
 
-		// 记录结构化日志
-		clientIP := stripPort(r.RemoteAddr)
+		// 记录结构化日志（客户端 IP 经可信代理解析，防头部伪造）
+		clientIP := security.GetClientIP(r)
 		logger.Info("HTTP Request",
 			"request_id", requestID,
 			"method", r.Method,

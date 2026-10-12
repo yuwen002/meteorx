@@ -47,7 +47,7 @@ import (
 // InitRouter 构建 chi 路由，装配全局中间件并将各业务模块按公开/受保护/平台管理员三个分组注册。
 func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache.Redis) *chi.Mux {
 	r := chi.NewRouter()
-	SetupMiddleware(r, BuildAllowedOrigins(cfg.Client))
+	SetupMiddleware(r, BuildAllowedOrigins(cfg.Client), cfg.Server.TrustedProxies)
 
 	tokenHelper := jwt.NewTokenHelper(cfg.JWT)
 
@@ -74,7 +74,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 	// 健康检查（基础）
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
 	// 指标查询接口（Prometheus 格式，含 Go 运行时指标）
@@ -121,7 +121,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			statusCode = http.StatusServiceUnavailable
 		}
 		w.WriteHeader(statusCode)
-		json.NewEncoder(w).Encode(health)
+		_ = json.NewEncoder(w).Encode(health)
 	})
 
 	// 上传文件静态服务：带短时效 HMAC 签名校验，杜绝目录列举与未授权访问。

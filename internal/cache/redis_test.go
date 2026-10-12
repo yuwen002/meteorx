@@ -92,7 +92,7 @@ func TestDelete(t *testing.T) {
 	r, _, cleanup := newTestRedis(t)
 	defer cleanup()
 
-	r.Set(context.Background(), "key", "value", time.Minute)
+	assert.NoError(t, r.Set(context.Background(), "key", "value", time.Minute))
 
 	err := r.Delete(context.Background(), "key")
 	assert.NoError(t, err)
@@ -109,7 +109,7 @@ func TestExists(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, exists)
 
-	r.Set(context.Background(), "key", "value", time.Minute)
+	assert.NoError(t, r.Set(context.Background(), "key", "value", time.Minute))
 
 	exists, err = r.Exists(context.Background(), "key")
 	assert.NoError(t, err)

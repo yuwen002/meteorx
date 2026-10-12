@@ -22,7 +22,7 @@ func setupIntegrationTest(t *testing.T) (*wikiRepository, func()) {
 	cleanup := func() {
 		sqlDB, _ := db.DB()
 		if sqlDB != nil {
-			sqlDB.Close()
+			_ = sqlDB.Close()
 		}
 	}
 

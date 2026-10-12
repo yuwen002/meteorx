@@ -122,7 +122,7 @@ func isValidResourceID(s string) bool {
 	// 允许字母数字组合（长度 >= 8）
 	if len(s) >= 8 {
 		for _, c := range s {
-			if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-') {
+			if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '-' {
 				return false
 			}
 		}

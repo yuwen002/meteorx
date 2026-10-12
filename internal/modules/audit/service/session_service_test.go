@@ -47,7 +47,7 @@ func (s *SessionServiceTestSuite) TestGetSessionLogs() {
 			ClientIP:   "127.0.0.1",
 			Duration:   int64(100 + i*10),
 		}
-		s.repo.Create(s.ctx, log)
+		s.NoError(s.repo.Create(s.ctx, log))
 	}
 
 	result, err := s.svc.GetSessionLogs(s.ctx, sessionID)
@@ -90,7 +90,7 @@ func (s *SessionServiceTestSuite) TestListSessions() {
 				Result:     model.ResultSuccess,
 				Duration:   int64(100 + i*10),
 			}
-			s.repo.Create(s.ctx, log)
+			s.NoError(s.repo.Create(s.ctx, log))
 		}
 	}
 
@@ -114,7 +114,7 @@ func (s *SessionServiceTestSuite) TestListSessionsByUser() {
 		Result:     model.ResultSuccess,
 		Duration:   100,
 	}
-	s.repo.Create(s.ctx, log1)
+	s.NoError(s.repo.Create(s.ctx, log1))
 
 	log2 := &model.AuditLog{
 		UserID:     "user-002",
@@ -126,7 +126,7 @@ func (s *SessionServiceTestSuite) TestListSessionsByUser() {
 		Result:     model.ResultSuccess,
 		Duration:   150,
 	}
-	s.repo.Create(s.ctx, log2)
+	s.NoError(s.repo.Create(s.ctx, log2))
 
 	// 按用户筛选
 	result, _, err := s.svc.ListSessions(s.ctx, 1, 20, "user-001")

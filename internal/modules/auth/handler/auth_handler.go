@@ -132,7 +132,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	parts := strings.SplitN(authHeader, " ", 2)
-	if !(len(parts) == 2 && parts[0] == "Bearer") {
+	if len(parts) != 2 || parts[0] != "Bearer" {
 		response.Fail(w, http.StatusUnauthorized, "无效的 Token 格式")
 		return
 	}

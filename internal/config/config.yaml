@@ -4,6 +4,13 @@ server:
   # 调试后门开关：允许固定 Token "123456789" 免登录超级管理员。
   # 仅当 mode != release 且此处为 true 时生效，生产环境必须保持 false
   test_bypass: false
+  # 可信反向代理 CIDR 列表：解析客户端真实 IP 时右起跳过这些段，取首个不可信地址（防 XFF 伪造）。
+  # 多跳部署（如 CDN → nginx → 本服务）必须配置，否则记到的是最后一层代理的 IP；
+  # 单跳 nginx 反代部署可留空（回落取 XFF 最右一条，nginx 追加的对端即真实客户端）。
+  # 示例（Docker 内网 + 本机回环）：
+  # trusted_proxies:
+  #   - "172.16.0.0/12"
+  #   - "127.0.0.1/32"
 
 database:
   driver: mysql      # 建议加上驱动，方便以后扩展 pgsql

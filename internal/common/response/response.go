@@ -34,7 +34,8 @@ type Pagination struct {
 func WriteJSON(w http.ResponseWriter, statusCode int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(v)
+	// WriteHeader 已发出，编码失败无法再改变状态码，仅显式忽略
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 // Success 返回 200 成功响应，携带数据。
@@ -125,7 +126,8 @@ func InternalError(w http.ResponseWriter, message string) {
 
 // FailWithStatus 根据 HTTP 状态码映射业务错误码后返回失败响应。
 func FailWithStatus(w http.ResponseWriter, httpStatus int, message string) {
-	code := apperrors.ErrInternal
+	// 初值无意义：switch 各分支（含 default）均会覆盖
+	var code apperrors.ErrorCode
 	switch httpStatus {
 	case http.StatusBadRequest:
 		code = apperrors.ErrInvalidParam

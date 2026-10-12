@@ -305,7 +305,7 @@ func (s *PlanService) GetCurrentPlan(ctx context.Context, tenantID string) (*dto
 	if sub.ExpiresAt != nil {
 		exp := sub.ExpiresAt.Format("2006-01-02 15:04:05")
 		resp.ExpiresAt = &exp
-		resp.EffectiveDays = int(sub.ExpiresAt.Sub(time.Now()).Hours() / 24)
+		resp.EffectiveDays = int(time.Until(*sub.ExpiresAt).Hours() / 24)
 		if resp.EffectiveDays < 0 {
 			resp.EffectiveDays = 0
 		}
