@@ -9,8 +9,8 @@ import (
 	"meteorx/internal/modules/plan/service"
 	"meteorx/internal/modules/tenant/model"
 	tenantRepo "meteorx/internal/modules/tenant/repository"
-	"meteorx/internal/notify"
 	userRepo "meteorx/internal/modules/user/repository"
+	"meteorx/internal/notify"
 
 	"gorm.io/gorm"
 )

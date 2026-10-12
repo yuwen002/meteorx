@@ -20,16 +20,19 @@ var (
 
 // PlanPO 套餐持久化模型
 type PlanPO struct {
-	ID          string         `gorm:"primaryKey;size:26;comment:'套餐唯一标识'"`
-	Name        *string        `gorm:"size:100;comment:'套餐名称'"`
-	Code        string         `gorm:"size:50;uniqueIndex;comment:'套餐编码，全局唯一'"`
-	Description *string        `gorm:"size:255;comment:'套餐描述'"`
-	UserLimit   int            `gorm:"comment:'用户数上限，-1表示不限'"`
-	Price       float64        `gorm:"type:decimal(10,2);comment:'月费价格'"`
-	Status      int            `gorm:"index;comment:'状态：1-启用 0-停用'"`
-	CreatedAt   time.Time      `gorm:"comment:'创建时间'"`
-	UpdatedAt   time.Time      `gorm:"comment:'更新时间'"`
-	DeletedAt   gorm.DeletedAt `gorm:"index;comment:'软删除时间'"`
+	ID             string         `gorm:"primaryKey;size:26;comment:'套餐唯一标识'"`
+	Name           *string        `gorm:"size:100;comment:'套餐名称'"`
+	Code           string         `gorm:"size:50;uniqueIndex;comment:'套餐编码，全局唯一'"`
+	Description    *string        `gorm:"size:255;comment:'套餐描述'"`
+	UserLimit      int            `gorm:"comment:'用户数上限，-1表示不限'"`
+	StorageLimit   int64          `gorm:"comment:'存储配额字节，-1表示不限'"`
+	ApiRateLimit   int            `gorm:"comment:'API速率上限每分钟，-1表示不限'"`
+	WikiSpaceLimit int            `gorm:"comment:'Wiki空间上限，-1表示不限'"`
+	Price          float64        `gorm:"type:decimal(10,2);comment:'月费价格'"`
+	Status         int            `gorm:"index;comment:'状态：1-启用 0-停用'"`
+	CreatedAt      time.Time      `gorm:"comment:'创建时间'"`
+	UpdatedAt      time.Time      `gorm:"comment:'更新时间'"`
+	DeletedAt      gorm.DeletedAt `gorm:"index;comment:'软删除时间'"`
 }
 
 // TableName 返回套餐表名 tenant_plans。
@@ -75,15 +78,18 @@ func strVal(s *string) string {
 // toDomain 将套餐持久化模型转换为领域模型。
 func (p PlanPO) toDomain() *model.Plan {
 	plan := &model.Plan{
-		ID:          p.ID,
-		Name:        strVal(p.Name),
-		Code:        p.Code,
-		Description: strVal(p.Description),
-		UserLimit:   p.UserLimit,
-		Price:       p.Price,
-		Status:      p.Status,
-		CreatedAt:   p.CreatedAt,
-		UpdatedAt:   p.UpdatedAt,
+		ID:             p.ID,
+		Name:           strVal(p.Name),
+		Code:           p.Code,
+		Description:    strVal(p.Description),
+		UserLimit:      p.UserLimit,
+		StorageLimit:   p.StorageLimit,
+		ApiRateLimit:   p.ApiRateLimit,
+		WikiSpaceLimit: p.WikiSpaceLimit,
+		Price:          p.Price,
+		Status:         p.Status,
+		CreatedAt:      p.CreatedAt,
+		UpdatedAt:      p.UpdatedAt,
 	}
 	if p.DeletedAt.Valid {
 		plan.DeletedAt = &p.DeletedAt.Time
@@ -124,13 +130,16 @@ func NewPlanRepository(db *gorm.DB) PlanRepository {
 // Create 新增套餐
 func (r *planRepository) Create(ctx context.Context, plan *model.Plan) error {
 	po := &PlanPO{
-		ID:          plan.ID,
-		Name:        strPtr(plan.Name),
-		Code:        plan.Code,
-		Description: strPtr(plan.Description),
-		UserLimit:   plan.UserLimit,
-		Price:       plan.Price,
-		Status:      plan.Status,
+		ID:             plan.ID,
+		Name:           strPtr(plan.Name),
+		Code:           plan.Code,
+		Description:    strPtr(plan.Description),
+		UserLimit:      plan.UserLimit,
+		StorageLimit:   plan.StorageLimit,
+		ApiRateLimit:   plan.ApiRateLimit,
+		WikiSpaceLimit: plan.WikiSpaceLimit,
+		Price:          plan.Price,
+		Status:         plan.Status,
 	}
 	if err := r.db.WithContext(ctx).Create(po).Error; err != nil {
 		return err
@@ -177,6 +186,15 @@ func (r *planRepository) Update(ctx context.Context, id string, plan *model.Plan
 	}
 	if plan.UserLimit >= -1 {
 		updates["user_limit"] = plan.UserLimit
+	}
+	if plan.StorageLimit >= -1 {
+		updates["storage_limit"] = plan.StorageLimit
+	}
+	if plan.ApiRateLimit >= -1 {
+		updates["api_rate_limit"] = plan.ApiRateLimit
+	}
+	if plan.WikiSpaceLimit >= -1 {
+		updates["wiki_space_limit"] = plan.WikiSpaceLimit
 	}
 	if plan.Price >= 0 {
 		updates["price"] = plan.Price

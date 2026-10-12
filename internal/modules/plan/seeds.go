@@ -13,28 +13,37 @@ import (
 func SeedPlans(ctx context.Context, svc *service.PlanService) {
 	defaults := []dto.CreatePlanReq{
 		{
-			Name:        "基础版",
-			Code:        "basic",
-			Description: "适合初创团队，提供基础的用户管理能力",
-			UserLimit:   10,
-			Price:       0,
-			Status:      1,
+			Name:           "基础版",
+			Code:           "basic",
+			Description:    "适合初创团队，提供基础的用户管理能力",
+			UserLimit:      10,
+			StorageLimit:   1 << 30, // 1GB
+			ApiRateLimit:   60,
+			WikiSpaceLimit: 3,
+			Price:          0,
+			Status:         1,
 		},
 		{
-			Name:        "标准版",
-			Code:        "standard",
-			Description: "适合成长型企业，支持更多用户与完整权限体系",
-			UserLimit:   100,
-			Price:       299,
-			Status:      1,
+			Name:           "标准版",
+			Code:           "standard",
+			Description:    "适合成长型企业，支持更多用户与完整权限体系",
+			UserLimit:      100,
+			StorageLimit:   10 << 30, // 10GB
+			ApiRateLimit:   300,
+			WikiSpaceLimit: 20,
+			Price:          299,
+			Status:         1,
 		},
 		{
-			Name:        "专业版",
-			Code:        "professional",
-			Description: "适合大型企业，提供全面配额与优先支持",
-			UserLimit:   1000,
-			Price:       999,
-			Status:      1,
+			Name:           "专业版",
+			Code:           "professional",
+			Description:    "适合大型企业，提供全面配额与优先支持",
+			UserLimit:      1000,
+			StorageLimit:   100 << 30, // 100GB
+			ApiRateLimit:   1200,
+			WikiSpaceLimit: -1, // 不限空间
+			Price:          999,
+			Status:         1,
 		},
 	}
 

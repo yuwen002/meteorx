@@ -63,14 +63,31 @@ func (s *PlanService) CreatePlan(ctx context.Context, req dto.CreatePlanReq) (*d
 		}
 	}
 
+	// 新增三类配额：未显式设置（0）统一视为不限制（-1），保持向后兼容
+	storageLimit := req.StorageLimit
+	if storageLimit == 0 {
+		storageLimit = -1
+	}
+	apiRateLimit := req.ApiRateLimit
+	if apiRateLimit == 0 {
+		apiRateLimit = -1
+	}
+	wikiSpaceLimit := req.WikiSpaceLimit
+	if wikiSpaceLimit == 0 {
+		wikiSpaceLimit = -1
+	}
+
 	plan := &model.Plan{
-		ID:          idgen.New(),
-		Name:        req.Name,
-		Code:        req.Code,
-		Description: req.Description,
-		UserLimit:   req.UserLimit,
-		Price:       req.Price,
-		Status:      req.Status,
+		ID:             idgen.New(),
+		Name:           req.Name,
+		Code:           req.Code,
+		Description:    req.Description,
+		UserLimit:      req.UserLimit,
+		StorageLimit:   storageLimit,
+		ApiRateLimit:   apiRateLimit,
+		WikiSpaceLimit: wikiSpaceLimit,
+		Price:          req.Price,
+		Status:         req.Status,
 	}
 
 	if err := s.planRepo.Create(ctx, plan); err != nil {
@@ -87,14 +104,19 @@ func (s *PlanService) UpdatePlan(ctx context.Context, id string, req dto.UpdateP
 	}
 
 	plan := &model.Plan{
-		Name:        req.Name,
-		Description: req.Description,
-		UserLimit:   req.UserLimit,
-		Price:       req.Price,
-		Status:      req.Status,
+		Name:           req.Name,
+		Description:    req.Description,
+		UserLimit:      req.UserLimit,
+		StorageLimit:   req.StorageLimit,
+		ApiRateLimit:   req.ApiRateLimit,
+		WikiSpaceLimit: req.WikiSpaceLimit,
+		Price:          req.Price,
+		Status:         req.Status,
 	}
 	if existing.Name == plan.Name && existing.Description == plan.Description &&
-		existing.UserLimit == plan.UserLimit && existing.Price == plan.Price && existing.Status == plan.Status {
+		existing.UserLimit == plan.UserLimit && existing.Price == plan.Price && existing.Status == plan.Status &&
+		existing.StorageLimit == plan.StorageLimit && existing.ApiRateLimit == plan.ApiRateLimit &&
+		existing.WikiSpaceLimit == plan.WikiSpaceLimit {
 		return nil, nil
 	}
 
@@ -140,16 +162,19 @@ func (s *PlanService) ListPlans(ctx context.Context, page, pageSize int, keyword
 	resp := make([]*dto.PlanResp, 0, len(plans))
 	for _, p := range plans {
 		resp = append(resp, &dto.PlanResp{
-			ID:            p.ID,
-			Name:          p.Name,
-			Code:          p.Code,
-			Description:   p.Description,
-			UserLimit:     p.UserLimit,
-			Price:         p.Price,
-			Status:        p.Status,
-			SubscriberCnt: subMap[p.ID],
-			CreatedAt:     p.CreatedAt,
-			UpdatedAt:     p.UpdatedAt,
+			ID:             p.ID,
+			Name:           p.Name,
+			Code:           p.Code,
+			Description:    p.Description,
+			UserLimit:      p.UserLimit,
+			StorageLimit:   p.StorageLimit,
+			ApiRateLimit:   p.ApiRateLimit,
+			WikiSpaceLimit: p.WikiSpaceLimit,
+			Price:          p.Price,
+			Status:         p.Status,
+			SubscriberCnt:  subMap[p.ID],
+			CreatedAt:      p.CreatedAt,
+			UpdatedAt:      p.UpdatedAt,
 		})
 	}
 	return resp, total, nil
@@ -164,15 +189,18 @@ func (s *PlanService) ListEnabledPlans(ctx context.Context) ([]*dto.PlanResp, er
 	resp := make([]*dto.PlanResp, 0, len(plans))
 	for _, p := range plans {
 		resp = append(resp, &dto.PlanResp{
-			ID:          p.ID,
-			Name:        p.Name,
-			Code:        p.Code,
-			Description: p.Description,
-			UserLimit:   p.UserLimit,
-			Price:       p.Price,
-			Status:      p.Status,
-			CreatedAt:   p.CreatedAt,
-			UpdatedAt:   p.UpdatedAt,
+			ID:             p.ID,
+			Name:           p.Name,
+			Code:           p.Code,
+			Description:    p.Description,
+			UserLimit:      p.UserLimit,
+			StorageLimit:   p.StorageLimit,
+			ApiRateLimit:   p.ApiRateLimit,
+			WikiSpaceLimit: p.WikiSpaceLimit,
+			Price:          p.Price,
+			Status:         p.Status,
+			CreatedAt:      p.CreatedAt,
+			UpdatedAt:      p.UpdatedAt,
 		})
 	}
 	return resp, nil
@@ -189,16 +217,19 @@ func (s *PlanService) getPlanResp(ctx context.Context, id string) (*dto.PlanResp
 		cnt = 0
 	}
 	return &dto.PlanResp{
-		ID:            plan.ID,
-		Name:          plan.Name,
-		Code:          plan.Code,
-		Description:   plan.Description,
-		UserLimit:     plan.UserLimit,
-		Price:         plan.Price,
-		Status:        plan.Status,
-		SubscriberCnt: cnt,
-		CreatedAt:     plan.CreatedAt,
-		UpdatedAt:     plan.UpdatedAt,
+		ID:             plan.ID,
+		Name:           plan.Name,
+		Code:           plan.Code,
+		Description:    plan.Description,
+		UserLimit:      plan.UserLimit,
+		StorageLimit:   plan.StorageLimit,
+		ApiRateLimit:   plan.ApiRateLimit,
+		WikiSpaceLimit: plan.WikiSpaceLimit,
+		Price:          plan.Price,
+		Status:         plan.Status,
+		SubscriberCnt:  cnt,
+		CreatedAt:      plan.CreatedAt,
+		UpdatedAt:      plan.UpdatedAt,
 	}, nil
 }
 
@@ -293,14 +324,17 @@ func (s *PlanService) GetCurrentPlan(ctx context.Context, tenantID string) (*dto
 	}
 
 	resp := &dto.CurrentPlanResp{
-		TenantID:     tenantID,
-		PlanID:       plan.ID,
-		PlanName:     plan.Name,
-		PlanCode:     plan.Code,
-		UserLimit:    plan.UserLimit,
-		CurrentUsers: currentUsers,
-		StartedAt:    sub.StartedAt.Format("2006-01-02 15:04:05"),
-		Status:       sub.Status,
+		TenantID:       tenantID,
+		PlanID:         plan.ID,
+		PlanName:       plan.Name,
+		PlanCode:       plan.Code,
+		UserLimit:      plan.UserLimit,
+		CurrentUsers:   currentUsers,
+		StorageLimit:   plan.StorageLimit,
+		WikiSpaceLimit: plan.WikiSpaceLimit,
+		ApiRateLimit:   plan.ApiRateLimit,
+		StartedAt:      sub.StartedAt.Format("2006-01-02 15:04:05"),
+		Status:         sub.Status,
 	}
 	if sub.ExpiresAt != nil {
 		exp := sub.ExpiresAt.Format("2006-01-02 15:04:05")
