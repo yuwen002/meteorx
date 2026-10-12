@@ -91,6 +91,10 @@
             <el-icon><Goods /></el-icon>
             <template #title>套餐管理</template>
           </el-menu-item>
+          <el-menu-item index="/system/dashboard/tenant-health">
+            <el-icon><DataAnalysis /></el-icon>
+            <template #title>租户健康度</template>
+          </el-menu-item>
           <el-menu-item index="/system/cancel-request">
             <el-icon><CloseBold /></el-icon>
             <template #title>注销审批</template>
@@ -201,6 +205,7 @@ import {
   Bell,
   CloseBold,
   Connection,
+  DataAnalysis,
   Document,
   Download,
   Expand,

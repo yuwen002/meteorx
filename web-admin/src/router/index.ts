@@ -230,6 +230,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '套餐管理', icon: 'Goods', permission: 'admin:plan:list', requireMaster: true }
       },
       {
+        path: 'system/dashboard/tenant-health',
+        name: 'TenantHealth',
+        component: () => import('@/views/system/dashboard/tenant-health.vue'),
+        meta: { title: '租户健康度', icon: 'DataAnalysis', permission: 'admin:dashboard:list', requireMaster: true }
+      },
+      {
         path: 'system/file',
         name: 'File',
         component: () => import('@/views/system/file/index.vue'),
