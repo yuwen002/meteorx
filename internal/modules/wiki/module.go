@@ -2,6 +2,7 @@
 package wiki
 
 import (
+	"meteorx/internal/cache"
 	"meteorx/internal/config"
 	"meteorx/internal/modules/wiki/handler"
 	"meteorx/internal/modules/wiki/repository"
@@ -15,18 +16,19 @@ import (
 )
 
 // InitModule 装配 Wiki 依赖（仓储/服务/搜索引擎/处理器）并注册路由。
-func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config) {
-	h, extH := initHandlers(gormDB, tx, cfg)
+// rdb 可为 nil：仅用于回收站过期清理的跨副本分布式锁，缺失时降级为进程内互斥。
+func InitModule(r chi.Router, gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config, rdb *cache.Redis) {
+	h, extH := initHandlers(gormDB, tx, cfg, rdb)
 	RegisterRoutes(r, h, extH)
 }
 
 // initHandlers 装配 Wiki 模块所有处理器，返回主处理器和扩展处理器。
-func initHandlers(gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config) (*handler.WikiHandler, *handler.WikiHandlerExtended) {
+func initHandlers(gormDB *gorm.DB, tx *db.TxManager, cfg *config.Config, rdb *cache.Redis) (*handler.WikiHandler, *handler.WikiHandlerExtended) {
 	// 统一使用扩展仓储：它继承 WikiRepository，且额外实现订阅/通知等扩展方法。
 	// 主服务内部 notifySubscribers 依赖 WikiRepositoryExtended 类型断言，
 	// 若注入 NewWikiRepository 的基础实现会使文档编辑通知静默失效。
 	extRepo := repository.NewWikiRepositoryExtended(gormDB)
-	svc := service.NewWikiService(extRepo, tx)
+	svc := service.NewWikiService(extRepo, tx, service.WithExpireCacheLock(rdb))
 
 	searchCfg := search.Config{
 		Provider:    cfg.Search.Provider,

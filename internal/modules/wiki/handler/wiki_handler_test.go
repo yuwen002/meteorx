@@ -675,6 +675,21 @@ func TestWikiUpdateDocument_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, []string{"doc-1", testUser}, stub.params["UpdateDocument"])
+	// 提交了 content：应触发订阅者的编辑通知
+	assert.Equal(t, []string{"doc-1", testUser, ""}, stub.params["NotifyDocumentEdited"])
+}
+
+// TestWikiUpdateDocument_NoContentNoNotify 仅修改摘要（无 Content/Format，不产生新版本）时，
+// 更新应正常完成但不得触发编辑通知。
+func TestWikiUpdateDocument_NoContentNoNotify(t *testing.T) {
+	stub := newStubWiki()
+	router := newWikiRouter(stub)
+
+	w := doWiki(t, router, http.MethodPut, "/documents/doc-1", `{"summary":"仅改摘要"}`, nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, []string{"doc-1", testUser}, stub.params["UpdateDocument"])
+	assert.Empty(t, stub.params["NotifyDocumentEdited"])
 }
 
 func TestWikiDeleteDocument_Success(t *testing.T) {

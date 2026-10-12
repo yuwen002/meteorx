@@ -205,10 +205,9 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User,
 		return nil, nil, nil, "", errors.New("failed to query user roles")
 	}
 
-	// 如果是系统管理员且没有角色，兜底返回 superadmin
-	if user.IsMaster && len(roleCodes) == 0 {
-		roleCodes = []string{"superadmin"}
-	}
+	// 主账号始终保证 JWT 携带 superadmin 角色（无论是否被显式分配了其他角色），
+	// 使 RequiresMasterAdmin 等基于角色的判定与 is_master 口径一致。
+	roleCodes = jwt.EnsureSuperadminRole(user.IsMaster, roleCodes)
 
 	user.Roles = roleCodes
 

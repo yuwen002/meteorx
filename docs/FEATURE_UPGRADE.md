@@ -937,3 +937,35 @@ client:
 - 仓储层 `ExpireTrashItems(ctx, limit)`：新增单轮上限（按 `expires_at` 升序取批）；每个条目单独开启事务（级联物理清除 + 回收站行原子提交），单条失败仅回滚该条目、不中断其余条目，返回「成功数 + 首个错误」。`db` 包新增 `CtxWithTx` 供仓储内部事务复用上下文传递机制。
 - 服务层 `ExpireTrashItems`：循环分批直至排空积压（每批 200 条）；进程内 `sync.Mutex.TryLock` 互斥，定时任务与运维端点并发触发时后到者跳过并记日志；上下文被取消（如 HTTP 客户端超时断开）时安全停止，条目级事务保证不会留下半删数据。
 - 集成测试：`TestIntegration_ExpireTrashItems_Limit`（分批上限与顺序）、`TestIntegration_ExpireTrashItems_FailureIsolation`（DROP 版本表模拟真实 DB 错误，验证失败条目保留/成功条目不受影响）。
+
+---
+
+## 二十一、评审 Minor 项收尾与多副本加固
+
+承接第二十节，处理剩余 3 个 Minor 项并补齐运维端点的对外文档与多副本互斥。
+
+### 21.1 前后端超管口径统一（Minor-6）
+- 问题：前端以 `is_master` 判定超管（回收站「清理过期」按钮可见性），后端 `RequiresMasterAdmin` 却按 JWT 角色 `superadmin` 拦截；旧逻辑仅在**无任何角色**时兜底注入 superadmin，主账号被显式分配其他角色后点按钮会得到 403。
+- 修复：`jwt` 包新增 `EnsureSuperadminRole(isMaster, roleCodes)`，登录/OAuth 登录/刷新三处统一保证主账号 JWT 始终携带 `superadmin`；非主账号不受影响。已登出的旧 token 需重新登录后生效。
+- 测试：`TestEnsureSuperadminRole`（4 子用例）+ `TestLoginMasterWithAssignedRolesKeepsSuperadmin` 锁死回归。
+
+### 21.2 回收站头部按钮布局（Minor-5）
+- `trash.vue` 头部「清理过期」与「刷新」包进 `.head-actions`（flex + gap），不再被 `space-between` 分散到标题两侧。
+
+### 21.3 仅版本递增时发编辑通知（Minor-7 部分）
+- `WikiHandler.UpdateDocument` 的 `NotifyDocumentEdited` 改为仅当 `content`/`format` 有实际提交（与 Service 内版本递增条件一致）时触发，避免仅改摘要等元信息也推送编辑通知。
+- 测试：`TestWikiUpdateDocument_Success` 补通知断言；新增 `TestWikiUpdateDocument_NoContentNoNotify`。
+
+### 21.4 过期清理 Redis 分布式锁（多副本加固）
+- `service` 新增函数式选项 `WithExpireCacheLock(rdb)`；`ExpireTrashItems` 在进程内 TryLock 基础上增加 Redis `SetNX`（key `wiki:trash:expire:lock`，TTL 30min）：未抢到锁直接跳过并记日志；完成后仅当持有者令牌匹配时释放；Redis 不可用/报错时降级为仅进程内互斥（重复执行安全由条目级事务与幂等 purge 兜底）。
+- 装配：`wiki.InitModule` 与 `StartWikiTrashExpiryJob` 增传 `rdb`；定时任务与运维端点共用同一锁。
+- 测试：`wiki_expire_lock_test.go` 基于 miniredis 验证获锁/释放、他实例持锁跳过且不误删他人锁、无 Redis 降级三种场景。
+
+### 21.5 运维端点对外文档同步
+- `docs/api/wiki-api.md` 新增「6.4 手动触发回收站过期清理（运维）」。
+- `scripts/openapi_sync.go` 镜像路由补 `POST /wiki/admin/trash/expire` 并执行 `-apply`：`MeteorX-backend.openapi.json`（手工润色 summary/响应体/403 说明）与 `MeteorX-backend.apifox.json`（知识库分组）均已收录该端点，两个 JSON 通过语法校验。
+
+### 21.6 验证状态
+- ✅ `go build ./...` / `go vet` 通过
+- ✅ `go test -count=1` jwt、auth/service、wiki 全子包通过
+- ⏳ 前端构建与本地运行时验证见提交记录

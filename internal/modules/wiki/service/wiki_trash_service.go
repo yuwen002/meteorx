@@ -12,6 +12,7 @@ import (
 	"meteorx/internal/modules/wiki/model"
 	"meteorx/internal/modules/wiki/repository"
 	apperrors "meteorx/internal/pkg/apperrors"
+	"meteorx/pkg/idgen"
 
 	"gorm.io/gorm"
 )
@@ -20,10 +21,16 @@ import (
 // 导致 HTTP 手动触发入口超时（前端 axios 15s）后在级联中途被 context 取消。
 const expireBatchSize = 200
 
-// expireTrashMu 进程内互斥：定时任务与手动运维端点（或多入口并发）同时触发时，
+// expireTrashMu 进程内互斥：同一进程内定时任务与手动运维端点同时触发时，
 // 后到者直接跳过，避免重复扫描与交叉清除。
-// 注：多副本部署时需各副本各自调度，重复执行由条目级事务与幂等 purge 保障安全。
 var expireTrashMu sync.Mutex
+
+// 跨副本分布式锁：多副本部署时各副本的定时任务/运维端点通过 Redis SetNX 抢占，
+// 未抢到时直接跳过；TTL 需覆盖单轮清理的最长预期耗时，实例崩溃后由 TTL 自动释放。
+const (
+	expireLockKey = "wiki:trash:expire:lock"
+	expireLockTTL = 30 * time.Minute
+)
 
 // ListTrashItems 列出回收站项目（分页，支持 Space 和类型过滤）
 func (s *wikiService) ListTrashItems(ctx context.Context, tenantID string, spaceID string, itemType string, page, pageSize int) ([]*dto.TrashItemResp, int64, error) {
@@ -100,6 +107,21 @@ func (s *wikiService) ExpireTrashItems(ctx context.Context) (int, error) {
 	}
 	defer expireTrashMu.Unlock()
 
+	// 分布式锁仅在 Redis 可用时生效；获取失败（网络/命令错误）时降级为仅进程内互斥，
+	// 重复执行的安全性由条目级事务与幂等 purge 兜底。
+	if s.expireCache != nil && s.expireCache.IsAvailable() {
+		token := idgen.New()
+		acquired, err := s.expireCache.SetNX(ctx, expireLockKey, token, expireLockTTL)
+		if err != nil {
+			log.Printf("[WikiTrash] 分布式锁获取失败，降级为进程内互斥: %v", err)
+		} else if !acquired {
+			log.Printf("[WikiTrash] 其他实例持有过期清理分布式锁，本次跳过")
+			return 0, nil
+		} else {
+			defer s.releaseExpireLock(expireLockKey, token)
+		}
+	}
+
 	total := 0
 	for {
 		n, err := s.repo.ExpireTrashItems(ctx, expireBatchSize)
@@ -112,6 +134,21 @@ func (s *wikiService) ExpireTrashItems(ctx context.Context) (int, error) {
 			// 本轮未触及上限即已排空；上下文被取消时同样停止，避免无意义循环
 			return total, nil
 		}
+	}
+}
+
+// releaseExpireLock 释放分布式锁（仅当持有者令牌匹配时删除）。
+// Get+Delete 非原子，但正常路径下远早于 TTL 到期，误删窗口可忽略；
+// 释放失败仅记日志，留待 TTL 自然过期兜底。使用独立 context，避免请求 ctx 已取消导致无法释放。
+func (s *wikiService) releaseExpireLock(key, token string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cur, err := s.expireCache.Get(ctx, key)
+	if err != nil || cur != token {
+		return
+	}
+	if err := s.expireCache.Delete(ctx, key); err != nil {
+		log.Printf("[WikiTrash] 分布式锁释放失败，等待 TTL 过期兜底: %v", err)
 	}
 }
 

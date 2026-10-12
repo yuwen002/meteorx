@@ -25,6 +25,24 @@ type CustomClaims struct {
 	jwt.RegisteredClaims
 }
 
+// RoleSuperadmin 平台超级管理员角色编码，与中间件 RequiresMasterAdmin / 权限豁免逻辑的判定口径一致。
+const RoleSuperadmin = "superadmin"
+
+// EnsureSuperadminRole 保证主账号（is_master）用户的角色列表始终包含 superadmin 角色。
+// 背景：主账号被显式分配其他角色后，原“无角色才兜底”的逻辑会使 JWT 缺失 superadmin，
+// 导致 is_master 可见的超管端点反而返回 403（前后端超管口径不一致）。
+func EnsureSuperadminRole(isMaster bool, roleCodes []string) []string {
+	if !isMaster {
+		return roleCodes
+	}
+	for _, c := range roleCodes {
+		if c == RoleSuperadmin {
+			return roleCodes
+		}
+	}
+	return append([]string{RoleSuperadmin}, roleCodes...)
+}
+
 // NewTokenHelper 关联配置并初始化助手
 func NewTokenHelper(cfg config.JWTConfig) *TokenHelper {
 	return &TokenHelper{

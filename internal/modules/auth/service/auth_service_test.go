@@ -245,6 +245,22 @@ func (s *AuthServiceTestSuite) TestLoginMasterFallbackRole() {
 	s.NotEmpty(token)
 }
 
+// TestLoginMasterWithAssignedRolesKeepsSuperadmin 主账号被显式分配其他角色后，
+// JWT 角色仍需包含 superadmin（与前端 is_master 口径一致，锁死回归）。
+func (s *AuthServiceTestSuite) TestLoginMasterWithAssignedRolesKeepsSuperadmin() {
+	s.seedUser("root2", "Passw0rd123!", true, 1)
+	s.urRepo.seedCodes("user-root2", []string{"editor"})
+
+	_, roles, _, _, err := s.svc.Login(s.ctx, dto.LoginReq{
+		TenantID: "",
+		Username: "root2",
+		Password: "Passw0rd123!",
+	})
+
+	s.NoError(err)
+	s.Equal([]string{"superadmin", "editor"}, roles)
+}
+
 func (s *AuthServiceTestSuite) TestLoginWrongPassword() {
 	s.seedUser("alice", "Passw0rd123!", false, 1)
 

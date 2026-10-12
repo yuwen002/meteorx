@@ -6,12 +6,14 @@
           <h3>回收站</h3>
           <p class="tip">被删除的空间、目录与文档会在此保留 30 天，过期后自动清除。</p>
         </div>
-        <el-button v-if="isSuperAdmin" type="warning" :loading="expiring" @click="handleExpire">
-          <el-icon><Delete /></el-icon>清理过期
-        </el-button>
-        <el-button @click="load">
-          <el-icon><Refresh /></el-icon>刷新
-        </el-button>
+        <div class="head-actions">
+          <el-button v-if="isSuperAdmin" type="warning" :loading="expiring" @click="handleExpire">
+            <el-icon><Delete /></el-icon>清理过期
+          </el-button>
+          <el-button @click="load">
+            <el-icon><Refresh /></el-icon>刷新
+          </el-button>
+        </div>
       </div>
 
       <el-tabs v-model="activeType" @tab-change="onTypeChange">
@@ -224,6 +226,11 @@ h3 {
   margin: 0;
   color: #9ca3af;
   font-size: 12px;
+}
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .pagination {
   display: flex;

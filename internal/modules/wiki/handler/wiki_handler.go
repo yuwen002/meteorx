@@ -315,8 +315,12 @@ func (h *WikiHandler) UpdateDocument(w http.ResponseWriter, r *http.Request) {
 		response.FailError(w, err)
 		return
 	}
-	// 编辑成功后通知关注「编辑/全部」变更的订阅者（通知失败不影响编辑主流程）
-	_ = h.svc.NotifyDocumentEdited(r.Context(), id, userID, doc.Title)
+	// 编辑成功后通知关注「编辑/全部」变更的订阅者（通知失败不影响编辑主流程）。
+	// 与 Service.UpdateDocument 内版本递增条件保持一致：仅 Content/Format 有实际提交
+	// （即确实产生了新版本）时才通知，避免仅修改摘要等元信息也推送编辑通知。
+	if req.Content != "" || req.Format != "" {
+		_ = h.svc.NotifyDocumentEdited(r.Context(), id, userID, doc.Title)
+	}
 	response.Success(w, doc)
 }
 

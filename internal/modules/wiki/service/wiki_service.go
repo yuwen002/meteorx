@@ -4,6 +4,7 @@ package service
 import (
 	"context"
 
+	"meteorx/internal/cache"
 	"meteorx/internal/modules/wiki/dto"
 	"meteorx/internal/modules/wiki/repository"
 	db "meteorx/internal/pkg/db"
@@ -130,19 +131,36 @@ type wikiService struct {
 	engine      search.Engine
 	indexer     *search.WikiIndexer
 
+	// expireCache 回收站过期清理分布式锁使用的 Redis 实例（nil/不可用时降级为进程内互斥）
+	expireCache *cache.Redis
+
 	// uploadBaseURL 对外访问 /uploads 的基础地址（如 http://host:8081/uploads）；
 	// uploadSignKey 与文件存储一致的上传签名密钥。两者为空时禁用文档图片动态重签。
 	uploadBaseURL string
 	uploadSignKey string
 }
 
+// Option wikiService 构造时的函数式选项（遵循项目服务层可变参数选项模式）。
+type Option func(*wikiService)
+
+// WithExpireCacheLock 为回收站过期清理注入分布式锁的 Redis 实例。
+// 多副本部署时各副本的定时任务/手动运维端点通过该锁互斥，避免重复清理；
+// 未注入（或 Redis 不可用）时仅依赖进程内互斥，单副本部署下行为不变。
+func WithExpireCacheLock(rdb *cache.Redis) Option {
+	return func(s *wikiService) { s.expireCache = rdb }
+}
+
 // NewWikiService 创建 Wiki Service 实例
-func NewWikiService(repo repository.WikiRepository, tx *db.TxManager) WikiService {
-	return &wikiService{
+func NewWikiService(repo repository.WikiRepository, tx *db.TxManager, opts ...Option) WikiService {
+	s := &wikiService{
 		repo:        repo,
 		tx:          tx,
 		markdownSvc: NewMarkdownService(),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // SetWikiIndexer 设置搜索引擎索引器，用于文档创建/更新/删除时自动同步索引。

@@ -98,7 +98,8 @@ func StartApp() {
 	StartInvitationExpiryJob(ctx, db)
 
 	// 7.4 启动 Wiki 回收站过期清理定时任务（物理清除过期回收站项目及其关联实体）
-	StartWikiTrashExpiryJob(ctx, db)
+	// 传入 rdb：多副本部署时通过 Redis 分布式锁保证仅一个实例执行清理
+	StartWikiTrashExpiryJob(ctx, db, rdb)
 
 	// 7.5 启动任务到期提醒定时任务（即将到期/已逾期任务站内提醒）
 	StartTaskReminderJob(ctx, db, cfg)

@@ -22,10 +22,11 @@ type WikiTrashExpiryJob struct {
 }
 
 // NewWikiTrashExpiryJob 创建回收站过期清理任务实例（内部基于 db 组装仓储与业务服务）。
-func NewWikiTrashExpiryJob(db *gorm.DB) *WikiTrashExpiryJob {
+// opts 用于注入跨副本分布式锁等可选依赖（如 service.WithExpireCacheLock(rdb)），不传时仅进程内互斥。
+func NewWikiTrashExpiryJob(db *gorm.DB, opts ...service.Option) *WikiTrashExpiryJob {
 	repo := repository.NewWikiRepository(db)
 	txManager := dbpkg.NewTxManager(db)
-	svc := service.NewWikiService(repo, txManager)
+	svc := service.NewWikiService(repo, txManager, opts...)
 	return &WikiTrashExpiryJob{
 		svc:    svc,
 		logger: log.Default(),

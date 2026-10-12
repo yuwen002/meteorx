@@ -219,6 +219,8 @@ func (s *OAuthService) Login(ctx context.Context, provider, code, state, tenantI
 	if err != nil {
 		roleCodes = []string{}
 	}
+	// 主账号始终保证 JWT 携带 superadmin 角色，与 is_master 口径一致
+	roleCodes = jwt.EnsureSuperadminRole(user.IsMaster, roleCodes)
 	user.Roles = roleCodes
 
 	permCodes := s.collectPermissionCodes(ctx, user.ID, user.IsMaster)
@@ -253,6 +255,8 @@ func (s *OAuthService) RefreshToken(ctx context.Context, refreshToken string) (s
 	if err != nil {
 		roleCodes = []string{}
 	}
+	// 刷新时同样补齐 superadmin，避免主账号刷新后丢失超管角色
+	roleCodes = jwt.EnsureSuperadminRole(user.IsMaster, roleCodes)
 
 	newToken, err := s.tokenHelper.GenerateToken(user.ID, user.TenantID, roleCodes)
 	if err != nil {

@@ -11318,6 +11318,49 @@
         ]
       }
     },
+    "/api/v1/wiki/admin/trash/expire": {
+      "post": {
+        "description": "仅平台超级管理员（superadmin 角色）可调用。立即执行一次回收站过期清理：物理删除所有已过 expires_at 的回收站项目及其关联实体（文档/节点树/空间树），与定时任务同一逻辑。并发保护：进程内互斥 + Redis 分布式锁（多副本仅一个实例执行），未抢到锁时返回 purged=0。执行结果会写入审计日志（action=trash_expire）。",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "purged": {
+                          "type": "integer",
+                          "description": "本次清理的回收站项目数"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "403": {
+            "description": "非平台超级管理员调用，返回“权限不足，仅限平台超级管理员访问”"
+          }
+        },
+        "summary": "手动触发回收站过期清理",
+        "tags": [
+          "知识库"
+        ]
+      }
+    },
     "/api/v1/wiki/documents/attachments": {
       "post": {
         "requestBody": {

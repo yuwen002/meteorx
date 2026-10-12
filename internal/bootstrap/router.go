@@ -37,6 +37,7 @@ import (
 	"meteorx/internal/modules/user"
 	userRepo "meteorx/internal/modules/user/repository"
 	"meteorx/internal/modules/wiki"
+	wikiSvc "meteorx/internal/modules/wiki/service"
 	dbpkg "meteorx/internal/pkg/db"
 	"meteorx/internal/ws"
 	"meteorx/pkg/logger"
@@ -207,8 +208,8 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 4.5 文件管理接口
 			file.RegisterRoutes(r, db, cfg)
 
-			// 4.6 Wiki 知识库接口
-			wiki.InitModule(r, db, txManager, cfg)
+			// 4.6 Wiki 知识库接口（rdb 用于回收站过期清理的跨副本分布式锁，可为 nil）
+			wiki.InitModule(r, db, txManager, cfg, rdb)
 
 			// 4.7 租户端公告查看接口
 			notification.InitTenantModule(r, db)
@@ -286,8 +287,9 @@ func StartInvitationExpiryJob(ctx context.Context, db *gorm.DB) {
 
 // StartWikiTrashExpiryJob 启动 Wiki 回收站过期清理定时任务
 // 周期性物理清除已过 expires_at 的回收站项目及其关联实体（文档/节点树/空间树）
-func StartWikiTrashExpiryJob(ctx context.Context, db *gorm.DB) {
-	job := wiki.NewWikiTrashExpiryJob(db)
+// rdb 可为 nil：非空时启用跨副本分布式锁，多副本部署下仅一个实例执行清理
+func StartWikiTrashExpiryJob(ctx context.Context, db *gorm.DB, rdb *cache.Redis) {
+	job := wiki.NewWikiTrashExpiryJob(db, wikiSvc.WithExpireCacheLock(rdb))
 	job.Start(ctx, time.Hour)
 }
 
