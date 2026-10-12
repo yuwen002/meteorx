@@ -15,6 +15,7 @@ import (
 type mockDashboardRepo struct {
 	overview *model.DashboardOverview
 	health   *model.TenantHealthList
+	detail   *model.TenantHealthItem
 	err      error
 }
 
@@ -24,6 +25,10 @@ func (m *mockDashboardRepo) GetOverview(_ context.Context) (*model.DashboardOver
 
 func (m *mockDashboardRepo) GetTenantHealth(_ context.Context, _ model.HealthQuery) (*model.TenantHealthList, error) {
 	return m.health, m.err
+}
+
+func (m *mockDashboardRepo) GetTenantHealthDetail(_ context.Context, _ string) (*model.TenantHealthItem, error) {
+	return m.detail, m.err
 }
 
 func TestGetOverview_MapsAllStats(t *testing.T) {

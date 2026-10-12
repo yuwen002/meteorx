@@ -126,25 +126,7 @@ func ToTenantHealthListResp(m *model.TenantHealthList) *TenantHealthListResp {
 	}
 	items := make([]TenantHealthItemResp, 0, len(m.Items))
 	for _, it := range m.Items {
-		items = append(items, TenantHealthItemResp{
-			TenantID:              it.TenantID,
-			TenantName:            it.TenantName,
-			Status:                it.Status,
-			PlanName:              it.PlanName,
-			SubscriptionStatus:    it.SubscriptionStatus,
-			SubscriptionExpiresAt: it.SubscriptionExpiresAt,
-			DaysRemaining:         it.DaysRemaining,
-			UserCount:             it.UserCount,
-			ActiveUserCount:       it.ActiveUserCount,
-			TaskCount:             it.TaskCount,
-			TaskCompletedCount:    it.TaskCompletedCount,
-			WikiDocCount:          it.WikiDocCount,
-			StorageUsed:           it.StorageUsed,
-			AuditCount7d:          it.AuditCount7d,
-			LastActivityAt:        it.LastActivityAt,
-			HealthScore:           it.HealthScore,
-			HealthLevel:           it.HealthLevel,
-		})
+		items = append(items, ToTenantHealthItemResp(it))
 	}
 	return &TenantHealthListResp{
 		Items:    items,
@@ -154,5 +136,28 @@ func ToTenantHealthListResp(m *model.TenantHealthList) *TenantHealthListResp {
 		Healthy:  m.Healthy,
 		Moderate: m.Moderate,
 		AtRisk:   m.AtRisk,
+	}
+}
+
+// ToTenantHealthItemResp 将单个租户健康度领域模型转换为响应 DTO
+func ToTenantHealthItemResp(it model.TenantHealthItem) TenantHealthItemResp {
+	return TenantHealthItemResp{
+		TenantID:              it.TenantID,
+		TenantName:            it.TenantName,
+		Status:                it.Status,
+		PlanName:              it.PlanName,
+		SubscriptionStatus:    it.SubscriptionStatus,
+		SubscriptionExpiresAt: it.SubscriptionExpiresAt,
+		DaysRemaining:         it.DaysRemaining,
+		UserCount:             it.UserCount,
+		ActiveUserCount:       it.ActiveUserCount,
+		TaskCount:             it.TaskCount,
+		TaskCompletedCount:    it.TaskCompletedCount,
+		WikiDocCount:          it.WikiDocCount,
+		StorageUsed:           it.StorageUsed,
+		AuditCount7d:          it.AuditCount7d,
+		LastActivityAt:        it.LastActivityAt,
+		HealthScore:           it.HealthScore,
+		HealthLevel:           it.HealthLevel,
 	}
 }

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -147,4 +148,31 @@ func TestGetTenantHealth_KeywordAndPaging(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(2), page2.Total)
 	require.Len(t, page2.Items, 1)
+}
+
+func TestGetTenantHealthDetail(t *testing.T) {
+	db := newHealthTestDB(t)
+	seedHealthData(t, db)
+	repo := NewDashboardRepository(db)
+	ctx := context.Background()
+
+	item, err := repo.GetTenantHealthDetail(ctx, "tA")
+	require.NoError(t, err)
+	require.Equal(t, "tA", item.TenantID)
+	require.Equal(t, "Alpha Corp", item.TenantName)
+	require.Equal(t, int64(2), item.UserCount)
+	require.Equal(t, int64(1), item.ActiveUserCount)
+	require.Equal(t, int64(3), item.TaskCount)
+	require.Equal(t, int64(2), item.TaskCompletedCount)
+	require.Equal(t, int64(4), item.WikiDocCount)
+	require.Equal(t, int64(3000), item.StorageUsed)
+	require.Equal(t, int64(25), item.AuditCount7d)
+	require.NotNil(t, item.LastActivityAt)
+	require.Equal(t, "专业版", item.PlanName)
+	require.Equal(t, 1, item.SubscriptionStatus)
+	require.Equal(t, "healthy", item.HealthLevel)
+
+	// 不存在的租户
+	_, err = repo.GetTenantHealthDetail(ctx, "missing")
+	require.True(t, errors.Is(err, ErrTenantNotFound))
 }

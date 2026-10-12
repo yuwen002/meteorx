@@ -35,3 +35,13 @@ func (s *DashboardService) GetTenantHealth(ctx context.Context, query model.Heal
 	}
 	return dto.ToTenantHealthListResp(list), nil
 }
+
+// GetTenantHealthDetail 获取单个租户健康度详情
+func (s *DashboardService) GetTenantHealthDetail(ctx context.Context, tenantID string) (*dto.TenantHealthItemResp, error) {
+	item, err := s.repo.GetTenantHealthDetail(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	resp := dto.ToTenantHealthItemResp(*item)
+	return &resp, nil
+}

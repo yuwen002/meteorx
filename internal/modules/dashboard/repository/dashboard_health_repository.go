@@ -3,6 +3,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"meteorx/internal/modules/dashboard/model"
 	"meteorx/pkg/timeutil"
@@ -13,6 +14,16 @@ import (
 
 // healthAuditWindow 健康度活跃度统计窗口（近 7 天）
 const healthAuditWindow = 7 * 24 * time.Hour
+
+// ErrTenantNotFound 目标租户不存在或已软删除。
+var ErrTenantNotFound = errors.New("tenant not found")
+
+// tenantHealthBase 健康度基集查询返回的租户行。
+type tenantHealthBase struct {
+	ID     string  `gorm:"column:id"`
+	Name   *string `gorm:"column:name"`
+	Status int     `gorm:"column:status"`
+}
 
 // GetTenantHealth 按租户聚合健康度（分页）。
 // 先按租户分页取基集，再以 IN + GROUP BY tenant_id 批量聚合各资源维度，
@@ -45,12 +56,7 @@ func (r *dashboardRepository) GetTenantHealth(ctx context.Context, query model.H
 		return nil, err
 	}
 
-	type tenantRow struct {
-		ID     string  `gorm:"column:id"`
-		Name   *string `gorm:"column:name"`
-		Status int     `gorm:"column:status"`
-	}
-	var tenants []tenantRow
+	var tenants []tenantHealthBase
 	if err := newBase().Select("id, name, status").
 		Order("created_at DESC").
 		Offset((page - 1) * size).
@@ -69,13 +75,49 @@ func (r *dashboardRepository) GetTenantHealth(ctx context.Context, query model.H
 		return result, nil
 	}
 
+	// 2) 批量聚合并组装 + 评分 + 分布统计
+	now := time.Now()
+	items := r.buildHealthItems(ctx, tenants, now)
+	for _, it := range items {
+		switch it.HealthLevel {
+		case "healthy":
+			result.Healthy++
+		case "moderate":
+			result.Moderate++
+		default:
+			result.AtRisk++
+		}
+		result.Items = append(result.Items, it)
+	}
+	return result, nil
+}
+
+// GetTenantHealthDetail 获取单个租户的健康度详情。
+// 租户不存在或已软删除时返回 ErrTenantNotFound；聚合维度复用列表同款批量查询。
+func (r *dashboardRepository) GetTenantHealthDetail(ctx context.Context, tenantID string) (*model.TenantHealthItem, error) {
+	var tenant tenantHealthBase
+	err := r.db.WithContext(ctx).Table("tenants").
+		Select("id, name, status").
+		Where("id = ? AND deleted_at IS NULL", tenantID).
+		Scan(&tenant).Error
+	if err != nil {
+		return nil, err
+	}
+	if tenant.ID == "" {
+		return nil, ErrTenantNotFound
+	}
+
+	items := r.buildHealthItems(ctx, []tenantHealthBase{tenant}, time.Now())
+	return &items[0], nil
+}
+
+// buildHealthItems 对给定租户集合批量聚合各维度并组装健康度条目（含评分）。
+func (r *dashboardRepository) buildHealthItems(ctx context.Context, tenants []tenantHealthBase, now time.Time) []model.TenantHealthItem {
 	ids := make([]string, 0, len(tenants))
 	for _, t := range tenants {
 		ids = append(ids, t.ID)
 	}
 
-	// 2) 各维度批量聚合
-	now := time.Now()
 	auditSince := now.Add(-healthAuditWindow)
 	userAgg := r.aggregateUsers(ctx, ids)
 	taskAgg := r.aggregateTasks(ctx, ids)
@@ -84,7 +126,7 @@ func (r *dashboardRepository) GetTenantHealth(ctx context.Context, query model.H
 	auditAgg := r.aggregateAudit(ctx, ids, auditSince)
 	subAgg := r.aggregateSubscription(ctx, ids)
 
-	// 3) 组装 + 评分
+	items := make([]model.TenantHealthItem, 0, len(tenants))
 	for _, t := range tenants {
 		item := model.TenantHealthItem{
 			TenantID:   t.ID,
@@ -116,18 +158,9 @@ func (r *dashboardRepository) GetTenantHealth(ctx context.Context, query model.H
 		}
 
 		item.HealthScore, item.HealthLevel = scoreTenantHealth(item)
-		switch item.HealthLevel {
-		case "healthy":
-			result.Healthy++
-		case "moderate":
-			result.Moderate++
-		default:
-			result.AtRisk++
-		}
-		result.Items = append(result.Items, item)
+		items = append(items, item)
 	}
-
-	return result, nil
+	return items
 }
 
 // ---------- 各维度聚合 ----------

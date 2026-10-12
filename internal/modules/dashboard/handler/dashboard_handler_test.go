@@ -20,6 +20,7 @@ import (
 type stubDashboardService struct {
 	resp   *dto.DashboardOverviewResp
 	health *dto.TenantHealthListResp
+	detail *dto.TenantHealthItemResp
 	err    error
 }
 
@@ -29,6 +30,10 @@ func (s *stubDashboardService) GetOverview(_ context.Context) (*dto.DashboardOve
 
 func (s *stubDashboardService) GetTenantHealth(_ context.Context, _ model.HealthQuery) (*dto.TenantHealthListResp, error) {
 	return s.health, s.err
+}
+
+func (s *stubDashboardService) GetTenantHealthDetail(_ context.Context, _ string) (*dto.TenantHealthItemResp, error) {
+	return s.detail, s.err
 }
 
 func newDashboardRouter(stub *stubDashboardService) http.Handler {
