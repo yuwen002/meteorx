@@ -23,7 +23,8 @@ var (
 	ErrExportQueueFull = errors.New("导出队列已满，请稍后再试")
 )
 
-// MaxActiveJobsPerTenant 单租户未完结（pending/running）导出任务数上限，
+// MaxActiveJobsPerTenant 单租户未完结（pending/running）导出任务数的默认上限，
+// 可通过配置 export.max_active_jobs 覆盖（见 Config.MaxActiveJobs）；
 // 达到上限后新建任务返回 ErrExportQueueFull（429），防止队列被单租户占满。
 const MaxActiveJobsPerTenant = 10
 
@@ -33,6 +34,7 @@ type Config struct {
 	RetentionDays int    // 文件保留天数
 	WorkerCount   int    // worker 池大小
 	BatchSize     int    // CSV flush 阈值
+	MaxActiveJobs int    // 单租户未完结任务上限，≤0 时回落 MaxActiveJobsPerTenant
 }
 
 // ExportService 导出任务服务
@@ -53,10 +55,14 @@ func (s *ExportService) CreateExport(ctx context.Context, tenantID, userID strin
 		return nil, ErrInvalidResource
 	}
 	// 队列上限准入：未完结任务达上限时拒绝新建，查询失败时不阻断创建（fail-open）
+	limit := s.config.MaxActiveJobs
+	if limit <= 0 {
+		limit = MaxActiveJobsPerTenant
+	}
 	active, err := s.repo.CountActiveByTenant(ctx, tenantID)
 	if err != nil {
 		logger.Warnf("[Export] 统计未完结任务失败，跳过上限检查: tenant=%s err=%v", tenantID, err)
-	} else if active >= MaxActiveJobsPerTenant {
+	} else if active >= int64(limit) {
 		return nil, ErrExportQueueFull
 	}
 	filters := "{}"

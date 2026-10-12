@@ -35,6 +35,7 @@ type ExportConfig struct {
 	RetentionDays int    `mapstructure:"retention_days"`  // 文件保留天数，默认 7
 	WorkerCount   int    `mapstructure:"worker_count"`    // worker 池大小，默认 3
 	BatchSize     int    `mapstructure:"batch_size"`      // CSV flush 阈值，默认 1000
+	MaxActiveJobs int    `mapstructure:"max_active_jobs"` // 单租户未完结导出任务上限，默认 10，达到上限后新建返回 429
 }
 
 // TaskReminderConfig 任务到期提醒定时任务配置。

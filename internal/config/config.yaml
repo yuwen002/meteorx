@@ -151,6 +151,7 @@ export:
   retention_days: 7          # 文件保留天数，过期由清理任务删除，默认 7
   worker_count: 3            # 异步导出 worker 池大小，默认 3
   batch_size: 1000           # CSV 流式分批写出阈值（行），默认 1000
+  max_active_jobs: 10        # 单租户未完结（pending/running）导出任务数上限，达到后新建返回 429，默认 10
 
 # WebSocket 实时推送配置
 ws:
@@ -178,7 +179,7 @@ otel:
   insecure: true               # 开发环境跳过 TLS，生产需设为 false
   sample_rate: 1.0             # 开发环境 100% 采样；生产建议 0.1（10%）
   service_name: "meteorx"
-  service_version: "1.0.0"
+  service_version: "1.1.0"
 
 # MeiliSearch 全文检索引擎（如不配置，降级为数据库 LIKE 搜索）
 search:

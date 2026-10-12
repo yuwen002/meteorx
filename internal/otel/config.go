@@ -30,12 +30,13 @@ type Config struct {
 // DefaultConfig 返回 OTel 默认配置
 func DefaultConfig() *Config {
 	return &Config{
-		Enabled:        true,
-		Exporter:       "stdout",
-		Endpoint:       "localhost:4317",
-		Insecure:       true,
-		SampleRate:     1.0,
-		ServiceName:    "meteorx",
-		ServiceVersion: "1.0.0",
+		Enabled:     true,
+		Exporter:    "stdout",
+		Endpoint:    "localhost:4317",
+		Insecure:    true,
+		SampleRate:  1.0,
+		ServiceName: "meteorx",
+		// 与最近发布版本保持同步（当前 v1.1.0），发版时随 CHANGELOG 一并更新
+		ServiceVersion: "1.1.0",
 	}
 }

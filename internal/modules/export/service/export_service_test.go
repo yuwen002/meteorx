@@ -27,6 +27,18 @@ func newService(t *testing.T, retentionDays int) (*ExportService, *gorm.DB) {
 	return svc, db
 }
 
+// newServiceWithLimit 构造指定队列上限的服务实例（验证 export.max_active_jobs 可配置性）
+func newServiceWithLimit(t *testing.T, maxActiveJobs int) *ExportService {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: glogger.Discard})
+	require.NoError(t, err)
+	require.NoError(t, repository.AutoMigrate(db))
+	return NewExportService(repository.NewExportRepository(db), Config{
+		Dir: filepath.Join(os.TempDir(), "export-test"), RetentionDays: 7,
+		WorkerCount: 1, BatchSize: 100, MaxActiveJobs: maxActiveJobs,
+	})
+}
+
 func TestService_CreateExport_Valid(t *testing.T) {
 	svc, _ := newService(t, 7)
 	ctx := context.Background()
@@ -63,6 +75,27 @@ func TestService_CreateExport_QueueFull(t *testing.T) {
 	// 上限按租户隔离：其他租户不受影响
 	_, err = svc.CreateExport(ctx, "t2", "u2", dto.CreateExportReq{Resource: model.ResourceUser})
 	require.NoError(t, err)
+}
+
+func TestService_CreateExport_CustomQueueLimit(t *testing.T) {
+	// 配置覆盖：上限为 2 时第 3 个被拒，第 3 个之前的正常
+	svc := newServiceWithLimit(t, 2)
+	ctx := context.Background()
+	for i := 0; i < 2; i++ {
+		_, err := svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{Resource: model.ResourceUser})
+		require.NoError(t, err)
+	}
+	_, err := svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{Resource: model.ResourceUser})
+	require.ErrorIs(t, err, ErrExportQueueFull)
+
+	// 零值回落默认上限：同为默认 10 个
+	svc0 := newServiceWithLimit(t, 0)
+	for i := 0; i < MaxActiveJobsPerTenant; i++ {
+		_, err := svc0.CreateExport(ctx, "t9", "u9", dto.CreateExportReq{Resource: model.ResourceUser})
+		require.NoError(t, err)
+	}
+	_, err = svc0.CreateExport(ctx, "t9", "u9", dto.CreateExportReq{Resource: model.ResourceUser})
+	require.ErrorIs(t, err, ErrExportQueueFull)
 }
 
 func TestService_GetByID_Ownership(t *testing.T) {

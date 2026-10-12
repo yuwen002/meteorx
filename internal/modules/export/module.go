@@ -47,11 +47,16 @@ func buildServiceConfig(cfg config.Config) service.Config {
 	if batch <= 0 {
 		batch = 1000
 	}
+	maxActive := export.MaxActiveJobs
+	if maxActive <= 0 {
+		maxActive = service.MaxActiveJobsPerTenant
+	}
 	return service.Config{
 		Dir:           dir,
 		RetentionDays: retention,
 		WorkerCount:   workers,
 		BatchSize:     batch,
+		MaxActiveJobs: maxActive,
 	}
 }
 
