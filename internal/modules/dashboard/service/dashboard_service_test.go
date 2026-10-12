@@ -14,6 +14,7 @@ import (
 // mockDashboardRepo 看板仓库内存实现
 type mockDashboardRepo struct {
 	overview *model.DashboardOverview
+	health   *model.TenantHealthList
 	err      error
 }
 
@@ -21,10 +22,14 @@ func (m *mockDashboardRepo) GetOverview(_ context.Context) (*model.DashboardOver
 	return m.overview, m.err
 }
 
+func (m *mockDashboardRepo) GetTenantHealth(_ context.Context, _ model.HealthQuery) (*model.TenantHealthList, error) {
+	return m.health, m.err
+}
+
 func TestGetOverview_MapsAllStats(t *testing.T) {
 	ov := &model.DashboardOverview{
-		TenantStats: model.TenantStats{Total: 10, Enabled: 9, Disabled: 1, TodayNew: 2},
-		UserStats:   model.UserStats{Total: 88, TodayNew: 5, WeekNew: 20, MonthNew: 60},
+		TenantStats:       model.TenantStats{Total: 10, Enabled: 9, Disabled: 1, TodayNew: 2},
+		UserStats:         model.UserStats{Total: 88, TodayNew: 5, WeekNew: 20, MonthNew: 60},
 		SubscriptionStats: model.SubscriptionStats{Total: 7, Active: 3, Expired: 2, Cancelled: 2, ActiveTenant: 3},
 		AuditStats: model.AuditStats{
 			Total: 99, Today: 4, Success: 90, Failure: 9,

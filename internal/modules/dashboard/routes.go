@@ -15,6 +15,7 @@ import (
 func RegisterRoutes(r chi.Router, h *handler.DashboardHandler, checker middleware.PermissionChecker) {
 	r.Route("/admin/dashboard", func(r chi.Router) {
 		r.Use(middleware.AutoRequirePermission(checker))
-		r.Get("/overview", h.GetOverview) // admin:dashboard:list
+		r.Get("/overview", h.GetOverview)           // admin:dashboard:list
+		r.Get("/tenants-health", h.GetTenantHealth) // admin:dashboard:list
 	})
 }

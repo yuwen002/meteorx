@@ -15,6 +15,8 @@ import (
 type DashboardRepository interface {
 	// GetOverview 获取运营数据总览
 	GetOverview(ctx context.Context) (*model.DashboardOverview, error)
+	// GetTenantHealth 按租户聚合健康度（分页）
+	GetTenantHealth(ctx context.Context, query model.HealthQuery) (*model.TenantHealthList, error)
 }
 
 // dashboardRepository 数据看板仓库实现

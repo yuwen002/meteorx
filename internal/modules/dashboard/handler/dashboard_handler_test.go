@@ -10,6 +10,7 @@ import (
 
 	"meteorx/internal/modules/dashboard/dto"
 	"meteorx/internal/modules/dashboard/handler"
+	"meteorx/internal/modules/dashboard/model"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -17,12 +18,17 @@ import (
 )
 
 type stubDashboardService struct {
-	resp *dto.DashboardOverviewResp
-	err  error
+	resp   *dto.DashboardOverviewResp
+	health *dto.TenantHealthListResp
+	err    error
 }
 
 func (s *stubDashboardService) GetOverview(_ context.Context) (*dto.DashboardOverviewResp, error) {
 	return s.resp, s.err
+}
+
+func (s *stubDashboardService) GetTenantHealth(_ context.Context, _ model.HealthQuery) (*dto.TenantHealthListResp, error) {
+	return s.health, s.err
 }
 
 func newDashboardRouter(stub *stubDashboardService) http.Handler {

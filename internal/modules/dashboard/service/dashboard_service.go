@@ -4,6 +4,7 @@ package service
 import (
 	"context"
 	"meteorx/internal/modules/dashboard/dto"
+	"meteorx/internal/modules/dashboard/model"
 	"meteorx/internal/modules/dashboard/repository"
 )
 
@@ -24,4 +25,13 @@ func (s *DashboardService) GetOverview(ctx context.Context) (*dto.DashboardOverv
 		return nil, err
 	}
 	return dto.ToDashboardOverviewResp(overview), nil
+}
+
+// GetTenantHealth 获取租户健康度列表（分页）
+func (s *DashboardService) GetTenantHealth(ctx context.Context, query model.HealthQuery) (*dto.TenantHealthListResp, error) {
+	list, err := s.repo.GetTenantHealth(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	return dto.ToTenantHealthListResp(list), nil
 }
