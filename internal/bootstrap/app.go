@@ -104,6 +104,9 @@ func StartApp() {
 	// 7.5 启动任务到期提醒定时任务（即将到期/已逾期任务站内提醒）
 	StartTaskReminderJob(ctx, db, cfg)
 
+	// 7.6 启动数据导出 worker 池（异步执行 pending 导出任务，流式写出 CSV）
+	StartExportWorkerJob(ctx, db, cfg)
+
 	// 7. 构造 http.Server 以支持优雅关闭
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	srv := &http.Server{

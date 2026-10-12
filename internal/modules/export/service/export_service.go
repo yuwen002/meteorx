@@ -15,18 +15,18 @@ import (
 
 // 业务错误
 var (
-	ErrExportNotFound    = errors.New("导出任务不存在")
-	ErrExportForbidden   = errors.New("无权访问该导出任务")
-	ErrInvalidResource   = errors.New("不支持的资源类型")
-	ErrExportQueueFull   = errors.New("导出队列已满，请稍后再试")
+	ErrExportNotFound  = errors.New("导出任务不存在")
+	ErrExportForbidden = errors.New("无权访问该导出任务")
+	ErrInvalidResource = errors.New("不支持的资源类型")
+	ErrExportQueueFull = errors.New("导出队列已满，请稍后再试")
 )
 
 // Config 导出服务配置
 type Config struct {
-	Dir           string        // 导出文件目录
-	RetentionDays int           // 文件保留天数
-	WorkerCount   int           // worker 池大小
-	BatchSize     int           // CSV flush 阈值
+	Dir           string // 导出文件目录
+	RetentionDays int    // 文件保留天数
+	WorkerCount   int    // worker 池大小
+	BatchSize     int    // CSV flush 阈值
 }
 
 // ExportService 导出任务服务

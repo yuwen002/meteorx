@@ -75,8 +75,8 @@ type ExportRepository interface {
 	ListByUser(ctx context.Context, tenantID, userID string, page, pageSize int, status, resource string) ([]*model.ExportJob, int64, error)
 	// ListPending 拉取待执行任务（worker 消费），按创建时间升序
 	ListPending(ctx context.Context, limit int) ([]*model.ExportJob, error)
-	// MarkRunning 将任务置为 running 并写入开始时间
-	MarkRunning(ctx context.Context, id string, startedAt time.Time) error
+	// MarkRunning 将任务置为 running 并写入开始时间；返回 true 表示本次调用成功从 pending 抢占。
+	MarkRunning(ctx context.Context, id string, startedAt time.Time) (bool, error)
 	// MarkCompleted 更新为 completed，附带文件路径与行数
 	MarkCompleted(ctx context.Context, id, filePath string, rows int64, completedAt time.Time) error
 	// MarkFailed 更新为 failed 并记录错误消息
@@ -153,13 +153,17 @@ func (r *exportRepository) ListPending(ctx context.Context, limit int) ([]*model
 	return items, nil
 }
 
-func (r *exportRepository) MarkRunning(ctx context.Context, id string, startedAt time.Time) error {
-	return r.db.WithContext(ctx).Model(&ExportJobPO{}).
+func (r *exportRepository) MarkRunning(ctx context.Context, id string, startedAt time.Time) (bool, error) {
+	res := r.db.WithContext(ctx).Model(&ExportJobPO{}).
 		Where("id = ? AND status = ?", id, model.ExportStatusPending).
 		Updates(map[string]any{
 			"status":     model.ExportStatusRunning,
 			"started_at": startedAt,
-		}).Error
+		})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected == 1, nil
 }
 
 func (r *exportRepository) MarkCompleted(ctx context.Context, id, filePath string, rows int64, completedAt time.Time) error {

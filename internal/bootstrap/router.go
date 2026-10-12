@@ -310,6 +310,12 @@ func StartTaskReminderJob(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 	job.Start(ctx)
 }
 
+// StartExportWorkerJob 启动数据导出 worker 池
+// 周期性拉取 pending 导出任务，按资源类型分派到对应 exporter 异步流式写出 CSV
+func StartExportWorkerJob(ctx context.Context, db *gorm.DB, cfg *config.Config) {
+	export.StartExportWorker(ctx, db, *cfg)
+}
+
 // initIPLocator 根据配置初始化 IP 地理位置解析器
 func initIPLocator(cfg *config.Config) iplocation.IPLocator {
 	provider := cfg.IPLocation.Provider

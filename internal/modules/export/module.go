@@ -3,11 +3,15 @@
 package export
 
 import (
+	"context"
+
 	"meteorx/internal/config"
 	"meteorx/internal/middleware"
 	"meteorx/internal/modules/export/handler"
 	"meteorx/internal/modules/export/repository"
 	"meteorx/internal/modules/export/service"
+	"meteorx/internal/modules/export/service/exporter"
+	"meteorx/internal/modules/export/worker"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
 	rbacSvc "meteorx/internal/modules/rbac/service"
 
@@ -59,4 +63,15 @@ func InitModule(r chi.Router, db *gorm.DB, cfg config.Config) {
 	h := handler.NewExportHandler(svc)
 	checker := newPermissionChecker(db)
 	RegisterRoutes(r, h, checker)
+}
+
+// StartExportWorker 启动导出任务 worker 池：周期性拉取 pending 任务异步执行。
+// registry 集中管理各类资源导出器，新增资源只需在此 Register。
+func StartExportWorker(ctx context.Context, db *gorm.DB, cfg config.Config) {
+	repo := repository.NewExportRepository(db)
+	registry := exporter.NewRegistry()
+	// 具体资源导出器（user/task/audit_log/wiki_document）在此注册
+	registerExporters(registry, db)
+	pool := worker.NewPool(repo, registry, buildServiceConfig(cfg))
+	go pool.Start(ctx)
 }

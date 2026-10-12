@@ -33,12 +33,12 @@ type ExportJob struct {
 	ID          string
 	TenantID    string
 	UserID      string
-	Resource    string     // user / task / audit_log / wiki_document
-	FiltersJSON string     // 序列化的筛选条件 JSON
-	Status      string     // pending / running / completed / failed
-	FilePath    string     // 生成的 CSV 文件绝对路径
-	Rows        int64      // 导出总行数
-	ErrorMsg    string     // 失败原因
+	Resource    string // user / task / audit_log / wiki_document
+	FiltersJSON string // 序列化的筛选条件 JSON
+	Status      string // pending / running / completed / failed
+	FilePath    string // 生成的 CSV 文件绝对路径
+	Rows        int64  // 导出总行数
+	ErrorMsg    string // 失败原因
 	CreatedAt   time.Time
 	StartedAt   *time.Time
 	CompletedAt *time.Time
