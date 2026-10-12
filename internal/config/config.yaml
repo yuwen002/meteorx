@@ -145,6 +145,13 @@ task_reminder:
   overdue_cooldown: 24h      # 逾期任务重复提醒的最小间隔，默认 24h
   batch_limit: 200           # 单次扫描发送提醒的最大任务数，默认 200
 
+# 数据导出模块配置（留空/删除即回落默认值）
+export:
+  dir: "./data/exports"      # 导出 CSV 文件存储目录，默认 data/exports
+  retention_days: 7          # 文件保留天数，过期由清理任务删除，默认 7
+  worker_count: 3            # 异步导出 worker 池大小，默认 3
+  batch_size: 1000           # CSV 流式分批写出阈值（行），默认 1000
+
 # WebSocket 实时推送配置
 ws:
   enabled: true
