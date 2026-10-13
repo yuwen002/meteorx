@@ -18,122 +18,122 @@
       >
         <el-menu-item index="/dashboard">
           <el-icon><HomeFilled /></el-icon>
-          <template #title>首页</template>
+          <template #title>{{ t('nav.dashboard') }}</template>
         </el-menu-item>
 
         <el-sub-menu index="/workspace">
           <template #title>
             <el-icon><Monitor /></el-icon>
-            <span>工作台</span>
+            <span>{{ t('nav.workspace') }}</span>
           </template>
           <el-menu-item index="/announcement">
             <el-icon><Bell /></el-icon>
-            <template #title>平台公告</template>
+            <template #title>{{ t('nav.announcement') }}</template>
           </el-menu-item>
           <el-menu-item index="/task">
             <el-icon><List /></el-icon>
-            <template #title>任务管理</template>
+            <template #title>{{ t('nav.task') }}</template>
           </el-menu-item>
           <el-menu-item index="/export">
             <el-icon><Download /></el-icon>
-            <template #title>数据导出</template>
+            <template #title>{{ t('nav.export') }}</template>
           </el-menu-item>
           <el-menu-item index="/tenant-settings">
             <el-icon><Setting /></el-icon>
-            <template #title>租户设置</template>
+            <template #title>{{ t('nav.tenantSettings') }}</template>
           </el-menu-item>
           <el-menu-item v-if="userStore.hasPermission('user:list') || userStore.isAdmin" index="/invitation">
             <el-icon><Message /></el-icon>
-            <template #title>成员邀请</template>
+            <template #title>{{ t('nav.invitation') }}</template>
           </el-menu-item>
           <el-menu-item v-if="userStore.hasPermission('wiki:list') || userStore.isAdmin" index="/wiki">
             <el-icon><Reading /></el-icon>
-            <template #title>知识库</template>
+            <template #title>{{ t('nav.wiki') }}</template>
           </el-menu-item>
           <el-menu-item v-if="userStore.hasPermission('file:list') || userStore.isAdmin" index="/system/file">
             <el-icon><Folder /></el-icon>
-            <template #title>文件管理</template>
+            <template #title>{{ t('nav.file') }}</template>
           </el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu v-if="userStore.isAdmin" index="/platform">
           <template #title>
             <el-icon><Platform /></el-icon>
-            <span>平台管理</span>
+            <span>{{ t('nav.platform') }}</span>
           </template>
           <el-menu-item index="/system/user">
             <el-icon><User /></el-icon>
-            <template #title>用户管理</template>
+            <template #title>{{ t('nav.user') }}</template>
           </el-menu-item>
           <el-menu-item index="/system/role">
             <el-icon><UserFilled /></el-icon>
-            <template #title>角色管理</template>
+            <template #title>{{ t('nav.role') }}</template>
           </el-menu-item>
           <el-menu-item index="/system/permission">
             <el-icon><Lock /></el-icon>
-            <template #title>权限管理</template>
+            <template #title>{{ t('nav.permission') }}</template>
           </el-menu-item>
           <el-menu-item index="/system/master-admin">
             <el-icon><Avatar /></el-icon>
-            <template #title>系统管理员</template>
+            <template #title>{{ t('nav.masterAdmin') }}</template>
           </el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu v-if="userStore.isAdmin" index="/tenant-mgmt">
           <template #title>
             <el-icon><OfficeBuilding /></el-icon>
-            <span>租户运营</span>
+            <span>{{ t('nav.tenantMgmt') }}</span>
           </template>
           <el-menu-item index="/system/tenant">
             <el-icon><OfficeBuilding /></el-icon>
-            <template #title>租户管理</template>
+            <template #title>{{ t('nav.tenant') }}</template>
           </el-menu-item>
           <el-menu-item index="/system/plan">
             <el-icon><Goods /></el-icon>
-            <template #title>套餐管理</template>
+            <template #title>{{ t('nav.plan') }}</template>
           </el-menu-item>
           <el-menu-item index="/system/dashboard/tenant-health">
             <el-icon><DataAnalysis /></el-icon>
-            <template #title>租户健康度</template>
+            <template #title>{{ t('nav.tenantHealth') }}</template>
           </el-menu-item>
           <el-menu-item index="/system/cancel-request">
             <el-icon><CloseBold /></el-icon>
-            <template #title>注销审批</template>
+            <template #title>{{ t('nav.cancelRequest') }}</template>
           </el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu v-if="userStore.isAdmin" index="/system">
           <template #title>
             <el-icon><Setting /></el-icon>
-            <span>系统</span>
+            <span>{{ t('nav.system') }}</span>
           </template>
           <el-menu-item index="/system/audit">
             <el-icon><Document /></el-icon>
-            <template #title>审计日志</template>
+            <template #title>{{ t('nav.audit') }}</template>
           </el-menu-item>
           <el-menu-item index="/system/audit/login-history">
             <el-icon><User /></el-icon>
-            <template #title>登录历史</template>
+            <template #title>{{ t('nav.loginHistory') }}</template>
           </el-menu-item>
           <el-menu-item index="/system/audit/timeline">
             <el-icon><Timer /></el-icon>
-            <template #title>用户时间线</template>
+            <template #title>{{ t('nav.timeline') }}</template>
           </el-menu-item>
           <el-menu-item index="/system/audit/alert">
             <el-icon><Bell /></el-icon>
-            <template #title>告警管理</template>
+            <template #title>{{ t('nav.alert') }}</template>
           </el-menu-item>
           <el-menu-item index="/system/audit/anomaly">
             <el-icon><Warning /></el-icon>
-            <template #title>异常检测</template>
+            <template #title>{{ t('nav.anomaly') }}</template>
           </el-menu-item>
           <el-menu-item index="/system/audit/session">
             <el-icon><Connection /></el-icon>
-            <template #title>会话分析</template>
+            <template #title>{{ t('nav.session') }}</template>
           </el-menu-item>
           <el-menu-item index="/system/announcement">
             <el-icon><Bell /></el-icon>
-            <template #title>公告管理</template>
+            <template #title>{{ t('nav.announcementMgmt') }}</template>
           </el-menu-item>
         </el-sub-menu>
       </el-menu>
@@ -148,14 +148,14 @@
             <Expand v-else />
           </el-icon>
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item :to="{ path: '/dashboard' }">{{ t('nav.dashboard') }}</el-breadcrumb-item>
             <el-breadcrumb-item v-if="currentRoute.meta.title && currentRoute.path !== '/dashboard'">{{
               currentRoute.meta.title
             }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
         <div class="header-right">
-          <el-tooltip :content="theme === 'dark' ? '切换到浅色' : '切换到深色'" placement="bottom">
+          <el-tooltip :content="theme === 'dark' ? t('theme.toLight') : t('theme.toDark')" placement="bottom">
             <el-icon class="header-action" @click="toggleTheme">
               <Sunny v-if="theme === 'dark'" />
               <Moon v-else />
@@ -172,7 +172,7 @@
           </el-dropdown>
           <GlobalNotificationCenter />
           <el-tooltip
-            :content="notificationStore.wsConnected ? '实时连接已建立' : '实时连接已断开'"
+            :content="notificationStore.wsConnected ? t('header.wsConnected') : t('header.wsDisconnected')"
             placement="bottom"
           >
             <span class="ws-status" :class="{ connected: notificationStore.wsConnected }">
@@ -191,13 +191,13 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="profile">
-                  <el-icon><User /></el-icon>个人信息
+                  <el-icon><User /></el-icon>{{ t('profile.title') }}
                 </el-dropdown-item>
                 <el-dropdown-item v-if="userStore.isAdmin" command="brand">
-                  <el-icon><Brush /></el-icon>品牌设置
+                  <el-icon><Brush /></el-icon>{{ t('brand.settings') }}
                 </el-dropdown-item>
                 <el-dropdown-item divided command="logout">
-                  <el-icon><SwitchButton /></el-icon>退出登录
+                  <el-icon><SwitchButton /></el-icon>{{ t('auth.logout') }}
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -215,26 +215,26 @@
     </el-container>
 
     <!-- 白标品牌设置弹窗（仅管理员） -->
-    <el-dialog v-model="brandDialogVisible" title="品牌设置（白标）" width="460px" :close-on-click-modal="false">
+    <el-dialog v-model="brandDialogVisible" :title="t('brand.settings')" width="460px" :close-on-click-modal="false">
       <p style="color:#6b7280;font-size:13px;margin:0 0 16px;">
-        自定义平台显示名称、Logo 与主色，保存后即时生效并持久化到当前浏览器。
+        {{ t('brand.hint') }}
       </p>
       <el-form label-width="88px">
-        <el-form-item label="显示名称">
-          <el-input v-model="brandForm.name" placeholder="如 MeteorX" maxlength="30" />
+        <el-form-item :label="t('brand.nameLabel')">
+          <el-input v-model="brandForm.name" :placeholder="t('brand.namePlaceholder')" maxlength="30" />
         </el-form-item>
-        <el-form-item label="Logo 地址">
-          <el-input v-model="brandForm.logo" placeholder="图片 URL（可选）" clearable />
+        <el-form-item :label="t('brand.logoLabel')">
+          <el-input v-model="brandForm.logo" :placeholder="t('brand.logoPlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="品牌主色">
+        <el-form-item :label="t('brand.colorLabel')">
           <el-color-picker v-model="brandForm.primaryColor" />
-          <span style="margin-left:12px;color:#909399;font-size:12px;">{{ brandForm.primaryColor || '默认' }}</span>
+          <span style="margin-left:12px;color:#909399;font-size:12px;">{{ brandForm.primaryColor || t('brand.defaultColor') }}</span>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="resetBrandConfig">恢复默认</el-button>
-        <el-button @click="brandDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="saveBrandConfig">保存</el-button>
+        <el-button @click="resetBrandConfig">{{ t('brand.reset') }}</el-button>
+        <el-button @click="brandDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="saveBrandConfig">{{ t('common.save') }}</el-button>
       </template>
     </el-dialog>
   </el-container>
@@ -291,7 +291,7 @@ const appStore = useAppStore()
 const notificationStore = useNotificationStore()
 
 const { theme, toggleTheme } = useTheme()
-const { locale, setLocale } = useI18n()
+const { locale, setLocale, t } = useI18n()
 const { brand, setBrand, resetBrand } = useBrand()
 
 // 白标品牌设置
@@ -307,7 +307,7 @@ function openBrandDialog() {
 
 function saveBrandConfig() {
   setBrand({ name: brandForm.name.trim() || 'MeteorX', logo: brandForm.logo.trim(), primaryColor: brandForm.primaryColor })
-  ElMessage.success('品牌设置已保存')
+  ElMessage.success(t('brand.saved'))
   brandDialogVisible.value = false
 }
 
@@ -316,7 +316,7 @@ function resetBrandConfig() {
   brandForm.name = 'MeteorX'
   brandForm.logo = ''
   brandForm.primaryColor = '#409eff'
-  ElMessage.success('已恢复默认品牌')
+  ElMessage.success(t('brand.resetDone'))
 }
 
 function handleLang(lang: string) {
@@ -331,14 +331,14 @@ onMounted(() => {
 
 async function handleCommand(cmd: string) {
   if (cmd === 'logout') {
-    ElMessageBox.confirm('确定要退出登录吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    ElMessageBox.confirm(t('auth.logoutConfirm'), t('common.tip'), {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning'
     })
       .then(async () => {
         await userStore.logout()
-        ElMessage.success('已退出登录')
+        ElMessage.success(t('auth.loggedOut'))
         router.push('/login')
       })
       .catch(() => {})

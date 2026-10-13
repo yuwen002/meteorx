@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { useBrandStore } from '@/stores/brand'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -267,6 +268,23 @@ const router = createRouter({
   routes
 })
 
+// 路由访问决策（纯函数，便于单测）：在登录校验通过后，按 permission 与 requireMaster 判定是否放行。
+export interface GuardUser {
+  isAdmin: boolean
+  hasPermission: (code: string) => boolean
+}
+export interface GuardMeta {
+  permission?: string
+  requireMaster?: boolean
+}
+export function hasRouteAccess(meta: GuardMeta, user: GuardUser): boolean {
+  const perm = meta.permission
+  if (perm && !user.hasPermission(perm)) return false
+  // 平台级门禁：requireMaster 路由仅限平台超管（is_master）
+  if (meta.requireMaster && !user.isAdmin) return false
+  return true
+}
+
 // 全局前置守卫：登录态校验 + 权限校验
 router.beforeEach((to, _from, next) => {
   const userStore = useUserStore()
@@ -285,10 +303,9 @@ router.beforeEach((to, _from, next) => {
     return next({ path: '/login', query: { redirect: to.fullPath } })
   }
 
-  // 页面级权限校验
-  const perm = to.meta.permission as string | undefined
-  if (perm && !userStore.hasPermission(perm)) {
-    // 没有该页面权限，跳首页并提示
+  // 页面级权限校验 + 平台级 requireMaster 门禁
+  // 修正此前 requireMaster 声明却从未校验的缺口——避免拥有 admin:* 权限码的租户管理员越级进入平台页
+  if (!hasRouteAccess(to.meta as GuardMeta, userStore)) {
     return next('/')
   }
 
@@ -297,9 +314,9 @@ router.beforeEach((to, _from, next) => {
 
 router.afterEach((to) => {
   const title = to.meta.title as string | undefined
-  if (title) {
-    document.title = `${title} - MeteorX`
-  }
+  // 标题使用当前白标品牌名，避免把租户品牌覆盖回硬编码的 “MeteorX”
+  const brandName = useBrandStore().brand.name || 'MeteorX'
+  document.title = title ? `${title} - ${brandName}` : brandName
 })
 
 export default router
