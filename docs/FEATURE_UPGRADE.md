@@ -1119,3 +1119,17 @@ client:
 - `composables/useI18n.test.ts`：`beforeEach` 新增 `setActivePinia(createPinia())`
 - 新增 `stores/theme.test.ts`、`stores/brand.test.ts`（覆盖持久化、服务端优先应用与失败回退）
 - 验证：`vue-tsc --noEmit` ✅、`vitest` 118 例全过 ✅、`eslint` ✅、`vite build` ✅
+
+---
+
+## 三十二、i18n 铺开至全局外壳 + 路由平台级门禁修复
+
+**i18n 铺开**
+- `layouts/DefaultLayout.vue` 全局外壳（侧边栏菜单/面包屑/顶栏提示/用户下拉/退出确认/品牌对话框）统一改用 `t()`，复用早已存在的 `nav.*` 等 key
+- `stores/i18n.ts` 补齐缺失 key：`nav.task/export/invitation/tenantHealth`、`theme.toLight/toDark`、`header.wsConnected/wsDisconnected`、`brand.*`、`auth.logoutConfirm/loggedOut`、`common.tip`
+
+**路由守卫**
+- `router/index.ts`：抽出纯函数 `hasRouteAccess(meta, user)`，`beforeEach` 强制校验此前声明却从未检查的 `meta.requireMaster`（仅平台超管 `is_master` 放行），修复租户管理员持 `admin:*` 权限码越级进入平台页的缺口
+- `afterEach` 标题改用当前白标品牌名，修复硬编码 `- MeteorX` 覆盖租户品牌的 bug
+- 新增 `router/guard.test.ts`（5 例）覆盖 permission 缺失拦截、requireMaster 对非超管拦截/超管放行
+- 验证：`vue-tsc` ✅、`vitest` 123 例全过 ✅、`eslint` ✅、`vite build` ✅
