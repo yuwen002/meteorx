@@ -25,6 +25,8 @@ type UserPO struct {
 	Remark        string         `gorm:"size:255;comment:管理员备注"`
 	Status        int            `gorm:"default:1;comment:状态"`
 	IsMaster      bool           `gorm:"default:false;comment:是否为主管理员"`
+	TOTPSecret    string         `gorm:"size:64;comment:双因素认证 TOTP 密钥(Base32)"`
+	TOTPEnabled   bool           `gorm:"default:false;comment:是否已启用双因素认证"`
 	LastLoginAt   *time.Time     `gorm:"comment:最后登录时间"`
 	CreatedAt     time.Time      `gorm:"autoCreateTime;comment:创建时间"`
 	UpdatedAt     time.Time      `gorm:"autoUpdateTime;comment:更新时间"`
@@ -53,6 +55,8 @@ func (record UserPO) toDomain() *model.User {
 		Remark:        record.Remark,
 		Status:        record.Status,
 		IsMaster:      record.IsMaster,
+		TOTPSecret:    record.TOTPSecret,
+		TOTPEnabled:   record.TOTPEnabled,
 		LastLoginAt:   record.LastLoginAt,
 		CreatedAt:     record.CreatedAt,
 		UpdatedAt:     record.UpdatedAt,
@@ -95,6 +99,8 @@ func (r *userRepository) Create(ctx context.Context, u *model.User) error {
 		Remark:        u.Remark,
 		Status:        u.Status,
 		IsMaster:      u.IsMaster,
+		TOTPSecret:    u.TOTPSecret,
+		TOTPEnabled:   u.TOTPEnabled,
 		LastLoginAt:   u.LastLoginAt,
 	}
 	return r.db.WithContext(ctx).Create(&record).Error
@@ -576,5 +582,17 @@ func (r *userRepository) UpdateLastLogin(ctx context.Context, userID string) err
 		Updates(map[string]interface{}{
 			"last_login_at": now,
 			"updated_at":    now,
+		}).Error
+}
+
+// UpdateTOTP 更新用户双因素认证密钥与启用状态。
+// secret 为空且 enabled=false 时解除绑定（清空密钥）。
+func (r *userRepository) UpdateTOTP(ctx context.Context, userID, secret string, enabled bool) error {
+	return r.db.WithContext(ctx).Model(&UserPO{}).
+		Where("id = ?", userID).
+		Updates(map[string]interface{}{
+			"totp_secret":  secret,
+			"totp_enabled": enabled,
+			"updated_at":   time.Now(),
 		}).Error
 }

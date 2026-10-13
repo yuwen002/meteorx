@@ -190,6 +190,42 @@ func TestGetByName_NotFound(t *testing.T) {
 	assert.Nil(t, tenant)
 }
 
+func TestGetStatus(t *testing.T) {
+	gormDB, mock := newTestDB(t)
+	repo := NewTenantRepository(gormDB).(*tenantRepository)
+
+	rows := sqlmock.NewRows([]string{"status"}).AddRow(0)
+	mock.ExpectQuery("SELECT .+ FROM `tenants` WHERE id = .+ LIMIT \\?").
+		WillReturnRows(rows)
+
+	status, err := repo.GetStatus(context.Background(), "t-001")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, status)
+}
+
+func TestGetStatus_NotFound(t *testing.T) {
+	gormDB, mock := newTestDB(t)
+	repo := NewTenantRepository(gormDB).(*tenantRepository)
+
+	// 软删/不存在的租户返回空结果集，仓储翻译为 ErrRecordNotFound
+	mock.ExpectQuery("SELECT .+ FROM `tenants` WHERE id = .+ LIMIT \\?").
+		WillReturnRows(sqlmock.NewRows([]string{"status"}))
+
+	_, err := repo.GetStatus(context.Background(), "ghost")
+	assert.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+}
+
+func TestGetStatus_DBError(t *testing.T) {
+	gormDB, mock := newTestDB(t)
+	repo := NewTenantRepository(gormDB).(*tenantRepository)
+
+	mock.ExpectQuery("SELECT .+ FROM `tenants` WHERE id = .+ LIMIT \\?").
+		WillReturnError(errors.New("connection refused"))
+
+	_, err := repo.GetStatus(context.Background(), "t-001")
+	assert.Error(t, err)
+}
+
 func TestUpdate(t *testing.T) {
 	gormDB, mock := newTestDB(t)
 	repo := NewTenantRepository(gormDB).(*tenantRepository)

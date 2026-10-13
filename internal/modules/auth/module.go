@@ -13,6 +13,7 @@ import (
 	"meteorx/internal/modules/auth/repository"
 	"meteorx/internal/modules/auth/service"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
+	tenantRepo "meteorx/internal/modules/tenant/repository"
 	userrepo "meteorx/internal/modules/user/repository"
 	"meteorx/pkg/logger"
 )
@@ -25,7 +26,8 @@ func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, rdb *cache.Redis) 
 	rRepo := rbacRepo.NewRoleRepository(db)
 	urRepo := rbacRepo.NewUserRoleRepository(db)
 	rpRepo := rbacRepo.NewRolePermissionRepository(db)
-	svc := service.NewAuthService(uRepo, rRepo, urRepo, rpRepo, tokenHelper, rdb, cfg.Security, cfg.Email, cfg.Client)
+	svc := service.NewAuthService(uRepo, rRepo, urRepo, rpRepo, tokenHelper, rdb, cfg.Security, cfg.Email, cfg.Client,
+		service.WithTenantStatusProvider(tenantRepo.NewTenantRepository(db)))
 	h := handler.NewAuthHandler(svc)
 
 	RegisterRoutes(r, h)

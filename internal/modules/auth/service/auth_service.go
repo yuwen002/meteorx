@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"meteorx/internal/config"
 	"meteorx/pkg/security"
+	"meteorx/pkg/totp"
 	"time"
 
 	"meteorx/internal/cache"
@@ -33,12 +34,27 @@ const (
 	tokenBlacklistPrefix = "token:blacklist:"
 )
 
+const (
+	// totpPendingPrefix 双因素认证“待绑定”密钥在 Redis 中的键前缀（Setup 生成但未确认启用前暂存）。
+	totpPendingPrefix = "2fa:pending:"
+	// totpPendingTTL 待绑定密钥有效期，超时未确认则需重新发起 Setup。
+	totpPendingTTL = 15 * time.Minute
+	// totpIssuer otpauth URI 中的发行方名称。
+	totpIssuer = "MeteorX"
+)
+
 var (
 	ErrEmailNotConfigured   = errors.New("email service not configured")
 	ErrInvalidResetToken    = errors.New("invalid or expired token")
 	ErrUserNotFound         = errors.New("user not found")
 	ErrEmailAlreadyVerified = errors.New("email already verified")
 	ErrEmailNotOwned        = errors.New("email does not belong to current user")
+	// 双因素认证相关错误
+	Err2FAAlreadyEnabled     = errors.New("two-factor authentication is already enabled")
+	Err2FANotEnabled         = errors.New("two-factor authentication is not enabled")
+	Err2FAInvalidCode        = errors.New("invalid two-factor code")
+	Err2FASetupExpired       = errors.New("two-factor setup expired, please start over")
+	Err2FAStorageUnavailable = errors.New("two-factor verification storage unavailable")
 )
 
 // LoginError 登录错误（包含安全信息）
@@ -47,11 +63,26 @@ type LoginError struct {
 	RemainingAttempts int
 	Locked            bool
 	LockoutDuration   int64
+	Require2FA        bool
 }
 
 // Error 实现 error 接口，返回登录错误描述信息。
 func (e *LoginError) Error() string {
 	return e.Message
+}
+
+// TenantStatusProvider 租户状态查询能力（由租户仓储提供），用于登录时拦截被平台暂停的租户。
+// 未注入时跳过校验，保持向后兼容；查询失败（如租户不存在）按 fail-open 放行。
+type TenantStatusProvider interface {
+	GetStatus(ctx context.Context, tenantID string) (int, error)
+}
+
+// AuthServiceOption 服务层可变参数选项，用于按需注入可选依赖。
+type AuthServiceOption func(*AuthService)
+
+// WithTenantStatusProvider 注入租户状态查询依赖（登录软着陆拦截）。
+func WithTenantStatusProvider(p TenantStatusProvider) AuthServiceOption {
+	return func(s *AuthService) { s.tenantStatus = p }
 }
 
 // AuthService 认证服务，处理注册、登录、登出、密码重置等业务逻辑
@@ -67,16 +98,17 @@ type AuthService struct {
 	emailer            *emailer.Emailer
 	clientBaseURL      string
 	emailEnabled       bool
+	tenantStatus       TenantStatusProvider
 }
 
 // NewAuthService 创建认证服务实例
-func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, urr rbacRepo.UserRoleRepository, rpr rbacRepo.RolePermissionRepository, th *jwt.TokenHelper, redis *cache.Redis, securityCfg config.SecurityConfig, emailCfg config.EmailConfig, clientCfg config.ClientConfig) *AuthService {
+func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, urr rbacRepo.UserRoleRepository, rpr rbacRepo.RolePermissionRepository, th *jwt.TokenHelper, redis *cache.Redis, securityCfg config.SecurityConfig, emailCfg config.EmailConfig, clientCfg config.ClientConfig, opts ...AuthServiceOption) *AuthService {
 	var em *emailer.Emailer
 	if emailCfg.Enabled {
 		em = emailer.NewEmailer(emailCfg.Host, emailCfg.Port, emailCfg.Username, emailCfg.Password, emailCfg.From, emailCfg.FromName)
 	}
 
-	return &AuthService{
+	svc := &AuthService{
 		userRepo:           ur,
 		roleRepo:           rr,
 		userRoleRepo:       urr,
@@ -89,6 +121,10 @@ func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, ur
 		clientBaseURL:      clientCfg.BaseURL,
 		emailEnabled:       emailCfg.Enabled,
 	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
 }
 
 // Register 用户注册，校验密码策略并分配默认角色
@@ -192,6 +228,33 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User,
 
 	if user.Status == 0 {
 		return nil, nil, nil, "", errors.New("账号已被禁用")
+	}
+
+	// 租户软着陆拦截：租户被平台暂停/禁用时拒绝签发 token（查询失败 fail-open，未注入时跳过）
+	if s.tenantStatus != nil && user.TenantID != "" {
+		status, serr := s.tenantStatus.GetStatus(ctx, user.TenantID)
+		if serr == nil && status == 0 {
+			return nil, nil, nil, "", errors.New("所属租户已被平台暂停，请联系管理员处理")
+		}
+	}
+
+	// 双因素认证校验：账号已启用 TOTP 时，密码正确后需进一步校验动态验证码。
+	if user.TOTPEnabled {
+		if req.OTP == "" {
+			// 未提供验证码：提示前端弹出验证码输入框（不消耗锁定计数，密码已正确）
+			return nil, nil, nil, "", &LoginError{Message: "请输入双因素验证码", Require2FA: true}
+		}
+		ok, verr := totp.Validate(user.TOTPSecret, req.OTP)
+		if verr != nil || !ok {
+			// 验证码错误：计入失败次数，抵御 6 位口令暴力猜测
+			_ = s.lockout.RecordFailedAttempt(ctx, lockoutKey)
+			remaining := s.lockout.GetRemainingAttempts(ctx, lockoutKey)
+			return nil, nil, nil, "", &LoginError{
+				Message:           "双因素验证码错误",
+				RemainingAttempts: remaining,
+				Require2FA:        true,
+			}
+		}
 	}
 
 	// 回写最后登录时间（best-effort，失败不阻断登录）
@@ -446,4 +509,85 @@ func (s *AuthService) VerifyEmail(ctx context.Context, token string) error {
 	}
 
 	return nil
+}
+
+// Setup2FA 开启双因素认证第一步：生成随机密钥并暂存于 Redis（尚未生效），
+// 返回密钥与 otpauth URI 供前端生成二维码，用户需用验证器 App 扫码后调用 Enable2FA 确认。
+func (s *AuthService) Setup2FA(ctx context.Context, userID string) (*dto.Setup2FAResp, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil || user == nil {
+		return nil, ErrUserNotFound
+	}
+	if user.TOTPEnabled {
+		return nil, Err2FAAlreadyEnabled
+	}
+
+	secret, err := totp.GenerateSecret()
+	if err != nil {
+		return nil, err
+	}
+
+	if s.redis == nil || !s.redis.IsAvailable() {
+		return nil, Err2FAStorageUnavailable
+	}
+	key := totpPendingPrefix + userID
+	if err := s.redis.Set(ctx, key, secret, totpPendingTTL); err != nil {
+		if errors.Is(err, cache.ErrRedisUnavailable) {
+			return nil, Err2FAStorageUnavailable
+		}
+		return nil, err
+	}
+
+	account := user.Email
+	if account == "" {
+		account = user.Username
+	}
+	return &dto.Setup2FAResp{Secret: secret, OTPAuthURL: totp.OTPAuthURL(secret, totpIssuer, account)}, nil
+}
+
+// Enable2FA 确认绑定双因素认证：校验验证器口令，通过后持久化密钥并置为启用，清除待绑定缓存。
+func (s *AuthService) Enable2FA(ctx context.Context, userID, code string) error {
+	if s.redis == nil || !s.redis.IsAvailable() {
+		return Err2FAStorageUnavailable
+	}
+	key := totpPendingPrefix + userID
+	secret, err := s.redis.Get(ctx, key)
+	if errors.Is(err, cache.ErrRedisUnavailable) {
+		return Err2FAStorageUnavailable
+	}
+	if err != nil || secret == "" {
+		return Err2FASetupExpired
+	}
+
+	ok, verr := totp.Validate(secret, code)
+	if verr != nil {
+		return Err2FAInvalidCode
+	}
+	if !ok {
+		return Err2FAInvalidCode
+	}
+
+	if err := s.userRepo.UpdateTOTP(ctx, userID, secret, true); err != nil {
+		return err
+	}
+	_ = s.redis.Delete(ctx, key)
+	return nil
+}
+
+// Disable2FA 关闭双因素认证：需当前有效验证码，校验通过后清除密钥并置为未启用。
+func (s *AuthService) Disable2FA(ctx context.Context, userID, code string) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil || user == nil {
+		return ErrUserNotFound
+	}
+	if !user.TOTPEnabled {
+		return Err2FANotEnabled
+	}
+
+	ok, verr := totp.Validate(user.TOTPSecret, code)
+	if verr != nil || !ok {
+		return Err2FAInvalidCode
+	}
+
+	return s.userRepo.UpdateTOTP(ctx, userID, "", false)
 }

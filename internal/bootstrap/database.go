@@ -12,6 +12,7 @@ import (
 	otelgorm "gorm.io/plugin/opentelemetry/tracing"
 
 	"meteorx/internal/config"
+	"meteorx/internal/dbmonitor"
 	"meteorx/pkg/logger"
 )
 
@@ -29,6 +30,13 @@ func InitDB(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	if cfg.Debug {
 		gormLog = gormlogger.Default.LogMode(gormlogger.Info)
 		logger.Info("GORM SQL debug mode enabled")
+	}
+
+	// 包装慢查询采集器：超过阈值的 SQL 记入内存环形缓冲区，供管理员看板实时查看
+	if threshold := cfg.GetSlowQueryThreshold(); threshold > 0 {
+		dbmonitor.Init(threshold, 200)
+		gormLog = dbmonitor.NewLogger(threshold, gormLog)
+		logger.Infof("Slow query monitor enabled (threshold=%s)", threshold)
 	}
 
 	db, err := gorm.Open(mysql.Open(primaryDSN), &gorm.Config{

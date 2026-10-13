@@ -19,7 +19,9 @@ import (
 // NewTenantSettingsHandler 创建租户设置处理器
 func NewTenantSettingsHandler(db *gorm.DB) *handler.TenantSettingsHandler {
 	repo := tenantrepo.NewTenantSettingsRepository(db)
-	svc := service.NewTenantSettingsService(repo)
+	// 注入租户仓库以 best-effort 下发 tenant_name，供前端多租户白标应用品牌显示名
+	tenantRepo := tenantrepo.NewTenantRepository(db)
+	svc := service.NewTenantSettingsService(repo, service.WithTenantNameProvider(tenantRepo))
 	return handler.NewTenantSettingsHandler(svc)
 }
 

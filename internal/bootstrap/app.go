@@ -31,43 +31,43 @@ func StartApp() {
 		logger.Fatalf("Load config failed: %v", err)
 	}
 
-	// 2. 初始化数据库
+	// 3. 初始化数据库
 	db, err := InitDB(&cfg.Database)
 	if err != nil {
 		logger.Fatalf("Initialize database failed: %v", err)
 	}
 
-	// 3. 执行数据库迁移
+	// 4. 执行数据库迁移
 	if err := AutoMigrate(db); err != nil {
 		logger.Fatalf("Database migration failed: %v", err)
 	}
 
-	// 4. 初始化种子数据（如果不存在）
+	// 5. 初始化种子数据（如果不存在）
 	if err := SeedDatabase(db); err != nil {
 		logger.Warnf("Seed data initialization failed: %v", err)
 	}
 
-	// 5. 初始化 Redis（允许降级：连接失败时继续运行，仅禁用缓存能力）
+	// 6. 初始化 Redis（允许降级：连接失败时继续运行，仅禁用缓存能力）
 	redisAddr := fmt.Sprintf("%s:%d", cfg.Redis.Host, cfg.Redis.Port)
 	rdb, redisErr := cache.NewRedis(redisAddr, cfg.Redis.Password, cfg.Redis.DB)
 	if redisErr != nil {
 		logger.Warnf("Redis connection failed, running without cache: %v", redisErr)
 	}
 
-	// 6. 创建应用级 context（支持优雅取消）
+	// 7. 创建应用级 context（支持优雅取消）
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// 7. 初始化 WebSocket Hub（支持实时推送）
+	// 8. 初始化 WebSocket Hub（支持实时推送）
 	if cfg.WS.Enabled {
 		ws.InitHub()
 		logger.Infof("[WS] WebSocket hub initialized")
 	}
 
-	// 7.1 初始化多渠道通知管理器
+	// 8.1 初始化多渠道通知管理器
 	initNotifyManager(cfg)
 
-	// 7.2 初始化 OpenTelemetry 可观测性
+	// 8.2 初始化 OpenTelemetry 可观测性
 	otelCfg := &otel.Config{
 		Enabled:        cfg.OTel.Enabled,
 		Exporter:       cfg.OTel.Exporter,
@@ -85,32 +85,32 @@ func StartApp() {
 	logger.Infof("[OTel] OpenTelemetry initialized: exporter=%s, sample_rate=%.1f, env=%s",
 		otelCfg.Exporter, otelCfg.SampleRate, cfg.Server.Mode)
 
-	// 8. 初始化路由并注入依赖
+	// 9. 初始化路由并注入依赖
 	r := InitRouter(ctx, db, cfg, rdb)
 
-	// 7.1 启动订阅到期自动禁用租户的定时任务（绑定 app 主 context，支持优雅取消）
+	// 10.1 启动订阅到期自动禁用租户的定时任务（绑定 app 主 context，支持优雅取消）
 	StartPlanExpiryJob(ctx, db)
 
-	// 7.2 启动租户注销定时执行任务（执行已到期的注销申请）
+	// 10.2 启动租户注销定时执行任务（执行已到期的注销申请）
 	StartCancelCleanupJob(ctx, db)
 
-	// 7.3 启动邀请过期清理定时任务（将过期 pending 邀请置为 expired）
+	// 10.3 启动邀请过期清理定时任务（将过期 pending 邀请置为 expired）
 	StartInvitationExpiryJob(ctx, db)
 
-	// 7.4 启动 Wiki 回收站过期清理定时任务（物理清除过期回收站项目及其关联实体）
+	// 10.4 启动 Wiki 回收站过期清理定时任务（物理清除过期回收站项目及其关联实体）
 	// 传入 rdb：多副本部署时通过 Redis 分布式锁保证仅一个实例执行清理
 	StartWikiTrashExpiryJob(ctx, db, rdb)
 
-	// 7.5 启动任务到期提醒定时任务（即将到期/已逾期任务站内提醒）
+	// 10.5 启动任务到期提醒定时任务（即将到期/已逾期任务站内提醒）
 	StartTaskReminderJob(ctx, db, cfg)
 
-	// 7.6 启动数据导出 worker 池（异步执行 pending 导出任务，流式写出 CSV）
+	// 10.6 启动数据导出 worker 池（异步执行 pending 导出任务，流式写出 CSV）
 	StartExportWorkerJob(ctx, db, cfg)
 
-	// 7.7 启动导出文件过期清理定时任务（删除超过保留期的导出文件与记录）
+	// 10.7 启动导出文件过期清理定时任务（删除超过保留期的导出文件与记录）
 	StartExportExpiryJob(ctx, db, cfg)
 
-	// 7. 构造 http.Server 以支持优雅关闭
+	// 11. 构造 http.Server 以支持优雅关闭
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	srv := &http.Server{
 		Addr:              addr,
@@ -118,7 +118,7 @@ func StartApp() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	// 监听系统信号实现优雅关闭
+	// 12. 监听系统信号实现优雅关闭
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -142,14 +142,14 @@ func StartApp() {
 	// 3) 关闭 OTel TracerProvider（刷新缓冲区中的 Span 数据）
 	otelShutdown()
 
-	// 3) 关闭 HTTP 服务器（等待在途请求完成）
+	// 4) 关闭 HTTP 服务器（等待在途请求完成）
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Errorf("HTTP server shutdown error: %v", err)
 	}
 
-	// 4) 关闭 WebSocket Hub（断开所有连接）
+	// 5) 关闭 WebSocket Hub（断开所有连接）
 	ws.StopHub()
 
 	// 6) 关闭 Redis 连接
@@ -161,7 +161,7 @@ func StartApp() {
 		}
 	}
 
-	// 5) 关闭数据库连接池
+	// 7) 关闭数据库连接池
 	sqlDB, err := db.DB()
 	if err == nil {
 		if cerr := sqlDB.Close(); cerr != nil {
@@ -173,6 +173,6 @@ func StartApp() {
 
 	logger.Info("MeteorX server stopped")
 
-	// 6) 关闭日志系统（刷新异步日志缓冲区，放在最后一步）
+	// 8) 关闭日志系统（刷新异步日志缓冲区，放在最后一步）
 	logger.Close()
 }

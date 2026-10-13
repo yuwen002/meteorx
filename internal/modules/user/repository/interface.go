@@ -64,4 +64,6 @@ type UserRepository interface {
 	GetByPhone(ctx context.Context, phone string) (*model.User, error)
 	// UpdateLastLogin 回写用户最后登录时间
 	UpdateLastLogin(ctx context.Context, userID string) error
+	// UpdateTOTP 更新用户双因素认证密钥与启用状态（secret 为空且 enabled=false 表示解除绑定）
+	UpdateTOTP(ctx context.Context, userID, secret string, enabled bool) error
 }

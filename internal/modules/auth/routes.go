@@ -26,6 +26,15 @@ func RegisterEmailVerificationRoutes(r chi.Router, h *handler.AuthHandler) {
 	})
 }
 
+// RegisterTwoFactorRoutes 注册双因素认证管理路由（需登录）：开启第一步、确认启用、关闭。
+func RegisterTwoFactorRoutes(r chi.Router, h *handler.AuthHandler) {
+	r.Route("/auth/2fa", func(r chi.Router) {
+		r.Post("/setup", h.Setup2FA)
+		r.Post("/enable", h.Enable2FA)
+		r.Post("/disable", h.Disable2FA)
+	})
+}
+
 // RegisterAPITokenRoutes 注册 API Token 管理路由（需登录）：列表/创建/撤销。
 func RegisterAPITokenRoutes(r chi.Router, h *handler.APITokenHandler) {
 	r.Route("/auth/tokens", func(r chi.Router) {

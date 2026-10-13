@@ -20,6 +20,8 @@ type User struct {
 	Roles         []string // 角色编码列表（从 user_roles 表关联查询得到）
 	Status        int      // 1: 正常, 0: 禁用
 	IsMaster      bool
+	TOTPSecret    string // 双因素认证 TOTP 密钥（Base32），空表示未绑定
+	TOTPEnabled   bool   // 是否已启用双因素认证
 	LastLoginAt   *time.Time // 最后登录时间
 	CreatedAt     time.Time
 	UpdatedAt     time.Time

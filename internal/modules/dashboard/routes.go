@@ -18,5 +18,7 @@ func RegisterRoutes(r chi.Router, h *handler.DashboardHandler, checker middlewar
 		r.Get("/overview", h.GetOverview)                      // admin:dashboard:list
 		r.Get("/tenants-health", h.GetTenantHealth)            // admin:dashboard:list
 		r.Get("/tenants-health/{id}", h.GetTenantHealthDetail) // admin:dashboard:list
+		r.Get("/slow-queries", h.GetSlowQueries)               // admin:dashboard:list
+		r.Post("/slow-queries/reset", h.ResetSlowQueries)      // admin:dashboard:create
 	})
 }

@@ -8,6 +8,7 @@ type LoginReq struct {
 	TenantID string `json:"tenant_id" validate:"omitempty" label:"租户ID"` // 👈 改为 omitempty，上帝账号不需要租户ID
 	Username string `json:"username" validate:"required" label:"用户名"`
 	Password string `json:"password" validate:"required" label:"密码"`
+	OTP      string `json:"otp" validate:"omitempty,number,len=6" label:"双因素验证码"` // 启用 2FA 时必填
 }
 
 // RegisterUserReq 新用户注册请求
@@ -32,6 +33,23 @@ type LoginErrorResp struct {
 	RemainingAttempts int    `json:"remaining_attempts"` // 剩余尝试次数
 	Locked            bool   `json:"locked"`             // 是否已锁定
 	LockoutDuration   int64  `json:"lockout_duration"`   // 锁定剩余时间（秒）
+	Require2FA        bool   `json:"require_2fa"`        // 是否需要输入双因素验证码
+}
+
+// Setup2FAResp 开启双因素认证第一步响应：返回待绑定的密钥与 otpauth URI（供生成二维码），尚未生效。
+type Setup2FAResp struct {
+	Secret     string `json:"secret"`      // Base32 密钥，手动录入验证器 App 用
+	OTPAuthURL string `json:"otpauth_url"` // otpauth:// URI，前端生成二维码用
+}
+
+// Enable2FAReq 确认绑定双因素认证请求（提交验证器当前口令以激活）
+type Enable2FAReq struct {
+	Code string `json:"code" validate:"required,number,len=6" label:"验证码"`
+}
+
+// Disable2FAReq 关闭双因素认证请求（需当前有效验证码）
+type Disable2FAReq struct {
+	Code string `json:"code" validate:"required,number,len=6" label:"验证码"`
 }
 
 // ForgotPasswordReq 忘记密码请求（发送重置链接到邮箱）

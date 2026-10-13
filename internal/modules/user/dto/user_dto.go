@@ -88,6 +88,7 @@ type UserResp struct {
 	RoleList      []UserRoleInfo `json:"role_list"` // 角色详细信息列表
 	Status        int            `json:"status"`
 	IsMaster      bool           `json:"is_master"` // 是否系统管理员
+	TOTPEnabled   bool           `json:"totp_enabled"` // 是否已启用双因素认证
 	Department    string         `json:"department"`
 	Position      string         `json:"position"`
 	Remark        string         `json:"remark"`

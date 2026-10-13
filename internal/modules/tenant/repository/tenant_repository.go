@@ -128,6 +128,20 @@ func (r *tenantRepository) GetByID(ctx context.Context, id string) (*model.Tenan
 	return record.toDomain(), nil
 }
 
+// GetStatus 查询租户状态（1-启用 0-禁用/暂停），仅读 status 列，供认证链路高频调用。
+// 租户不存在（含软删）返回 gorm.ErrRecordNotFound，由调用方决定 fail-open 或拦截。
+func (r *tenantRepository) GetStatus(ctx context.Context, id string) (int, error) {
+	var rows []int
+	res := r.db.WithContext(ctx).Model(&TenantPO{}).Where("id = ?", id).Limit(1).Pluck("status", &rows)
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	if res.RowsAffected == 0 || len(rows) == 0 {
+		return 0, gorm.ErrRecordNotFound
+	}
+	return rows[0], nil
+}
+
 // Create 创建新的租户记录
 // 将业务模型转换为数据库模型并持久化到数据库
 // 参数：

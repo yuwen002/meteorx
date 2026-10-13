@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"meteorx/internal/common/contextx"
 	"meteorx/internal/modules/auth/dto"
 	"meteorx/internal/modules/auth/handler"
 	"meteorx/internal/modules/auth/service"
@@ -43,6 +44,11 @@ type stubAuthService struct {
 
 	sendEmailVerifyErr error
 	verifyEmailErr    error
+
+	setup2FAResp *dto.Setup2FAResp
+	setup2FAErr  error
+	enable2FAErr error
+	disable2FAErr error
 }
 
 func (s *stubAuthService) Register(_ context.Context, req dto.RegisterUserReq) (*userModel.User, error) {
@@ -77,6 +83,18 @@ func (s *stubAuthService) SendEmailVerification(_ context.Context, email string,
 
 func (s *stubAuthService) VerifyEmail(_ context.Context, token string) error {
 	return s.verifyEmailErr
+}
+
+func (s *stubAuthService) Setup2FA(_ context.Context, _ string) (*dto.Setup2FAResp, error) {
+	return s.setup2FAResp, s.setup2FAErr
+}
+
+func (s *stubAuthService) Enable2FA(_ context.Context, _, _ string) error {
+	return s.enable2FAErr
+}
+
+func (s *stubAuthService) Disable2FA(_ context.Context, _, _ string) error {
+	return s.disable2FAErr
 }
 
 func newAuthRouter(stub *stubAuthService) http.Handler {
@@ -278,4 +296,88 @@ func TestResetPassword_Success(t *testing.T) {
 	assert.Equal(t, "newpass123", stub.resetNewPass)
 	var out map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
+}
+
+// ---------- 双因素认证 (2FA) handler ----------
+
+// newTwoFactorRouter 构建带用户上下文注入的 2FA 路由；通过 X-Test-User 头控制当前用户ID（为空则未登录）。
+func newTwoFactorRouter(stub *stubAuthService) http.Handler {
+	h := handler.NewAuthHandler(stub)
+	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if uid := req.Header.Get("X-Test-User"); uid != "" {
+				ctx := contextx.SetVars(req.Context(), "t-1", uid, nil)
+				req = req.WithContext(ctx)
+			}
+			next.ServeHTTP(w, req)
+		})
+	})
+	r.Post("/2fa/setup", h.Setup2FA)
+	r.Post("/2fa/enable", h.Enable2FA)
+	r.Post("/2fa/disable", h.Disable2FA)
+	return r
+}
+
+func withUser(uid string) func(*http.Request) {
+	return func(r *http.Request) { r.Header.Set("X-Test-User", uid) }
+}
+
+func TestSetup2FA_Unauthorized_Returns401(t *testing.T) {
+	router := newTwoFactorRouter(&stubAuthService{})
+	w := doAuth(t, router, "/2fa/setup", "", nil)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), "未获取到用户信息")
+}
+
+func TestSetup2FA_Success(t *testing.T) {
+	stub := &stubAuthService{setup2FAResp: &dto.Setup2FAResp{Secret: "SECRET123", OTPAuthURL: "otpauth://totp/MeteorX:a@x.com?secret=SECRET123"}}
+	router := newTwoFactorRouter(stub)
+	w := doAuth(t, router, "/2fa/setup", "", withUser("u-1"))
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "SECRET123")
+}
+
+func TestSetup2FA_AlreadyEnabled_Returns400(t *testing.T) {
+	stub := &stubAuthService{setup2FAErr: service.Err2FAAlreadyEnabled}
+	router := newTwoFactorRouter(stub)
+	w := doAuth(t, router, "/2fa/setup", "", withUser("u-1"))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "已启用")
+}
+
+func TestEnable2FA_ValidationFailure_Returns400(t *testing.T) {
+	router := newTwoFactorRouter(&stubAuthService{})
+	w := doAuth(t, router, "/2fa/enable", `{"code":""}`, withUser("u-1"))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestEnable2FA_InvalidCode_Returns400(t *testing.T) {
+	stub := &stubAuthService{enable2FAErr: service.Err2FAInvalidCode}
+	router := newTwoFactorRouter(stub)
+	w := doAuth(t, router, "/2fa/enable", `{"code":"123456"}`, withUser("u-1"))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "验证码错误")
+}
+
+func TestEnable2FA_Success(t *testing.T) {
+	router := newTwoFactorRouter(&stubAuthService{})
+	w := doAuth(t, router, "/2fa/enable", `{"code":"123456"}`, withUser("u-1"))
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "已启用")
+}
+
+func TestDisable2FA_NotEnabled_Returns400(t *testing.T) {
+	stub := &stubAuthService{disable2FAErr: service.Err2FANotEnabled}
+	router := newTwoFactorRouter(stub)
+	w := doAuth(t, router, "/2fa/disable", `{"code":"123456"}`, withUser("u-1"))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "未启用")
+}
+
+func TestDisable2FA_Success(t *testing.T) {
+	router := newTwoFactorRouter(&stubAuthService{})
+	w := doAuth(t, router, "/2fa/disable", `{"code":"123456"}`, withUser("u-1"))
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "已关闭")
 }

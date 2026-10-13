@@ -92,6 +92,14 @@ func (m *mockUserRepo) UpdateLastLogin(_ context.Context, id string) error {
 	return nil
 }
 
+func (m *mockUserRepo) UpdateTOTP(_ context.Context, id, secret string, enabled bool) error {
+	if u, ok := m.users[id]; ok {
+		u.TOTPSecret = secret
+		u.TOTPEnabled = enabled
+	}
+	return nil
+}
+
 var _ userRepo.UserRepository = (*mockUserRepo)(nil)
 
 // ---------- 内存 mock：RoleRepository ----------

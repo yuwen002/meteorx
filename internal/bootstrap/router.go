@@ -35,6 +35,7 @@ import (
 	rbacRepo "meteorx/internal/modules/rbac/repository"
 	"meteorx/internal/modules/task"
 	"meteorx/internal/modules/tenant"
+	tenantRepo "meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/user"
 	userRepo "meteorx/internal/modules/user/repository"
 	"meteorx/internal/modules/wiki"
@@ -164,6 +165,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			apiTokenValidator := authSvc.NewAPITokenService(apiTokenRepo, userRepo.NewUserRepository(db), rbacRepo.NewUserRoleRepository(db), rbacRepo.NewRolePermissionRepository(db), rdb, cfg.Auth)
 			r.Use(middleware.Auth(tokenHelper, blacklistChecker, cfg.Server.Mode, cfg.Server.TestBypass, apiTokenValidator))
 
+			// 【租户状态门禁】被平台暂停/禁用的租户，其成员所有业务请求返回 403（租户不存在/查询失败 fail-open 放行）
+			r.Use(middleware.TenantStatusGate(tenantRepo.NewTenantRepository(db)))
+
 			// 【租户级限流】依据套餐 API 速率配额（每分钟请求数）限流，Redis 不可用/未设置配额时 fail-open 放行
 			r.Use(middleware.TenantRateLimit(plan.NewQuotaRateProvider(db), rdb))
 
@@ -205,6 +209,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 
 			// 4.3.1 邮箱验证（需登录：发送验证链接、验证邮箱）
 			auth.RegisterEmailVerificationRoutes(r, authH)
+
+			// 4.3.2 双因素认证管理（需登录：开启、确认启用、关闭）
+			auth.RegisterTwoFactorRoutes(r, authH)
 
 			// 4.4 租户侧当前套餐查询
 			plan.InitPrivateModule(r, db)

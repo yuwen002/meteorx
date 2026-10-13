@@ -13,6 +13,8 @@ import (
 type TenantRepository interface {
 	// GetByID 根据租户 ID 查询租户信息
 	GetByID(ctx context.Context, id string) (*model.Tenant, error)
+	// GetStatus 查询租户状态（1-启用 0-禁用/暂停），租户不存在时返回 gorm.ErrRecordNotFound
+	GetStatus(ctx context.Context, id string) (int, error)
 	// Create 创建新的租户记录
 	Create(ctx context.Context, tenant *model.Tenant) error
 	// GetByDomain 根据域名查询租户信息

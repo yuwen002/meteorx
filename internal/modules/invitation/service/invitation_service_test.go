@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 type stubInvRepo struct {
@@ -202,6 +203,9 @@ func (r *stubUserRepo) GetByPhone(_ context.Context, phone string) (*userModel.U
 	return nil, errors.New("not found")
 }
 func (r *stubUserRepo) UpdateLastLogin(_ context.Context, _ string) error { return nil }
+func (r *stubUserRepo) UpdateTOTP(_ context.Context, _ string, _ string, _ bool) error {
+	return nil
+}
 
 type stubTenantRepo struct {
 	tenants map[string]*tenantModel.Tenant
@@ -218,6 +222,13 @@ func (r *stubTenantRepo) GetByID(_ context.Context, id string) (*tenantModel.Ten
 	}
 	return t, nil
 }
+func (r *stubTenantRepo) GetStatus(_ context.Context, id string) (int, error) {
+	if t, ok := r.tenants[id]; ok {
+		return t.Status, nil
+	}
+	return 0, gorm.ErrRecordNotFound
+}
+
 func (r *stubTenantRepo) Create(_ context.Context, tenant *tenantModel.Tenant) error {
 	r.tenants[tenant.ID] = tenant
 	return nil

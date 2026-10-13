@@ -4,6 +4,7 @@ package dto
 type TenantSettingsResp struct {
 	ID           string `json:"id"`
 	TenantID     string `json:"tenant_id"`
+	TenantName   string `json:"tenant_name"` // 租户显示名称（供前端白标品牌标题使用，best-effort）
 	Logo         string `json:"logo"`
 	Favicon      string `json:"favicon"`
 	PrimaryColor string `json:"primary_color"`

@@ -229,6 +229,9 @@ type DatabaseConfig struct {
 	Name     string `mapstructure:"name"`
 	TLS      bool   `mapstructure:"tls"`
 	Debug    bool   `mapstructure:"debug"` // 开启后输出 SQL 日志
+	// SlowQueryMs 慢查询判定阈值（毫秒），执行耗时超过该值的 SQL 会被采集到慢查询看板；
+	// 设为 0 使用默认 500ms，设为负值则关闭慢查询采集。
+	SlowQueryMs int `mapstructure:"slow_query_ms"`
 	// Timezone 业务时区名称（如 Asia/Shanghai），启动时据此强制 time.Local，
 	// 使 time.Now()/时间解析/DSN loc=Local 与容器 TZ 环境变量解耦；为空时默认 Asia/Shanghai。
 	Timezone string `mapstructure:"timezone"`
@@ -243,6 +246,17 @@ func (c DatabaseConfig) GetTimezone() string {
 		return "Asia/Shanghai"
 	}
 	return strings.TrimSpace(c.Timezone)
+}
+
+// GetSlowQueryThreshold 返回慢查询判定阈值。未配置（0）默认 500ms，负值返回 0 表示关闭采集。
+func (c DatabaseConfig) GetSlowQueryThreshold() time.Duration {
+	if c.SlowQueryMs < 0 {
+		return 0
+	}
+	if c.SlowQueryMs == 0 {
+		return 500 * time.Millisecond
+	}
+	return time.Duration(c.SlowQueryMs) * time.Millisecond
 }
 
 // RedisConfig Redis 连接配置。

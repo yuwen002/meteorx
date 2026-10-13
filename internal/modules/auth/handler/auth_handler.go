@@ -28,6 +28,9 @@ type AuthService interface {
 	ResetPassword(ctx context.Context, token, newPassword string) error
 	SendEmailVerification(ctx context.Context, email string, currentUserID string) error
 	VerifyEmail(ctx context.Context, token string) error
+	Setup2FA(ctx context.Context, userID string) (*dto.Setup2FAResp, error)
+	Enable2FA(ctx context.Context, userID, code string) error
+	Disable2FA(ctx context.Context, userID, code string) error
 }
 
 // AuthHandler 认证处理器
@@ -90,6 +93,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 				RemainingAttempts: loginErr.RemainingAttempts,
 				Locked:            loginErr.Locked,
 				LockoutDuration:   loginErr.LockoutDuration,
+				Require2FA:        loginErr.Require2FA,
 			}
 			response.FailWithData(w, http.StatusUnauthorized, loginErr.Message, errorResp)
 			return
@@ -276,4 +280,95 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, dto.VerifyEmailResp{
 		Message: "邮箱验证成功",
 	})
+}
+
+// Setup2FA 开启双因素认证第一步：生成密钥与二维码 URI（需登录）
+// POST /api/v1/auth/2fa/setup
+func (h *AuthHandler) Setup2FA(w http.ResponseWriter, r *http.Request) {
+	userID := contextx.GetUserID(r.Context())
+	if userID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
+
+	resp, err := h.svc.Setup2FA(r.Context(), userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrUserNotFound):
+			response.Fail(w, http.StatusNotFound, "用户不存在")
+		case errors.Is(err, service.Err2FAAlreadyEnabled):
+			response.Fail(w, http.StatusBadRequest, "双因素认证已启用，无需重复开启")
+		case errors.Is(err, service.Err2FAStorageUnavailable):
+			response.Fail(w, http.StatusInternalServerError, "验证服务不可用，请稍后重试")
+		default:
+			response.Fail(w, http.StatusInternalServerError, "初始化双因素认证失败")
+		}
+		return
+	}
+
+	response.Success(w, resp)
+}
+
+// Enable2FA 确认绑定双因素认证：提交验证器口令以激活（需登录）
+// POST /api/v1/auth/2fa/enable
+func (h *AuthHandler) Enable2FA(w http.ResponseWriter, r *http.Request) {
+	userID := contextx.GetUserID(r.Context())
+	if userID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
+
+	var req dto.Enable2FAReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	err := h.svc.Enable2FA(r.Context(), userID, req.Code)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.Err2FASetupExpired):
+			response.Fail(w, http.StatusBadRequest, "绑定已过期，请重新发起开启流程")
+		case errors.Is(err, service.Err2FAInvalidCode):
+			response.Fail(w, http.StatusBadRequest, "验证码错误，请重试")
+		case errors.Is(err, service.Err2FAStorageUnavailable):
+			response.Fail(w, http.StatusInternalServerError, "验证服务不可用，请稍后重试")
+		default:
+			response.Fail(w, http.StatusInternalServerError, "启用双因素认证失败")
+		}
+		return
+	}
+
+	response.Success(w, map[string]string{"message": "双因素认证已启用"})
+}
+
+// Disable2FA 关闭双因素认证：需当前有效验证码（需登录）
+// POST /api/v1/auth/2fa/disable
+func (h *AuthHandler) Disable2FA(w http.ResponseWriter, r *http.Request) {
+	userID := contextx.GetUserID(r.Context())
+	if userID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
+
+	var req dto.Disable2FAReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	err := h.svc.Disable2FA(r.Context(), userID, req.Code)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrUserNotFound):
+			response.Fail(w, http.StatusNotFound, "用户不存在")
+		case errors.Is(err, service.Err2FANotEnabled):
+			response.Fail(w, http.StatusBadRequest, "双因素认证未启用")
+		case errors.Is(err, service.Err2FAInvalidCode):
+			response.Fail(w, http.StatusBadRequest, "验证码错误，请重试")
+		default:
+			response.Fail(w, http.StatusInternalServerError, "关闭双因素认证失败")
+		}
+		return
+	}
+
+	response.Success(w, map[string]string{"message": "双因素认证已关闭"})
 }

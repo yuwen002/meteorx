@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"meteorx/internal/common/response"
+	"meteorx/internal/dbmonitor"
 	"meteorx/internal/modules/dashboard/dto"
 	"meteorx/internal/modules/dashboard/model"
 	"meteorx/internal/modules/dashboard/repository"
@@ -88,4 +89,17 @@ func (h *DashboardHandler) GetTenantHealthDetail(w http.ResponseWriter, r *http.
 	}
 
 	response.Success(w, item)
+}
+
+// GetSlowQueries 获取慢查询看板快照（统计 + 最近慢查询列表）
+// GET /api/v1/admin/dashboard/slow-queries
+func (h *DashboardHandler) GetSlowQueries(w http.ResponseWriter, r *http.Request) {
+	response.Success(w, dbmonitor.GetSnapshot())
+}
+
+// ResetSlowQueries 重置慢查询缓冲区（清空统计与明细）
+// POST /api/v1/admin/dashboard/slow-queries/reset
+func (h *DashboardHandler) ResetSlowQueries(w http.ResponseWriter, r *http.Request) {
+	dbmonitor.Reset()
+	response.Success(w, map[string]string{"message": "慢查询统计已重置"})
 }

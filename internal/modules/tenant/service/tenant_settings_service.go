@@ -11,14 +11,42 @@ import (
 	"meteorx/pkg/idgen"
 )
 
+// tenantNameProvider 抽象获取租户名称的能力（TenantRepository 实现），用于白标下发品牌显示名。
+type tenantNameProvider interface {
+	GetByID(ctx context.Context, id string) (*model.Tenant, error)
+}
+
 // TenantSettingsService 租户个性化设置业务服务。
 type TenantSettingsService struct {
-	repo repository.TenantSettingsRepository
+	repo       repository.TenantSettingsRepository
+	nameGetter tenantNameProvider // 可选：注入后 GetSettings/UpdateSettings 会 best-effort 填充 tenant_name
+}
+
+// SettingsOption 租户设置服务的可变参数选项。
+type SettingsOption func(*TenantSettingsService)
+
+// WithTenantNameProvider 注入租户名称提供者，用于白标下发品牌显示名（未注入时跳过）。
+func WithTenantNameProvider(p tenantNameProvider) SettingsOption {
+	return func(s *TenantSettingsService) { s.nameGetter = p }
 }
 
 // NewTenantSettingsService 创建租户设置服务实例。
-func NewTenantSettingsService(repo repository.TenantSettingsRepository) *TenantSettingsService {
-	return &TenantSettingsService{repo: repo}
+func NewTenantSettingsService(repo repository.TenantSettingsRepository, opts ...SettingsOption) *TenantSettingsService {
+	s := &TenantSettingsService{repo: repo}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// fillTenantName best-effort 填充租户显示名：未注入 provider 或查询失败时保持空值，不影响主流程。
+func (s *TenantSettingsService) fillTenantName(ctx context.Context, tenantID string, resp *dto.TenantSettingsResp) {
+	if s.nameGetter == nil || resp == nil || tenantID == "" {
+		return
+	}
+	if t, err := s.nameGetter.GetByID(ctx, tenantID); err == nil && t != nil {
+		resp.TenantName = t.Name
+	}
 }
 
 // GetSettings 获取租户设置，不存在时返回默认值。
@@ -28,11 +56,14 @@ func (s *TenantSettingsService) GetSettings(ctx context.Context, tenantID string
 		return nil, err
 	}
 
+	var resp *dto.TenantSettingsResp
 	if settings == nil {
-		return s.getDefaultSettings(tenantID), nil
+		resp = s.getDefaultSettings(tenantID)
+	} else {
+		resp = toSettingsResp(settings)
 	}
-
-	return toSettingsResp(settings), nil
+	s.fillTenantName(ctx, tenantID, resp)
+	return resp, nil
 }
 
 // UpdateSettings 更新租户设置，不存在则创建（upsert）后返回最新值。
@@ -84,7 +115,9 @@ func (s *TenantSettingsService) UpdateSettings(ctx context.Context, tenantID str
 		return nil, errors.New("settings not found after update")
 	}
 
-	return toSettingsResp(updated), nil
+	resp := toSettingsResp(updated)
+	s.fillTenantName(ctx, tenantID, resp)
+	return resp, nil
 }
 
 // getDefaultSettings 构造一份默认租户设置。
