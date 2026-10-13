@@ -179,6 +179,8 @@ export function updateCurrentTenant(data: UpdateTenantParams) {
 export interface TenantSettings {
   id: string
   tenant_id: string
+  // 租户显示名称（服务端 best-effort 下发，供前端白标品牌标题使用）
+  tenant_name: string
   logo: string
   favicon: string
   primary_color: string

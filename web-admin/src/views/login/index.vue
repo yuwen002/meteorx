@@ -55,6 +55,16 @@
             size="large"
           />
         </el-form-item>
+        <el-form-item v-if="require2FA" label="双因素验证码" prop="otp">
+          <el-input
+            v-model="form.otp"
+            placeholder="请输入验证器 App 的 6 位动态码"
+            prefix-icon="Key"
+            maxlength="6"
+            clearable
+            size="large"
+          />
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="loading" size="large" style="width: 100%" @click="handleLogin">
             登 录
@@ -186,10 +196,14 @@ const loginError = reactive<{
   lockoutDuration: 0
 })
 
+// 账号已启用双因素认证时，密码校验通过后展示验证码输入框
+const require2FA = ref(false)
+
 const form = reactive<LoginParams>({
   username: '',
   password: '',
-  tenant_id: ''
+  tenant_id: '',
+  otp: ''
 })
 
 const formRules = computed<FormRules>(() => ({
@@ -203,6 +217,8 @@ const formRules = computed<FormRules>(() => ({
 function switchMode(mode: LoginMode) {
   loginMode.value = mode
   loginError.show = false
+  require2FA.value = false
+  form.otp = ''
   if (mode === 'admin') {
     form.tenant_id = ''
   }
@@ -222,6 +238,9 @@ async function handleLogin() {
       if (loginMode.value === 'tenant' && form.tenant_id) {
         params.tenant_id = form.tenant_id.trim()
       }
+      if (require2FA.value && form.otp) {
+        params.otp = form.otp.trim()
+      }
       await userStore.doLogin(params)
       ElMessage.success('登录成功')
       const redirect = (route.query.redirect as string) || '/'
@@ -235,6 +254,7 @@ async function handleLogin() {
         loginError.remainingAttempts = errorData.remaining_attempts
         loginError.locked = errorData.locked
         loginError.lockoutDuration = errorData.lockout_duration
+        require2FA.value = !!errorData.require_2fa
       }
     } finally {
       loading.value = false

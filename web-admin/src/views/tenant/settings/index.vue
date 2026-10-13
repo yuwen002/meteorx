@@ -178,6 +178,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { getTenantSettings, updateTenantSettings } from '@/api/modules/tenant'
 import type { TenantSettings, UpdateTenantSettingsReq } from '@/api/modules/tenant'
+import { useBrand } from '@/composables/useBrand'
 
 const formRef = ref<FormInstance>()
 const loading = ref(false)
@@ -187,6 +188,7 @@ const activeTab = ref('basic')
 const form = reactive<TenantSettings>({
   id: '',
   tenant_id: '',
+  tenant_name: '',
   logo: '',
   favicon: '',
   primary_color: '#667eea',
@@ -266,6 +268,8 @@ async function handleSave() {
       }
       const res = await updateTenantSettings(data)
       Object.assign(form, res)
+      // 保存成功后即时将品牌配置应用到全局 UI（多租户白标）
+      useBrand().applyServerBrand(res)
       ElMessage.success('保存成功')
     } catch (error) {
       ElMessage.error((error as { response?: { data?: { message?: string } } })?.response?.data?.message || '保存失败')

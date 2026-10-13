@@ -1,26 +1,39 @@
 <template>
-  <!-- Element Plus 按需引入后组件不再全局注册，用 ConfigProvider 统一注入中文语言包 -->
-  <el-config-provider :locale="zhCn">
+  <!-- Element Plus 按需引入后组件不再全局注册，用 ConfigProvider 统一注入当前语言包 -->
+  <el-config-provider :locale="elLocale">
     <router-view />
   </el-config-provider>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import enUs from 'element-plus/es/locale/lang/en'
 import { ElNotification } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useNotificationStore } from '@/stores/notification'
 import { useWebSocket, type WSMessage } from '@/composables/useWebSocket'
+import { useI18n } from '@/composables/useI18n'
+import { useTheme } from '@/composables/useTheme'
+import { useBrand } from '@/composables/useBrand'
+
+const { locale } = useI18n()
+const elLocale = computed(() => (locale.value === 'en-US' ? enUs : zhCn))
+
+// 确保主题与白标品牌在挂载时应用到位
+useTheme()
+const { applyBrand, syncBrandFromServer } = useBrand()
+applyBrand()
 
 const userStore = useUserStore()
 const notificationStore = useNotificationStore()
 const { connected, connect, disconnect, onMessage } = useWebSocket()
 
-// 用户登录后自动连接 WebSocket
+// 用户登录后自动连接 WebSocket，并同步服务端下发的租户品牌（多租户白标）
 watch(() => userStore.token, (newToken) => {
   if (newToken) {
     connect()
+    syncBrandFromServer()
   } else {
     disconnect()
   }
@@ -74,9 +87,10 @@ watch(connected, (val) => {
 })
 
 onMounted(() => {
-  // 如果已登录，自动连接 WebSocket
+  // 如果已登录，自动连接 WebSocket 并应用服务端品牌配置
   if (userStore.isLoggedIn) {
     connect()
+    syncBrandFromServer()
   }
 })
 
@@ -86,11 +100,32 @@ onUnmounted(() => {
 </script>
 
 <style>
+:root {
+  --mx-header-bg: #ffffff;
+  --mx-header-border: #e5e7eb;
+  --mx-main-bg: #f3f4f6;
+  --mx-text: #374151;
+  --mx-text-strong: #111827;
+  --mx-text-muted: #9ca3af;
+  --mx-brand-primary: #409eff;
+}
+html.dark {
+  --mx-header-bg: #1d1e1f;
+  --mx-header-border: #303030;
+  --mx-main-bg: #141414;
+  --mx-text: #e5e7eb;
+  --mx-text-strong: #f3f4f6;
+  --mx-text-muted: #9ca3af;
+}
 html, body, #app {
   height: 100%;
   margin: 0;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+body {
+  background: var(--mx-main-bg);
+  color: var(--mx-text);
 }
 * {
   box-sizing: border-box;

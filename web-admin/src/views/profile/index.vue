@@ -329,6 +329,60 @@
       </template>
     </el-dialog>
 
+    <!-- 双因素认证卡片 -->
+    <el-card shadow="never" style="margin-top: 20px;">
+      <template #header>
+        <div class="card-header">
+          <span>双因素认证 (2FA)</span>
+          <el-button v-if="!userInfo.totp_enabled" type="primary" @click="open2FASetup">开启保护</el-button>
+          <el-button v-else type="danger" @click="open2FADisable">关闭</el-button>
+        </div>
+      </template>
+      <div>
+        <el-tag :type="userInfo.totp_enabled ? 'success' : 'info'" size="small">
+          {{ userInfo.totp_enabled ? '已启用' : '未启用' }}
+        </el-tag>
+        <p style="color:#6b7280;font-size:13px;margin:12px 0 0;">
+          启用后登录时除密码外，还需输入验证器 App（如 Google Authenticator、Microsoft Authenticator）生成的 6 位动态验证码，为账号增加一层防护。
+        </p>
+      </div>
+    </el-card>
+
+    <!-- 2FA 绑定弹窗 -->
+    <el-dialog v-model="twoFASetupVisible" title="开启双因素认证" width="480px" :close-on-click-modal="false">
+      <el-alert type="info" :closable="false" show-icon style="margin-bottom:16px;">
+        <template #title>请用验证器 App 添加下方密钥，再输入 App 显示的 6 位验证码完成绑定。</template>
+      </el-alert>
+      <div class="info-item">
+        <label>密钥：</label>
+        <span class="totp-secret">{{ twoFASecret }}</span>
+        <el-button link type="primary" size="small" @click="copy2FASecret">复制</el-button>
+      </div>
+      <div class="info-item" style="margin-top:8px;">
+        <label>配置链接：</label>
+        <span style="word-break:break-all;color:#909399;font-size:12px;">{{ twoFAUrl }}</span>
+      </div>
+      <el-form style="margin-top:16px;">
+        <el-form-item label="验证码">
+          <el-input v-model="twoFACode" placeholder="输入 6 位动态验证码" maxlength="6" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="twoFASetupVisible = false">取消</el-button>
+        <el-button type="primary" :loading="twoFAEnableLoading" @click="submitEnable2FA">确认启用</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 2FA 关闭弹窗 -->
+    <el-dialog v-model="twoFADisableVisible" title="关闭双因素认证" width="400px">
+      <p style="color:#606266;">关闭后登录将不再需要动态验证码。请输入当前验证码以确认身份。</p>
+      <el-input v-model="twoFADisableCode" placeholder="输入 6 位动态验证码" maxlength="6" style="margin-top:12px;" />
+      <template #footer>
+        <el-button @click="twoFADisableVisible = false">取消</el-button>
+        <el-button type="danger" :loading="twoFADisableLoading" @click="submitDisable2FA">确认关闭</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 编辑资料弹窗 -->
     <el-dialog
       v-model="editDialogVisible"
@@ -368,7 +422,7 @@ import { Edit, Plus, Link, CopyDocument, Check, InfoFilled, Connection, Loading 
 import { useUserStore } from '@/stores/user'
 import { getProfile, updateProfile, changePassword } from '@/api/modules/user'
 import { getUserRoles } from '@/api/modules/role'
-import { createAPIToken, listAPITokens, revokeAPIToken, type APITokenItem, listOAuthAccounts, unbindOAuth, type OAuthAccountItem, getOAuthRedirectURL, sendEmailVerification } from '@/api/auth'
+import { createAPIToken, listAPITokens, revokeAPIToken, type APITokenItem, listOAuthAccounts, unbindOAuth, type OAuthAccountItem, getOAuthRedirectURL, sendEmailVerification, setup2FA, enable2FA, disable2FA } from '@/api/auth'
 
 const userStore = useUserStore()
 
@@ -386,6 +440,7 @@ const userInfo = reactive({
   tenant_id: '',
   status: 1,
   is_master: false,
+  totp_enabled: false,
   last_login_at: '',
   created_at: ''
 })
@@ -464,6 +519,80 @@ async function loadUserRoles() {
     console.error('加载角色失败', e)
   } finally {
     rolesLoading.value = false
+  }
+}
+
+// 双因素认证 (2FA)
+const twoFASetupVisible = ref(false)
+const twoFASecret = ref('')
+const twoFAUrl = ref('')
+const twoFACode = ref('')
+const twoFAEnableLoading = ref(false)
+const twoFADisableVisible = ref(false)
+const twoFADisableCode = ref('')
+const twoFADisableLoading = ref(false)
+
+async function open2FASetup() {
+  try {
+    const data = await setup2FA()
+    twoFASecret.value = data.secret
+    twoFAUrl.value = data.otpauth_url
+    twoFACode.value = ''
+    twoFASetupVisible.value = true
+  } catch (e) {
+    ElMessage.error('初始化双因素认证失败')
+  }
+}
+
+async function copy2FASecret() {
+  try {
+    await navigator.clipboard.writeText(twoFASecret.value)
+    ElMessage.success('密钥已复制')
+  } catch {
+    ElMessage.warning('复制失败，请手动选中密钥')
+  }
+}
+
+async function submitEnable2FA() {
+  if (!/^\d{6}$/.test(twoFACode.value)) {
+    ElMessage.warning('请输入 6 位动态验证码')
+    return
+  }
+  twoFAEnableLoading.value = true
+  try {
+    await enable2FA(twoFACode.value.trim())
+    ElMessage.success('双因素认证已启用')
+    twoFASetupVisible.value = false
+    userInfo.totp_enabled = true
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } } }
+    ElMessage.error(err.response?.data?.message || '启用失败，请确认验证码是否正确')
+  } finally {
+    twoFAEnableLoading.value = false
+  }
+}
+
+function open2FADisable() {
+  twoFADisableCode.value = ''
+  twoFADisableVisible.value = true
+}
+
+async function submitDisable2FA() {
+  if (!/^\d{6}$/.test(twoFADisableCode.value)) {
+    ElMessage.warning('请输入 6 位动态验证码')
+    return
+  }
+  twoFADisableLoading.value = true
+  try {
+    await disable2FA(twoFADisableCode.value.trim())
+    ElMessage.success('双因素认证已关闭')
+    twoFADisableVisible.value = false
+    userInfo.totp_enabled = false
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } } }
+    ElMessage.error(err.response?.data?.message || '关闭失败，请确认验证码是否正确')
+  } finally {
+    twoFADisableLoading.value = false
   }
 }
 
@@ -786,5 +915,14 @@ onMounted(() => {
     color: #fff;
     &:hover { background: #2f363d; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
   }
+}
+.totp-secret {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 14px;
+  letter-spacing: 1px;
+  color: #303133;
+  background: #f5f7fa;
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 </style>

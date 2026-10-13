@@ -30,7 +30,7 @@
       <!-- 批量操作 -->
       <div v-if="selectedIds.length > 0" class="batch-bar">
         <el-button type="danger" @click="handleBatchDelete">批量删除</el-button>
-        <el-button type="warning" @click="handleBatchDisable">批量禁用</el-button>
+        <el-button type="warning" @click="handleBatchDisable">批量暂停</el-button>
         <el-button type="success" @click="handleBatchEnable">批量启用</el-button>
         <span style="margin-left: 8px; color: #666">已选择 {{ selectedIds.length }} 项</span>
       </div>
@@ -81,8 +81,8 @@
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'info'">
-              {{ row.status === 1 ? '启用' : '禁用' }}
+            <el-tag :type="row.status === 1 ? 'success' : 'warning'">
+              {{ row.status === 1 ? '启用' : '已暂停' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -105,7 +105,7 @@
               :type="row.status === 1 ? 'warning' : 'success'"
               @click="handleToggleStatus(row)"
             >
-              {{ row.status === 1 ? '禁用' : '启用' }}
+              {{ row.status === 1 ? '暂停' : '恢复' }}
             </el-button>
             <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
@@ -864,11 +864,19 @@ async function submitForm() {
 
 async function handleToggleStatus(row: TenantItem) {
   const newStatus = row.status === 1 ? 0 : 1
-  const actionText = newStatus === 1 ? '启用' : '禁用'
+  const actionText = newStatus === 1 ? '恢复' : '暂停'
   try {
-    await ElMessageBox.confirm(`确定要${actionText}租户 "${row.name}" 吗？`, '提示', {
-      type: 'warning'
-    })
+    if (newStatus === 0) {
+      await ElMessageBox.confirm(
+        `确定要暂停租户 "${row.name}" 吗？暂停后该租户成员将无法登录，所有 API 请求返回 403；数据完整保留，随时可恢复。`,
+        '暂停租户（软着陆）',
+        { type: 'warning', confirmButtonText: '确认暂停', confirmButtonClass: 'el-button--warning' }
+      )
+    } else {
+      await ElMessageBox.confirm(`确定要恢复租户 "${row.name}" 吗？恢复后成员可正常登录与访问。`, '提示', {
+        type: 'info'
+      })
+    }
     await updateTenantStatus(row.id, newStatus)
     ElMessage.success(`${actionText}成功`)
     loadList()
@@ -921,11 +929,13 @@ async function handleBatchEnable() {
 async function handleBatchDisable() {
   if (selectedIds.value.length === 0) return
   try {
-    await ElMessageBox.confirm(`确定要禁用选中的 ${selectedIds.value.length} 个租户吗？`, '提示', {
-      type: 'warning'
-    })
+    await ElMessageBox.confirm(
+      `确定要暂停选中的 ${selectedIds.value.length} 个租户吗？暂停后这些租户成员将无法登录，所有 API 请求返回 403；数据完整保留，随时可恢复。`,
+      '批量暂停租户（软着陆）',
+      { type: 'warning', confirmButtonText: '确认暂停', confirmButtonClass: 'el-button--warning' }
+    )
     await batchUpdateTenantStatus({ ids: selectedIds.value, status: 0 })
-    ElMessage.success('批量禁用成功')
+    ElMessage.success('批量暂停成功')
     selectedIds.value = []
     loadList()
   } catch (e) {

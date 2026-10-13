@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 import { useI18n } from './useI18n'
 
 describe('useI18n', () => {
   beforeEach(() => {
+    // useI18n 已迁移至 Pinia store，测试需先激活一个干净的 pinia 实例
+    setActivePinia(createPinia())
     const { setLocale } = useI18n()
     setLocale('zh-CN')
   })

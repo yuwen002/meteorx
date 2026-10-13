@@ -4,6 +4,7 @@ export interface LoginParams {
   username: string
   password: string
   tenant_id?: string
+  otp?: string
 }
 
 export interface LoginUserInfo {
@@ -31,6 +32,7 @@ export interface LoginErrorData {
   remaining_attempts: number
   locked: boolean
   lockout_duration: number
+  require_2fa?: boolean
 }
 
 export interface ForgotPasswordReq {
@@ -234,4 +236,26 @@ export function sendEmailVerification(email: string) {
 /** 验证邮箱，通过邮件中的令牌确认邮箱有效性 */
 export function verifyEmail(token: string) {
   return post<{ message: string }>('/auth/email/verify', { token })
+}
+
+// ========== 双因素认证 (2FA / TOTP) ==========
+
+export interface Setup2FAResult {
+  secret: string
+  otpauth_url: string
+}
+
+/** 开启双因素认证第一步：生成待绑定密钥与 otpauth URI */
+export function setup2FA() {
+  return post<Setup2FAResult>('/auth/2fa/setup', {})
+}
+
+/** 确认绑定双因素认证：提交验证器当前口令以激活 */
+export function enable2FA(code: string) {
+  return post<{ message: string }>('/auth/2fa/enable', { code })
+}
+
+/** 关闭双因素认证：需当前有效验证码 */
+export function disable2FA(code: string) {
+  return post<{ message: string }>('/auth/2fa/disable', { code })
 }

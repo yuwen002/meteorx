@@ -236,6 +236,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '租户健康度', icon: 'DataAnalysis', permission: 'admin:dashboard:list', requireMaster: true }
       },
       {
+        path: 'system/dashboard/slow-queries',
+        name: 'SlowQueries',
+        component: () => import('@/views/system/dashboard/slow-queries.vue'),
+        meta: { title: '慢查询看板', icon: 'Odometer', permission: 'admin:dashboard:list', requireMaster: true }
+      },
+      {
         path: 'system/file',
         name: 'File',
         component: () => import('@/views/system/file/index.vue'),

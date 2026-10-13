@@ -3,8 +3,9 @@
     <!-- 侧边栏 -->
     <el-aside :width="appStore.sidebarCollapsed ? '64px' : '220px'" class="sidebar">
       <div class="logo">
-        <span v-if="!appStore.sidebarCollapsed" style="font-size: 18px; font-weight: 600">MeteorX</span>
-        <span v-else style="font-size: 18px; font-weight: 600">M</span>
+        <img v-if="brand.logo" :src="brand.logo" class="logo-img" alt="logo" />
+        <span v-if="!appStore.sidebarCollapsed" class="logo-text">{{ brand.name }}</span>
+        <span v-else class="logo-text">{{ (brand.name || 'M').charAt(0).toUpperCase() }}</span>
       </div>
       <el-menu
         :default-active="activeMenu"
@@ -154,6 +155,21 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
+          <el-tooltip :content="theme === 'dark' ? '切换到浅色' : '切换到深色'" placement="bottom">
+            <el-icon class="header-action" @click="toggleTheme">
+              <Sunny v-if="theme === 'dark'" />
+              <Moon v-else />
+            </el-icon>
+          </el-tooltip>
+          <el-dropdown trigger="click" @command="handleLang">
+            <span class="header-action lang-toggle">{{ locale === 'zh-CN' ? '中' : 'EN' }}</span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="zh-CN" :class="{ 'lang-active': locale === 'zh-CN' }">简体中文</el-dropdown-item>
+                <el-dropdown-item command="en-US" :class="{ 'lang-active': locale === 'en-US' }">English</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <GlobalNotificationCenter />
           <el-tooltip
             :content="notificationStore.wsConnected ? '实时连接已建立' : '实时连接已断开'"
@@ -177,6 +193,9 @@
                 <el-dropdown-item command="profile">
                   <el-icon><User /></el-icon>个人信息
                 </el-dropdown-item>
+                <el-dropdown-item v-if="userStore.isAdmin" command="brand">
+                  <el-icon><Brush /></el-icon>品牌设置
+                </el-dropdown-item>
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>退出登录
                 </el-dropdown-item>
@@ -194,15 +213,40 @@
         </router-view>
       </el-main>
     </el-container>
+
+    <!-- 白标品牌设置弹窗（仅管理员） -->
+    <el-dialog v-model="brandDialogVisible" title="品牌设置（白标）" width="460px" :close-on-click-modal="false">
+      <p style="color:#6b7280;font-size:13px;margin:0 0 16px;">
+        自定义平台显示名称、Logo 与主色，保存后即时生效并持久化到当前浏览器。
+      </p>
+      <el-form label-width="88px">
+        <el-form-item label="显示名称">
+          <el-input v-model="brandForm.name" placeholder="如 MeteorX" maxlength="30" />
+        </el-form-item>
+        <el-form-item label="Logo 地址">
+          <el-input v-model="brandForm.logo" placeholder="图片 URL（可选）" clearable />
+        </el-form-item>
+        <el-form-item label="品牌主色">
+          <el-color-picker v-model="brandForm.primaryColor" />
+          <span style="margin-left:12px;color:#909399;font-size:12px;">{{ brandForm.primaryColor || '默认' }}</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="resetBrandConfig">恢复默认</el-button>
+        <el-button @click="brandDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveBrandConfig">保存</el-button>
+      </template>
+    </el-dialog>
   </el-container>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import {
   ArrowDown,
   Avatar,
   Bell,
+  Brush,
   CloseBold,
   Connection,
   DataAnalysis,
@@ -213,14 +257,16 @@ import {
   Folder,
   Goods,
   HomeFilled,
-  Lock,
   List,
+  Lock,
   Message,
   Monitor,
+  Moon,
   OfficeBuilding,
   Platform,
   Reading,
   Setting,
+  Sunny,
   SwitchButton,
   Timer,
   User,
@@ -233,6 +279,9 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { useNotificationStore } from '@/stores/notification'
+import { useTheme } from '@/composables/useTheme'
+import { useI18n } from '@/composables/useI18n'
+import { useBrand } from '@/composables/useBrand'
 import GlobalNotificationCenter from '@/views/wiki/components/GlobalNotificationCenter.vue'
 
 const router = useRouter()
@@ -240,6 +289,39 @@ const currentRoute = useRoute()
 const userStore = useUserStore()
 const appStore = useAppStore()
 const notificationStore = useNotificationStore()
+
+const { theme, toggleTheme } = useTheme()
+const { locale, setLocale } = useI18n()
+const { brand, setBrand, resetBrand } = useBrand()
+
+// 白标品牌设置
+const brandDialogVisible = ref(false)
+const brandForm = reactive({ name: '', logo: '', primaryColor: '' })
+
+function openBrandDialog() {
+  brandForm.name = brand.value.name
+  brandForm.logo = brand.value.logo
+  brandForm.primaryColor = brand.value.primaryColor
+  brandDialogVisible.value = true
+}
+
+function saveBrandConfig() {
+  setBrand({ name: brandForm.name.trim() || 'MeteorX', logo: brandForm.logo.trim(), primaryColor: brandForm.primaryColor })
+  ElMessage.success('品牌设置已保存')
+  brandDialogVisible.value = false
+}
+
+function resetBrandConfig() {
+  resetBrand()
+  brandForm.name = 'MeteorX'
+  brandForm.logo = ''
+  brandForm.primaryColor = '#409eff'
+  ElMessage.success('已恢复默认品牌')
+}
+
+function handleLang(lang: string) {
+  setLocale(lang)
+}
 
 const activeMenu = computed(() => currentRoute.path)
 
@@ -262,6 +344,8 @@ async function handleCommand(cmd: string) {
       .catch(() => {})
   } else if (cmd === 'profile') {
     router.push('/profile')
+  } else if (cmd === 'brand') {
+    openBrandDialog()
   }
 }
 </script>
@@ -301,13 +385,23 @@ async function handleCommand(cmd: string) {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   color: #fff;
   background-color: #111827;
   border-bottom: 1px solid #374151;
 }
+.logo-text {
+  font-size: 18px;
+  font-weight: 600;
+}
+.logo-img {
+  height: 24px;
+  width: 24px;
+  object-fit: contain;
+}
 .header {
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--mx-header-bg);
+  border-bottom: 1px solid var(--mx-header-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -322,10 +416,38 @@ async function handleCommand(cmd: string) {
 .collapse-btn {
   font-size: 20px;
   cursor: pointer;
-  color: #4b5563;
+  color: var(--mx-text-muted);
 }
 .collapse-btn:hover {
-  color: #111827;
+  color: var(--mx-text-strong);
+}
+.header-action {
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--mx-text-muted);
+  margin-right: 16px;
+  outline: none;
+}
+.header-action:hover {
+  color: var(--mx-text-strong);
+}
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--mx-header-border);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+.lang-active {
+  color: var(--el-color-primary);
+  font-weight: 600;
 }
 .user-info {
   display: flex;
@@ -335,10 +457,10 @@ async function handleCommand(cmd: string) {
 }
 .username {
   font-size: 14px;
-  color: #374151;
+  color: var(--mx-text);
 }
 .main {
-  background: #f3f4f6;
+  background: var(--mx-main-bg);
   padding: 16px;
 }
 .fade-enter-active,

@@ -3,16 +3,20 @@ import {
   getDashboardOverview,
   getTenantHealthList,
   getTenantHealthDetail,
+  getSlowQueries,
+  resetSlowQueries,
   type DashboardOverview,
   type TenantHealthList,
   type TenantHealthItem,
+  type SlowQuerySnapshot,
 } from './dashboard'
 
 vi.mock('@/api/request', () => ({
   get: vi.fn(),
+  post: vi.fn(),
 }))
 
-import { get } from '@/api/request'
+import { get, post } from '@/api/request'
 
 const sampleHealth: TenantHealthItem = {
   tenant_id: 'tn-1',
@@ -66,6 +70,25 @@ describe('Dashboard API', () => {
     vi.mocked(get).mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, healthy: 0, moderate: 0, at_risk: 0 })
     await getTenantHealthList({ page: 1, page_size: 20 })
     expect(get).toHaveBeenCalledWith('/admin/dashboard/tenants-health', { page: 1, page_size: 20 })
+  })
+
+  it('getSlowQueries 应 GET slow-queries 并返回统计与明细', async () => {
+    const snap: SlowQuerySnapshot = {
+      stats: { threshold_ms: 500, total_queries: 120, slow_queries: 3, max_duration_ms: 1200, avg_slow_ms: 800.5, capacity: 200 },
+      entries: [{ sql: 'SELECT * FROM t', duration_ms: 1200, rows: 10, time: '2026-10-13T00:00:00Z' }],
+    }
+    vi.mocked(get).mockResolvedValue(snap)
+    const res = await getSlowQueries()
+    expect(get).toHaveBeenCalledWith('/admin/dashboard/slow-queries')
+    expect(res.stats.slow_queries).toBe(3)
+    expect(res.entries[0].duration_ms).toBe(1200)
+  })
+
+  it('resetSlowQueries 应 POST slow-queries/reset', async () => {
+    vi.mocked(post).mockResolvedValue({ message: '慢查询统计已重置' })
+    const res = await resetSlowQueries()
+    expect(post).toHaveBeenCalledWith('/admin/dashboard/slow-queries/reset')
+    expect(res.message).toContain('重置')
   })
 
   it('getTenantHealthDetail 应 GET tenants-health/{tenantId}', async () => {
