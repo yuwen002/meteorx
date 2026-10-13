@@ -84,6 +84,12 @@ jobs:
         run: |
           go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
           go tool cover -func=coverage.out
+      # 阶梯式覆盖率门槛：锁定在 2026-10 基线（~37%）下方防回退，随测试补齐逐步上调
+      - name: Enforce Go coverage threshold
+        run: |
+          TOTAL=$(go tool cover -func=coverage.out | tail -1 | awk '{print $NF}' | tr -d '%')
+          echo "Total Go coverage: ${TOTAL}% (threshold: 35%)"
+          awk -v c="$TOTAL" 'BEGIN{exit !(c >= 35)}' || { echo "Coverage below 35% threshold"; exit 1; }
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -205,8 +211,9 @@ jobs:
         run: npm run lint
       - name: Type check
         run: npx vue-tsc --noEmit
-      - name: Run tests
-        run: npm run test:run
+      - name: Run tests with coverage gate
+        # vitest.config.ts 内置阶梯式门槛（api/utils/composables 层 85/95/70/85）
+        run: npm run test:coverage
       - name: Build
         run: npm run build
       - name: Upload build artifacts

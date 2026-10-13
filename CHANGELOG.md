@@ -18,6 +18,10 @@
 
 ### 测试
 - 新增导出模块 handler 层 HTTP 测试（桩服务 + chi 路由），覆盖创建/列表/详情/下载/删除 5 端点的鉴权、参数透传与 400/401/403/404/409/429/500 错误映射
+- 前端补齐 export/plan/dashboard/tenant 四个 API 模块测试（37 用例，均 100% 覆盖），消除 v1.1.0 新页面接口层零测试盲区
+
+### 构建
+- CI 覆盖率门槛（阶梯式防回退）：后端 `go tool cover` 总覆盖率 ≥35%（基线 ~37%）；前端 `vitest coverage` 门槛内置于 vitest.config.ts（仅统计 api/utils/composables 层，lines/statements 85、branches 95、functions 70，基线 86.24/97.84/73.21），前端 job 改用 `npm run test:coverage`
 
 ## [1.1.0] - 2026-10-13
 
