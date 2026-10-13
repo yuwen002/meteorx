@@ -22,6 +22,9 @@ vendor/
 .trae/
 .cursor/
 
+# UI 目视验证临时工具（本地 Playwright 脚本与截图，不入库）
+/_uicheck/
+
 # Environment files
 .env
 .env.local

@@ -74,7 +74,7 @@ meteorx/
 │   │
 │   └── modules/                   # ⭐ 业务模块（核心代码，按领域划分）
 │       │
-│       │   ├── auth/                  # 认证模块
+│       ├── auth/                  # 认证模块
 │       │   ├── dto/
 │       │   │   └── auth_dto.go   # LoginReq/RegisterUserReq/ForgotPasswordReq/ResetPasswordReq
 │       │   ├── handler/
@@ -193,35 +193,35 @@ meteorx/
 │       │   ├── module.go
 │       │   └── routes.go         # 路由注册：/admin/plans/*, /tenant/current/plan
 │       │
-│       │   └── audit/                 # 审计日志模块
-│           ├── dto/
-│           │   └── audit_dto.go # ListAuditLogsQuery/AuditLogResp/DashboardDataResp
-│           ├── handler/
-│           │   └── audit_handler.go
-│           ├── model/
-│           │   └── audit_log.go # AuditLog + AuditTrendPoint + AuditDashboardData
-│           ├── repository/
-│           │   ├── interface.go
-│           │   ├── audit_repository.go # 含趋势统计、Top模块、仪表盘聚合
-│           │   └── mock_repository.go  # Mock 实现
-│           ├── service/
-│           │   └── audit_service.go # 含 GetDashboard 可视化数据聚合
-│           ├── module.go
-│           └── routes.go        # 路由注册：/audit/*（含 /audit/dashboard）
+│       ├── audit/                 # 审计日志模块
+│       │   ├── dto/
+│       │   │   └── audit_dto.go # ListAuditLogsQuery/AuditLogResp/DashboardDataResp
+│       │   ├── handler/
+│       │   │   └── audit_handler.go
+│       │   ├── model/
+│       │   │   └── audit_log.go # AuditLog + AuditTrendPoint + AuditDashboardData
+│       │   ├── repository/
+│       │   │   ├── interface.go
+│       │   │   ├── audit_repository.go # 含趋势统计、Top模块、仪表盘聚合
+│       │   │   └── mock_repository.go  # Mock 实现
+│       │   ├── service/
+│       │   │   └── audit_service.go # 含 GetDashboard 可视化数据聚合
+│       │   ├── module.go
+│       │   └── routes.go        # 路由注册：/audit/*（含 /audit/dashboard）
 │
-│       └── wiki/                  # ⭐ Wiki 知识库模块（Foundation Hardening 首个验证业务）
-│           ├── dto/
-│           │   └── wiki_dto.go   # CreateWikiSpaceReq/WikiNodeResp/DocumentResp 等
-│           ├── handler/
-│           │   └── wiki_handler.go # 22 个 API Handler（Space/Node/Document/Revision/Member/Stats）
-│           ├── model/
-│           │   └── wiki.go      # WikiSpace/WikiNode/Document/DocumentRevision/WikiSpaceMember
-│           ├── repository/
-│           │   └── wiki_repository.go # ⭐ 使用 tenantctx.FilterQuery 自动租户隔离
-│           ├── service/
-│           │   └── wiki_service.go   # 业务逻辑 + 权限校验
-│           ├── module.go
-│           └── routes.go        # 路由注册：/wiki/*
+│       ├── wiki/                  # ⭐ Wiki 知识库模块（Foundation Hardening 首个验证业务）
+│       │   ├── dto/
+│       │   │   └── wiki_dto.go   # CreateWikiSpaceReq/WikiNodeResp/DocumentResp 等
+│       │   ├── handler/
+│       │   │   └── wiki_handler.go # 22 个 API Handler（Space/Node/Document/Revision/Member/Stats）
+│       │   ├── model/
+│       │   │   └── wiki.go      # WikiSpace/WikiNode/Document/DocumentRevision/WikiSpaceMember
+│       │   ├── repository/
+│       │   │   └── wiki_repository.go # ⭐ 使用 tenantctx.FilterQuery 自动租户隔离
+│       │   ├── service/
+│       │   │   └── wiki_service.go   # 业务逻辑 + 权限校验
+│       │   ├── module.go
+│       │   └── routes.go        # 路由注册：/wiki/*
 │
 │       ├── dashboard/            # 运营看板模块
 │       │   ├── dto/
@@ -237,19 +237,19 @@ meteorx/
 │       │   └── routes.go        # 路由注册：/admin/dashboard/*（仅平台管理员）
 │       │
 │       └── notification/          # 通知公告模块
-│           ├── dto/
-│           │   └── announcement_dto.go # CreateAnnouncementReq/AnnouncementResp 等
-│           ├── handler/
-│           │   └── announcement_handler.go
-│           ├── model/
-│           │   └── announcement.go # Announcement（公告）模型
-│           ├── repository/
-│           │   ├── interface.go
-│           │   └── announcement_repository.go
-│           ├── service/
-│           │   └── announcement_service.go
-│           ├── module.go
-│           └── routes.go        # 路由注册：/admin/announcements/*（仅平台管理员）
+│       │   ├── dto/
+│       │   │   └── announcement_dto.go # CreateAnnouncementReq/AnnouncementResp 等
+│       │   ├── handler/
+│       │   │   └── announcement_handler.go
+│       │   ├── model/
+│       │   │   └── announcement.go # Announcement（公告）模型
+│       │   ├── repository/
+│       │   │   ├── interface.go
+│       │   │   └── announcement_repository.go
+│       │   ├── service/
+│       │   │   └── announcement_service.go
+│       │   ├── module.go
+│       │   └── routes.go        # 路由注册：/admin/announcements/*（仅平台管理员）
 │
 ├── pkg/                           # 可复用基础库（可对外暴露）
 │   ├── idgen/                     # ⭐ 统一 ID 生成入口（ULID，替代分散的 ulid/uuid）

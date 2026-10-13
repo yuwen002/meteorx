@@ -30,6 +30,9 @@
 | POST | `/auth/tokens/revoke` | 撤销 API Token | 需 Token |
 | POST | `/auth/email/send-verification` | 发送邮箱验证链接 | 需 Token（只能验证自己的邮箱） |
 | POST | `/auth/email/verify` | 验证邮箱（通过令牌） | 需 Token |
+| POST | `/auth/2fa/setup` | 开启双因素认证（生成 TOTP 密钥） | 需 Token |
+| POST | `/auth/2fa/enable` | 验证验证码并启用 2FA | 需 Token |
+| POST | `/auth/2fa/disable` | 验证当前验证码并关闭 2FA | 需 Token |
 
 ---
 
@@ -70,6 +73,7 @@
 | tenant_id | string | 否 | 租户 ID（超级管理员登录时无需传） |
 | username | string | 是 | 用户名 |
 | password | string | 是 | 密码 |
+| otp | string | 否 | 6 位 TOTP 验证码（仅当账号已开启 2FA 时必填） |
 
 ### 2.5 LoginResp（登录成功响应）
 
@@ -87,6 +91,7 @@
 | remaining_attempts | int | 剩余尝试次数 |
 | locked | bool | 账户是否已锁定 |
 | lockout_duration | int64 | 锁定剩余时间（秒） |
+| require_2fa | bool | 为 `true` 时需补充 6 位双因素验证码（HTTP 401） |
 
 ### 2.7 ForgotPasswordReq（忘记密码请求）
 
@@ -911,3 +916,74 @@ POST /auth/email/verify { token }
         ▼
 验证成功 → 显示成功页面 → 跳转登录
 ```
+
+---
+
+## 8. 双因素认证（2FA / TOTP）
+
+基于 RFC 6238 时间一次性口令（纯标准库实现，`pkg/totp`）。需登录后操作，用户身份从 Token 解析。
+
+### 8.1 开启 2FA（生成密钥）
+
+`POST /api/v1/auth/2fa/setup`
+
+**请求头：** `Authorization: Bearer <token>`
+
+**业务规则：**
+- 若账号已启用 2FA，返回 `400`
+- 生成 Base32 密钥，暂存 Redis（`2fa:pending:{userID}`，TTL 15 分钟），**不落库**，避免持久化未验证密钥
+- 返回密钥与标准 `otpauth://` 链接，供 authenticator App 手动录入或扫码
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "secret": "JBSWY3DPEHPK3PXP",
+    "otpauth_url": "otpauth://totp/MeteorX:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=MeteorX"
+  }
+}
+```
+
+**错误响应：**
+| 状态码 | 场景 |
+|--------|------|
+| 400 | 已启用 2FA |
+| 401 | 未登录 |
+| 500 | Redis/存储不可用 |
+
+### 8.2 验证并启用
+
+`POST /api/v1/auth/2fa/enable`
+
+**请求体：**
+```json
+{ "code": "123456" }
+```
+
+**业务规则：**
+- 从 Redis 取回暂存密钥（为空则 `400` 提示重新发起）；校验验证码（±1 时间窗容错），通过后持久化密钥并置 `totp_enabled=true`，清除暂存
+
+**错误响应：** 400（验证码错误/密钥已过期）、401（未登录）、500（存储不可用）。
+
+### 8.3 关闭 2FA
+
+`POST /api/v1/auth/2fa/disable`
+
+**请求体：**
+```json
+{ "code": "123456" }
+```
+
+**业务规则：**
+- 未启用时返回 `400`；校验当前密钥对应的验证码，通过后清空密钥并置 `totp_enabled=false`
+
+**错误响应：** 400（未启用/验证码错误）、401（未登录）、500（存储不可用）。
+
+### 8.4 登录中的 2FA 行为
+
+已启用 2FA 的账号，`POST /auth/login` 在密码/租户校验通过后：
+- 未携带 `otp` → 返回 `401` + `require_2fa=true`（前端据此展示验证码输入框）
+- `otp` 错误 → 计入账户锁定失败次数，返回 `401` + `require_2fa=true` + `remaining_attempts`
+- `otp` 正确 → 正常签发令牌

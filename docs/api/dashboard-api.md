@@ -15,6 +15,8 @@
 | GET | `/admin/dashboard/overview` | 平台运营数据总览 | `admin:dashboard:list` |
 | GET | `/admin/dashboard/tenants-health` | 租户健康度列表（含分级汇总） | `admin:dashboard:list` |
 | GET | `/admin/dashboard/tenants-health/{id}` | 单租户健康度详情 | `admin:dashboard:list` |
+| GET | `/admin/dashboard/slow-queries` | 慢查询看板快照（统计 + 明细） | `admin:dashboard:list` |
+| POST | `/admin/dashboard/slow-queries/reset` | 重置慢查询统计缓冲区 | `admin:dashboard:create` |
 
 ---
 
@@ -201,10 +203,69 @@
 
 **错误响应：** 租户不存在返回 404。
 
+### 3.4 慢查询看板快照
+
+`GET /api/v1/admin/dashboard/slow-queries`
+
+返回进程内采集的慢查询统计与最近明细（`internal/dbmonitor` 环形缓冲）。
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "ok",
+  "data": {
+    "stats": {
+      "threshold_ms": 500,
+      "total_queries": 1200,
+      "slow_queries": 15,
+      "max_duration_ms": 2300,
+      "avg_slow_ms": 820.5,
+      "capacity": 200
+    },
+    "entries": [
+      {
+        "sql": "SELECT * FROM tasks WHERE ...",
+        "duration_ms": 2300,
+        "rows": 512,
+        "trace_id": "0af7651916cd43dd",
+        "time": "2026-10-13T03:21:00Z"
+      }
+    ]
+  }
+}
+```
+
+**字段说明：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| stats.threshold_ms | int64 | 慢查询判定阈值（由 `database.slow_query_ms` 配置，默认 500） |
+| stats.total_queries | int64 | 采样期间捕获的 SQL 总数 |
+| stats.slow_queries | int64 | 超过阈值的慢查询数 |
+| stats.max_duration_ms | int64 | 观测到的最大耗时 |
+| stats.avg_slow_ms | float | 慢查询平均耗时 |
+| stats.capacity | int | 缓冲区容量（默认 200） |
+| entries[].sql | string | SQL 语句 |
+| entries[].duration_ms | int64 | 耗时（毫秒） |
+| entries[].rows | int64 | 影响/返回行数 |
+| entries[].error | string | 错误信息（仅出错时携带） |
+| entries[].trace_id | string | 关联链路追踪 ID |
+| entries[].time | string | 查询发生时间（UTC，倒序） |
+
+**业务说明：** 采集仅在 `database.slow_query_ms > 0` 时启用；缓冲区仅驻内存，进程重启即清零。
+
+### 3.5 重置慢查询统计
+
+`POST /api/v1/admin/dashboard/slow-queries/reset`
+
+清空当前进程的慢查询统计与明细。返回 `{"message": "慢查询统计已重置"}`。
+
 ---
 
 ## 4. 权限码列表
 
 | 权限码 | 说明 |
 |--------|------|
-| `admin:dashboard:list` | 查看平台运营数据总览 |
+| `admin:dashboard:list` | 查看平台运营数据总览、租户健康度与慢查询看板 |
+| `admin:dashboard:create` | 重置慢查询统计缓冲区 |

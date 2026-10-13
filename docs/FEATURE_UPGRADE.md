@@ -1018,3 +1018,104 @@ client:
 **前端**
 - 套餐管理（`system/plan/index.vue`）：列表新增存储配额/API 速率/Wiki 空间三列；新建/编辑对话框支持三项配额配置，存储以 GB 输入并与字节互相换算，-1 统一显示「不限」
 - 租户套餐配置弹窗（`system/tenant/index.vue`）：用户/存储/Wiki 空间三条用量进度条，超 100% 显示异常色
+
+---
+
+## 二十五、双因素认证（2FA / TOTP）
+
+为账号登录提供基于时间的一次性口令（RFC 6238 TOTP）二次校验，纯标准库实现，不引入第三方依赖。
+
+**后端**
+- 新增算法包 `pkg/totp`：`GenerateSecret`（Base32 密钥）、`Now`/`Validate`（±1 时间窗容错）、`OTPAuthURL`（标准 `otpauth://`  provisioning URI，供 authenticator App 扫码）
+- `User` 模型/仓储扩展两字段：`totp_secret`（加密存储）、`totp_enabled`；新增 `UpdateTOTP(ctx, id, secret, enabled)`
+- 认证服务（`internal/modules/auth/service`）：
+  - `Login` 在租户状态软着陆校验后追加 TOTP 分支——已启用而缺 OTP → 返回 `require_2fa`；OTP 错误 → 计入账户锁定失败次数并返回 `require_2fa`；正确 → 放行签发令牌
+  - `Setup2FA`：生成密钥暂存 Redis（`2fa:pending:{userID}`，TTL 15 分钟），返回密钥 + `otpauth://` URL，不落库，避免持久化未验证密钥
+  - `Enable2FA`：校验 Redis 暂存密钥对应的验证码后 `UpdateTOTP(enabled=true)` 并清除暂存
+  - `Disable2FA`：校验当前密钥验证码后 `UpdateTOTP(secret="", enabled=false)`
+- 路由 `RegisterTwoFactorRoutes`：`POST /api/v1/auth/2fa/setup`、`POST /api/v1/auth/2fa/enable`、`POST /api/v1/auth/2fa/disable`（均需登录态，从 `contextx.GetUserID` 取用户）
+- 错误映射：Redis/存储不可用 500、密钥过期 400、重复启用/未启用 400
+
+**前端**
+- 登录页（`views/login/index.vue`）：后端返回 401 + `require_2fa` 时二段式揭示 6 位验证码输入框，随账号密码一并重提
+- 个人中心（`views/profile/index.vue`）：2FA 卡片展示启用状态，开启走「显示密钥 + otpauth 链接 + 复制 + 填验证码确认」三步绑定，关闭需当前验证码
+- API（`api/auth.ts`）：登录参数增 `otp`、错误数据增 `require_2fa`、新增 `setup2FA`/`enable2FA`/`disable2FA`
+
+---
+
+## 二十六、慢查询看板（Dashboard）
+
+以 GORM Logger 中间件形式在进程内采集超过阈值的 SQL，无需依赖外部慢查询日志，供平台管理员实时查看。
+
+**后端新增 `internal/dbmonitor`**
+- `Logger` 实现 `gorm logger.Interface`，`Trace` 中耗时 ≥ 阈值则记入内存环形缓冲区（默认容量 200，时间倒序），否则仅累计总量；其余方法委托被包装的原始 logger
+- `store` 线程安全环形缓冲，累计 total/slow/max/avg 统计；`Snapshot()` 返回统计 + 最近慢查询明细拷贝，`Reset()` 清空
+- 配置 `database.slow_query_ms`：`GetSlowQueryThreshold()` 未配置（0）默认 500ms、负值关闭采集
+- 装配（`bootstrap/database.go`）：阈值 > 0 时 `dbmonitor.Init` 并用 `dbmonitor.NewLogger` 包装 GORM 日志器
+- 端点（`internal/modules/dashboard`）：`GET /api/v1/admin/dashboard/slow-queries` → `admin:dashboard:list`、`POST /api/v1/admin/dashboard/slow-queries/reset` → `admin:dashboard:create`
+
+**前端新增 `web-admin/src/views/system/dashboard/slow-queries.vue`**
+- 路由 `/system/dashboard/slow-queries`（仅平台管理员可见）；SQL 总数/慢查询数/最大耗时/平均耗时四指标卡 + 慢查询明细表（耗时着色、SQL、Trace ID、状态标签）+ 5 秒自动刷新 + 重置统计
+
+---
+
+## 二十七、前端暗色主题
+
+**前端**
+- 新增 `composables/useTheme.ts`：`localStorage` 持久化 `meteorx_theme`，模块导入即应用，切换 `html.dark` 类与 `data-theme`
+- 引入 Element Plus 官方暗色变量 `element-plus/theme-chalk/dark/css-vars.css`，绝大多数组件自动适配暗色
+- `App.vue` 定义 `:root` / `html.dark` 品牌级 CSS 变量（`--mx-header-bg` 等），布局 chrome 硬编码色改用变量
+- 顶栏（`DefaultLayout.vue`）新增 Sunny/Moon 主题切换按钮
+
+---
+
+## 二十八、前端国际化框架落地（i18n）
+
+**前端**
+- `composables/useI18n.ts`：新增 `localStorage` 语言持久化（`meteorx_locale`），初始化读取回退 `zh-CN`，`setLocale` 写入
+- `App.vue`：`el-config-provider` 的 `:locale` 改为按当前语言 computed（zh-CN→zhCn / en-US→enUs），Element Plus 内置文案随语言切换
+- 顶栏新增中/EN 语言切换入口
+
+---
+
+## 二十九、白标自定义品牌（White-label）
+
+客户端品牌定制：管理员可在界面上修改产品名、Logo 与主题主色，持久化于浏览器并即时应用（服务端级白标见「三十、服务端多租户白标」）。
+
+**前端**
+- 新增 `composables/useBrand.ts`：`BrandConfig{name, logo, primaryColor}`，`localStorage` 持久化 `meteorx_brand`；`applyBrand` 设置 `document.title` 并覆盖 `--el-color-primary`/`--mx-brand-primary`
+- 布局侧边栏 Logo 区随品牌名/图动态渲染；`App.vue` 启动即 `applyBrand()`
+- 顶栏用户下拉新增「品牌设置」入口（仅管理员可见），对话框支持名称/Logo/主色（`el-color-picker`）编辑、保存与恢复默认
+
+---
+
+## 三十、服务端多租户白标（Server-side White-label）
+
+将品牌配置从纯客户端 `localStorage` 升级为服务端按租户下发并全局应用：租户管理员在「租户设置 → 品牌定制」保存的 Logo/主色实时生效，品牌名复用 `Tenant.Name`。采用**服务端优先、本地回退**策略。
+
+**后端**
+- `tenant/dto/tenant_settings_dto.go`：`TenantSettingsResp` 新增 `tenant_name` 字段（best-effort 下发）
+- `tenant/service/tenant_settings_service.go`：新增 `tenantNameProvider` 抽象与 `WithTenantNameProvider` 函数式选项，`GetSettings`/`UpdateSettings` 经 `fillTenantName` best-effort 填充租户名（provider 为 nil 或查询失败保持空值，不阻断主流程）
+- `tenant/module.go`：`NewTenantSettingsHandler` 注入 `TenantRepository`
+
+**前端**
+- `stores/brand.ts`（原 `composables/useBrand.ts` 迁入）：`applyServerBrand`（服务端字段优先、空值回退默认并缓存至 localStorage）与 `syncBrandFromServer`（登录后拉取 `GET /tenant-settings` 应用，失败回退本地/默认品牌）
+- `App.vue`：登录态变化与已登录挂载时触发 `syncBrandFromServer`
+- `views/tenant/settings/index.vue`：保存成功后即时 `applyServerBrand` 使新品牌全局生效
+- `api/modules/tenant.ts`：`TenantSettings` 接口补充 `tenant_name`
+
+---
+
+## 三十一、前端全局状态迁移至 Pinia store
+
+将 `useTheme`/`useBrand`/`useI18n` 从“模块级单例 `ref` + localStorage”迁移为 Pinia setup store，与已有 `stores/`（`user`/`app`/`notification`）风格统一；`useTableList`（页面局部列表态）与 `useWebSocket`（携 `onUnmounted` 生命周期、按使用方隔离）仍为合理 composable，不迁为全局 store。
+
+**分层策略**
+- 新增 `stores/theme.ts`、`stores/brand.ts`、`stores/i18n.ts`：持有全局响应式状态 + actions（含主题/品牌/语言的 DOM 应用与持久化）
+- `composables/useTheme.ts`/`useBrand.ts`/`useI18n.ts` 保留为薄封装（基于 `storeToRefs` 转发 store），对外 API 与 `.value` ref 语义不变，三个消费方（`App.vue`/`DefaultLayout.vue`/`settings`）零改动
+- 首屏无闪烁：将原“模块导入即副作用”改为 `main.ts` 挂载前调用纯函数 `applyThemeToDOM/applyBrandToDOM/applyLocaleToDOM`（配合 `readStoredXxx`，不依赖 Pinia），store 实例化时读同一份 localStorage，状态一致
+
+**测试**
+- `composables/useI18n.test.ts`：`beforeEach` 新增 `setActivePinia(createPinia())`
+- 新增 `stores/theme.test.ts`、`stores/brand.test.ts`（覆盖持久化、服务端优先应用与失败回退）
+- 验证：`vue-tsc --noEmit` ✅、`vitest` 118 例全过 ✅、`eslint` ✅、`vite build` ✅
