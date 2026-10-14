@@ -8,6 +8,8 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
@@ -65,18 +67,49 @@ func (h *TaskHandler) List(w http.ResponseWriter, r *http.Request) {
 	pageSize, _ := strconv.Atoi(q.Get("page_size"))
 	pg := pagination.NewPagination(page, pageSize)
 
+	// status=overdue 为前端"逾期"卡片下钻的伪状态：映射为 Overdue 过滤位，不作为真实状态列匹配
+	statusParam := q.Get("status")
 	f := repository.ListFilter{
 		TenantID:   tenantID,
 		UserID:     userID,
 		Visibility: q.Get("visibility"),
-		Status:     q.Get("status"),
 		Priority:   q.Get("priority"),
 		AssigneeID: q.Get("assignee_id"),
 		Keyword:    q.Get("keyword"),
+		Tag:        strings.TrimSpace(q.Get("tag")),
 		Page:       pg.Page,
 		PageSize:   pg.PageSize,
 		SortBy:     q.Get("sort_by"),
 		SortOrder:  q.Get("sort_order"),
+	}
+	if statusParam == "overdue" {
+		f.Overdue = true
+	} else {
+		f.Status = statusParam
+	}
+
+	// 截止时间区间过滤：due_from / due_to，均支持 RFC3339、"YYYY-MM-DD HH:mm:ss"、"YYYY-MM-DD"
+	if raw := strings.TrimSpace(q.Get("due_from")); raw != "" {
+		t, err := service.ParseTaskDate(raw)
+		if err != nil {
+			response.BadRequest(w, "due_from 时间格式不正确")
+			return
+		}
+		f.DueFrom = t
+	}
+	if raw := strings.TrimSpace(q.Get("due_to")); raw != "" {
+		t, err := service.ParseTaskDate(raw)
+		if err != nil {
+			response.BadRequest(w, "due_to 时间格式不正确")
+			return
+		}
+		// 仅日期（无时间）的上界补足到当天 23:59:59，使"按日期区间"查询含当天全部任务
+		if len(raw) == len("2006-01-02") {
+			y, m, d := t.Date()
+			eod := time.Date(y, m, d, 23, 59, 59, 0, time.Local)
+			t = &eod
+		}
+		f.DueTo = t
 	}
 
 	tasks, total, err := h.svc.List(r.Context(), f)

@@ -73,10 +73,17 @@ export interface TaskListParams {
   page?: number
   page_size?: number
   visibility?: TaskVisibility
-  status?: TaskStatus
+  /** 状态筛选；'overdue' 为"仅逾期"伪状态（后端映射为逾期过滤），用于逾期卡片下钻 */
+  status?: TaskStatus | 'overdue'
   priority?: TaskPriority
   assignee_id?: string
   keyword?: string
+  /** 按标签精确筛选 */
+  tag?: string
+  /** 截止时间区间下界（含），支持 YYYY-MM-DD 或 RFC3339 */
+  due_from?: string
+  /** 截止时间区间上界（含），仅传日期时后端自动补足到当天 23:59:59 */
+  due_to?: string
   sort_by?: string
   sort_order?: 'asc' | 'desc'
 }

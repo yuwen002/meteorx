@@ -18,10 +18,18 @@ type ListFilter struct {
 	Priority   string // 优先级筛选：空=不限
 	AssigneeID string // 负责人筛选：空=不限
 	Keyword    string // 关键词（标题/描述模糊匹配）
+	Tag        string // 标签筛选：任务标签集合包含该标签时命中（精确匹配单个标签）；空=不限
 	Page       int    // 页码
 	PageSize   int    // 每页条数
 	SortBy     string // 排序字段：created_at/due_date/priority/updated_at
 	SortOrder  string // 排序方向：asc/desc
+	// Overdue 为真时仅返回未完成的逾期任务（status<>completed 且 due_date<now），
+	// 与 Stats 的逾期口径一致，使前端"逾期"卡片可下钻到列表；由 handler 将 status=overdue 映射而来。
+	Overdue bool
+	// DueFrom/DueTo 限定截止时间区间（含边界），due_date 需同时满足 >= DueFrom 且 <= DueTo；
+	// 任一为 nil 表示该侧不设限。用于"今天到期/本周/自定义区间"筛选。
+	DueFrom *time.Time
+	DueTo   *time.Time
 }
 
 // TaskStatusStats 按状态统计的任务数量。

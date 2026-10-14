@@ -21,9 +21,9 @@
         </el-card>
       </el-col>
       <el-col :span="4">
-        <el-card shadow="never" class="stat-card">
+        <el-card shadow="never" class="stat-card stat-card--clickable" @click="filterOverdue">
           <div class="stat-num danger">{{ stats.overdue }}</div>
-          <div class="stat-label">已逾期</div>
+          <div class="stat-label">已逾期<span class="drill-hint">› 下钻</span></div>
         </el-card>
       </el-col>
       <el-col :span="4">
@@ -65,6 +65,7 @@
           <el-option label="待办" value="pending" />
           <el-option label="进行中" value="in_progress" />
           <el-option label="已完成" value="completed" />
+          <el-option label="已逾期" value="overdue" />
         </el-select>
         <el-select v-model="priorityFilter" placeholder="优先级" clearable style="width: 120px; margin-right: 12px;" @change="loadList">
           <el-option label="低" value="low" />
@@ -72,6 +73,18 @@
           <el-option label="高" value="high" />
           <el-option label="紧急" value="urgent" />
         </el-select>
+        <el-input v-model="tagFilter" placeholder="按标签筛选" clearable style="width: 150px; margin-right: 12px;" @clear="loadList" @keyup.enter="loadList" />
+        <el-date-picker
+          v-model="dueRange"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="截止起"
+          end-placeholder="截止止"
+          value-format="YYYY-MM-DD"
+          clearable
+          style="width: 240px; margin-right: 12px;"
+          @change="loadList"
+        />
         <el-input v-model="keyword" placeholder="搜索标题/描述" clearable style="width: 200px; margin-right: 12px;" @clear="loadList" @keyup.enter="loadList" />
         <el-button type="primary" @click="loadList">查询</el-button>
       </div>
@@ -262,9 +275,11 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const keyword = ref('')
-const statusFilter = ref<'' | TaskStatus>('')
+const statusFilter = ref<'' | TaskStatus | 'overdue'>('')
 const priorityFilter = ref<'' | TaskPriority>('')
 const visibilityFilter = ref<'' | TaskVisibility>('')
+const tagFilter = ref('')
+const dueRange = ref<[string, string] | null>(null)
 
 const stats = reactive<TaskStats>({ pending: 0, in_progress: 0, completed: 0, overdue: 0, total: 0, completion_rate: 0, avg_handle_seconds: 0 })
 
@@ -328,6 +343,9 @@ async function loadList() {
       status: statusFilter.value || undefined,
       priority: priorityFilter.value || undefined,
       visibility: visibilityFilter.value || undefined,
+      tag: tagFilter.value || undefined,
+      due_from: dueRange.value?.[0] || undefined,
+      due_to: dueRange.value?.[1] || undefined,
     })
     const result = toPageResult<TaskItem>(raw)
     list.value = result.list
@@ -471,6 +489,13 @@ async function handleBatchDelete() {
   } catch { /* cancelled */ }
 }
 
+// filterOverdue 点击"已逾期"统计卡：将状态筛选切为逾期伪状态并重查（再次点击取消）。
+function filterOverdue() {
+  statusFilter.value = statusFilter.value === 'overdue' ? '' : 'overdue'
+  page.value = 1
+  loadList()
+}
+
 function openTrash() {
   trashVisible.value = true
   trashPage.value = 1
@@ -528,6 +553,18 @@ onMounted(() => {
 }
 .stat-card {
   text-align: center;
+}
+.stat-card--clickable {
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+}
+.stat-card--clickable:hover {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+}
+.drill-hint {
+  margin-left: 4px;
+  font-size: 11px;
+  color: #c0c4cc;
 }
 .stat-num {
   font-size: 28px;

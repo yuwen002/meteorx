@@ -218,10 +218,13 @@
 | page | int | 页码，默认 1 |
 | page_size | int | 每页条数，默认 10 |
 | visibility | string | 可见范围筛选：`personal` / `tenant`；不传时返回"租户任务 + 自己相关的个人任务" |
-| status | string | 状态筛选 |
+| status | string | 状态筛选：`pending` / `in_progress` / `completed`；**传 `overdue` 为"仅逾期"伪状态**，返回未完成的逾期任务（口径与 `/tasks/stats` 的 `overdue` 一致，供前端逾期卡片下钻） |
 | priority | string | 优先级筛选 |
 | assignee_id | string | 按负责人筛选 |
 | keyword | string | 按标题/描述模糊搜索 |
+| tag | string | 按标签精确筛选（任务标签集合包含该标签时命中，基于 MySQL `JSON_CONTAINS`） |
+| due_from | string | 截止时间区间下界（含），支持 RFC3339 / `2006-01-02 15:04:05` / `2006-01-02`；格式非法返回 `400` |
+| due_to | string | 截止时间区间上界（含）；**仅传日期（`2006-01-02`）时后端自动补足到当天 `23:59:59`**，使按日期区间含当天全部任务；格式非法返回 `400` |
 | sort_by | string | 排序字段（如 `created_at`、`due_date`、`priority`） |
 | sort_order | string | 排序方向 `asc` / `desc` |
 

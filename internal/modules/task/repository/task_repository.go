@@ -283,6 +283,20 @@ func (r *taskRepository) List(ctx context.Context, f ListFilter) ([]*model.Task,
 		kw := "%" + f.Keyword + "%"
 		q = q.Where("title LIKE ? OR description LIKE ?", kw, kw)
 	}
+	if f.Tag != "" {
+		// tags 以 JSON 数组文本存储，借助 MySQL JSON_CONTAINS 精确匹配单个标签
+		q = q.Where("JSON_CONTAINS(tags, JSON_QUOTE(?))", f.Tag)
+	}
+	if f.Overdue {
+		q = q.Where("status <> ? AND due_date IS NOT NULL AND due_date < ?",
+			model.TaskStatusCompleted, time.Now())
+	}
+	if f.DueFrom != nil {
+		q = q.Where("due_date >= ?", *f.DueFrom)
+	}
+	if f.DueTo != nil {
+		q = q.Where("due_date <= ?", *f.DueTo)
+	}
 
 	var total int64
 	if err := q.Count(&total).Error; err != nil {

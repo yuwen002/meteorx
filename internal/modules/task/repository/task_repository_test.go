@@ -132,6 +132,43 @@ func TestTaskRepo_List_Personal(t *testing.T) {
 	assert.Equal(t, "id1", tasks[0].ID)
 }
 
+// TestTaskRepo_List_FilterEnhancements 验证标签(JSON_CONTAINS)/逾期/截止时间区间
+// 三个新过滤条件能正确拼入 SQL 并完成扫描。
+func TestTaskRepo_List_FilterEnhancements(t *testing.T) {
+	gormDB, mock := newTaskTestDB(t)
+	repo := NewTaskRepository(gormDB)
+
+	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.Local)
+	to := time.Date(2026, 1, 31, 23, 59, 59, 0, time.Local)
+
+	// count 与数据查询均需命中包含 JSON_CONTAINS 的 WHERE 子句
+	mock.ExpectQuery("JSON_CONTAINS\\(tags, JSON_QUOTE").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery("due_date >= .*due_date <=").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "tenant_id", "creator_id", "assignee_id", "title", "description",
+			"status", "priority", "due_date", "tags", "visibility", "completed_at",
+			"created_at", "updated_at", "deleted_at",
+		}).AddRow("id1", "t1", "u1", "u1", "写周报", "", "pending", "normal",
+			to, `["工作"]`, "tenant", nil, from, from, nil))
+
+	tasks, total, err := repo.List(context.Background(), ListFilter{
+		TenantID:   "t1",
+		UserID:     "u1",
+		Visibility: model.TaskVisibilityTenant,
+		Tag:        "工作",
+		Overdue:    true,
+		DueFrom:    &from,
+		DueTo:      &to,
+		Page:       1,
+		PageSize:   20,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, "id1", tasks[0].ID)
+}
+
 func TestTaskRepo_Stats(t *testing.T) {
 	gormDB, mock := newTaskTestDB(t)
 	repo := NewTaskRepository(gormDB)

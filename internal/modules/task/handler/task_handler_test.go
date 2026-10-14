@@ -264,6 +264,57 @@ func TestTaskList_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
+// TestTaskList_OverduePseudoStatus 验证 status=overdue 被映射为 Overdue 过滤位而不污染 Status。
+func TestTaskList_OverduePseudoStatus(t *testing.T) {
+	var got repository.ListFilter
+	stub := &stubTaskService{listFn: func(_ context.Context, f repository.ListFilter) ([]*model.Task, int64, error) {
+		got = f
+		return nil, 0, nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodGet, "/tasks?status=overdue", nil), "t1", "u1")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.True(t, got.Overdue)
+	assert.Empty(t, got.Status)
+}
+
+// TestTaskList_TagAndDateRange 验证 tag 透传与 due_from/due_to 解析；
+// 仅日期上界应补足到当天 23:59:59。
+func TestTaskList_TagAndDateRange(t *testing.T) {
+	var got repository.ListFilter
+	stub := &stubTaskService{listFn: func(_ context.Context, f repository.ListFilter) ([]*model.Task, int64, error) {
+		got = f
+		return nil, 0, nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodGet, "/tasks?tag=%E5%B7%A5%E4%BD%9C&due_from=2026-01-01&due_to=2026-01-31", nil), "t1", "u1")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "工作", got.Tag)
+	require.NotNil(t, got.DueFrom)
+	require.NotNil(t, got.DueTo)
+	expectedTo := time.Date(2026, 1, 31, 23, 59, 59, 0, time.Local)
+	assert.True(t, got.DueTo.Equal(expectedTo), "due_to 应补足到当天末尾，got=%v want=%v", *got.DueTo, expectedTo)
+}
+
+// TestTaskList_InvalidDueRange 验证非法的 due_from/due_to 返回 400。
+func TestTaskList_InvalidDueRange(t *testing.T) {
+	stub := &stubTaskService{listFn: func(context.Context, repository.ListFilter) ([]*model.Task, int64, error) {
+		return nil, 0, nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodGet, "/tasks?due_from=not-a-date", nil), "t1", "u1")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
 func TestTaskStats_Success(t *testing.T) {
 	stub := &stubTaskService{statsFn: func(context.Context, repository.ListFilter) (*repository.TaskStatusStats, error) {
 		return &repository.TaskStatusStats{Pending: 2, Completed: 1, Total: 3, AvgHandleSeconds: 7200}, nil

@@ -673,6 +673,12 @@ func canEdit(task *model.Task, userID string) bool {
 	return task.Visibility == model.TaskVisibilityTenant && task.AssigneeID == userID
 }
 
+// ParseTaskDate 导出给 handler 层复用的时间解析：宽松支持 RFC3339、
+// "2006-01-02 15:04:05" 与 "2006-01-02"；空串返回 (nil, nil)，无法解析返回 ErrInvalidDueDate。
+func ParseTaskDate(s string) (*time.Time, error) {
+	return parseDueDate(s)
+}
+
 // parseDueDate 宽松解析截止时间：支持空值、RFC3339、"2006-01-02 15:04:05" 与 "2006-01-02"。
 func parseDueDate(s string) (*time.Time, error) {
 	s = strings.TrimSpace(s)
