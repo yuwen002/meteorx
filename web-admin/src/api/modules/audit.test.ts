@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getAlertStats, getDetailedStats, getAnomalyLogs, type AlertStatsResult, type DetailedStats, type AnomalyLogItem } from './audit'
+import { getAlertStats, getDetailedStats, getAnomalyLogs, getAuditLogList, getAuditLogDetail, getAuditStats, getAuditDashboard, cleanupAuditLogs, exportAuditLogs, getUserTimeline, type AlertStatsResult, type DetailedStats, type AnomalyLogItem } from './audit'
 
 vi.mock('../request', () => ({
   get: vi.fn(),
@@ -8,7 +8,7 @@ vi.mock('../request', () => ({
   put: vi.fn(),
 }))
 
-import { get } from '../request'
+import { get, del } from '../request'
 
 describe('Audit API - Alert Stats', () => {
   beforeEach(() => {
@@ -117,5 +117,87 @@ describe('Audit API - Anomaly Logs', () => {
     const result = await getAnomalyLogs()
     expect(get).toHaveBeenCalledWith('/audit/anomalies', undefined)
     expect(result).toHaveLength(0)
+  })
+})
+
+describe('Audit API - Logs & Dashboard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('getAuditLogList should map paginated response to list result', async () => {
+    vi.mocked(get).mockResolvedValue({
+      data: [{ id: 'l1', username: 'alice' }],
+      pagination: { page: 1, page_size: 20, total: 1 },
+    })
+
+    const result = await getAuditLogList({ page: 1, username: 'alice' })
+    expect(get).toHaveBeenCalledWith('/audit/logs', { page: 1, username: 'alice' })
+    expect(result.items).toHaveLength(1)
+    expect(result.page).toBe(1)
+    expect(result.page_size).toBe(20)
+    expect(result.total).toBe(1)
+  })
+
+  it('getAuditLogDetail should GET the log by id', async () => {
+    vi.mocked(get).mockResolvedValue({ id: 'l1' })
+    const result = await getAuditLogDetail('l1')
+    expect(get).toHaveBeenCalledWith('/audit/logs/l1')
+    expect(result.id).toBe('l1')
+  })
+
+  it('getAuditStats should GET /audit/stats', async () => {
+    vi.mocked(get).mockResolvedValue({ total_count: 10 })
+    const result = await getAuditStats()
+    expect(get).toHaveBeenCalledWith('/audit/stats')
+    expect(result.total_count).toBe(10)
+  })
+
+  it('getAuditDashboard should pass days or default to 7', async () => {
+    vi.mocked(get).mockResolvedValue({})
+    await getAuditDashboard(30)
+    expect(get).toHaveBeenCalledWith('/audit/dashboard', { days: 30 })
+
+    await getAuditDashboard()
+    expect(get).toHaveBeenCalledWith('/audit/dashboard', { days: 7 })
+  })
+
+  it('cleanupAuditLogs should DELETE with days param', async () => {
+    vi.mocked(del).mockResolvedValue({ deleted_count: 5 })
+    const result = await cleanupAuditLogs(30)
+    expect(del).toHaveBeenCalledWith('/audit/logs/cleanup', { params: { days: 30 } })
+    expect(result.deleted_count).toBe(5)
+  })
+
+  it('exportAuditLogs should build query string from provided fields', () => {
+    const url = exportAuditLogs({ format: 'csv', module: 'auth', keyword: 'login' })
+    expect(url).toBe('/api/v1/audit/logs/export?format=csv&module=auth&keyword=login')
+  })
+
+  it('exportAuditLogs should return empty query when no fields', () => {
+    const url = exportAuditLogs({})
+    expect(url).toBe('/api/v1/audit/logs/export?')
+  })
+
+  it('exportAuditLogs should include all optional filters', () => {
+    const url = exportAuditLogs({
+      format: 'csv',
+      module: 'auth',
+      action: 'login',
+      result: 'success',
+      start_time: '2026-01-01',
+      end_time: '2026-01-02',
+      keyword: 'k',
+    })
+    for (const frag of ['format=csv', 'module=auth', 'action=login', 'result=success', 'start_time=', 'end_time=', 'keyword=k']) {
+      expect(url).toContain(frag)
+    }
+  })
+
+  it('getUserTimeline should GET /audit/user-timeline with params', async () => {
+    vi.mocked(get).mockResolvedValue({ items: [], total: 0, pages: 0 })
+    const result = await getUserTimeline({ user_id: 'u1', page: 1 })
+    expect(get).toHaveBeenCalledWith('/audit/user-timeline', { user_id: 'u1', page: 1 })
+    expect(result.items).toHaveLength(0)
   })
 })

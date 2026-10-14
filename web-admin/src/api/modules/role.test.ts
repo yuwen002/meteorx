@@ -14,6 +14,16 @@ import {
   restoreRole,
   permanentDeleteRole,
   batchPermanentDeleteRoles,
+  getSystemAdminRoles,
+  getRolesForSelect,
+  getRolePermissions,
+  unbindRolePermission,
+  unbindRolePermissions,
+  getRBACStats,
+  getUserRoles,
+  assignUserRoles,
+  removeUserRole,
+  removeAllUserRoles,
   type RoleItem,
   type RoleCreateParams,
 } from './role'
@@ -132,5 +142,75 @@ describe('Role API - 批量与回收站', () => {
     vi.mocked(del).mockResolvedValue(undefined)
     await batchPermanentDeleteRoles(['a', 'b'])
     expect(del).toHaveBeenCalledWith('/rbac/roles/batch/permanent', { data: { ids: ['a', 'b'] } })
+  })
+})
+
+describe('Role API - 选择器、权限与用户角色', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('getSystemAdminRoles 应请求系统管理员角色', async () => {
+    vi.mocked(get).mockResolvedValue([sampleRole])
+    const result = await getSystemAdminRoles()
+    expect(get).toHaveBeenCalledWith('/rbac/roles/system-admin')
+    expect(result[0].id).toBe('role-1')
+  })
+
+  it('getRolesForSelect 默认 scope=system 并拼接查询串', async () => {
+    vi.mocked(get).mockResolvedValue([sampleRole])
+    await getRolesForSelect()
+    expect(get).toHaveBeenCalledWith('/rbac/roles/select?scope=system')
+
+    await getRolesForSelect('tenant')
+    expect(get).toHaveBeenCalledWith('/rbac/roles/select?scope=tenant')
+  })
+
+  it('getRolePermissions 应请求角色已绑定权限', async () => {
+    vi.mocked(get).mockResolvedValue([])
+    await getRolePermissions('role-1')
+    expect(get).toHaveBeenCalledWith('/rbac/roles/role-1/permissions')
+  })
+
+  it('unbindRolePermission 应以 permission_id 解绑单个权限', async () => {
+    vi.mocked(del).mockResolvedValue(undefined)
+    await unbindRolePermission('role-1', 'p-1')
+    expect(del).toHaveBeenCalledWith('/rbac/roles/role-1/permissions', { data: { permission_id: 'p-1' } })
+  })
+
+  it('unbindRolePermissions 应批量解绑权限', async () => {
+    vi.mocked(del).mockResolvedValue(undefined)
+    await unbindRolePermissions('role-1', ['p-1', 'p-2'])
+    expect(del).toHaveBeenCalledWith('/rbac/roles/role-1/permissions/batch', { data: { permission_ids: ['p-1', 'p-2'] } })
+  })
+
+  it('getRBACStats 应请求统计接口', async () => {
+    vi.mocked(get).mockResolvedValue({ role_count: 3, permission_count: 10, my_permission: 2 })
+    const result = await getRBACStats()
+    expect(get).toHaveBeenCalledWith('/rbac/stats')
+    expect(result.role_count).toBe(3)
+  })
+
+  it('getUserRoles 应请求用户角色列表', async () => {
+    vi.mocked(get).mockResolvedValue([sampleRole])
+    const result = await getUserRoles('u-1')
+    expect(get).toHaveBeenCalledWith('/rbac/user-roles/u-1/roles')
+    expect(result[0].id).toBe('role-1')
+  })
+
+  it('assignUserRoles 应 POST 角色 ids', async () => {
+    vi.mocked(post).mockResolvedValue(undefined)
+    await assignUserRoles('u-1', ['r-1', 'r-2'])
+    expect(post).toHaveBeenCalledWith('/rbac/user-roles/u-1/roles', { role_ids: ['r-1', 'r-2'] })
+  })
+
+  it('removeUserRole 应 DELETE 单个用户角色', async () => {
+    vi.mocked(del).mockResolvedValue(undefined)
+    await removeUserRole('u-1', 'r-1')
+    expect(del).toHaveBeenCalledWith('/rbac/user-roles/u-1/roles/r-1')
+  })
+
+  it('removeAllUserRoles 应 DELETE 用户全部角色', async () => {
+    vi.mocked(del).mockResolvedValue(undefined)
+    await removeAllUserRoles('u-1')
+    expect(del).toHaveBeenCalledWith('/rbac/user-roles/u-1/roles')
   })
 })

@@ -1,10 +1,28 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   listOAuthAccounts,
   unbindOAuth,
   createAPIToken,
   listAPITokens,
   revokeAPIToken,
+  login,
+  logout,
+  forgotPassword,
+  resetPassword,
+  getOAuthRedirectURL,
+  register,
+  registerUser,
+  getOAuthTenants,
+  oauthLogin,
+  bindOAuth,
+  refreshOAuthToken,
+  sendEmailVerification,
+  verifyEmail,
+  setup2FA,
+  enable2FA,
+  disable2FA,
+  type LoginParams,
+  type RegisterParams,
   type OAuthAccountItem,
   type APITokenItem,
   type CreateAPITokenResult,
@@ -129,5 +147,120 @@ describe('API Token API', () => {
 
     await revokeAPIToken({ id: 'at-001' })
     expect(post).toHaveBeenCalledWith('/auth/tokens/revoke', { id: 'at-001' })
+  })
+})
+
+describe('Auth core API', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('login should POST /auth/login with params', async () => {
+    const params: LoginParams = { username: 'alice', password: 'secret' }
+    vi.mocked(post).mockResolvedValue({ token: 't', user: { id: 'u1', username: 'alice' } })
+
+    const result = await login(params)
+    expect(post).toHaveBeenCalledWith('/auth/login', params)
+    expect(result.token).toBe('t')
+  })
+
+  it('logout should POST /auth/logout', async () => {
+    vi.mocked(post).mockResolvedValue({})
+    await logout()
+    expect(post).toHaveBeenCalledWith('/auth/logout')
+  })
+
+  it('forgotPassword should POST /auth/forgot-password with email', async () => {
+    vi.mocked(post).mockResolvedValue({ message: 'ok' })
+    await forgotPassword('a@b.com')
+    expect(post).toHaveBeenCalledWith('/auth/forgot-password', { email: 'a@b.com' })
+  })
+
+  it('resetPassword should POST /auth/reset-password with token and new password', async () => {
+    vi.mocked(post).mockResolvedValue({ message: 'ok' })
+    await resetPassword('tok', 'newpw')
+    expect(post).toHaveBeenCalledWith('/auth/reset-password', { token: 'tok', new_password: 'newpw' })
+  })
+
+  it('getOAuthRedirectURL should GET provider redirect', async () => {
+    vi.mocked(get).mockResolvedValue({ url: 'https://oauth.example' })
+    const result = await getOAuthRedirectURL('google')
+    expect(get).toHaveBeenCalledWith('/auth/oauth/google/redirect')
+    expect(result.url).toBe('https://oauth.example')
+  })
+
+  it('register should POST /tenants/register', async () => {
+    const data: RegisterParams = {
+      name: 'Acme',
+      domain: 'acme',
+      admin_user: { username: 'admin', password: 'pw', nickname: 'Admin', email: 'a@b.com' },
+    }
+    vi.mocked(post).mockResolvedValue({ id: 't1', name: 'Acme', domain: 'acme', admin_user: data.admin_user })
+    await register(data)
+    expect(post).toHaveBeenCalledWith('/tenants/register', data)
+  })
+
+  it('registerUser should POST /auth/register', async () => {
+    const data = { tenant_id: 't1', username: 'bob', password: 'pw', nickname: 'Bob', email: 'b@b.com' }
+    vi.mocked(post).mockResolvedValue({ id: 'u2', ...data, status: 1, created_at: '' })
+    await registerUser(data)
+    expect(post).toHaveBeenCalledWith('/auth/register', data)
+  })
+
+  it('getOAuthTenants should GET /auth/oauth/tenants', async () => {
+    vi.mocked(get).mockResolvedValue({ tenants: [{ id: 't1', name: 'Acme' }] })
+    const result = await getOAuthTenants()
+    expect(get).toHaveBeenCalledWith('/auth/oauth/tenants')
+    expect(result.tenants).toHaveLength(1)
+  })
+
+  it('oauthLogin should POST /auth/oauth/callback', async () => {
+    vi.mocked(post).mockResolvedValue({ token: 't', user: { id: 'u1' }, permissions: [], is_new_user: true })
+    await oauthLogin('google', 'code123', 't1', 'state1')
+    expect(post).toHaveBeenCalledWith('/auth/oauth/callback', { provider: 'google', code: 'code123', tenant_id: 't1', state: 'state1' })
+  })
+
+  it('bindOAuth should POST /auth/oauth/bind', async () => {
+    vi.mocked(post).mockResolvedValue({})
+    await bindOAuth('github', 'code', 'state')
+    expect(post).toHaveBeenCalledWith('/auth/oauth/bind', { provider: 'github', code: 'code', state: 'state' })
+  })
+
+  it('refreshOAuthToken should POST /auth/oauth/token/refresh', async () => {
+    vi.mocked(post).mockResolvedValue({ token: 't2', refresh_token: 'r2' })
+    const result = await refreshOAuthToken('r1')
+    expect(post).toHaveBeenCalledWith('/auth/oauth/token/refresh', { refresh_token: 'r1' })
+    expect(result.token).toBe('t2')
+  })
+
+  it('sendEmailVerification should POST /auth/email/send-verification', async () => {
+    vi.mocked(post).mockResolvedValue({ message: 'sent' })
+    await sendEmailVerification('a@b.com')
+    expect(post).toHaveBeenCalledWith('/auth/email/send-verification', { email: 'a@b.com' })
+  })
+
+  it('verifyEmail should POST /auth/email/verify', async () => {
+    vi.mocked(post).mockResolvedValue({ message: 'verified' })
+    await verifyEmail('tok')
+    expect(post).toHaveBeenCalledWith('/auth/email/verify', { token: 'tok' })
+  })
+
+  it('setup2FA should POST /auth/2fa/setup', async () => {
+    vi.mocked(post).mockResolvedValue({ secret: 'sec', otpauth_url: 'otpauth://x' })
+    const result = await setup2FA()
+    expect(post).toHaveBeenCalledWith('/auth/2fa/setup', {})
+    expect(result.secret).toBe('sec')
+  })
+
+  it('enable2FA should POST /auth/2fa/enable with code', async () => {
+    vi.mocked(post).mockResolvedValue({ message: 'enabled' })
+    await enable2FA('123456')
+    expect(post).toHaveBeenCalledWith('/auth/2fa/enable', { code: '123456' })
+  })
+
+  it('disable2FA should POST /auth/2fa/disable with code', async () => {
+    vi.mocked(post).mockResolvedValue({ message: 'disabled' })
+    await disable2FA('123456')
+    expect(post).toHaveBeenCalledWith('/auth/2fa/disable', { code: '123456' })
   })
 })
