@@ -1,0 +1,32 @@
+internal/modules/file/storage/oss_storage.go
+  h_a3f313f3d96276 5,9,82,85-87,93-104
+internal/modules/file/service/file_service.go
+  s_f00af1d8c88a9e::t_295625239252a4 311-314
+  h_a3f313f3d96276 30-43,47,51,54-56,60-61,64,68-75
+internal/modules/file/storage/storage.go
+  h_a3f313f3d96276 39,44-51,53-54,56-57,63-64,70-117,119-120
+  s_f00af1d8c88a9e::t_e9e495eac8e6ad 8,11
+internal/modules/file/storage/oss_storage_test.go
+  s_f00af1d8c88a9e::t_d3a81810158adc 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "4e5c48a18c93fbca3ffb9d4bb6cd94a57da196a6",
+  "prompts": {},
+  "humans": {
+    "h_a3f313f3d96276": {
+      "author": "liuxingyu <yuwen002@163.com>"
+    }
+  },
+  "sessions": {
+    "s_f00af1d8c88a9e": {
+      "agent_id": {
+        "tool": "codebuddy",
+        "id": "eaafc3a9536348a0be0c326daac2fb23",
+        "model": "step-5-preview"
+      },
+      "human_author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
