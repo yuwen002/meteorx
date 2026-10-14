@@ -334,13 +334,21 @@ type FileConfig struct {
 	// 支持逗号分隔传入多把密钥以实现平滑轮换：第一把为当前签发密钥（新链接使用），
 	// 其余仅用于校验存量链接（宽限期后可移除）；为空时回退 jwt.secret 以兼容未配置的旧部署。
 	SignKey string `mapstructure:"sign_key"`
-	// 云存储配置（预留，未启用时为空即可）
+	// 云存储配置（storage_type 为 oss / s3 时启用；未启用时留空即可）
 	Cloud struct {
-		Endpoint  string `mapstructure:"endpoint"`   // OSS/S3 endpoint
-		AccessKey string `mapstructure:"access_key"` // AccessKey
-		SecretKey string `mapstructure:"secret_key"` // SecretKey
+		Endpoint  string `mapstructure:"endpoint"`   // OSS/S3 endpoint（S3 留空走 AWS 默认，填则适配 MinIO 等 S3 兼容端点）
+		AccessKey string `mapstructure:"access_key"` // AccessKey / AccessKeyID
+		SecretKey string `mapstructure:"secret_key"` // SecretKey / AccessKeySecret
 		Bucket    string `mapstructure:"bucket"`     // Bucket 名称
-		Region    string `mapstructure:"region"`     // Region
+		Region    string `mapstructure:"region"`     // Region（S3 必填；OSS 可从 endpoint 推导，可留空）
+		// PathPrefix 对象键前缀（可选）；上传时拼在生成的文件名之前，便于按应用/环境隔离
+		PathPrefix string `mapstructure:"path_prefix"`
+		// PublicBaseURL 公开访问/CDN 基址（可选）；配置后 GetURL 直接返回 base/key 的公开直链，不再走签名
+		PublicBaseURL string `mapstructure:"public_base_url"`
+		// PresignTTL 私有桶下 GetURL 尽力预签名的有效期（秒），<=0 时取默认 3600
+		PresignTTL int64 `mapstructure:"presign_ttl"`
+		// ForcePathStyle S3 是否使用路径风格寻址（bucket 在路径中），连接 MinIO 等自建端点时常需置 true
+		ForcePathStyle bool `mapstructure:"force_path_style"`
 	} `mapstructure:"cloud"`
 }
 

@@ -41,7 +41,7 @@
 | file_size | int64 | 文件大小（字节） |
 | mime_type | string | MIME 类型 |
 | file_type | string | 文件分类：`image` / `document` / `video` / `audio` / `other` |
-| storage_type | string | 存储类型：`local` / `oss` / `s3`（预留） |
+| storage_type | string | 存储类型：`local` / `oss` / `s3`（取当前 `Storage.Type()`） |
 | md5 | string | 文件 MD5 哈希（用于去重） |
 | status | int | 状态：`1` 正常，`0` 已删除 |
 | created_at | string (RFC3339) | 创建时间 |
@@ -361,9 +361,9 @@ Content-Type: application/octet-stream
   - 推荐走 `GET /files/{id}/download`（携带 Bearer Token，无有效期问题）获取文件内容
 - 文件组织结构：上传文件名为 `{ulid}.{ext}`（平铺于 `upload_path` 单层目录）
 
-### 6.2 云存储（预留）
+### 6.2 云存储（阿里 OSS / AWS S3，已实现）
 
-通过 `Storage` 接口可扩展实现：
+均实现同一 `Storage` 接口，`FileService` 无需感知后端差异即可切换：
 
 ```go
 type Storage interface {
@@ -377,7 +377,16 @@ type Storage interface {
 }
 ```
 
-`NewStorage()` 工厂函数根据 `config.yaml → file.storage_type` 创建对应实现，支持 `local` / `oss` / `s3`。
+| 驱动 | Type() | 依赖 SDK | 说明 |
+|------|--------|----------|------|
+| `LocalStorage` | `local` | 标准库 | 本地磁盘，URL 由 `file.sign_key` 做 HMAC 短时效签名 |
+| `OSSStorage` | `oss` | `github.com/aliyun/aliyun-oss-go-sdk` | 阿里云 OSS，`SignURL` 本地生成预签名 |
+| `S3Storage` | `s3` | `github.com/aws/aws-sdk-go-v2` | AWS S3，兼容 MinIO 等 S3 协议端点（`endpoint` + `force_path_style`） |
+
+`NewStorage(cfg, signKey)` 工厂根据 `config.yaml → file.storage_type` 分派 `local` / `oss` / `s3`，返回 `(Storage, error)`：
+- **云存储初始化失败（如缺必填配置）时降级为本地存储**并打印告警，不阻断启动（与 IP 定位器降级策略一致）；未知 `storage_type` 同样回退本地。
+- **访问 URL 语义**：云桶多为私有，`GetURL` 在未配置 `cloud.public_base_url` 时**尽力返回预签名 URL**（有效期取 `cloud.presign_ttl`，默认 3600s）；配置了 `cloud.public_base_url` 则返回公开/CDN 直链。`PresignURL` 提供带错误返回的精确签名（供需要显式控制有效期时使用）。
+- **对象键**：沿用与本地一致的「唯一 ID + 原扩展名」命名，可通过 `cloud.path_prefix` 增加前缀做应用/环境隔离；返回的相对路径即对象键，与原 `file_path` 语义保持兼容。
 
 ---
 
@@ -385,28 +394,28 @@ type Storage interface {
 
 ```yaml
 file:
-  upload_path: "./uploads"           # 文件存储根目录
-  upload_url: "/uploads"             # 访问 URL 前缀
+  upload_path: "./uploads"           # 文件存储根目录（local）
+  upload_url: "/uploads"             # 访问 URL 前缀（local）
   max_file_size: 10485760           # 最大文件大小（字节），10MB
   allowed_types:                     # 允许的 MIME 类型（空则使用默认白名单）
     - "image/jpeg"
     - "image/png"
-    - "image/gif"
-    - "image/webp"
     - "application/pdf"
-    - "application/msword"
-    - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    - "application/vnd.ms-excel"
-    - "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     - "text/plain"
   storage_type: "local"              # 存储类型：local / oss / s3
-  cloud:                             # 云存储配置（storage_type 为 oss/s3 时使用）
-    endpoint: ""
-    access_key: ""
-    secret_key: ""
-    bucket: ""
-    region: ""
+  cloud:                             # 云存储配置（storage_type 为 oss/s3 时生效）
+    endpoint: ""                     # OSS: oss-cn-hangzhou.aliyuncs.com；S3: 留空走 AWS，填写则适配 MinIO 等
+    region: ""                       # S3 必填（如 us-east-1）；OSS 可留空
+    bucket: ""                       # 存储桶名称
+    access_key: ""                   # AccessKey / AccessKeyID
+    secret_key: ""                   # SecretKey / AccessKeySecret
+    path_prefix: ""                  # 对象键前缀（可选），如 prod/files
+    public_base_url: ""              # 公开/CDN 基址（可选）；配置后 GetURL 返回公开直链
+    presign_ttl: 3600                # 私有桶预签名 URL 有效期（秒），默认 3600
+    force_path_style: false          # S3 连接 MinIO 等自建端点时通常需置 true
 ```
+
+> 上述字段均可通过 `METEORX_FILE_STORAGE_TYPE` 与 `METEORX_FILE_CLOUD_*` 环境变量覆盖（见 `.env.example`）。
 
 ---
 

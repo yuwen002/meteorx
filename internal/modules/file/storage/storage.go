@@ -4,6 +4,7 @@ package storage
 import (
 	"context"
 	"io"
+	"strings"
 
 	"meteorx/internal/config"
 )
@@ -35,18 +36,23 @@ type Storage interface {
 
 // NewStorage 根据配置创建对应的存储实例
 // signKey 用于本地文件访问 URL 签名（取 file.sign_key，与 JWT 登录密钥解耦）；为空则不签名（仅限调试场景）
-// 当前默认实现 local；后续扩展 oss / s3 时在此处增加分支
-func NewStorage(cfg config.FileConfig, signKey string) Storage {
-	storageType := cfg.StorageType
+// 支持 local / oss / s3；云存储初始化失败（如缺少必填配置）时返回 error，由调用方决定降级策略；
+// 未知类型降级为本地存储，避免启动失败。
+func NewStorage(cfg config.FileConfig, signKey string) (Storage, error) {
+	storageType := strings.ToLower(strings.TrimSpace(cfg.StorageType))
 	if storageType == "" {
 		storageType = "local"
 	}
 
 	switch storageType {
-	case "local", "":
-		return NewLocalStorage(cfg.UploadPath, cfg.UploadURL, signKey)
+	case "local":
+		return NewLocalStorage(cfg.UploadPath, cfg.UploadURL, signKey), nil
+	case "oss":
+		return NewOSSStorage(cfg)
+	case "s3":
+		return NewS3Storage(context.Background(), cfg)
 	default:
 		// 未知类型时降级为本地存储，避免启动失败
-		return NewLocalStorage(cfg.UploadPath, cfg.UploadURL, signKey)
+		return NewLocalStorage(cfg.UploadPath, cfg.UploadURL, signKey), nil
 	}
 }

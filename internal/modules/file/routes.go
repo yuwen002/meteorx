@@ -10,6 +10,7 @@ import (
 	"meteorx/internal/modules/plan"
 	rbacrepo "meteorx/internal/modules/rbac/repository"
 	rbacsvc "meteorx/internal/modules/rbac/service"
+	"meteorx/pkg/logger"
 
 	"github.com/go-chi/chi/v5"
 	"gorm.io/gorm"
@@ -20,7 +21,12 @@ func RegisterRoutes(r chi.Router, db *gorm.DB, cfg *config.Config) {
 	// 初始化依赖
 	fileRepo := filerepo.NewFileRepository(db)
 	// 上传访问 URL 用独立签名密钥签发（未配置 file.sign_key 时兼容回退 jwt.secret）
-	fileStorage := storage.NewStorage(cfg.File, cfg.File.UploadSignKey(cfg.JWT.Secret))
+	fileStorage, err := storage.NewStorage(cfg.File, cfg.File.UploadSignKey(cfg.JWT.Secret))
+	if err != nil {
+		// 云存储配置无效时降级为本地存储，避免因配置错误阻断启动（与 IP 定位器降级策略一致）
+		logger.Warnf("[file] storage init failed (%s), falling back to local storage: %v", cfg.File.StorageType, err)
+		fileStorage = storage.NewLocalStorage(cfg.File.UploadPath, cfg.File.UploadURL, cfg.File.UploadSignKey(cfg.JWT.Secret))
+	}
 	// 注入套餐存储配额服务：上传前校验租户已用存储 + 本次大小是否超出上限
 	fileSvc := service.NewFileService(fileRepo, fileStorage, plan.NewQuotaService(db))
 	fileHandler := handler.NewFileHandler(fileSvc, cfg.File)

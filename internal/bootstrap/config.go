@@ -68,6 +68,17 @@ func LoadConfig() (*config.Config, error) {
 		{"task_reminder.interval", "METEORX_TASK_REMINDER_INTERVAL"},
 		{"task_reminder.overdue_cooldown", "METEORX_TASK_REMINDER_OVERDUE_COOLDOWN"},
 		{"task_reminder.batch_limit", "METEORX_TASK_REMINDER_BATCH_LIMIT"},
+		// File / 云存储（cloud.* 在 config.yaml 中默认注释，Unmarshal 不会对其应用 AutomaticEnv，故显式绑定以支持环境变量覆盖）
+		{"file.storage_type", "METEORX_FILE_STORAGE_TYPE"},
+		{"file.cloud.endpoint", "METEORX_FILE_CLOUD_ENDPOINT"},
+		{"file.cloud.region", "METEORX_FILE_CLOUD_REGION"},
+		{"file.cloud.bucket", "METEORX_FILE_CLOUD_BUCKET"},
+		{"file.cloud.access_key", "METEORX_FILE_CLOUD_ACCESS_KEY"},
+		{"file.cloud.secret_key", "METEORX_FILE_CLOUD_SECRET_KEY"},
+		{"file.cloud.path_prefix", "METEORX_FILE_CLOUD_PATH_PREFIX"},
+		{"file.cloud.public_base_url", "METEORX_FILE_CLOUD_PUBLIC_BASE_URL"},
+		{"file.cloud.presign_ttl", "METEORX_FILE_CLOUD_PRESIGN_TTL"},
+		{"file.cloud.force_path_style", "METEORX_FILE_CLOUD_FORCE_PATH_STYLE"},
 	}
 	for _, b := range envBindings {
 		if err := mustBindEnv(v, b.key, b.env); err != nil {
