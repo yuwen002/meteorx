@@ -16,6 +16,7 @@
 - **白标自定义品牌**：新增 `useBrand` composable（产品名/Logo/主色 localStorage 持久化，应用 `document.title` 与 `--el-color-primary`），仅管理员可经顶栏「品牌设置」对话框编辑；**服务端级多租户白标已落地**——`tenant_settings` 下发 `tenant_name`/Logo/主色，登录后拉取应用（服务端优先、本地回退），品牌名复用 `Tenant.Name`
 - 导出队列上限可配置：`export.max_active_jobs`（默认 10）覆盖原硬编码常量，未完结任务达上限新建返回 429
 - **API Token 权限作用域（Scope）**：`api_tokens` 新增 `scopes` 字段（JSON 权限码列表）。令牌未配 scope 时沿用继承属主全部 RBAC 权限的历史行为（向后兼容）；配置非空 scope 时进入**严格最小权限模式**——有效权限收敛为「属主实际权限 ∩ scopes」（属主为超管时即 scopes），并在 `RequirePermission`/`AutoRequirePermission`/`RequireExplicitPermission` 三个权限中间件中强制生效、**忽略超管旁路**，杜绝长期令牌默认继承全部权限。`Validate` 改为返回 `contextx.TokenPrincipal`，收敛结果经请求上下文透传；同时修正 `matchAllowedPath` 由裸前缀匹配改为路径段对齐（`/users` 不再误配 `/users-admin`），Redis 令牌缓存值改为 JSON 结构以容纳 scopes 与解析后的权限集合。新增 `POST /api/v1/auth/tokens` 的 `scopes`/`allowed_paths` 请求与响应字段
+- **前端键盘导航与无障碍（a11y）基线**：全局外壳 `DefaultLayout` 补齐地标语义（侧边栏 `role=navigation`、顶栏 `role=banner`、主内容 `role=main` 及各自 `aria-label`），新增「跳到主内容」skip-link（聚焦时才可见）；将折叠、主题切换两个「图标即按钮」由不可聚焦的 `el-icon` 改为原生 `<button>`（自动可 Tab、可回车/空格触发）并补 `aria-label`/`aria-expanded`，语言切换、用户菜单、WS 连接状态点补 `role` 与 `aria-label`（状态色点标 `aria-hidden`）；移除顶栏操作 `.header-action/.lang-toggle` 上 `outline:none` 的焦点反模式，改由 `App.vue` 全局 `:focus-visible` 统一高亮键盘焦点；新增 a11y 文案的 i18n 中英文 key 及 `useI18n` 断言（`<html lang>` 联动此前已由 `applyLocaleToDOM` 覆盖，本次未重复实现）
 
 ### 变更
 - OpenTelemetry `service_version` 默认值与发布版本对齐（1.0.0 → 1.1.0），发版时随本文件一并更新

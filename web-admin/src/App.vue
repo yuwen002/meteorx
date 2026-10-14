@@ -130,4 +130,14 @@ body {
 * {
   box-sizing: border-box;
 }
+/* 统一的键盘焦点指示：仅在键盘导航（:focus-visible）时高亮，不影响鼠标点击 */
+a:focus-visible,
+button:focus-visible,
+[role='button']:focus-visible,
+[tabindex]:focus-visible,
+.el-icon:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
 </style>

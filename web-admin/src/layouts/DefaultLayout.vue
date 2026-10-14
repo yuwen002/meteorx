@@ -1,7 +1,9 @@
 <template>
   <el-container class="layout-container">
+    <!-- 键盘可达性：跳过导航直达主内容的链接，仅在获得焦点时可见 -->
+    <a class="skip-link" href="#main-content">{{ t('a11y.skipToContent') }}</a>
     <!-- 侧边栏 -->
-    <el-aside :width="appStore.sidebarCollapsed ? '64px' : '220px'" class="sidebar">
+    <el-aside :width="appStore.sidebarCollapsed ? '64px' : '220px'" class="sidebar" role="navigation" :aria-label="t('a11y.mainNav')">
       <div class="logo">
         <img v-if="brand.logo" :src="brand.logo" class="logo-img" alt="logo" />
         <span v-if="!appStore.sidebarCollapsed" class="logo-text">{{ brand.name }}</span>
@@ -141,12 +143,20 @@
 
     <el-container>
       <!-- 顶栏 -->
-      <el-header class="header">
+      <el-header class="header" role="banner" :aria-label="t('a11y.header')">
         <div class="header-left">
-          <el-icon class="collapse-btn" @click="appStore.toggleSidebar()">
-            <Fold v-if="!appStore.sidebarCollapsed" />
-            <Expand v-else />
-          </el-icon>
+          <button
+            type="button"
+            class="collapse-btn icon-btn"
+            :aria-label="t('a11y.toggleSidebar')"
+            :aria-expanded="!appStore.sidebarCollapsed"
+            @click="appStore.toggleSidebar()"
+          >
+            <el-icon>
+              <Fold v-if="!appStore.sidebarCollapsed" />
+              <Expand v-else />
+            </el-icon>
+          </button>
           <el-breadcrumb separator="/">
             <el-breadcrumb-item :to="{ path: '/dashboard' }">{{ t('nav.dashboard') }}</el-breadcrumb-item>
             <el-breadcrumb-item v-if="currentRoute.meta.title && currentRoute.path !== '/dashboard'">{{
@@ -156,13 +166,20 @@
         </div>
         <div class="header-right">
           <el-tooltip :content="theme === 'dark' ? t('theme.toLight') : t('theme.toDark')" placement="bottom">
-            <el-icon class="header-action" @click="toggleTheme">
-              <Sunny v-if="theme === 'dark'" />
-              <Moon v-else />
-            </el-icon>
+            <button
+              type="button"
+              class="header-action icon-btn"
+              :aria-label="theme === 'dark' ? t('theme.toLight') : t('theme.toDark')"
+              @click="toggleTheme"
+            >
+              <el-icon>
+                <Sunny v-if="theme === 'dark'" />
+                <Moon v-else />
+              </el-icon>
+            </button>
           </el-tooltip>
           <el-dropdown trigger="click" @command="handleLang">
-            <span class="header-action lang-toggle">{{ locale === 'zh-CN' ? '中' : 'EN' }}</span>
+            <span class="header-action lang-toggle" role="button" :aria-label="t('a11y.switchLanguage')">{{ locale === 'zh-CN' ? '中' : 'EN' }}</span>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="zh-CN" :class="{ 'lang-active': locale === 'zh-CN' }">简体中文</el-dropdown-item>
@@ -175,13 +192,18 @@
             :content="notificationStore.wsConnected ? t('header.wsConnected') : t('header.wsDisconnected')"
             placement="bottom"
           >
-            <span class="ws-status" :class="{ connected: notificationStore.wsConnected }">
-              <span class="ws-dot"></span>
+            <span
+              class="ws-status"
+              :class="{ connected: notificationStore.wsConnected }"
+              role="status"
+              :aria-label="notificationStore.wsConnected ? t('header.wsConnected') : t('header.wsDisconnected')"
+            >
+              <span class="ws-dot" aria-hidden="true"></span>
             </span>
           </el-tooltip>
 
           <el-dropdown @command="handleCommand">
-            <span class="user-info">
+            <span class="user-info" role="button" :aria-label="t('a11y.userMenu')">
               <el-avatar :size="32" style="background: #3b82f6">
                 {{ (userStore.userInfo?.nickname || userStore.userInfo?.username || 'U').charAt(0).toUpperCase() }}
               </el-avatar>
@@ -205,7 +227,7 @@
         </div>
       </el-header>
 
-      <el-main class="main">
+      <el-main id="main-content" class="main" tabindex="-1" role="main">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
             <component :is="Component" />
@@ -426,10 +448,39 @@ async function handleCommand(cmd: string) {
   cursor: pointer;
   color: var(--mx-text-muted);
   margin-right: 16px;
-  outline: none;
 }
 .header-action:hover {
   color: var(--mx-text-strong);
+}
+/* 图标型原生按钮的统一重置，保留图标尺寸/颜色同时获得原生键盘行为 */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  line-height: 1;
+  color: inherit;
+  cursor: pointer;
+}
+/* 跳到主内容链接：平时移出视屏，仅键盘聚焦时滑入 */
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -48px;
+  z-index: 2000;
+  padding: 8px 14px;
+  background: var(--el-color-primary);
+  color: #fff;
+  border-radius: 0 0 6px 6px;
+  font-size: 14px;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 0;
 }
 .lang-toggle {
   display: inline-flex;
@@ -442,7 +493,6 @@ async function handleCommand(cmd: string) {
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
-  outline: none;
   cursor: pointer;
 }
 .lang-active {
@@ -462,6 +512,10 @@ async function handleCommand(cmd: string) {
 .main {
   background: var(--mx-main-bg);
   padding: 16px;
+}
+/* 作为 skip-link 的落点，聚焦时不需整块区域高亮外框 */
+.main:focus {
+  outline: none;
 }
 .fade-enter-active,
 .fade-leave-active {

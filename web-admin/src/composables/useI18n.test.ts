@@ -76,4 +76,25 @@ describe('useI18n', () => {
     expect(t('channel.wechat')).toBe('企业微信')
     expect(t('channel.webhook')).toBe('Webhook')
   })
+
+  it('should translate a11y labels', () => {
+    const { t } = useI18n()
+    expect(t('a11y.skipToContent')).toBe('跳到主内容')
+    expect(t('a11y.mainNav')).toBe('主导航')
+    expect(t('a11y.header')).toBe('顶栏')
+    expect(t('a11y.toggleSidebar')).toBe('折叠或展开侧边栏')
+    expect(t('a11y.switchLanguage')).toBe('切换语言')
+    expect(t('a11y.userMenu')).toBe('用户菜单')
+  })
+
+  it('should translate a11y labels in English', () => {
+    const { t, setLocale } = useI18n()
+    setLocale('en-US')
+    expect(t('a11y.skipToContent')).toBe('Skip to main content')
+    expect(t('a11y.mainNav')).toBe('Main navigation')
+    expect(t('a11y.header')).toBe('Top bar')
+    expect(t('a11y.toggleSidebar')).toBe('Collapse or expand sidebar')
+    expect(t('a11y.switchLanguage')).toBe('Switch language')
+    expect(t('a11y.userMenu')).toBe('User menu')
+  })
 })
