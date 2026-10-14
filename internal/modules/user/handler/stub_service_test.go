@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"meteorx/internal/modules/user/dto"
+	"meteorx/internal/modules/user/repository"
 )
 
 // stubUserService 桩实现 handler.UserService：预设返回并捕获最近入参。
@@ -32,10 +33,15 @@ type stubUserService struct {
 	GotCreateAdmin *dto.CreateMasterAdminReq
 	GotUpdateAdmin *dto.UpdateMasterAdminReq
 	GotAdminCreateTenant *dto.AdminCreateTenantUserReq
+	GotFilter            repository.UserListFilter
 }
 
 // 租户内用户管理
 
+func (s *stubUserService) ListByTenantFiltered(_ context.Context, tenantID string, page, pageSize int, f repository.UserListFilter) ([]*dto.UserResp, int64, error) {
+	s.GotTenantID, s.GotPage, s.GotPageSize, s.GotKeyword, s.GotStatus, s.GotFilter = tenantID, page, pageSize, f.Keyword, f.Status, f
+	return s.List, s.Total, s.Err
+}
 func (s *stubUserService) ListByTenant(_ context.Context, tenantID string, page, pageSize int, keyword string, status *int) ([]*dto.UserResp, int64, error) {
 	s.GotTenantID, s.GotPage, s.GotPageSize, s.GotKeyword, s.GotStatus = tenantID, page, pageSize, keyword, status
 	return s.List, s.Total, s.Err

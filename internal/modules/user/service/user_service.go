@@ -261,6 +261,19 @@ func (s *UserService) ListByTenant(ctx context.Context, tenantID string, page, p
 	return resp, total, nil
 }
 
+// ListByTenantFiltered 按多维过滤条件（角色/排序/注册时间区间等）分页查询指定租户用户。
+func (s *UserService) ListByTenantFiltered(ctx context.Context, tenantID string, page, pageSize int, f repository.UserListFilter) ([]*dto.UserResp, int64, error) {
+	users, total, err := s.repo.ListByTenantFiltered(ctx, tenantID, page, pageSize, f)
+	if err != nil {
+		return nil, 0, err
+	}
+	resp, err := s.buildUserRespList(ctx, users)
+	if err != nil {
+		return nil, 0, err
+	}
+	return resp, total, nil
+}
+
 // GetByID 按 ID 获取用户详情。
 func (s *UserService) GetByID(ctx context.Context, userID string) (*dto.UserResp, error) {
 	user, err := s.repo.GetByID(ctx, userID)

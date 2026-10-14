@@ -80,6 +80,11 @@ export interface UserListParams {
   page_size?: number
   keyword?: string
   status?: number
+  role?: string            // 按角色ID筛选（仅 /users 租户内列表生效）
+  sort?: string            // 排序列：created_at/updated_at/username/status/email/last_login_at
+  order?: 'asc' | 'desc'   // 排序方向
+  created_from?: string    // 注册时间下限 YYYY-MM-DD
+  created_to?: string      // 注册时间上限 YYYY-MM-DD
 }
 
 // ==================== 普通用户接口 ====================

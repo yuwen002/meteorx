@@ -4,7 +4,19 @@ package repository
 import (
 	"context"
 	"meteorx/internal/modules/user/model"
+	"time"
 )
+
+// UserListFilter 租户内用户列表查询过滤条件（空零值均表示该维度不设限）。
+type UserListFilter struct {
+	Keyword string     // 按用户名/昵称/邮箱模糊搜索
+	Status  *int       // 按状态筛选
+	RoleID  string     // 按角色筛选：仅返回拥有该角色的用户（user_roles 关联）
+	SortBy  string     // 排序列：created_at/updated_at/username/status/email/last_login_at；空=created_at
+	Desc    bool      // 排序方向，true 为降序
+	CreatedFrom *time.Time // 注册时间下限（含），nil 不限
+	CreatedTo   *time.Time // 注册时间上限（含），nil 不限
+}
 
 // UserRepository 用户数据访问接口，覆盖用户及系统管理员的增删改查、状态/回收站与批量操作。
 type UserRepository interface {
@@ -20,6 +32,8 @@ type UserRepository interface {
 	UsernameExists(ctx context.Context, username string) (bool, error)
 	// ListByTenant 根据租户ID查询用户列表（支持分页和状态筛选）
 	ListByTenant(ctx context.Context, tenantID string, page, pageSize int, keyword string, status *int) ([]*model.User, int64, error)
+	// ListByTenantFiltered 按多维过滤条件（角色/排序/注册时间区间等）分页查询租户内用户
+	ListByTenantFiltered(ctx context.Context, tenantID string, page, pageSize int, f UserListFilter) ([]*model.User, int64, error)
 	// ListMasterAdmins 查询所有系统管理员（is_master = true，支持分页和关键词搜索）
 	ListMasterAdmins(ctx context.Context, page, pageSize int, keyword string) ([]*model.User, int64, error)
 	// ListAllTenantUsers 查询所有租户用户（不包括系统管理员，支持分页和关键词搜索）

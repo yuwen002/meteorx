@@ -80,6 +80,16 @@ func (m *mockUserRepo) ListByTenant(_ context.Context, tenantID string, _ int, _
 	return out, int64(len(out)), nil
 }
 
+func (m *mockUserRepo) ListByTenantFiltered(_ context.Context, tenantID string, _ int, _ int, _ userRepo.UserListFilter) ([]*userModel.User, int64, error) {
+	var out []*userModel.User
+	for _, u := range m.users {
+		if u.TenantID == tenantID {
+			out = append(out, u)
+		}
+	}
+	return out, int64(len(out)), nil
+}
+
 func (m *mockUserRepo) ListMasterAdmins(_ context.Context, _ int, _ int, _ string) ([]*userModel.User, int64, error) {
 	var out []*userModel.User
 	for _, u := range m.users {

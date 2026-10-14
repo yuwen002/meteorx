@@ -6,8 +6,11 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"meteorx/internal/modules/user/dto"
+	"meteorx/internal/modules/user/repository"
 	"meteorx/internal/modules/user/service"
 
 	"meteorx/internal/common/contextx"
@@ -24,6 +27,7 @@ import (
 type UserService interface {
 	// 租户内用户管理
 	ListByTenant(ctx context.Context, tenantID string, page, pageSize int, keyword string, status *int) ([]*dto.UserResp, int64, error)
+	ListByTenantFiltered(ctx context.Context, tenantID string, page, pageSize int, f repository.UserListFilter) ([]*dto.UserResp, int64, error)
 	GetByID(ctx context.Context, userID string) (*dto.UserResp, error)
 	BelongsToTenant(ctx context.Context, userID, tenantID string) bool
 	Create(ctx context.Context, tenantID string, req dto.CreateUserReq) (*dto.UserResp, error)
@@ -76,6 +80,7 @@ func NewUserHandler(svc UserService) *UserHandler {
 
 // ListUsers 获取租户下的用户列表（分页+搜索）
 // GET /api/v1/users
+// 支持查询维度：keyword、status、role（按角色）、sort+order（排序）、created_from/created_to（注册时间区间）。
 func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	if tenantID == "" {
@@ -84,24 +89,46 @@ func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 解析分页参数
-	pageStr := r.URL.Query().Get("page")
-	pageSizeStr := r.URL.Query().Get("page_size")
-	page, _ := strconv.Atoi(pageStr)
-	pageSize, _ := strconv.Atoi(pageSizeStr)
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
 	pg := pagination.NewPagination(page, pageSize)
 
-	// 解析搜索关键字
-	keyword := r.URL.Query().Get("keyword")
-
-	// 解析状态筛选
-	statusStr := r.URL.Query().Get("status")
-	var status *int
-	if statusStr != "" {
+	q := r.URL.Query()
+	f := repository.UserListFilter{
+		Keyword: q.Get("keyword"),
+		RoleID:  strings.TrimSpace(q.Get("role")),
+		SortBy:  strings.TrimSpace(q.Get("sort")),
+		Desc:    strings.EqualFold(q.Get("order"), "desc"),
+	}
+	if statusStr := q.Get("status"); statusStr != "" {
+		// 非法 status 保守降级为 0（禁用）过滤，避免越权看到启用账户（与既有行为一致）
 		s, _ := strconv.Atoi(statusStr)
-		status = &s
+		f.Status = &s
+	}
+	if raw := strings.TrimSpace(q.Get("created_from")); raw != "" {
+		t, err := parseUserDate(raw)
+		if err != nil {
+			response.BadRequest(w, "created_from 时间格式不正确")
+			return
+		}
+		f.CreatedFrom = t
+	}
+	if raw := strings.TrimSpace(q.Get("created_to")); raw != "" {
+		t, err := parseUserDate(raw)
+		if err != nil {
+			response.BadRequest(w, "created_to 时间格式不正确")
+			return
+		}
+		// 仅日期时上界补足到当天 23:59:59，避免漏掉当天注册的用户
+		if len(raw) == len("2006-01-02") {
+			y, m, d := t.Date()
+			eod := time.Date(y, m, d, 23, 59, 59, 0, time.Local)
+			t = &eod
+		}
+		f.CreatedTo = t
 	}
 
-	users, total, err := h.svc.ListByTenant(r.Context(), tenantID, pg.Page, pg.PageSize, keyword, status)
+	users, total, err := h.svc.ListByTenantFiltered(r.Context(), tenantID, pg.Page, pg.PageSize, f)
 	if err != nil {
 		response.Fail(w, http.StatusInternalServerError, "获取用户列表失败")
 		return
@@ -110,6 +137,16 @@ func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	// 使用分页包返回结果
 	result := pagination.NewPaginatedResult(users, pg.Page, pg.PageSize, int(total))
 	response.Success(w, result)
+}
+
+// parseUserDate 宽松解析时间字符串，支持 RFC3339 / "2006-01-02 15:04:05" / "2006-01-02"。
+func parseUserDate(s string) (*time.Time, error) {
+	for _, layout := range []string{time.RFC3339, "2006-01-02 15:04:05", "2006-01-02"} {
+		if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
+			return &t, nil
+		}
+	}
+	return nil, errors.New("invalid date")
 }
 
 // GetUser 获取用户详情

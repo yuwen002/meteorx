@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"meteorx/internal/modules/user/dto"
 	"meteorx/internal/modules/user/service"
@@ -65,6 +66,33 @@ func TestListUsers_ServiceError_Returns500(t *testing.T) {
 	w := do(t, router, http.MethodGet, "/users", "")
 
 	assertFailCode(t, w, http.StatusInternalServerError, "获取用户列表失败")
+}
+
+func TestListUsers_FilterEnhancements_ForwardsToService(t *testing.T) {
+	stub := &stubUserService{}
+	router := newUserRouter(stub)
+
+	w := do(t, router, http.MethodGet, "/users?role=role-1&sort=username&order=desc&created_from=2026-01-01&created_to=2026-01-31", "")
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Equal(t, "role-1", stub.GotFilter.RoleID)
+	assert.Equal(t, "username", stub.GotFilter.SortBy)
+	assert.True(t, stub.GotFilter.Desc)
+	require.NotNil(t, stub.GotFilter.CreatedFrom)
+	require.NotNil(t, stub.GotFilter.CreatedTo)
+	// 仅日期上界补足到当天 23:59:59
+	assert.Equal(t, 23, stub.GotFilter.CreatedTo.Hour())
+	assert.Equal(t, 59, stub.GotFilter.CreatedTo.Minute())
+	assert.Equal(t, time.January, stub.GotFilter.CreatedFrom.Month())
+}
+
+func TestListUsers_InvalidCreatedFrom_Returns400(t *testing.T) {
+	stub := &stubUserService{}
+	router := newUserRouter(stub)
+
+	w := do(t, router, http.MethodGet, "/users?created_from=not-a-date", "")
+
+	assertFailCode(t, w, http.StatusBadRequest, "created_from")
 }
 
 // ============ 用户详情 ============

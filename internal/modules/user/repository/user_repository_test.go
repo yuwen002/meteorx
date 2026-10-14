@@ -199,6 +199,33 @@ func TestListByTenant_WithKeyword(t *testing.T) {
 	assert.Len(t, users, 1)
 }
 
+// TestListByTenantFiltered 验证角色子查询、排序白名单与注册时间区间均作用于 SQL。
+func TestListByTenantFiltered(t *testing.T) {
+	gormDB, mock := newTestDB(t)
+	repo := NewUserRepository(gormDB)
+
+	now := time.Now()
+	from := now.AddDate(0, 0, -7)
+	to := now
+	st := 1
+
+	countRows := sqlmock.NewRows([]string{"count"}).AddRow(1)
+	mock.ExpectQuery("SELECT count.+FROM `users` WHERE .+id IN .*SELECT user_id FROM user_roles WHERE role_id").
+		WillReturnRows(countRows)
+
+	rows := sqlmock.NewRows([]string{"id", "tenant_id", "username", "password", "nickname", "email", "status", "is_master", "created_at", "updated_at", "deleted_at"}).
+		AddRow("u-001", "t-001", "alice", "$2a$", "Alice", "a@t.com", 1, false, now, now, nil)
+	mock.ExpectQuery("SELECT .+ FROM `users` WHERE .+ORDER BY username DESC").
+		WillReturnRows(rows)
+
+	users, total, err := repo.ListByTenantFiltered(context.Background(), "t-001", 1, 10, UserListFilter{
+		Status: &st, RoleID: "role-1", SortBy: "username", Desc: true, CreatedFrom: &from, CreatedTo: &to,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	assert.Len(t, users, 1)
+}
+
 func TestListByTenant_WithStatus(t *testing.T) {
 	gormDB, mock := newTestDB(t)
 	repo := NewUserRepository(gormDB)

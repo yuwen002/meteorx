@@ -167,41 +167,71 @@ func (r *userRepository) UsernameExists(ctx context.Context, username string) (b
 	return count > 0, nil
 }
 
-// ListByTenant 根据租户ID查询用户列表（支持分页、关键字搜索和状态筛选）
+// ListByTenant 根据租户ID查询用户列表（支持分页、关键字搜索和状态筛选）。
+// 现委托 ListByTenantFiltered，仅传递关键字与状态两个维度，保持原有行为。
 func (r *userRepository) ListByTenant(ctx context.Context, tenantID string, page, pageSize int, keyword string, status *int) ([]*model.User, int64, error) {
+	return r.ListByTenantFiltered(ctx, tenantID, page, pageSize, UserListFilter{Keyword: keyword, Status: status})
+}
+
+// userSortColumns 将对外排序字段名映射为安全的实际数据库列，防止 SQL 注入。
+var userSortColumns = map[string]string{
+	"created_at":    "created_at",
+	"updated_at":    "updated_at",
+	"username":      "username",
+	"status":        "status",
+	"email":         "email",
+	"last_login_at": "last_login_at",
+}
+
+// ListByTenantFiltered 按多维过滤条件分页查询租户内用户：
+// 支持关键字/状态、按角色（user_roles 子查询）、注册时间区间，以及列白名单排序（默认 created_at 降序）。
+func (r *userRepository) ListByTenantFiltered(ctx context.Context, tenantID string, page, pageSize int, f UserListFilter) ([]*model.User, int64, error) {
 	var records []UserPO
 	var total int64
 
-	// 构建查询条件
 	query := r.db.WithContext(ctx).Model(&UserPO{}).Where("tenant_id = ?", tenantID)
 
-	// 如果有搜索关键字，按用户名、昵称、邮箱模糊搜索
-	if keyword != "" {
-		query = query.Where("username LIKE ? OR nickname LIKE ? OR email LIKE ?", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+	if f.Keyword != "" {
+		like := "%" + f.Keyword + "%"
+		query = query.Where("username LIKE ? OR nickname LIKE ? OR email LIKE ?", like, like, like)
+	}
+	if f.Status != nil {
+		query = query.Where("status = ?", *f.Status)
+	}
+	if f.RoleID != "" {
+		query = query.Where("id IN (SELECT user_id FROM user_roles WHERE role_id = ?)", f.RoleID)
+	}
+	if f.CreatedFrom != nil {
+		query = query.Where("created_at >= ?", *f.CreatedFrom)
+	}
+	if f.CreatedTo != nil {
+		query = query.Where("created_at <= ?", *f.CreatedTo)
 	}
 
-	// 如果指定了状态，按状态筛选
-	if status != nil {
-		query = query.Where("status = ?", *status)
-	}
-
-	// 查询总数
-	err := query.Count(&total).Error
-	if err != nil {
+	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// 分页查询
+	// 排序：白名单映射，未命中回退 created_at；默认降序
+	col, ok := userSortColumns[f.SortBy]
+	if !ok {
+		col = "created_at"
+	}
+	dir := "ASC"
+	if f.Desc {
+		dir = "DESC"
+	}
+	query = query.Order(col + " " + dir)
+
 	if pageSize > 0 {
 		offset := (page - 1) * pageSize
 		query = query.Offset(offset).Limit(pageSize)
 	}
-	err = query.Find(&records).Error
-	if err != nil {
+	if err := query.Find(&records).Error; err != nil {
 		return nil, 0, err
 	}
 
-	var users []*model.User
+	users := make([]*model.User, 0, len(records))
 	for _, record := range records {
 		users = append(users, record.toDomain())
 	}

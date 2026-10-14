@@ -19,6 +19,31 @@
           <el-option label="启用" :value="1" />
           <el-option label="禁用" :value="0" />
         </el-select>
+        <template v-if="!isRecycleBin && !userStore.isAdmin">
+          <el-select v-model="query.role" placeholder="角色" clearable filterable style="width: 140px">
+            <el-option v-for="r in roleFilterOptions" :key="r.id" :label="r.name" :value="r.id" />
+          </el-select>
+          <el-select v-model="query.sort" placeholder="排序" clearable style="width: 130px">
+            <el-option label="注册时间" value="created_at" />
+            <el-option label="用户名" value="username" />
+            <el-option label="状态" value="status" />
+            <el-option label="最后登录" value="last_login_at" />
+          </el-select>
+          <el-select v-model="query.order" placeholder="顺序" clearable style="width: 100px">
+            <el-option label="降序" value="desc" />
+            <el-option label="升序" value="asc" />
+          </el-select>
+          <el-date-picker
+            v-model="createdRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            range-separator="至"
+            start-placeholder="注册起始"
+            end-placeholder="注册结束"
+            clearable
+            style="width: 240px"
+          />
+        </template>
         <el-button type="primary" @click="loadList">
           <el-icon><Search /></el-icon>查询
         </el-button>
@@ -339,7 +364,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -384,7 +409,15 @@ const {
   query,
   reset,
   reload
-} = useTableList<UserItem, { keyword: string; status?: number }>({
+} = useTableList<UserItem, {
+  keyword: string
+  status?: number
+  role?: string
+  sort?: string
+  order?: 'asc' | 'desc'
+  created_from?: string
+  created_to?: string
+}>({
   fetchList: async (params) => {
     const req: UserListParams = { page: params.page, page_size: params.page_size }
     if (params.keyword) req.keyword = params.keyword
@@ -395,13 +428,50 @@ const {
       res = userStore.isAdmin ? await getAllDeletedTenantUsers(req) : await getDeletedUserList(req)
     } else {
       if (params.status !== undefined && params.status !== null) req.status = params.status
-      res = userStore.isAdmin ? await getAllTenantUsers(req) : await getUserList(req)
+      if (userStore.isAdmin) {
+        res = await getAllTenantUsers(req)
+      } else {
+        // 租户内列表支持角色/排序/注册时间区间筛选（仅非管理员生效）
+        if (params.role) req.role = params.role
+        if (params.sort) req.sort = params.sort
+        if (params.order) req.order = params.order
+        if (params.created_from) req.created_from = params.created_from
+        if (params.created_to) req.created_to = params.created_to
+        res = await getUserList(req)
+      }
     }
     return toPageResult<UserItem>(res)
   },
-  initialQuery: { keyword: '', status: undefined }
+  initialQuery: { keyword: '', status: undefined, role: undefined, sort: undefined, order: undefined, created_from: undefined, created_to: undefined }
 })
 const loadList = reload
+
+// 注册时间区间：映射到 query.created_from / query.created_to
+const createdRange = computed<[string, string] | null>({
+  get: () => (query.created_from && query.created_to ? [query.created_from, query.created_to] as [string, string] : null),
+  set: (val) => {
+    if (val && val.length === 2) {
+      query.created_from = val[0]
+      query.created_to = val[1]
+    } else {
+      query.created_from = undefined
+      query.created_to = undefined
+    }
+  }
+})
+
+// 角色筛选下拉项（仅租户管理员视图使用）
+const roleFilterOptions = ref<RoleItem[]>([])
+async function loadRoleFilterOptions() {
+  try {
+    roleFilterOptions.value = await getRoleListForSelect('tenant') || []
+  } catch (e) {
+    console.error('加载角色筛选选项失败', e)
+  }
+}
+onMounted(() => {
+  if (!userStore.isAdmin) loadRoleFilterOptions()
+})
 
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
