@@ -644,7 +644,9 @@ API Token 用于 CI/CD 脚本、自动化工具、第三方系统集成等场景
 ```json
 {
   "name": "ci-deploy-token",
-  "expires_in": "720h"
+  "expires_in": "720h",
+  "allowed_paths": ["/api/v1/files"],
+  "scopes": ["user:list", "task:read"]
 }
 ```
 
@@ -652,6 +654,8 @@ API Token 用于 CI/CD 脚本、自动化工具、第三方系统集成等场景
 |------|------|------|----------|------|
 | name | string | 是 | 1-64 字符 | 令牌名称（便于识别用途） |
 | expires_in | string | 否 | Go Duration 格式 | 有效期，如 `720h`（30天）、`2160h`（90天）；空则使用默认最长有效期 |
+| allowed_paths | string[] | 否 | 每项非空 | 可访问的 URL 路径前缀白名单（**按路径段对齐**匹配）；空表示不限制 |
+| scopes | string[] | 否 | 每项非空 | 权限码作用域（如 `user:list`）；空表示继承属主全部权限，非空则严格收敛为「属主权限 ∩ scopes」 |
 
 **成功响应（200）：**
 ```json
@@ -662,6 +666,8 @@ API Token 用于 CI/CD 脚本、自动化工具、第三方系统集成等场景
     "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
     "name": "ci-deploy-token",
     "token": "mxat_vKx8mN2pQ5rT7wY9aB3cD6fG0hJ4kL",
+    "allowed_paths": ["/api/v1/files"],
+    "scopes": ["user:list", "task:read"],
     "expires_at": "2026-12-28T10:00:00Z",
     "created_at": "2026-09-28T10:00:00Z"
   }
@@ -669,6 +675,10 @@ API Token 用于 CI/CD 脚本、自动化工具、第三方系统集成等场景
 ```
 
 **⚠️ 重要：** `token` 字段仅在创建时返回一次，后续无法再查看明文。请立即保存。
+
+**权限作用域（scope）语义：**
+- **未配置 `scopes`**（默认）：令牌继承属主账号的全部 RBAC 权限（可叠加 `allowed_paths` 做粗粒度路径限制），行为与历史一致（向后兼容）。
+- **配置了 `scopes`**：进入**严格最小权限模式**——令牌只能行使「属主实际权限 ∩ scopes」的交集；若属主为超管，有效集合即 `scopes` 本身。**此模式下忽略超管旁路**，即使属主是 superadmin，越出 scopes 的权限码一律返回 403。用于给 CI/集成发放只读、限定能力的长期令牌，避免默认继承全部权限。
 
 **业务规则：**
 - 每用户最多 10 个有效 API Token
@@ -702,6 +712,8 @@ API Token 用于 CI/CD 脚本、自动化工具、第三方系统集成等场景
       {
         "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
         "name": "ci-deploy-token",
+        "allowed_paths": ["/api/v1/files"],
+        "scopes": ["user:list", "task:read"],
         "expires_at": "2026-12-28T10:00:00Z",
         "last_used_at": "2026-09-27T08:15:00Z",
         "created_at": "2026-09-28T10:00:00Z",
@@ -780,7 +792,7 @@ curl -X POST https://api.example.com/api/v1/files/upload \
 3. JWT 解析失败 且 token 以 `mxat_` 开头 → 查 API Token
 4. Redis 缓存命中 → 直接注入 Context（<1ms）
 5. Redis 未命中 → 查 DB → 回填 Redis → 注入 Context
-6. API Token 验证通过后，注入 userID、tenantID、roles，后续逻辑与 JWT 完全一致
+6. API Token 验证通过后，注入 userID、tenantID、roles；若令牌带 `scopes`，额外注入收敛后的权限集合，后续权限中间件按严格最小权限判定（忽略超管旁路）
 
 **与 JWT 的区别：**
 | 维度 | JWT | API Token |

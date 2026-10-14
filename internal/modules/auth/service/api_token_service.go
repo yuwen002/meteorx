@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"meteorx/internal/cache"
+	"meteorx/internal/common/contextx"
 	"meteorx/internal/config"
 	"meteorx/internal/modules/auth/dto"
 	"meteorx/internal/modules/auth/model"
@@ -94,7 +95,8 @@ func (s *APITokenService) Create(ctx context.Context, userID, tenantID string, r
 		TokenHash:    tokenHash,
 		UserID:       userID,
 		TenantID:     tenantID,
-		AllowedPaths: serializeAllowedPaths(req.AllowedPaths),
+		AllowedPaths: serializeList(req.AllowedPaths),
+		Scopes:       serializeList(req.Scopes),
 		ExpiresAt:    expiresAt,
 		CreatedAt:    now,
 	}
@@ -106,13 +108,14 @@ func (s *APITokenService) Create(ctx context.Context, userID, tenantID string, r
 		return nil, err
 	}
 
-	s.cacheToken(ctx, tokenHash, userID, tenantID, req.AllowedPaths, expiresAt)
+	s.cacheToken(ctx, tokenHash, userID, tenantID, req.AllowedPaths, req.Scopes, expiresAt)
 
 	resp := &dto.CreateAPITokenResp{
 		ID:           t.ID,
 		Name:         t.Name,
 		Token:        plainToken,
 		AllowedPaths: req.AllowedPaths,
+		Scopes:       req.Scopes,
 		CreatedAt:    t.CreatedAt,
 	}
 	if expiresAt != nil {
@@ -157,37 +160,109 @@ func (s *APITokenService) Revoke(ctx context.Context, userID, tokenID string) er
 	return nil
 }
 
-// Validate 验证 API Token 有效性，优先查缓存，缓存未命中则查数据库
-// 返回 userID, tenantID, allowedPaths；allowedPaths 为空表示不限制
-func (s *APITokenService) Validate(ctx context.Context, tokenString string) (userID, tenantID string, allowedPaths []string, err error) {
+// Validate 验证 API Token 有效性，优先查缓存，缓存未命中则查数据库。
+// 返回 *contextx.TokenPrincipal：
+//   - 令牌未配 scope 时 Scoped=false，沿用属主完整 RBAC 权限（向后兼容）；
+//   - 令牌配非空 scope 时 Scoped=true，Permissions 为「属主权限 ∩ scopes」（属主为超管时即 scopes），
+//     作为下游权限中间件的严格上限。
+func (s *APITokenService) Validate(ctx context.Context, tokenString string) (*contextx.TokenPrincipal, error) {
 	if !strings.HasPrefix(tokenString, apiTokenPrefix) {
-		return "", "", nil, ErrAPITokenInvalid
+		return nil, ErrAPITokenInvalid
 	}
 
 	tokenHash := hashAPIToken(tokenString)
 
-	userID, tenantID, allowedPaths, err = s.lookupCache(ctx, tokenHash)
-	if err == nil && userID != "" {
-		return userID, tenantID, allowedPaths, nil
+	if p, ok := s.lookupCache(ctx, tokenHash); ok {
+		return p, nil
 	}
 
 	t, err := s.apiTokenRepo.GetByTokenHash(ctx, tokenHash)
 	if err != nil {
-		return "", "", nil, ErrAPITokenInvalid
+		return nil, ErrAPITokenInvalid
 	}
 
 	if t.RevokedAt != nil {
-		return "", "", nil, ErrAPITokenRevoked
+		return nil, ErrAPITokenRevoked
 	}
 	if t.ExpiresAt != nil && t.ExpiresAt.Before(time.Now()) {
-		return "", "", nil, ErrAPITokenExpired
+		return nil, ErrAPITokenExpired
 	}
 
-	parsedPaths := deserializeAllowedPaths(t.AllowedPaths)
+	parsedPaths := parseList(t.AllowedPaths)
+	parsedScopes := parseList(t.Scopes)
 	_ = s.apiTokenRepo.UpdateLastUsedAt(ctx, t.ID)
-	s.cacheToken(ctx, tokenHash, t.UserID, t.TenantID, parsedPaths, t.ExpiresAt)
 
-	return t.UserID, t.TenantID, parsedPaths, nil
+	principal := &contextx.TokenPrincipal{
+		UserID:       t.UserID,
+		TenantID:     t.TenantID,
+		AllowedPaths: parsedPaths,
+	}
+	if len(parsedScopes) > 0 {
+		principal.Scoped = true
+		principal.Permissions = s.resolveScopedPermissions(ctx, t.UserID, parsedScopes)
+	}
+
+	s.cacheToken(ctx, tokenHash, t.UserID, t.TenantID, parsedPaths, parsedScopes, t.ExpiresAt)
+	return principal, nil
+}
+
+// resolveScopedPermissions 计算令牌 scope 与属主实际权限的交集。
+// 属主为 superadmin 时其权限天然是全集，有效集合即 scopes；否则取 scopes ∩ 属主权限码，
+// 确保令牌永远不能越出属主权限边界。
+func (s *APITokenService) resolveScopedPermissions(ctx context.Context, userID string, scopes []string) []string {
+	roleCodes, err := s.userRoleRepo.GetRoleCodesByUserID(ctx, userID)
+	if err == nil {
+		for _, rc := range roleCodes {
+			if rc == "superadmin" {
+				return scopes
+			}
+		}
+	}
+
+	ownerCodes, err := s.GetUserPermissionCodes(ctx, userID)
+	if err != nil {
+		// 无法解析属主权限时保守返回空集合（拒绝一切），避免越权
+		return nil
+	}
+	ownerSet := make(map[string]struct{}, len(ownerCodes))
+	for _, c := range ownerCodes {
+		ownerSet[c] = struct{}{}
+	}
+	var effective []string
+	for _, sc := range scopes {
+		if _, ok := ownerSet[sc]; ok {
+			effective = append(effective, sc)
+		}
+	}
+	return effective
+}
+
+// GetUserPermissionCodes 合并用户全部角色持有的权限码（去重），用于 scope 收敛计算。
+func (s *APITokenService) GetUserPermissionCodes(ctx context.Context, userID string) ([]string, error) {
+	roleIDs, err := s.userRoleRepo.GetRoleIDsByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(roleIDs) == 0 {
+		return []string{}, nil
+	}
+
+	codeSet := make(map[string]bool)
+	for _, roleID := range roleIDs {
+		codes, err := s.rolePermRepo.GetPermissionCodesByRoleID(ctx, roleID)
+		if err != nil {
+			continue
+		}
+		for _, code := range codes {
+			codeSet[code] = true
+		}
+	}
+
+	result := make([]string, 0, len(codeSet))
+	for code := range codeSet {
+		result = append(result, code)
+	}
+	return result, nil
 }
 
 // GetUserRoles 获取用户的角色编码列表
@@ -234,13 +309,31 @@ func (s *APITokenService) parseExpiresIn(expiresIn string) (*time.Time, error) {
 	return &expiresAt, nil
 }
 
-// cacheToken 将 token 信息缓存到 Redis，TTL 取缓存默认值与剩余有效期的较小值
-func (s *APITokenService) cacheToken(ctx context.Context, tokenHash, userID, tenantID string, allowedPaths []string, expiresAt *time.Time) {
+// apiTokenCacheValue API Token 缓存的 JSON 结构（避免旧 “冒号分隔” 格式对含特殊字符 JSON 的脆弱拆分）。
+// Scopes 为空表示无 scope（继承模式）；非空时 Permissions 为已计算的收敛集合。
+type apiTokenCacheValue struct {
+	UserID       string   `json:"user_id"`
+	TenantID     string   `json:"tenant_id"`
+	AllowedPaths []string `json:"allowed_paths,omitempty"`
+	Scopes       []string `json:"scopes,omitempty"`
+	Permissions  []string `json:"permissions,omitempty"`
+}
+
+// cacheToken 将 token 信息缓存到 Redis，TTL 取缓存默认值与剩余有效期的较小值。
+// 当 scopes 非空时，同步缓存已收敛的权限集合，避免每次命中都回查属主权限。
+func (s *APITokenService) cacheToken(ctx context.Context, tokenHash, userID, tenantID string, allowedPaths, scopes []string, expiresAt *time.Time) {
 	if s.redis == nil || !s.redis.IsAvailable() {
 		return
 	}
 	key := apiTokenCachePrefix + tokenHash
-	data := fmt.Sprintf("%s:%s:%s", userID, tenantID, serializeAllowedPaths(allowedPaths))
+	val := apiTokenCacheValue{UserID: userID, TenantID: tenantID, AllowedPaths: allowedPaths, Scopes: scopes}
+	if len(scopes) > 0 {
+		val.Permissions = s.resolveScopedPermissions(ctx, userID, scopes)
+	}
+	data, err := json.Marshal(val)
+	if err != nil {
+		return
+	}
 
 	ttl := apiTokenCacheTTL
 	if expiresAt != nil {
@@ -252,29 +345,31 @@ func (s *APITokenService) cacheToken(ctx context.Context, tokenHash, userID, ten
 	if ttl <= 0 {
 		return
 	}
-	_ = s.redis.Set(ctx, key, data, ttl)
+	_ = s.redis.Set(ctx, key, string(data), ttl)
 }
 
-// lookupCache 从 Redis 缓存中查找 token 对应的用户、租户和可访问路径
-func (s *APITokenService) lookupCache(ctx context.Context, tokenHash string) (userID, tenantID string, allowedPaths []string, err error) {
+// lookupCache 从 Redis 缓存中查找 token 对应的身份与授权信息，命中且合法时返回。
+func (s *APITokenService) lookupCache(ctx context.Context, tokenHash string) (*contextx.TokenPrincipal, bool) {
 	if s.redis == nil || !s.redis.IsAvailable() {
-		return "", "", nil, fmt.Errorf("cache unavailable")
+		return nil, false
 	}
 	key := apiTokenCachePrefix + tokenHash
 	val, err := s.redis.Get(ctx, key)
 	if err != nil {
-		return "", "", nil, err
+		return nil, false
 	}
-	parts := strings.SplitN(val, ":", 3)
-	if len(parts) < 2 {
-		return "", "", nil, fmt.Errorf("invalid cache value")
+	var cv apiTokenCacheValue
+	if err := json.Unmarshal([]byte(val), &cv); err != nil || cv.UserID == "" {
+		return nil, false
 	}
-	userID = parts[0]
-	tenantID = parts[1]
-	if len(parts) == 3 {
-		allowedPaths = deserializeAllowedPaths(parts[2])
+	principal := &contextx.TokenPrincipal{
+		UserID:       cv.UserID,
+		TenantID:     cv.TenantID,
+		AllowedPaths: cv.AllowedPaths,
+		Scoped:       len(cv.Scopes) > 0,
+		Permissions:  cv.Permissions,
 	}
-	return userID, tenantID, allowedPaths, nil
+	return principal, true
 }
 
 // invalidateCache 使 Redis 中的 token 缓存失效
@@ -308,7 +403,8 @@ func toAPITokenResp(t *model.APIToken) *dto.APITokenResp {
 	resp := &dto.APITokenResp{
 		ID:           t.ID,
 		Name:         t.Name,
-		AllowedPaths: deserializeAllowedPaths(t.AllowedPaths),
+		AllowedPaths: parseList(t.AllowedPaths),
+		Scopes:       parseList(t.Scopes),
 		CreatedAt:    t.CreatedAt,
 		Revoked:      t.RevokedAt != nil,
 	}
@@ -323,23 +419,23 @@ func toAPITokenResp(t *model.APIToken) *dto.APITokenResp {
 	return resp
 }
 
-// serializeAllowedPaths 将路径列表序列化为 JSON 字符串，空列表返回空字符串
-func serializeAllowedPaths(paths []string) string {
-	if len(paths) == 0 {
+// serializeList 将字符串列表序列化为 JSON 字符串，空列表返回空字符串
+func serializeList(items []string) string {
+	if len(items) == 0 {
 		return ""
 	}
-	b, _ := json.Marshal(paths)
+	b, _ := json.Marshal(items)
 	return string(b)
 }
 
-// deserializeAllowedPaths 将 JSON 字符串反序列化为路径列表
-func deserializeAllowedPaths(s string) []string {
+// parseList 将 JSON 字符串反序列化为字符串列表
+func parseList(s string) []string {
 	if s == "" {
 		return nil
 	}
-	var paths []string
-	if err := json.Unmarshal([]byte(s), &paths); err != nil {
+	var items []string
+	if err := json.Unmarshal([]byte(s), &items); err != nil {
 		return nil
 	}
-	return paths
+	return items
 }

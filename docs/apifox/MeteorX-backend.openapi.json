@@ -26,6 +26,12 @@
           },
           "revoked": {
             "type": "boolean"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -2469,6 +2475,13 @@
             "maxLength": 64,
             "minLength": 1,
             "type": "string"
+          },
+          "scopes": {
+            "description": "权限码作用域列表；空表示继承属主全部权限，非空表示收敛为「属主权限 ∩ scopes」",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -2495,6 +2508,12 @@
           },
           "name": {
             "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "token": {
             "description": "明文令牌，仅创建时返回一次",

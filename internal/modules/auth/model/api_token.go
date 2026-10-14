@@ -11,6 +11,7 @@ type APIToken struct {
 	UserID       string
 	TenantID     string
 	AllowedPaths string // 可访问的 URL 路径列表，JSON 数组格式；空表示不限制（默认权限）
+	Scopes       string // 权限码作用域列表，JSON 数组格式；空表示继承属主全部权限，非空表示严格收敛为「属主权限 ∩ scopes」
 	ExpiresAt    *time.Time
 	LastUsedAt   *time.Time
 	CreatedAt    time.Time

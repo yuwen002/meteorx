@@ -63,17 +63,7 @@ import (
 func AutoRequirePermission(checker PermissionChecker) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// 超级管理员直接放行
-			if contextx.HasRole(r.Context(), "superadmin") {
-				next.ServeHTTP(w, r)
-				return
-			}
-
 			userID := contextx.GetUserID(r.Context())
-			if userID == "" {
-				response.Fail(w, http.StatusForbidden, "权限不足")
-				return
-			}
 
 			// 1. 从 chi 获取匹配到的路由 pattern，推导权限码
 			permCode := derivePermissionCode(r)
@@ -84,17 +74,19 @@ func AutoRequirePermission(checker PermissionChecker) func(http.Handler) http.Ha
 				return
 			}
 
-			// 2. 查询用户权限并校验
-			codes, err := checker.GetUserPermissionCodes(r.Context(), userID)
+			// 2. 统一权限判定（带 scope 的 API Token 走严格集合，否则超管旁路/实时查库）
+			granted, err := permissionGranted(r.Context(), checker, userID, permCode)
 			if err != nil {
 				response.Fail(w, http.StatusInternalServerError, "权限检查失败")
 				return
 			}
-			for _, code := range codes {
-				if code == permCode {
-					next.ServeHTTP(w, r)
-					return
-				}
+			if granted {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if userID == "" {
+				response.Fail(w, http.StatusForbidden, "权限不足")
+				return
 			}
 
 			response.Fail(w, http.StatusForbidden, "权限不足，缺少权限: "+permCode)

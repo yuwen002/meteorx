@@ -19,7 +19,7 @@ type TokenBlacklistChecker interface {
 
 // APITokenValidator API Token 验证接口，用于长期令牌认证
 type APITokenValidator interface {
-	Validate(ctx context.Context, tokenString string) (userID, tenantID string, allowedPaths []string, err error)
+	Validate(ctx context.Context, tokenString string) (*contextx.TokenPrincipal, error)
 	GetUserRoles(ctx context.Context, userID string) ([]string, error)
 }
 
@@ -71,26 +71,30 @@ func Auth(helper *jwt.TokenHelper, checker TokenBlacklistChecker, appMode string
 				if err != nil {
 					// JWT 解析失败，尝试 API Token 验证（仅对 mxat_ 前缀的 token）
 					if apiTokenValidator != nil && strings.HasPrefix(tokenString, "mxat_") {
-						uid, tid, allowedPaths, verr := apiTokenValidator.Validate(r.Context(), tokenString)
+						principal, verr := apiTokenValidator.Validate(r.Context(), tokenString)
 						if verr != nil {
 							http.Error(w, "令牌失效或已过期", http.StatusUnauthorized)
 							return
 						}
 						// 校验路径权限：若令牌配置了 allowedPaths，则请求路径必须匹配其中之一
-						if len(allowedPaths) > 0 && !matchAllowedPath(r.URL.Path, allowedPaths) {
+						if len(principal.AllowedPaths) > 0 && !matchAllowedPath(r.URL.Path, principal.AllowedPaths) {
 							http.Error(w, "该令牌无权访问此路径", http.StatusForbidden)
 							return
 						}
-						tokenRoles, rerr := apiTokenValidator.GetUserRoles(r.Context(), uid)
+						tokenRoles, rerr := apiTokenValidator.GetUserRoles(r.Context(), principal.UserID)
 						if rerr != nil {
 							http.Error(w, "令牌验证失败", http.StatusUnauthorized)
 							return
 						}
-						userID = uid
-						tenantID = tid
+						userID = principal.UserID
+						tenantID = principal.TenantID
 						roles = tokenRoles
 						ctx := r.Context()
-						ctx = context.WithValue(ctx, contextx.AllowedPathsKey, allowedPaths)
+						ctx = context.WithValue(ctx, contextx.AllowedPathsKey, principal.AllowedPaths)
+						// 带 scope 的令牌：将收敛后的权限集合注入上下文，供下游权限中间件严格判定
+						if principal.Scoped {
+							ctx = contextx.SetScopedPermissions(ctx, principal.Permissions)
+						}
 						r = r.WithContext(ctx)
 					} else {
 						http.Error(w, "令牌失效或已过期", http.StatusUnauthorized)
@@ -135,11 +139,20 @@ func (c *RedisBlacklistChecker) IsTokenBlacklisted(ctx context.Context, tokenStr
 	return result, err
 }
 
-// matchAllowedPath 检查请求路径是否匹配允许的路径前缀列表
-// 路径前缀匹配：如 /users 会匹配 /users、/users/、/users/abc 等
+// matchAllowedPath 检查请求路径是否匹配允许的路径前缀列表。
+// 采用路径段对齐匹配：前缀 "/users" 匹配 "/users"、"/users/123"，但不误匹配 "/users-admin"。
 func matchAllowedPath(requestPath string, allowedPaths []string) bool {
 	for _, prefix := range allowedPaths {
-		if strings.HasPrefix(requestPath, prefix) {
+		if prefix == "" {
+			continue
+		}
+		// 归一去掉尾部斜杠，避免 "/users/" 与 "/users" 不一致
+		prefix = strings.TrimRight(prefix, "/")
+		if prefix == "" {
+			// 前缀为 "/" 或空视为允许全部
+			return true
+		}
+		if requestPath == prefix || strings.HasPrefix(requestPath, prefix+"/") {
 			return true
 		}
 	}

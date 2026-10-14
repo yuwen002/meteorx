@@ -27,16 +27,7 @@ func GetExplicitPermission(ctx context.Context) string {
 func RequireExplicitPermission(checker PermissionChecker, defaultCode string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if contextx.HasRole(r.Context(), "superadmin") {
-				next.ServeHTTP(w, r)
-				return
-			}
-
 			userID := contextx.GetUserID(r.Context())
-			if userID == "" {
-				response.Fail(w, http.StatusForbidden, "权限不足")
-				return
-			}
 
 			explicitCode := GetExplicitPermission(r.Context())
 			requiredCode := explicitCode
@@ -49,17 +40,18 @@ func RequireExplicitPermission(checker PermissionChecker, defaultCode string) fu
 				return
 			}
 
-			codes, err := checker.GetUserPermissionCodes(r.Context(), userID)
+			granted, err := permissionGranted(r.Context(), checker, userID, requiredCode)
 			if err != nil {
 				response.Fail(w, http.StatusInternalServerError, "权限检查失败")
 				return
 			}
-
-			for _, code := range codes {
-				if code == requiredCode {
-					next.ServeHTTP(w, r)
-					return
-				}
+			if granted {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if userID == "" {
+				response.Fail(w, http.StatusForbidden, "权限不足")
+				return
 			}
 
 			response.Fail(w, http.StatusForbidden, "权限不足，缺少权限: "+requiredCode)
