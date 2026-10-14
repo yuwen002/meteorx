@@ -38,6 +38,27 @@ export interface DashboardOverview {
   }
 }
 
+// ---------- 增长趋势看板（仅平台超级管理员）----------
+
+/** 单日增长趋势数据点（与后端 dto.TrendDayResp 对齐） */
+export interface TrendDay {
+  date: string
+  new_tenants: number
+  new_users: number
+  audit_logs: number
+}
+
+/** 增长趋势响应（与后端 dto.GrowthTrendResp 对齐） */
+export interface GrowthTrend {
+  days: number
+  list: TrendDay[]
+}
+
+// 获取最近 N 天的增长趋势时间序列（默认 30，上限 365）
+export function getGrowthTrend(days?: number) {
+  return get<GrowthTrend>('/admin/dashboard/trend', days ? { days } : {})
+}
+
 // ---------- 租户健康度看板（仅平台超级管理员）----------
 
 /** 单个租户健康度条目（与后端 dto.TenantHealthItemResp 对齐） */

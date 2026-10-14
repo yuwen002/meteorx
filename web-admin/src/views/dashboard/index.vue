@@ -118,6 +118,66 @@
           </el-card>
         </el-col>
       </el-row>
+
+      <!-- 第四行：增长趋势（零依赖内联 SVG 柱状图） -->
+      <el-row :gutter="16">
+        <el-col :span="24">
+          <el-card shadow="hover" class="section-card trend-card">
+            <template #header>
+              <div class="trend-header">
+                <span><el-icon><TrendCharts /></el-icon> 增长趋势</span>
+                <div class="trend-controls">
+                  <el-radio-group v-model="trendMetric" size="small">
+                    <el-radio-button value="new_users">新增用户</el-radio-button>
+                    <el-radio-button value="new_tenants">新增租户</el-radio-button>
+                    <el-radio-button value="audit_logs">活跃日志</el-radio-button>
+                  </el-radio-group>
+                  <el-select v-model="trendPeriod" size="small" style="width: 100px" @change="loadTrend">
+                    <el-option :value="7" label="近 7 天" />
+                    <el-option :value="30" label="近 30 天" />
+                    <el-option :value="90" label="近 90 天" />
+                  </el-select>
+                </div>
+              </div>
+            </template>
+            <el-empty v-if="!trend.list.length" description="暂无数据" :image-size="60" />
+            <div v-else class="trend-scroll">
+              <svg
+                class="trend-svg"
+                :viewBox="`0 0 ${trendChart.width} ${trendChart.height}`"
+                :width="trendChart.width"
+                :height="trendChart.height"
+                role="img"
+                aria-label="增长趋势柱状图"
+              >
+                <line
+                  :x1="trendChart.padLeft"
+                  :y1="trendChart.baseY"
+                  :x2="trendChart.width - trendChart.padRight"
+                  :y2="trendChart.baseY"
+                  stroke="#e5e7eb"
+                  stroke-width="1"
+                />
+                <g v-for="b in trendChart.bars" :key="b.date">
+                  <rect
+                    :x="b.x"
+                    :y="b.y"
+                    :width="b.w"
+                    :height="b.h"
+                    :fill="b.fill"
+                    rx="2"
+                  >
+                    <title>{{ b.date }}：{{ b.value }}</title>
+                  </rect>
+                  <text v-if="b.showLabel" :x="b.cx" :y="trendChart.baseY + 14" class="bar-label" text-anchor="middle">
+                    {{ b.label }}
+                  </text>
+                </g>
+              </svg>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
     </template>
 
     <!-- ======== 普通租户管理员：工作台 ======== -->
@@ -227,7 +287,7 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { useUserStore } from '@/stores/user'
 import { getUserStats } from '@/api/modules/user'
 import { getRBACStats } from '@/api/modules/role'
-import { getDashboardOverview, type DashboardOverview } from '@/api/modules/dashboard'
+import { getDashboardOverview, getGrowthTrend, type DashboardOverview, type GrowthTrend } from '@/api/modules/dashboard'
 
 const userStore = useUserStore()
 const stats = ref({ users: 0, roles: 0, permissions: 0, my_permission: 0 })
@@ -245,6 +305,60 @@ const growthRows = computed(() => [
 const actionRows = computed(() => Object.entries(overview.value.audit_stats?.action_stats ?? {}).map(([key, value]) => ({ key, value })))
 const moduleRows = computed(() => Object.entries(overview.value.audit_stats?.module_stats ?? {}).map(([key, value]) => ({ key, value })))
 
+// ---------- 增长趋势（零依赖内联 SVG 柱状图）----------
+type TrendMetric = 'new_users' | 'new_tenants' | 'audit_logs'
+const trendMetric = ref<TrendMetric>('new_users')
+const trendPeriod = ref<number>(30)
+const trend = ref<GrowthTrend>({ days: 0, list: [] })
+const METRIC_COLORS: Record<TrendMetric, string> = { new_users: '#10b981', new_tenants: '#3b82f6', audit_logs: '#8b5cf6' }
+
+async function loadTrend() {
+  try {
+    trend.value = await getGrowthTrend(trendPeriod.value)
+  } catch {
+    ElMessage.warning('增长趋势加载失败')
+  }
+}
+
+// 将时间序列渲染为等宽柱状；缺失日期后端已以零值补齐，此处直接逐日绘制。
+const trendChart = computed(() => {
+  const list = trend.value.list ?? []
+  const metric = trendMetric.value
+  const height = 200
+  const padLeft = 32
+  const padRight = 12
+  const padTop = 16
+  const baseY = height - 28
+  const innerW = Math.max(list.length * 22, 1)
+  const width = padLeft + innerW + padRight
+  const slot = innerW / Math.max(list.length, 1)
+  const barW = Math.min(14, slot - 4)
+  const maxVal = list.reduce((m, d) => Math.max(m, d[metric]), 0)
+  const plotH = baseY - padTop
+  const usable = maxVal > 0 ? maxVal : 1
+  const labelStep = Math.max(1, Math.ceil(list.length / 8))
+  const color = METRIC_COLORS[metric]
+  const bars = list.map((d, i) => {
+    const value = d[metric]
+    const h = maxVal > 0 ? (value / usable) * plotH : 0
+    const x = padLeft + i * slot + (slot - barW) / 2
+    const y = baseY - h
+    return {
+      date: d.date,
+      x: +x.toFixed(1),
+      y: +y.toFixed(1),
+      w: +barW.toFixed(1),
+      h: +h.toFixed(1),
+      cx: +(x + barW / 2).toFixed(1),
+      value,
+      fill: color,
+      label: d.date.slice(5),
+      showLabel: i % labelStep === 0
+    }
+  })
+  return { width, height, padLeft, padRight, baseY, bars }
+})
+
 onMounted(async () => {
   try {
     if (isAdmin.value) {
@@ -254,6 +368,7 @@ onMounted(async () => {
       } catch {
         ElMessage.warning('运营数据看板加载失败')
       }
+      loadTrend()
       // 兼容旧统计接口，作为兜底
       const rbacStats = await getRBACStats()
       if (rbacStats) {
@@ -356,5 +471,31 @@ onMounted(async () => {
   gap: 8px 24px;
   color: #374151;
   font-size: 14px;
+}
+.trend-card :deep(.el-card__header) {
+  padding: 12px 16px;
+}
+.trend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.trend-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.trend-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+.trend-svg {
+  display: block;
+}
+.bar-label {
+  font-size: 10px;
+  fill: #6b7280;
 }
 </style>

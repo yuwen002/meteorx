@@ -52,6 +52,20 @@ type AuditStats struct {
 	ModuleStats map[string]int64 `json:"module_stats"` // 按模块统计
 }
 
+// TrendDay 单日增长趋势数据点（按自然日分桶的新增量）
+type TrendDay struct {
+	Date       string `json:"date"`        // 业务时区自然日，格式 YYYY-MM-DD
+	NewTenants int64  `json:"new_tenants"` // 当日新增租户数
+	NewUsers   int64  `json:"new_users"`   // 当日新增用户数
+	AuditLogs  int64  `json:"audit_logs"`  // 当日审计日志数（活跃度指标）
+}
+
+// GrowthTrend 一段时间的增长趋势时间序列
+type GrowthTrend struct {
+	Days int        `json:"days"` // 统计窗口天数（含今日）
+	List []TrendDay `json:"list"` // 按日期升序排列，缺失日期以零值补齐
+}
+
 // HealthQuery 租户健康度列表查询参数
 type HealthQuery struct {
 	Page     int    // 页码，从 1 开始

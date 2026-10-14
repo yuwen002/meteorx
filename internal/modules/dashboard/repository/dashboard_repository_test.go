@@ -109,6 +109,52 @@ func TestDashboardRepo_GetOverview_PartialFailure(t *testing.T) {
 	assert.Equal(t, int64(50), overview.UserStats.Total, "user stats should still be returned")
 }
 
+func TestDashboardRepo_GetTrend(t *testing.T) {
+	gormDB, mock := newDashTestDB(t)
+
+	// 租户/用户查询带 deleted_at IS NULL，审计日志不带，均使用同一个 group-by-day 正则。
+	groupPattern := "SELECT DATE\\(created_at\\) as day, COUNT\\(\\*\\) as count FROM .*tenants.* GROUP BY DATE\\(created_at\\)"
+	mock.ExpectQuery(groupPattern).WillReturnRows(
+		sqlmock.NewRows([]string{"day", "count"}).AddRow("2026-10-14", 2),
+	)
+	mock.ExpectQuery("SELECT DATE\\(created_at\\) as day, COUNT\\(\\*\\) as count FROM .*users.* GROUP BY DATE\\(created_at\\)").WillReturnRows(
+		sqlmock.NewRows([]string{"day", "count"}).AddRow("2026-10-13", 3).AddRow("2026-10-14", 1),
+	)
+	mock.ExpectQuery("SELECT DATE\\(created_at\\) as day, COUNT\\(\\*\\) as count FROM .*audit_logs.* GROUP BY DATE\\(created_at\\)").WillReturnRows(
+		sqlmock.NewRows([]string{"day", "count"}).AddRow("2026-10-14", 40),
+	)
+
+	repo := NewDashboardRepository(gormDB)
+	trend, err := repo.GetTrend(context.Background(), 2)
+	require.NoError(t, err)
+	require.NotNil(t, trend)
+
+	assert.Equal(t, 2, trend.Days)
+	require.Len(t, trend.List, 2)
+	// 缺失日期以零值补齐，命中日期回填计数
+	assert.Equal(t, int64(0), trend.List[0].NewTenants)
+	assert.Equal(t, int64(3), trend.List[0].NewUsers)
+	assert.Equal(t, int64(2), trend.List[1].NewTenants)
+	assert.Equal(t, int64(1), trend.List[1].NewUsers)
+	assert.Equal(t, int64(40), trend.List[1].AuditLogs)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDashboardRepo_GetTrend_DefaultsAndClamps(t *testing.T) {
+	gormDB, mock := newDashTestDB(t)
+
+	// days<=0 应回退为默认 30 天，因此需要为 3 张表各预期一次查询
+	for i := 0; i < 3; i++ {
+		mock.ExpectQuery("SELECT DATE\\(created_at\\) as day").WillReturnRows(sqlmock.NewRows([]string{"day", "count"}))
+	}
+
+	repo := NewDashboardRepository(gormDB)
+	trend, err := repo.GetTrend(context.Background(), 0)
+	require.NoError(t, err)
+	assert.Equal(t, 30, trend.Days)
+	assert.Len(t, trend.List, 30)
+}
+
 func TestNewDashboardRepository(t *testing.T) {
 	gormDB, _ := newDashTestDB(t)
 	repo := NewDashboardRepository(gormDB)

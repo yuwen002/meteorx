@@ -45,3 +45,12 @@ func (s *DashboardService) GetTenantHealthDetail(ctx context.Context, tenantID s
 	resp := dto.ToTenantHealthItemResp(*item)
 	return &resp, nil
 }
+
+// GetTrend 获取最近 days 天的增长趋势时间序列
+func (s *DashboardService) GetTrend(ctx context.Context, days int) (*dto.GrowthTrendResp, error) {
+	trend, err := s.repo.GetTrend(ctx, days)
+	if err != nil {
+		return nil, err
+	}
+	return dto.ToGrowthTrendResp(trend), nil
+}

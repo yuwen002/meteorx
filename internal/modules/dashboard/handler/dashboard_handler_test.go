@@ -18,14 +18,21 @@ import (
 )
 
 type stubDashboardService struct {
-	resp   *dto.DashboardOverviewResp
-	health *dto.TenantHealthListResp
-	detail *dto.TenantHealthItemResp
-	err    error
+	resp    *dto.DashboardOverviewResp
+	health  *dto.TenantHealthListResp
+	detail  *dto.TenantHealthItemResp
+	trend   *dto.GrowthTrendResp
+	gotDays int
+	err     error
 }
 
 func (s *stubDashboardService) GetOverview(_ context.Context) (*dto.DashboardOverviewResp, error) {
 	return s.resp, s.err
+}
+
+func (s *stubDashboardService) GetTrend(_ context.Context, days int) (*dto.GrowthTrendResp, error) {
+	s.gotDays = days
+	return s.trend, s.err
 }
 
 func (s *stubDashboardService) GetTenantHealth(_ context.Context, _ model.HealthQuery) (*dto.TenantHealthListResp, error) {
@@ -40,6 +47,7 @@ func newDashboardRouter(stub *stubDashboardService) http.Handler {
 	h := handler.NewDashboardHandler(stub)
 	r := chi.NewRouter()
 	r.Get("/admin/dashboard/overview", h.GetOverview)
+	r.Get("/admin/dashboard/trend", h.GetTrend)
 	return r
 }
 
@@ -74,4 +82,46 @@ func TestGetOverview_ServiceError_Returns500(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "获取运营数据总览失败")
 	assert.Contains(t, w.Body.String(), "stats broken")
+}
+
+func TestGetTrend_Success_DefaultDays(t *testing.T) {
+	stub := &stubDashboardService{trend: &dto.GrowthTrendResp{Days: 30}}
+	router := newDashboardRouter(stub)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/dashboard/trend", nil))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, 30, stub.gotDays, "未传 days 时应默认 30")
+}
+
+func TestGetTrend_Success_WithDays(t *testing.T) {
+	stub := &stubDashboardService{trend: &dto.GrowthTrendResp{Days: 7}}
+	router := newDashboardRouter(stub)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/dashboard/trend?days=7", nil))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, 7, stub.gotDays)
+}
+
+func TestGetTrend_InvalidDays_Returns400(t *testing.T) {
+	router := newDashboardRouter(&stubDashboardService{})
+
+	for _, q := range []string{"days=0", "days=abc", "days=400", "days=-1"} {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/dashboard/trend?"+q, nil))
+		assert.Equal(t, http.StatusBadRequest, w.Code, q)
+	}
+}
+
+func TestGetTrend_ServiceError_Returns500(t *testing.T) {
+	router := newDashboardRouter(&stubDashboardService{err: errors.New("trend broken")})
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/dashboard/trend?days=15", nil))
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "trend broken")
 }

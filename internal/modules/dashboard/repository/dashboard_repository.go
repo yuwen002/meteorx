@@ -19,7 +19,12 @@ type DashboardRepository interface {
 	GetTenantHealth(ctx context.Context, query model.HealthQuery) (*model.TenantHealthList, error)
 	// GetTenantHealthDetail 获取单个租户健康度详情
 	GetTenantHealthDetail(ctx context.Context, tenantID string) (*model.TenantHealthItem, error)
+	// GetTrend 获取最近 days 天的增长趋势时间序列（按自然日分桶）
+	GetTrend(ctx context.Context, days int) (*model.GrowthTrend, error)
 }
+
+// trendMaxDays 增长趋势查询的最大天数上限，避免一次性拉取过大区间压库。
+const trendMaxDays = 365
 
 // dashboardRepository 数据看板仓库实现
 type dashboardRepository struct {
@@ -222,6 +227,73 @@ func (r *dashboardRepository) getGroupStats(ctx context.Context, column string) 
 	stats := make(map[string]int64, len(rows))
 	for _, r := range rows {
 		stats[r.Key] = r.Count
+	}
+	return stats, nil
+}
+
+// GetTrend 获取最近 days 天的增长趋势时间序列
+// 以今日为终点向前回推 days-1 天构成闭区间，逐日按 created_at 分桶统计新增量；
+// 沿用 GetOverview 的容错策略：单表查询失败仅记日志、该指标置零，不阻断整体返回。
+func (r *dashboardRepository) GetTrend(ctx context.Context, days int) (*model.GrowthTrend, error) {
+	if days <= 0 {
+		days = 30
+	}
+	if days > trendMaxDays {
+		days = trendMaxDays
+	}
+
+	now := time.Now()
+	start := timeutil.StartOfDay(now).AddDate(0, 0, -(days - 1))
+
+	tenantMap, err := r.countByDay(ctx, "tenants", start, true)
+	if err != nil {
+		slog.Warn("Dashboard: tenant trend query failed", "error", err)
+	}
+	userMap, err := r.countByDay(ctx, "users", start, true)
+	if err != nil {
+		slog.Warn("Dashboard: user trend query failed", "error", err)
+	}
+	auditMap, err := r.countByDay(ctx, "audit_logs", start, false)
+	if err != nil {
+		slog.Warn("Dashboard: audit trend query failed", "error", err)
+	}
+
+	list := make([]model.TrendDay, days)
+	for i := 0; i < days; i++ {
+		day := start.AddDate(0, 0, i)
+		key := day.Format("2006-01-02")
+		list[i] = model.TrendDay{
+			Date:       key,
+			NewTenants: tenantMap[key],
+			NewUsers:   userMap[key],
+			AuditLogs:  auditMap[key],
+		}
+	}
+	return &model.GrowthTrend{Days: days, List: list}, nil
+}
+
+// countByDay 按自然日分组统计指定表在 since 之后的记录数，返回 map["2006-01-02"]count。
+// withDeleted 为 true 时附加 deleted_at IS NULL，软删除记录不计入增长。
+func (r *dashboardRepository) countByDay(ctx context.Context, table string, since time.Time, withDeleted bool) (map[string]int64, error) {
+	type row struct {
+		Day   string `gorm:"column:day"`
+		Count int64  `gorm:"column:count"`
+	}
+	query := r.db.WithContext(ctx).Table(table).
+		Select("DATE(created_at) as day, COUNT(*) as count").
+		Where("created_at >= ?", since)
+	if withDeleted {
+		query = query.Where("deleted_at IS NULL")
+	}
+
+	var rows []row
+	if err := query.Group("DATE(created_at)").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	stats := make(map[string]int64, len(rows))
+	for _, rr := range rows {
+		stats[rr.Day] = rr.Count
 	}
 	return stats, nil
 }

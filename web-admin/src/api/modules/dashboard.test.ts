@@ -3,11 +3,13 @@ import {
   getDashboardOverview,
   getTenantHealthList,
   getTenantHealthDetail,
+  getGrowthTrend,
   getSlowQueries,
   resetSlowQueries,
   type DashboardOverview,
   type TenantHealthList,
   type TenantHealthItem,
+  type GrowthTrend,
   type SlowQuerySnapshot,
 } from './dashboard'
 
@@ -97,5 +99,26 @@ describe('Dashboard API', () => {
     expect(get).toHaveBeenCalledWith('/admin/dashboard/tenants-health/tn-1')
     expect(res.health_score).toBe(82)
     expect(res.audit_count_7d).toBe(66)
+  })
+
+  it('getGrowthTrend 无参时应以空查询 GET trend', async () => {
+    const trend: GrowthTrend = {
+      days: 2,
+      list: [
+        { date: '2026-10-13', new_tenants: 1, new_users: 3, audit_logs: 20 },
+        { date: '2026-10-14', new_tenants: 2, new_users: 5, audit_logs: 40 },
+      ],
+    }
+    vi.mocked(get).mockResolvedValue(trend)
+    const res = await getGrowthTrend()
+    expect(get).toHaveBeenCalledWith('/admin/dashboard/trend', {})
+    expect(res.days).toBe(2)
+    expect(res.list[1].new_users).toBe(5)
+  })
+
+  it('getGrowthTrend 传 days 时应携带查询参数', async () => {
+    vi.mocked(get).mockResolvedValue({ days: 7, list: [] })
+    await getGrowthTrend(7)
+    expect(get).toHaveBeenCalledWith('/admin/dashboard/trend', { days: 7 })
   })
 })

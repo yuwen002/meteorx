@@ -21,7 +21,14 @@ type DashboardService interface {
 	GetOverview(ctx context.Context) (*dto.DashboardOverviewResp, error)
 	GetTenantHealth(ctx context.Context, query model.HealthQuery) (*dto.TenantHealthListResp, error)
 	GetTenantHealthDetail(ctx context.Context, tenantID string) (*dto.TenantHealthItemResp, error)
+	GetTrend(ctx context.Context, days int) (*dto.GrowthTrendResp, error)
 }
+
+// 增长趋势查询的天数默认值与上限，与仓库层上限保持一致。
+const (
+	trendDefaultDays = 30
+	trendMaxDays     = 365
+)
 
 // DashboardHandler 数据看板处理器
 type DashboardHandler struct {
@@ -89,6 +96,28 @@ func (h *DashboardHandler) GetTenantHealthDetail(w http.ResponseWriter, r *http.
 	}
 
 	response.Success(w, item)
+}
+
+// GetTrend 获取增长趋势时间序列
+// GET /api/v1/admin/dashboard/trend?days=N（默认 30，上限 365）
+func (h *DashboardHandler) GetTrend(w http.ResponseWriter, r *http.Request) {
+	days := trendDefaultDays
+	if raw := r.URL.Query().Get("days"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n <= 0 || n > trendMaxDays {
+			response.BadRequest(w, "days 参数不合法，应为 1-365 的整数")
+			return
+		}
+		days = n
+	}
+
+	trend, err := h.svc.GetTrend(r.Context(), days)
+	if err != nil {
+		slog.Error("获取增长趋势失败", "error", err)
+		response.Fail(w, http.StatusInternalServerError, "获取增长趋势失败: "+err.Error())
+		return
+	}
+	response.Success(w, trend)
 }
 
 // GetSlowQueries 获取慢查询看板快照（统计 + 最近慢查询列表）

@@ -87,6 +87,37 @@ func ToDashboardOverviewResp(m *model.DashboardOverview) *DashboardOverviewResp 
 	}
 }
 
+// TrendDayResp 单日增长趋势数据点响应
+type TrendDayResp struct {
+	Date       string `json:"date"`
+	NewTenants int64  `json:"new_tenants"`
+	NewUsers   int64  `json:"new_users"`
+	AuditLogs  int64  `json:"audit_logs"`
+}
+
+// GrowthTrendResp 增长趋势响应
+type GrowthTrendResp struct {
+	Days int            `json:"days"`
+	List []TrendDayResp `json:"list"`
+}
+
+// ToGrowthTrendResp 将增长趋势领域模型转换为响应 DTO
+func ToGrowthTrendResp(m *model.GrowthTrend) *GrowthTrendResp {
+	if m == nil {
+		return nil
+	}
+	list := make([]TrendDayResp, 0, len(m.List))
+	for _, d := range m.List {
+		list = append(list, TrendDayResp{
+			Date:       d.Date,
+			NewTenants: d.NewTenants,
+			NewUsers:   d.NewUsers,
+			AuditLogs:  d.AuditLogs,
+		})
+	}
+	return &GrowthTrendResp{Days: m.Days, List: list}
+}
+
 // TenantHealthItemResp 单个租户健康度响应
 type TenantHealthItemResp struct {
 	TenantID              string     `json:"tenant_id"`

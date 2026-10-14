@@ -16,11 +16,16 @@ type mockDashboardRepo struct {
 	overview *model.DashboardOverview
 	health   *model.TenantHealthList
 	detail   *model.TenantHealthItem
+	trend    *model.GrowthTrend
 	err      error
 }
 
 func (m *mockDashboardRepo) GetOverview(_ context.Context) (*model.DashboardOverview, error) {
 	return m.overview, m.err
+}
+
+func (m *mockDashboardRepo) GetTrend(_ context.Context, _ int) (*model.GrowthTrend, error) {
+	return m.trend, m.err
 }
 
 func (m *mockDashboardRepo) GetTenantHealth(_ context.Context, _ model.HealthQuery) (*model.TenantHealthList, error) {
@@ -75,4 +80,32 @@ func TestGetOverview_EmptyStatsHandled(t *testing.T) {
 	// 统计 map 为零值时应按“无数据”安全透传而非 panic/误造
 	assert.Nil(t, resp.AuditStats.ActionStats)
 	assert.Equal(t, int64(0), resp.TenantStats.Total)
+}
+
+func TestGetTrend_MapsDaysAndList(t *testing.T) {
+	trend := &model.GrowthTrend{
+		Days: 2,
+		List: []model.TrendDay{
+			{Date: "2026-10-13", NewTenants: 1, NewUsers: 3, AuditLogs: 20},
+			{Date: "2026-10-14", NewTenants: 2, NewUsers: 5, AuditLogs: 40},
+		},
+	}
+	svc := service.NewDashboardService(&mockDashboardRepo{trend: trend})
+
+	resp, err := svc.GetTrend(context.Background(), 2)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 2, resp.Days)
+	assert.Len(t, resp.List, 2)
+	assert.Equal(t, "2026-10-14", resp.List[1].Date)
+	assert.Equal(t, int64(5), resp.List[1].NewUsers)
+}
+
+func TestGetTrend_PropagatesRepositoryError(t *testing.T) {
+	svc := service.NewDashboardService(&mockDashboardRepo{err: errors.New("trend db down")})
+
+	resp, err := svc.GetTrend(context.Background(), 30)
+
+	assert.Nil(t, resp)
+	assert.EqualError(t, err, "trend db down")
 }
