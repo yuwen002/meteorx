@@ -406,6 +406,20 @@ func TestDownload_Success_StreamsContent(t *testing.T) {
 	assert.Equal(t, "hello-file", w.Body.String())
 }
 
+func TestDownload_ChineseFilename_RFC5987(t *testing.T) {
+	stub := &stubFileService{Reader: io.NopCloser(strings.NewReader("x")), Filename: "报告 2024.pdf"}
+	router := newFileRouter(stub, config.FileConfig{})
+
+	w := doFile(t, router, http.MethodGet, "/files/f1/download", "")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	cd := w.Header().Get("Content-Disposition")
+	// 非 ASCII 文件名：附加 RFC 5987 编码，并提供 ASCII 兜底名
+	assert.Contains(t, cd, "filename*=UTF-8''")
+	assert.Contains(t, cd, "%E6%8A%A5")              // 「报」的 UTF-8 百分号编码
+	assert.Contains(t, cd, `filename="__ 2024.pdf"`) // ASCII 兜底名（中文替换为下划线）
+}
+
 func TestDownload_NotFound_Returns404(t *testing.T) {
 	stub := &stubFileService{Err: errors.New("not found")}
 	router := newFileRouter(stub, config.FileConfig{})

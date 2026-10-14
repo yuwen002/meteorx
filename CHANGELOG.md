@@ -27,6 +27,10 @@
 - **路由平台级门禁失效**：全局 `beforeEach` 此前只校验 `meta.permission`，而大量平台页声明的 `meta.requireMaster` 从未被检查，导致被授予 `admin:*` 权限码的租户管理员可越级进入租户/审计/套餐/注销/公告等平台页。现抽出纯函数 `hasRouteAccess` 在守卫中强制校验 `requireMaster`（仅 `is_master` 放行），并补 `router/guard.test.ts` 回归
 - **白标标题被覆盖**：路由 `afterEach` 曾把 `document.title` 硬编码为 `xxx - MeteorX`，在任何导航后覆盖掉租户白标品牌名；现改用当前品牌名 `xxx - {brand}`
 - 套餐配额遗留数据归一化：配额列引入前创建的套餐行其 `storage_limit`/`api_rate_limit`/`wiki_space_limit`/`user_limit` 数据库默认值为 0，此前读路径原样返回 0，导致前端展示为「0 B / 0 次/分 / 0 个」，且消费端以 `limit < 0` 判不限时会把 0 误当作「上限为 0」而拦截全部上传/请求/建空间。现于 repository `toDomain` 读路径统一将 0 归一为 -1（不限），与写路径 `CreatePlan` 归一化口径对齐；补 `plan_repository_test.go` 覆盖遗留 0 值归一与显式值保留两条路径
+- **云存储切换后存量文件不可用**：`FileService` 此前只持有单一存储实例，虽在每条记录写入 `StorageType` 却从未用于路由；切换 `file.storage_type`（如 local→s3）后，历史文件的 `FilePath` 在新后端不存在，下载/URL/删除全部失效。新增 `storage.Registry`：上传走默认后端，读取/删除按记录 `StorageType` 惰性解析到原后端（无法构造时告警并回退默认），`FileService` 改经 `BackendResolver` 取后端（`NewFileService` 签名不变，内部包单后端垫片，旧测试零改动）；补 `registry_test.go` 覆盖路由/缓存/回退
+- **OSS 删除不幂等**：`OSSStorage.Delete` 对不存在对象直接返回错误（阿里云 OSS 删不存在 key 返回 404 NoSuchKey），与本地（忽略 `IsNotExist`）/ S3（`DeleteObject` 幂等）行为不一致，删除已消失对象会刷无意义告警。现识别 404/NoSuchKey 并视为成功；补 `oss_storage_test.go`
+- **S3 仅支持静态凭证**：`S3Storage` 原先强制要求 `access_key`/`secret_key`，EC2/ECS/EKS（IRSA）等实例角色场景无法使用。现两者均留空即走 AWS 默认凭证链（环境变量/共享配置/IMDS/IRSA），仅填其一报错；补凭证三态单测
+- **中文文件名下载乱码**：下载响应 `Content-Disposition` 此前直接拼接原始文件名，非 ASCII（中文）名未编码导致部分浏览器乱码。现纯 ASCII 走 `filename="..."`，含非 ASCII 时附加 RFC 5987 `filename*=UTF-8''<percent-encoded>` 并提供 ASCII 兜底名；补 handler 测试
 
 ### 测试
 - 新增导出模块 handler 层 HTTP 测试（桩服务 + chi 路由），覆盖创建/列表/详情/下载/删除 5 端点的鉴权、参数透传与 400/401/403/404/409/429/500 错误映射

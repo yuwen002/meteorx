@@ -5,10 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
@@ -344,10 +347,47 @@ func (h *FileHandler) Download(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = reader.Close() }()
 
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	w.Header().Set("Content-Disposition", attachmentDisposition(filename))
 	w.Header().Set("Content-Type", "application/octet-stream")
 
 	if _, err := io.Copy(w, reader); err != nil {
 		return
 	}
+}
+
+// attachmentDisposition 构造 Content-Disposition，兼容中文等非 ASCII 文件名（RFC 5987）：
+// 纯 ASCII 文件名走简洁的 filename="..."；含非 ASCII 时附加 filename*=UTF-8”<percent-encoded>，
+// 现代浏览器优先使用 filename*，旧浏览器回退 ASCII 兜底名，避免下载名乱码。
+func attachmentDisposition(filename string) string {
+	safe := strings.NewReplacer("\"", "", "\r", "", "\n", "").Replace(filename)
+	if isASCII(safe) {
+		return fmt.Sprintf("attachment; filename=%q", safe)
+	}
+	return fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", asciiFallbackName(safe), url.PathEscape(safe))
+}
+
+// isASCII 判断字符串是否全部为 ASCII 字符。
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
+}
+
+// asciiFallbackName 生成 ASCII 兜底文件名：保留 ASCII 可打印字符，其余替换为下划线；为空回退 "file"。
+func asciiFallbackName(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		if r >= 0x20 && r < 0x7f {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	if b.Len() == 0 {
+		return "file"
+	}
+	return b.String()
 }

@@ -27,8 +27,11 @@ func RegisterRoutes(r chi.Router, db *gorm.DB, cfg *config.Config) {
 		logger.Warnf("[file] storage init failed (%s), falling back to local storage: %v", cfg.File.StorageType, err)
 		fileStorage = storage.NewLocalStorage(cfg.File.UploadPath, cfg.File.UploadURL, cfg.File.UploadSignKey(cfg.JWT.Secret))
 	}
+	// 用注册表封装默认后端：上传走默认后端；读取/删除历史文件时按记录的 StorageType 路由到原后端，
+	// 从而支持「切换 storage_type 后仍能访问存量文件」，无法构造时回退默认后端。
+	registry := storage.NewRegistry(fileStorage, cfg.File, cfg.File.UploadSignKey(cfg.JWT.Secret))
 	// 注入套餐存储配额服务：上传前校验租户已用存储 + 本次大小是否超出上限
-	fileSvc := service.NewFileService(fileRepo, fileStorage, plan.NewQuotaService(db))
+	fileSvc := service.NewFileServiceWithResolver(fileRepo, registry, plan.NewQuotaService(db))
 	fileHandler := handler.NewFileHandler(fileSvc, cfg.File)
 
 	// 初始化权限检查器

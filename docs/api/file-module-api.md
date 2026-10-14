@@ -387,6 +387,10 @@ type Storage interface {
 - **云存储初始化失败（如缺必填配置）时降级为本地存储**并打印告警，不阻断启动（与 IP 定位器降级策略一致）；未知 `storage_type` 同样回退本地。
 - **访问 URL 语义**：云桶多为私有，`GetURL` 在未配置 `cloud.public_base_url` 时**尽力返回预签名 URL**（有效期取 `cloud.presign_ttl`，默认 3600s）；配置了 `cloud.public_base_url` 则返回公开/CDN 直链。`PresignURL` 提供带错误返回的精确签名（供需要显式控制有效期时使用）。
 - **对象键**：沿用与本地一致的「唯一 ID + 原扩展名」命名，可通过 `cloud.path_prefix` 增加前缀做应用/环境隔离；返回的相对路径即对象键，与原 `file_path` 语义保持兼容。
+- **多后端路由（无缝切换）**：每条文件记录都保存上传时所用的 `storage_type`。读取/删除某条记录时，`storage.Registry` 按该 `storage_type` 惰性解析到对应后端——切换 `file.storage_type`（如 local→s3）后仍能访问历史文件；无法构造时告警并回退默认后端。上传始终写入当前默认后端。
+- **S3 凭证**：`access_key`/`secret_key` 均填写走静态凭证；**均留空走 AWS 默认凭证链**（环境变量 / 共享配置 / IMDS / IRSA 实例角色），适配 ECS/EKS 等免密钥场景；仅填其一视为配置错误。
+- **删除幂等**：三后端对「对象不存在」一致视为成功（本地忽略 `IsNotExist`、S3 `DeleteObject` 幂等、OSS 容忍 404/NoSuchKey）。
+- **中文文件名下载**：下载响应 `Content-Disposition` 对非 ASCII 文件名附加 RFC 5987 `filename*=UTF-8''…` 编码并提供 ASCII 兜底名，避免浏览器下载名乱码。
 
 > 本地无云账号时，可用自托管 MinIO（S3 协议兼容）验证 `S3Storage` 驱动，步骤见 [本地 MinIO 联调云存储](../minio-local-s3.md)。
 
@@ -409,8 +413,8 @@ file:
     endpoint: ""                     # OSS: oss-cn-hangzhou.aliyuncs.com；S3: 留空走 AWS，填写则适配 MinIO 等
     region: ""                       # S3 必填（如 us-east-1）；OSS 可留空
     bucket: ""                       # 存储桶名称
-    access_key: ""                   # AccessKey / AccessKeyID
-    secret_key: ""                   # SecretKey / AccessKeySecret
+    access_key: ""                   # AccessKey / AccessKeyID（S3：与 secret_key 均留空走默认凭证链）
+    secret_key: ""                   # SecretKey / AccessKeySecret（S3：与 access_key 均留空走默认凭证链）
     path_prefix: ""                  # 对象键前缀（可选），如 prod/files
     public_base_url: ""              # 公开/CDN 基址（可选）；配置后 GetURL 返回公开直链
     presign_ttl: 3600                # 私有桶预签名 URL 有效期（秒），默认 3600

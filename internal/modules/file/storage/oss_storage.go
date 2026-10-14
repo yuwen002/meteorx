@@ -2,9 +2,11 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
+	"net/http"
 	"path/filepath"
 	"strings"
 
@@ -77,12 +79,29 @@ func (s *OSSStorage) Download(_ context.Context, path string) (io.ReadCloser, er
 	return body, nil
 }
 
-// Delete 删除 OSS 对象。
+// Delete 删除 OSS 对象；对象不存在视为成功（与本地忽略 IsNotExist、S3 DeleteObject 幂等等对齐）。
 func (s *OSSStorage) Delete(_ context.Context, path string) error {
 	if err := s.bucket.DeleteObject(path); err != nil {
+		if isOSSNoSuchKey(err) {
+			return nil
+		}
 		return fmt.Errorf("oss delete: %w", err)
 	}
 	return nil
+}
+
+// isOSSNoSuchKey 判断错误是否为「对象不存在」。
+// 阿里云 OSS 删除不存在 key 时返回 HTTP 404（NoSuchKey），需显式容错以保持删除幂等。
+func isOSSNoSuchKey(err error) bool {
+	var pe *oss.ServiceError
+	if errors.As(err, &pe) && pe != nil {
+		return pe.StatusCode == http.StatusNotFound
+	}
+	var ve oss.ServiceError
+	if errors.As(err, &ve) {
+		return ve.StatusCode == http.StatusNotFound
+	}
+	return false
 }
 
 // Exists 判断 OSS 对象是否存在。

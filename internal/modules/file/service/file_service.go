@@ -27,20 +27,51 @@ type StorageQuotaProvider interface {
 	GetTenantStorageLimit(ctx context.Context, tenantID string) (int64, error)
 }
 
-// FileService 文件服务
-type FileService struct {
-	repo    repository.FileRepository
-	storage storage.Storage
-	quota   StorageQuotaProvider
+// BackendResolver 解析存储后端：Default 为写操作默认后端；Resolve 按记录 StorageType 路由，
+// 以支持切换存储类型后仍能访问历史文件。
+type BackendResolver interface {
+	Default() storage.Storage
+	Resolve(storageType string) storage.Storage
 }
 
-// NewFileService 创建文件服务实例；quota 可为 nil，表示不做存储配额校验。
+// singleBackend 将单个存储实例包装为 Resolver（任意类型都解析到同一后端），
+// 供仅配置单一后端的场景与既有测试复用。
+type singleBackend struct{ s storage.Storage }
+
+func (b singleBackend) Default() storage.Storage       { return b.s }
+func (b singleBackend) Resolve(string) storage.Storage { return b.s }
+
+// FileService 文件服务
+type FileService struct {
+	repo     repository.FileRepository
+	resolver BackendResolver
+	quota    StorageQuotaProvider
+}
+
+// NewFileService 创建文件服务实例（单一存储后端）；quota 可为 nil，表示不做存储配额校验。
 func NewFileService(repo repository.FileRepository, storage storage.Storage, quota StorageQuotaProvider) *FileService {
 	return &FileService{
-		repo:    repo,
-		storage: storage,
-		quota:   quota,
+		repo:     repo,
+		resolver: singleBackend{storage},
+		quota:    quota,
 	}
+}
+
+// NewFileServiceWithResolver 创建文件服务实例，使用可路由的存储后端解析器（支持多后端/无缝切换）。
+func NewFileServiceWithResolver(repo repository.FileRepository, resolver BackendResolver, quota StorageQuotaProvider) *FileService {
+	return &FileService{
+		repo:     repo,
+		resolver: resolver,
+		quota:    quota,
+	}
+}
+
+// defaultBackend 返回写操作使用的默认后端（上传、上传失败清理）。
+func (s *FileService) defaultBackend() storage.Storage { return s.resolver.Default() }
+
+// backendFor 返回某条记录应对应的存储后端（按记录 StorageType 路由，无法构造时回退默认）。
+func (s *FileService) backendFor(storageType string) storage.Storage {
+	return s.resolver.Resolve(storageType)
 }
 
 // Upload 上传文件
@@ -74,7 +105,7 @@ func (s *FileService) Upload(ctx context.Context, fileHeader *multipart.FileHead
 			FileSize:     existingFile.FileSize,
 			MimeType:     existingFile.MimeType,
 			FileType:     existingFile.FileType,
-			URL:          s.storage.GetURL(existingFile.FilePath),
+			URL:          s.backendFor(existingFile.StorageType).GetURL(existingFile.FilePath),
 		}, nil
 	}
 
@@ -84,7 +115,7 @@ func (s *FileService) Upload(ctx context.Context, fileHeader *multipart.FileHead
 	}
 
 	// 上传文件到存储
-	filePath, err := s.storage.Upload(ctx, file, fileHeader.Filename)
+	filePath, err := s.defaultBackend().Upload(ctx, file, fileHeader.Filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload file: %w", err)
 	}
@@ -99,14 +130,14 @@ func (s *FileService) Upload(ctx context.Context, fileHeader *multipart.FileHead
 		FileSize:     fileHeader.Size,
 		MimeType:     fileHeader.Header.Get("Content-Type"),
 		FileType:     s.detectFileType(fileHeader.Filename, fileHeader.Header.Get("Content-Type")),
-		StorageType:  s.storage.Type(),
+		StorageType:  s.defaultBackend().Type(),
 		MD5:          md5Hash,
 		Status:       1,
 	}
 
 	if err := s.repo.Create(ctx, fileRecord); err != nil {
 		// 如果数据库插入失败，删除已上传的文件；清理失败只记日志，主错误照常返回
-		if delErr := s.storage.Delete(ctx, filePath); delErr != nil {
+		if delErr := s.defaultBackend().Delete(ctx, filePath); delErr != nil {
 			logger.Warnf("[FileService] warning: cleanup failed for %s: %v", filePath, delErr)
 		}
 		return nil, fmt.Errorf("failed to create file record: %w", err)
@@ -119,7 +150,7 @@ func (s *FileService) Upload(ctx context.Context, fileHeader *multipart.FileHead
 		FileSize:     fileRecord.FileSize,
 		MimeType:     fileRecord.MimeType,
 		FileType:     fileRecord.FileType,
-		URL:          s.storage.GetURL(fileRecord.FilePath),
+		URL:          s.defaultBackend().GetURL(fileRecord.FilePath),
 	}, nil
 }
 
@@ -155,7 +186,7 @@ func (s *FileService) GetByID(ctx context.Context, id string) (*dto.FileResp, er
 		return nil, err
 	}
 
-	url := s.storage.GetURL(file.FilePath)
+	url := s.backendFor(file.StorageType).GetURL(file.FilePath)
 	return dto.ToFileResp(file, url), nil
 }
 
@@ -170,7 +201,7 @@ func (s *FileService) GetByIDWithScope(ctx context.Context, id, tenantID string)
 		return nil, fmt.Errorf("file not found")
 	}
 
-	url := s.storage.GetURL(file.FilePath)
+	url := s.backendFor(file.StorageType).GetURL(file.FilePath)
 	return dto.ToFileResp(file, url), nil
 }
 
@@ -184,7 +215,7 @@ func (s *FileService) ListByTenant(ctx context.Context, tenantID string, req *dt
 	// 构建URL映射
 	urlMap := make(map[string]string)
 	for _, file := range files {
-		urlMap[file.ID] = s.storage.GetURL(file.FilePath)
+		urlMap[file.ID] = s.backendFor(file.StorageType).GetURL(file.FilePath)
 	}
 
 	return dto.ToFileRespList(files, urlMap), total, nil
@@ -200,7 +231,7 @@ func (s *FileService) ListByUser(ctx context.Context, tenantID, userID string, r
 	// 构建URL映射
 	urlMap := make(map[string]string)
 	for _, file := range files {
-		urlMap[file.ID] = s.storage.GetURL(file.FilePath)
+		urlMap[file.ID] = s.backendFor(file.StorageType).GetURL(file.FilePath)
 	}
 
 	return dto.ToFileRespList(files, urlMap), total, nil
@@ -238,7 +269,7 @@ func (s *FileService) Delete(ctx context.Context, id, tenantID string) error {
 
 	// 同步删除物理文件；失败只记日志，不回滚软删除（软删除已符合业务语义）
 	if file != nil && file.FilePath != "" {
-		if err := s.storage.Delete(ctx, file.FilePath); err != nil {
+		if err := s.backendFor(file.StorageType).Delete(ctx, file.FilePath); err != nil {
 			logger.Warnf("[FileService] warning: physical file delete failed for %s: %v", file.FilePath, err)
 		}
 	}
@@ -277,9 +308,10 @@ func (s *FileService) GetDeletedList(ctx context.Context, tenantID string, page,
 	// 构建URL映射（已删除文件的URL可能不可用）
 	urlMap := make(map[string]string)
 	for _, file := range files {
-		// 检查物理文件是否还存在
-		if exists, _ := s.storage.Exists(ctx, file.FilePath); exists {
-			urlMap[file.ID] = s.storage.GetURL(file.FilePath)
+		// 检查物理文件是否还存在（按记录 StorageType 路由到对应后端）
+		backend := s.backendFor(file.StorageType)
+		if exists, _ := backend.Exists(ctx, file.FilePath); exists {
+			urlMap[file.ID] = backend.GetURL(file.FilePath)
 		}
 	}
 
@@ -317,7 +349,7 @@ func (s *FileService) PermanentDelete(ctx context.Context, id, tenantID string) 
 
 	// 同步删除物理文件
 	if file.FilePath != "" {
-		if err := s.storage.Delete(ctx, file.FilePath); err != nil {
+		if err := s.backendFor(file.StorageType).Delete(ctx, file.FilePath); err != nil {
 			logger.Warnf("[FileService] warning: physical file delete failed for %s: %v", file.FilePath, err)
 		}
 	}
@@ -334,7 +366,7 @@ func (s *FileService) Download(ctx context.Context, id, tenantID string) (io.Rea
 		return nil, "", fmt.Errorf("file not found")
 	}
 
-	reader, err := s.storage.Download(ctx, file.FilePath)
+	reader, err := s.backendFor(file.StorageType).Download(ctx, file.FilePath)
 	if err != nil {
 		return nil, "", err
 	}

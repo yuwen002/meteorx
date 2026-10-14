@@ -31,13 +31,12 @@ type S3Storage struct {
 
 // NewS3Storage 依据配置创建 S3 存储实例。
 // Endpoint 留空走 AWS 默认端点；填写则适配 MinIO 等 S3 兼容服务（通常配合 ForcePathStyle）。
+// 凭证：access_key/secret_key 均填写走静态凭证；均留空走默认凭证链（环境变量/共享配置/实例角色 IRSA）；
+// 仅填其一视为配置错误。
 func NewS3Storage(ctx context.Context, cfg config.FileConfig) (*S3Storage, error) {
 	cloud := cfg.Cloud
 	if cloud.Bucket == "" {
 		return nil, errors.New("s3 storage: bucket is required")
-	}
-	if cloud.AccessKey == "" || cloud.SecretKey == "" {
-		return nil, errors.New("s3 storage: access_key and secret_key are required")
 	}
 
 	region := cloud.Region
@@ -47,8 +46,16 @@ func NewS3Storage(ctx context.Context, cfg config.FileConfig) (*S3Storage, error
 
 	loadOpts := []func(*awsconfig.LoadOptions) error{
 		awsconfig.WithRegion(region),
+	}
+	switch {
+	case cloud.AccessKey != "" && cloud.SecretKey != "":
 		// 显式静态凭证：LoadDefaultConfig 不会再探测 IMDS / 环境等其他凭证链
-		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cloud.AccessKey, cloud.SecretKey, "")),
+		loadOpts = append(loadOpts,
+			awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cloud.AccessKey, cloud.SecretKey, "")))
+	case cloud.AccessKey == "" && cloud.SecretKey == "":
+		// 均留空：走默认凭证链（env / shared config / IMDS / IRSA 等），无需额外配置
+	default:
+		return nil, errors.New("s3 storage: access_key and secret_key must both be set, or both empty to use the default credential chain")
 	}
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, loadOpts...)

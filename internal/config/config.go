@@ -337,8 +337,8 @@ type FileConfig struct {
 	// 云存储配置（storage_type 为 oss / s3 时启用；未启用时留空即可）
 	Cloud struct {
 		Endpoint  string `mapstructure:"endpoint"`   // OSS/S3 endpoint（S3 留空走 AWS 默认，填则适配 MinIO 等 S3 兼容端点）
-		AccessKey string `mapstructure:"access_key"` // AccessKey / AccessKeyID
-		SecretKey string `mapstructure:"secret_key"` // SecretKey / AccessKeySecret
+		AccessKey string `mapstructure:"access_key"` // AccessKey / AccessKeyID（S3：与 secret_key 均留空则走默认凭证链）
+		SecretKey string `mapstructure:"secret_key"` // SecretKey / AccessKeySecret（S3：与 access_key 均留空则走默认凭证链）
 		Bucket    string `mapstructure:"bucket"`     // Bucket 名称
 		Region    string `mapstructure:"region"`     // Region（S3 必填；OSS 可从 endpoint 推导，可留空）
 		// PathPrefix 对象键前缀（可选）；上传时拼在生成的文件名之前，便于按应用/环境隔离

@@ -87,6 +87,40 @@ func TestOSSStorage_PresignAndURL(t *testing.T) {
 	})
 }
 
+// TestNewS3Storage_CredentialModes 校验凭证三种形态：
+// 均填写→静态；均留空→默认凭证链（可离线构造）；仅填其一→报错。
+func TestNewS3Storage_CredentialModes(t *testing.T) {
+	base := func() config.FileConfig {
+		cfg := config.FileConfig{StorageType: "s3"}
+		cfg.Cloud.Bucket = "test-bucket"
+		cfg.Cloud.Region = "us-east-1"
+		return cfg
+	}
+	t.Run("both empty uses default chain", func(t *testing.T) {
+		s, err := NewS3Storage(context.TODO(), base())
+		if err != nil {
+			t.Fatalf("empty creds should fall back to default credential chain, got error: %v", err)
+		}
+		if s == nil {
+			t.Fatal("expected non-nil *S3Storage")
+		}
+	})
+	t.Run("only access key errors", func(t *testing.T) {
+		cfg := base()
+		cfg.Cloud.AccessKey = "only-ak"
+		if _, err := NewS3Storage(context.TODO(), cfg); err == nil {
+			t.Fatal("expected error when only one credential is set")
+		}
+	})
+	t.Run("only secret key errors", func(t *testing.T) {
+		cfg := base()
+		cfg.Cloud.SecretKey = "only-sk"
+		if _, err := NewS3Storage(context.TODO(), cfg); err == nil {
+			t.Fatal("expected error when only one credential is set")
+		}
+	})
+}
+
 // 编译期确保两类云驱动完整实现 Storage 接口。
 var (
 	_ Storage = (*S3Storage)(nil)
