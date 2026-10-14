@@ -150,6 +150,9 @@ func (r *stubUserRepo) UsernameExists(_ context.Context, username string) (bool,
 func (r *stubUserRepo) ListByTenant(_ context.Context, tenantID string, page, pageSize int, keyword string, status *int) ([]*userModel.User, int64, error) {
 	return nil, 0, nil
 }
+func (r *stubUserRepo) ListByTenantFiltered(_ context.Context, tenantID string, page, pageSize int, f userRepo.UserListFilter) ([]*userModel.User, int64, error) {
+	return nil, 0, nil
+}
 func (r *stubUserRepo) ListMasterAdmins(_ context.Context, page, pageSize int, keyword string) ([]*userModel.User, int64, error) {
 	return nil, 0, nil
 }
@@ -421,6 +424,46 @@ func TestCreate_EmailAlreadyMember(t *testing.T) {
 
 	_, err := svc.Create(context.Background(), "tenant-1", "user-1", req)
 	assert.ErrorIs(t, err, ErrEmailAlreadyMember)
+}
+
+func TestBatchCreate_MixedResults(t *testing.T) {
+	invRepo := newStubInvRepo()
+	userRepo := newStubUserRepo()
+	// member 邮箱已是本租户成员 → 跳过
+	userRepo.byEmail["member@example.com"] = &userModel.User{ID: "u-1", TenantID: "tenant-1", Email: "member@example.com"}
+	// 预置一个已存在的邀请 → 重复跳过
+	_ = invRepo.Create(context.Background(), &model.Invitation{
+		ID: "inv-exist", TenantID: "tenant-1", Email: "dup@example.com", Token: "t", Status: model.InvitationStatusPending,
+	})
+	svc := newTestService(invRepo, userRepo)
+
+	req := dto.BatchCreateInvitationReq{
+		Emails:  []string{"a@example.com", "dup@example.com", "member@example.com", "a@example.com", "  "},
+		RoleIDs: []string{"role-1"},
+	}
+	resp, err := svc.BatchCreate(context.Background(), "tenant-1", "user-1", req)
+	require.NoError(t, err)
+	assert.Equal(t, 1, resp.Created) // 仅 a@example.com 成功
+
+	reasons := map[string]string{}
+	for _, s := range resp.Skipped {
+		reasons[s.Email] = s.Reason
+	}
+	assert.Equal(t, "已有待处理邀请", reasons["dup@example.com"])
+	assert.Equal(t, "已是本租户成员", reasons["member@example.com"])
+	assert.Equal(t, "邮箱重复", reasons["a@example.com"])
+	assert.Len(t, resp.Skipped, 3)
+}
+
+func TestBatchCreate_AllEmpty(t *testing.T) {
+	invRepo := newStubInvRepo()
+	userRepo := newStubUserRepo()
+	svc := newTestService(invRepo, userRepo)
+
+	resp, err := svc.BatchCreate(context.Background(), "tenant-1", "user-1",
+		dto.BatchCreateInvitationReq{Emails: []string{"  ", ""}, RoleIDs: []string{"role-1"}})
+	assert.ErrorIs(t, err, ErrNoValidEmail)
+	assert.Nil(t, resp)
 }
 
 func TestAccept_Success(t *testing.T) {

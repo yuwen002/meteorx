@@ -58,6 +58,7 @@ func RegisterRoutes(r chi.Router, h *handler.InvitationHandler, checker middlewa
 		r.Use(middleware.AutoRequirePermission(checker))
 		r.Get("/", h.List)
 		r.Post("/", h.Create)
+		r.Post("/batch", h.BatchCreate) // 批量邀请（与 Create 共用 invitations:create）
 		r.Get("/roles", h.AssignableRoles) // 必须在 /{id} 之前
 		r.Put("/{id}/cancel", h.Cancel)
 		r.Put("/{id}/resend", h.Resend)

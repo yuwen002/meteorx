@@ -20,17 +20,21 @@ import (
 )
 
 type stubInvService struct {
-	createFn     func(ctx context.Context, tenantID, invitedBy string, req dto.CreateInvitationReq) (*model.Invitation, error)
-	listFn       func(ctx context.Context, tenantID string, page, pageSize int, keyword, status string) ([]*model.Invitation, int64, error)
-	cancelFn     func(ctx context.Context, tenantID, invitationID string) error
-	resendFn     func(ctx context.Context, tenantID, invitationID string) (*model.Invitation, error)
-	deleteFn     func(ctx context.Context, tenantID, invitationID string) error
-	acceptFn     func(ctx context.Context, req dto.AcceptInvitationReq) error
-	getByTokenFn func(ctx context.Context, token string) (*model.Invitation, error)
+	createFn      func(ctx context.Context, tenantID, invitedBy string, req dto.CreateInvitationReq) (*model.Invitation, error)
+	batchCreateFn func(ctx context.Context, tenantID, invitedBy string, req dto.BatchCreateInvitationReq) (*dto.BatchCreateInvitationResp, error)
+	listFn        func(ctx context.Context, tenantID string, page, pageSize int, keyword, status string) ([]*model.Invitation, int64, error)
+	cancelFn      func(ctx context.Context, tenantID, invitationID string) error
+	resendFn      func(ctx context.Context, tenantID, invitationID string) (*model.Invitation, error)
+	deleteFn      func(ctx context.Context, tenantID, invitationID string) error
+	acceptFn      func(ctx context.Context, req dto.AcceptInvitationReq) error
+	getByTokenFn  func(ctx context.Context, token string) (*model.Invitation, error)
 }
 
 func (s *stubInvService) Create(ctx context.Context, tenantID, invitedBy string, req dto.CreateInvitationReq) (*model.Invitation, error) {
 	return s.createFn(ctx, tenantID, invitedBy, req)
+}
+func (s *stubInvService) BatchCreate(ctx context.Context, tenantID, invitedBy string, req dto.BatchCreateInvitationReq) (*dto.BatchCreateInvitationResp, error) {
+	return s.batchCreateFn(ctx, tenantID, invitedBy, req)
 }
 func (s *stubInvService) List(ctx context.Context, tenantID string, page, pageSize int, keyword, status string) ([]*model.Invitation, int64, error) {
 	return s.listFn(ctx, tenantID, page, pageSize, keyword, status)
@@ -59,6 +63,7 @@ func newInvRouter(stub *stubInvService) http.Handler {
 	r := chi.NewRouter()
 	r.Route("/invitations", func(r chi.Router) {
 		r.Post("/", h.Create)
+		r.Post("/batch", h.BatchCreate)
 		r.Get("/", h.List)
 		r.Put("/{id}/cancel", h.Cancel)
 		r.Put("/{id}/resend", h.Resend)
@@ -136,6 +141,56 @@ func TestCreate_Unauthorized(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/invitations", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+func TestBatchCreate_Success(t *testing.T) {
+	stub := &stubInvService{
+		batchCreateFn: func(_ context.Context, _, _ string, req dto.BatchCreateInvitationReq) (*dto.BatchCreateInvitationResp, error) {
+			return &dto.BatchCreateInvitationResp{
+				Created: len(req.Emails),
+				Skipped: []dto.SkippedEmail{{Email: "dup@example.com", Reason: "邮箱重复"}},
+			}, nil
+		},
+	}
+
+	router := newInvRouter(stub)
+	body, _ := json.Marshal(dto.BatchCreateInvitationReq{
+		Emails:  []string{"a@example.com", "b@example.com"},
+		RoleIDs: []string{"role-1"},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/invitations/batch", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = withTenantContext(req, "t-1", "u-1")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Data struct {
+			Created int                `json:"created"`
+			Skipped []dto.SkippedEmail `json:"skipped"`
+		} `json:"data"`
+	}
+	assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Equal(t, 2, resp.Data.Created)
+	assert.Len(t, resp.Data.Skipped, 1)
+}
+
+func TestBatchCreate_Unauthorized(t *testing.T) {
+	stub := &stubInvService{
+		batchCreateFn: func(_ context.Context, _, _ string, _ dto.BatchCreateInvitationReq) (*dto.BatchCreateInvitationResp, error) {
+			return &dto.BatchCreateInvitationResp{}, nil
+		},
+	}
+	router := newInvRouter(stub)
+	body, _ := json.Marshal(dto.BatchCreateInvitationReq{Emails: []string{"a@example.com"}, RoleIDs: []string{"role-1"}})
+	req := httptest.NewRequest(http.MethodPost, "/invitations/batch", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	// 未设置租户上下文
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)

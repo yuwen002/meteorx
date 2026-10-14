@@ -61,6 +61,34 @@ func (h *InvitationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, toResp(inv))
 }
 
+// BatchCreate 批量创建邀请。POST /api/v1/invitations/batch
+// 需登录，自动校验与单创建相同的 invitations:create 权限。多个邮箱共享同一组角色。
+func (h *InvitationHandler) BatchCreate(w http.ResponseWriter, r *http.Request) {
+	tenantID := contextx.GetTenantID(r.Context())
+	userID := contextx.GetUserID(r.Context())
+	if tenantID == "" || userID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
+
+	var req dto.BatchCreateInvitationReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	resp, err := h.svc.BatchCreate(r.Context(), tenantID, userID, req)
+	if err != nil {
+		if errors.Is(err, service.ErrNoValidEmail) {
+			response.Fail(w, http.StatusBadRequest, "未提供有效邮箱")
+			return
+		}
+		response.Fail(w, http.StatusInternalServerError, "批量创建邀请失败: "+err.Error())
+		return
+	}
+
+	response.Success(w, resp)
+}
+
 // List 获取当前租户邀请列表。GET /api/v1/invitations
 // 需登录，自动校验 invitation:list 权限。
 func (h *InvitationHandler) List(w http.ResponseWriter, r *http.Request) {

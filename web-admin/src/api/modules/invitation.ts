@@ -28,6 +28,24 @@ export interface CreateInvitationParams {
   role_ids: string[]          // 分配的角色 ID 列表
 }
 
+/** 批量创建邀请参数：多个邮箱共享同一组角色（上限 50） */
+export interface BatchCreateInvitationParams {
+  emails: string[]            // 被邀请人邮箱列表
+  role_ids: string[]          // 分配的角色 ID 列表
+}
+
+/** 批量邀请中被跳过或失败的单个邮箱 */
+export interface SkippedEmail {
+  email: string
+  reason: string
+}
+
+/** 批量创建邀请结果 */
+export interface BatchCreateInvitationResult {
+  created: number             // 成功创建数量
+  skipped: SkippedEmail[]     // 被跳过/失败的邮箱及原因
+}
+
 /** 接受邀请参数 */
 export interface AcceptInvitationParams {
   token: string               // 邀请令牌（邮件链接中携带）
@@ -59,6 +77,11 @@ export function getInvitationList(params: InvitationListParams) {
 /** 创建邀请（邀请新成员加入租户） */
 export function createInvitation(data: CreateInvitationParams) {
   return post<InvitationItem>('/invitations', data)
+}
+
+/** 批量创建邀请（多个邮箱共享同一组角色） */
+export function createInvitationsBatch(data: BatchCreateInvitationParams) {
+  return post<BatchCreateInvitationResult>('/invitations/batch', data)
 }
 
 /** 取消邀请（仅 pending 状态可取消） */

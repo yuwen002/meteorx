@@ -19,6 +19,7 @@ import (
 	"meteorx/pkg/crypto"
 	"meteorx/pkg/idgen"
 	"meteorx/pkg/security"
+	"strings"
 	"time"
 )
 
@@ -38,11 +39,14 @@ var (
 	ErrEmailAlreadyMember = errors.New("this email is already a member of this tenant")
 	// ErrEmailNotConfigured 邮件服务未配置
 	ErrEmailNotConfigured = errors.New("email service not configured")
+	// ErrNoValidEmail 批量邀请未提供任何有效邮箱
+	ErrNoValidEmail = errors.New("no valid email provided")
 )
 
 // InvitationServiceInterface 邀请服务接口，供 handler 层依赖反转。
 type InvitationServiceInterface interface {
 	Create(ctx context.Context, tenantID, invitedBy string, req dto.CreateInvitationReq) (*model.Invitation, error)
+	BatchCreate(ctx context.Context, tenantID, invitedBy string, req dto.BatchCreateInvitationReq) (*dto.BatchCreateInvitationResp, error)
 	Accept(ctx context.Context, req dto.AcceptInvitationReq) error
 	List(ctx context.Context, tenantID string, page, pageSize int, keyword, status string) ([]*model.Invitation, int64, error)
 	Cancel(ctx context.Context, tenantID, invitationID string) error
@@ -169,6 +173,42 @@ func (s *InvitationService) Create(ctx context.Context, tenantID, invitedBy stri
 	}
 
 	return inv, nil
+}
+
+// BatchCreate 批量创建租户邀请：对每个邮箱复用 Create 逻辑逐个处理。
+// 重复邮箱、已有待处理邀请或已是成员的邮箱会被跳过（记录原因）而非中断整批，
+// 最终返回成功创建数量与逐项跳过原因。
+func (s *InvitationService) BatchCreate(ctx context.Context, tenantID, invitedBy string, req dto.BatchCreateInvitationReq) (*dto.BatchCreateInvitationResp, error) {
+	resp := &dto.BatchCreateInvitationResp{Skipped: []dto.SkippedEmail{}}
+	seen := make(map[string]struct{}, len(req.Emails))
+	for _, raw := range req.Emails {
+		email := strings.TrimSpace(raw)
+		if email == "" {
+			continue
+		}
+		key := strings.ToLower(email)
+		if _, ok := seen[key]; ok {
+			resp.Skipped = append(resp.Skipped, dto.SkippedEmail{Email: email, Reason: "邮箱重复"})
+			continue
+		}
+		seen[key] = struct{}{}
+
+		_, err := s.Create(ctx, tenantID, invitedBy, dto.CreateInvitationReq{Email: email, RoleIDs: req.RoleIDs})
+		switch {
+		case err == nil:
+			resp.Created++
+		case errors.Is(err, ErrEmailAlreadyInvited):
+			resp.Skipped = append(resp.Skipped, dto.SkippedEmail{Email: email, Reason: "已有待处理邀请"})
+		case errors.Is(err, ErrEmailAlreadyMember):
+			resp.Skipped = append(resp.Skipped, dto.SkippedEmail{Email: email, Reason: "已是本租户成员"})
+		default:
+			resp.Skipped = append(resp.Skipped, dto.SkippedEmail{Email: email, Reason: err.Error()})
+		}
+	}
+	if resp.Created == 0 && len(resp.Skipped) == 0 {
+		return nil, ErrNoValidEmail
+	}
+	return resp, nil
 }
 
 // Accept 接受租户邀请。

@@ -64,8 +64,17 @@
 
     <el-dialog v-model="createDialogVisible" title="邀请新成员" width="480px" :close-on-click-modal="false">
       <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="80px">
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="createForm.email" placeholder="请输入被邀请人邮箱" />
+        <el-form-item label="邮箱" prop="emails">
+          <el-select
+            v-model="createForm.emails"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            :reserve-query="false"
+            placeholder="输入邮箱后回车，可添加多个（单次≤50）"
+            style="width: 100%;"
+          />
         </el-form-item>
         <el-form-item label="角色" prop="role_ids">
           <el-select v-model="createForm.role_ids" multiple placeholder="请选择角色" style="width: 100%;">
@@ -86,7 +95,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { getInvitationList, createInvitation, cancelInvitation, resendInvitation, deleteInvitation, getAssignableRoles, type InvitationItem, type RoleOption } from '@/api/modules/invitation'
+import { getInvitationList, createInvitation, createInvitationsBatch, cancelInvitation, resendInvitation, deleteInvitation, getAssignableRoles, type InvitationItem, type RoleOption } from '@/api/modules/invitation'
 import { toPageResult } from '@/types/pagination'
 
 const loading = ref(false)
@@ -145,16 +154,29 @@ const createDialogVisible = ref(false)
 const createFormRef = ref<FormInstance>()
 const createLoading = ref(false)
 const createForm = reactive({
-  email: '',
+  emails: [] as string[],
   role_ids: [] as string[]
 })
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const createRules: FormRules = {
-  email: [{ required: true, type: 'email', message: '请输入正确的邮箱', trigger: 'blur' }],
+  emails: [
+    {
+      validator: (_rule, value: string[], callback) => {
+        const arr = (value || []).map((e) => e.trim()).filter(Boolean)
+        if (arr.length === 0) return callback(new Error('请至少输入一个邮箱'))
+        if (arr.length > 50) return callback(new Error('单次最多邀请 50 个邮箱'))
+        const bad = arr.find((e) => !EMAIL_RE.test(e))
+        if (bad) return callback(new Error(`邮箱格式不正确：${bad}`))
+        callback()
+      },
+      trigger: 'change'
+    }
+  ],
   role_ids: [{ required: true, message: '请选择角色', trigger: 'change' }]
 }
 
 function openCreateDialog() {
-  createForm.email = ''
+  createForm.emails = []
   createForm.role_ids = []
   createDialogVisible.value = true
 }
@@ -163,10 +185,23 @@ async function submitCreate() {
   if (!createFormRef.value) return
   await createFormRef.value.validate(async (valid) => {
     if (!valid) return
+    const emails = createForm.emails.map((e) => e.trim()).filter(Boolean)
     createLoading.value = true
     try {
-      await createInvitation(createForm)
-      ElMessage.success('邀请已发送')
+      if (emails.length === 1) {
+        await createInvitation({ email: emails[0], role_ids: createForm.role_ids })
+        ElMessage.success('邀请已发送')
+      } else {
+        const res = await createInvitationsBatch({ emails, role_ids: createForm.role_ids })
+        const skipped = res?.skipped ?? []
+        if (res && res.created > 0 && skipped.length === 0) {
+          ElMessage.success(`已发送 ${res.created} 个邀请`)
+        } else if (res && res.created > 0) {
+          ElMessage.warning(`成功 ${res.created} 个，跳过 ${skipped.length} 个（${skipped.map((s) => `${s.email}：${s.reason}`).join('；')}）`)
+        } else {
+          ElMessage.error('未创建任何邀请，全部被跳过')
+        }
+      }
       createDialogVisible.value = false
       loadList()
     } catch (e) {

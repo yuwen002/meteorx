@@ -7,6 +7,24 @@ type CreateInvitationReq struct {
 	RoleIDs []string `json:"role_ids" validate:"required,min=1" label:"角色"` // 分配的角色 ID 列表
 }
 
+// BatchCreateInvitationReq 批量创建邀请请求。多个邮箱共享同一组角色，邮箱上限 50。
+type BatchCreateInvitationReq struct {
+	Emails  []string `json:"emails" validate:"required,min=1,max=50,dive,required,email" label:"邮箱列表"` // 被邀请人邮箱列表
+	RoleIDs []string `json:"role_ids" validate:"required,min=1" label:"角色"`                            // 分配的角色 ID 列表
+}
+
+// BatchCreateInvitationResp 批量创建邀请结果。Created 为成功数量，Skipped 逐项列出被跳过/失败的邮箱及原因。
+type BatchCreateInvitationResp struct {
+	Created int            `json:"created"`
+	Skipped []SkippedEmail `json:"skipped"`
+}
+
+// SkippedEmail 批量邀请中被跳过或失败的单个邮箱及其原因
+type SkippedEmail struct {
+	Email  string `json:"email"`
+	Reason string `json:"reason"`
+}
+
 // InvitationResp 邀请响应，返回给前端的邀请详情。
 type InvitationResp struct {
 	ID         string   `json:"id"`
