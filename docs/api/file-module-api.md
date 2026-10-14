@@ -388,6 +388,8 @@ type Storage interface {
 - **访问 URL 语义**：云桶多为私有，`GetURL` 在未配置 `cloud.public_base_url` 时**尽力返回预签名 URL**（有效期取 `cloud.presign_ttl`，默认 3600s）；配置了 `cloud.public_base_url` 则返回公开/CDN 直链。`PresignURL` 提供带错误返回的精确签名（供需要显式控制有效期时使用）。
 - **对象键**：沿用与本地一致的「唯一 ID + 原扩展名」命名，可通过 `cloud.path_prefix` 增加前缀做应用/环境隔离；返回的相对路径即对象键，与原 `file_path` 语义保持兼容。
 
+> 本地无云账号时，可用自托管 MinIO（S3 协议兼容）验证 `S3Storage` 驱动，步骤见 [本地 MinIO 联调云存储](../minio-local-s3.md)。
+
 ---
 
 ## 7. 配置说明（config.yaml）

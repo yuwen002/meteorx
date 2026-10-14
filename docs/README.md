@@ -30,6 +30,7 @@
 
 ### 其他文档
 - [项目结构说明](project-structure.md)
+- [本地 MinIO 联调云存储（S3）](minio-local-s3.md)
 - [IP 数据库下载说明](ip2region-download.md)
 - [OpenAPI 同步工具说明](openapi-sync.md)
 - [设计文档](DESIGN.md)
