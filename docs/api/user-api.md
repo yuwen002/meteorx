@@ -211,8 +211,12 @@
 | page | int | 页码，默认 1 |
 | page_size | int | 每页条数，默认 10 |
 | keyword | string | 按用户名/昵称/邮箱搜索 |
-| role_id | string | 按角色筛选 |
-| status | int | 按状态筛选 |
+| status | int | 按状态筛选（非法值保守降级为 0-禁用） |
+| role | string | 按角色筛选（关联 `user_roles`，仅返回持有该角色的用户） |
+| sort | string | 排序列：`created_at`（默认）/`updated_at`/`username`/`status`/`email`/`last_login_at`；非法值回退默认 |
+| order | string | 排序方向：`asc` / `desc`（大小写不敏感，默认 `asc`） |
+| created_from | string | 注册时间下界，支持 `2006-01-02`、`2006-01-02 15:04:05` 或 RFC3339；非法返回 400 |
+| created_to | string | 注册时间上界，格式同上；仅传日期时自动补足到当天 23:59:59 |
 
 **成功响应（200）：** 分页响应，data 为 UserResp 数组
 

@@ -13,6 +13,7 @@
 | 方法 | 路径 | 功能 | 权限码 |
 |------|------|------|--------|
 | GET | `/admin/dashboard/overview` | 平台运营数据总览 | `admin:dashboard:list` |
+| GET | `/admin/dashboard/trend` | 增长趋势时间序列（按自然日分桶） | `admin:dashboard:list` |
 | GET | `/admin/dashboard/tenants-health` | 租户健康度列表（含分级汇总） | `admin:dashboard:list` |
 | GET | `/admin/dashboard/tenants-health/{id}` | 单租户健康度详情 | `admin:dashboard:list` |
 | GET | `/admin/dashboard/slow-queries` | 慢查询看板快照（统计 + 明细） | `admin:dashboard:list` |
@@ -106,6 +107,22 @@
 | moderate | int64 | moderate 分级租户数（全量统计） |
 | at_risk | int64 | at_risk 分级租户数（全量统计） |
 
+### 2.8 GrowthTrendResp（增长趋势响应）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| days | int | 统计窗口天数（含今日） |
+| list | TrendDayResp[] | 按日期升序的时间序列，缺失日期以零值补齐 |
+
+### 2.9 TrendDayResp（单日数据点）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| date | string | 业务时区自然日，格式 `YYYY-MM-DD` |
+| new_tenants | int64 | 当日新增租户数（软删除不计入） |
+| new_users | int64 | 当日新增用户数（软删除不计入） |
+| audit_logs | int64 | 当日审计日志数（活跃度指标） |
+
 ---
 
 ## 3. 接口详细说明
@@ -194,6 +211,39 @@
 **分级：** `health_score ≥ 70` → healthy；`≥ 40` → moderate；`< 40` → at_risk。
 
 **业务说明：** 全部指标基于既有数据表聚合直查（租户/订阅/用户/任务/Wiki/文件/审计），无新增表。
+
+### 3.2b 增长趋势时间序列
+
+`GET /api/v1/admin/dashboard/trend`
+
+**Query 参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| days | int | 统计窗口天数，默认 30，取值 1-365；非法值返回 400 |
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "ok",
+  "data": {
+    "days": 3,
+    "list": [
+      { "date": "2026-10-12", "new_tenants": 0, "new_users": 1, "audit_logs": 15 },
+      { "date": "2026-10-13", "new_tenants": 1, "new_users": 3, "audit_logs": 20 },
+      { "date": "2026-10-14", "new_tenants": 2, "new_users": 5, "audit_logs": 40 }
+    ]
+  }
+}
+```
+
+**业务说明：**
+
+- 以今日为终点向前回推 `days-1` 天构成闭区间，逐日按 `created_at` 分桶（`DATE(created_at)`），沿用业务时区自然日边界。
+- 租户/用户统计附加 `deleted_at IS NULL`，软删除记录不计入增长；审计日志为活跃度指标，全量统计。
+- 沿用总览接口的容错策略：单表查询失败仅记日志、对应指标置零，不阻断整体返回。
+- 前端以零依赖内联 SVG 柱状图渲染，支持在“新增用户 / 新增租户 / 活跃日志”三个指标间切换，并提供近 7/30/90 天窗口选择。
 
 ### 3.3 单租户健康度详情
 

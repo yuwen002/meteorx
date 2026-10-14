@@ -17,6 +17,7 @@
 |------|------|------|--------|
 | GET | `/invitations` | 获取当前租户邀请列表 | `invitation:list` |
 | POST | `/invitations` | 创建邀请（邀请新成员） | `invitation:create` |
+| POST | `/invitations/batch` | 批量创建邀请（多邮箱共享角色） | `invitation:create` |
 | PUT | `/invitations/{id}/cancel` | 取消邀请 | `invitation:cancel` |
 | PUT | `/invitations/{id}/resend` | 重发邀请邮件 | `invitation:resend` |
 | DELETE | `/invitations/{id}/delete` | 删除邀请记录 | `invitation:delete` |
@@ -68,6 +69,27 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | message | string | 提示信息 |
+
+### 2.5 BatchCreateInvitationReq（批量创建邀请请求）
+
+| 字段 | 类型 | 必填 | 校验规则 | 说明 |
+|------|------|------|----------|------|
+| emails | []string | 是 | min=1,max=50，每项为合法邮箱 | 被邀请人邮箱列表 |
+| role_ids | []string | 是 | min=1 | 分配给所有邮箱的角色 ID 列表 |
+
+### 2.6 BatchCreateInvitationResp（批量创建邀请响应）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| created | int | 成功创建的邀请数 |
+| skipped | SkippedEmail[] | 被跳过的邮箱及原因 |
+
+### 2.7 SkippedEmail（被跳过的邮箱）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| email | string | 被跳过的邮箱 |
+| reason | string | 跳过原因（邮箱重复 / 已有待处理邀请 / 已是本租户成员等） |
 
 ---
 
@@ -161,6 +183,49 @@
 | 400 | 参数校验失败 |
 | 409 | 该邮箱已有待处理邀请 / 该邮箱已是本租户成员 |
 | 500 | 创建失败 / 邮件发送失败 |
+
+---
+
+### 3.2b 批量创建邀请
+
+`POST /api/v1/invitations/batch`
+
+**请求头：** `Authorization: Bearer <token>`
+
+**请求体：**
+```json
+{
+  "emails": ["a@example.com", "b@example.com", "c@example.com"],
+  "role_ids": ["01ARZ3NDEKTSV4RRFFQ69G5FAV"]
+}
+```
+
+**业务规则：**
+- 单次最多 50 个邮箱，全部共享同一组 `role_ids`；权限码与单条创建相同（`invitation:create`）。
+- 逐项复用单条创建逻辑：邮箱按大小写不敏感去重；重复、已有待处理邀请、已是本租户成员的邮箱均 **跳过而非中断**整体流程。
+- 全部邮箱均无效（无任一创建成功且无可记录跳过项）时返回 `400`。
+- 每个成功创建的邀请均会独立发送邀请邮件。
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "created": 2,
+    "skipped": [
+      { "email": "c@example.com", "reason": "已是本租户成员" }
+    ]
+  }
+}
+```
+
+**错误响应：**
+| 状态码 | 场景 |
+|--------|------|
+| 400 | 参数校验失败 / 未提供有效邮箱 |
+| 401 | 未登录 |
+| 500 | 服务内部错误 |
 
 ---
 
