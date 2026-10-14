@@ -1,0 +1,20 @@
+docker-compose.dev.yml
+  s_f00af1d8c88a9e::t_3b32e0e6d78999 50-58,123-161,169-170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "f2772a8e37a19e1e38aaaefb05fc929492ae8005",
+  "prompts": {},
+  "sessions": {
+    "s_f00af1d8c88a9e": {
+      "agent_id": {
+        "tool": "codebuddy",
+        "id": "eaafc3a9536348a0be0c326daac2fb23",
+        "model": "step-5-preview"
+      },
+      "human_author": "liuxingyu <yuwen002@163.com>",
+      "generated_lines": 50
+    }
+  }
+}
