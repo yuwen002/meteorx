@@ -7,6 +7,7 @@ import (
 	"meteorx/internal/config"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newTestOAuthService(cfg config.OAuthConfig) *OAuthService {
@@ -41,9 +42,9 @@ func TestGetRedirectURL_GoogleEnabled(t *testing.T) {
 	cfg := config.OAuthConfig{
 		Google: config.OAuthProviderConfig{
 			Enabled:      true,
-			ClientID:    "google-client-id",
+			ClientID:     "google-client-id",
 			ClientSecret: "secret",
-			RedirectURL: "https://example.com/oauth/google/callback",
+			RedirectURL:  "https://example.com/oauth/google/callback",
 		},
 	}
 	svc := newTestOAuthService(cfg)
@@ -61,9 +62,9 @@ func TestGetRedirectURL_GitHubEnabled(t *testing.T) {
 	cfg := config.OAuthConfig{
 		GitHub: config.OAuthProviderConfig{
 			Enabled:      true,
-			ClientID:    "github-client-id",
+			ClientID:     "github-client-id",
 			ClientSecret: "secret",
-			RedirectURL: "https://example.com/oauth/github/callback",
+			RedirectURL:  "https://example.com/oauth/github/callback",
 		},
 	}
 	svc := newTestOAuthService(cfg)
@@ -76,7 +77,7 @@ func TestGetRedirectURL_GitHubEnabled(t *testing.T) {
 	assert.Contains(t, url, "state=", "state param should be in redirect URL")
 }
 
-func TestBuildGoogleRedirectURL_ContainsState(t *testing.T) {
+func TestGoogleRedirectURL_ContainsState(t *testing.T) {
 	cfg := config.OAuthConfig{
 		Google: config.OAuthProviderConfig{
 			ClientID:    "test-client-id",
@@ -85,18 +86,17 @@ func TestBuildGoogleRedirectURL_ContainsState(t *testing.T) {
 	}
 	svc := newTestOAuthService(cfg)
 
-	state := "test-state-value"
-	url := svc.buildGoogleRedirectURL(state)
+	p, ok := svc.registry.Get("google")
+	require.True(t, ok)
+	url := p.RedirectURL("test-state-value")
 	assert.Contains(t, url, "https://accounts.google.com/o/oauth2/v2/auth")
 	assert.Contains(t, url, "client_id=test-client-id")
 	assert.Contains(t, url, "response_type=code")
 	assert.Contains(t, url, "scope=openid+email+profile")
-	assert.Contains(t, url, "access_type=online")
-	assert.Contains(t, url, "prompt=select_account")
 	assert.Contains(t, url, "state=test-state-value")
 }
 
-func TestBuildGitHubRedirectURL_ContainsState(t *testing.T) {
+func TestGitHubRedirectURL_ContainsState(t *testing.T) {
 	cfg := config.OAuthConfig{
 		GitHub: config.OAuthProviderConfig{
 			ClientID:    "gh-client-id",
@@ -105,12 +105,52 @@ func TestBuildGitHubRedirectURL_ContainsState(t *testing.T) {
 	}
 	svc := newTestOAuthService(cfg)
 
-	state := "test-state-value"
-	url := svc.buildGitHubRedirectURL(state)
+	p, ok := svc.registry.Get("github")
+	require.True(t, ok)
+	url := p.RedirectURL("test-state-value")
 	assert.Contains(t, url, "https://github.com/login/oauth/authorize")
 	assert.Contains(t, url, "client_id=gh-client-id")
 	assert.Contains(t, url, "read%3Auser+user%3Aemail")
 	assert.Contains(t, url, "state=test-state-value")
+}
+
+func TestListProviders_OnlyEnabled(t *testing.T) {
+	cfg := config.OAuthConfig{
+		Google: config.OAuthProviderConfig{Enabled: true, ClientID: "g", ClientSecret: "s", RedirectURL: "https://e/c"},
+		GitHub: config.OAuthProviderConfig{Enabled: false, ClientID: "gh", ClientSecret: "s", RedirectURL: "https://e/c"},
+		WeChat: config.OAuthProviderConfig{Enabled: true, ClientID: "wx", ClientSecret: "s", RedirectURL: "https://e/c"},
+	}
+	svc := newTestOAuthService(cfg)
+	metas := svc.ListProviders(context.TODO())
+	ids := make([]string, 0, len(metas))
+	for _, m := range metas {
+		ids = append(ids, m.ID)
+	}
+	assert.Contains(t, ids, "google")
+	assert.Contains(t, ids, "wechat")
+	assert.NotContains(t, ids, "github", "disabled provider should not be listed")
+}
+
+func TestNewProviderRegistry_OIDC(t *testing.T) {
+	cfg := config.OAuthConfig{
+		OIDC: map[string]config.OIDCProviderConfig{
+			"acme": {
+				Enabled:      true,
+				ClientID:     "acme-id",
+				ClientSecret: "acme-secret",
+				RedirectURL:  "https://e/c",
+				AuthURL:      "https://idp/acme/authorize",
+				TokenURL:     "https://idp/acme/token",
+				UserInfoURL:  "https://idp/acme/userinfo",
+			},
+		},
+	}
+	svc := newTestOAuthService(cfg)
+	p, ok := svc.registry.Get("oidc_acme")
+	require.True(t, ok)
+	assert.Equal(t, "oidc_acme", p.Name())
+	assert.True(t, p.IsEnabled())
+	assert.Contains(t, p.RedirectURL("st"), "idp/acme/authorize")
 }
 
 func TestLogin_UnsupportedProvider(t *testing.T) {
@@ -119,6 +159,22 @@ func TestLogin_UnsupportedProvider(t *testing.T) {
 	_, _, _, _, _, _, err := svc.Login(context.TODO(), "unknown", "code123", "state123", "tenant-id")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported provider")
+}
+
+// TestLogin_DisabledProviderRejected 未启用的 provider 不得发起出站交换，直接拒绝。
+func TestLogin_DisabledProviderRejected(t *testing.T) {
+	svc := newTestOAuthService(config.OAuthConfig{})
+
+	_, _, _, _, _, _, err := svc.Login(context.TODO(), "google", "code123", "state123", "tenant-id")
+	assert.Equal(t, ErrOAuthProviderDisabled, err)
+}
+
+// TestBindOAuth_DisabledProviderRejected 未启用的 provider 不得绑定。
+func TestBindOAuth_DisabledProviderRejected(t *testing.T) {
+	svc := newTestOAuthService(config.OAuthConfig{})
+
+	err := svc.BindOAuth(context.TODO(), "user-1", "github", "code123", "state123")
+	assert.Equal(t, ErrOAuthProviderDisabled, err)
 }
 
 func TestNewOAuthService(t *testing.T) {

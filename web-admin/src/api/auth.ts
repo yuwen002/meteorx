@@ -53,6 +53,7 @@ export interface OAuthLoginResult {
   user: LoginUserInfo
   permissions: string[]
   is_new_user: boolean
+  need_complete_email: boolean
 }
 
 // 登录

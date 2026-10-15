@@ -183,13 +183,15 @@
     <el-dialog v-model="bindOAuthDialogVisible" title="绑定第三方账号" width="400px">
       <p style="color: #606266; margin-bottom: 16px;">选择要绑定的第三方账号，将跳转至对应平台进行授权。</p>
       <div class="oauth-bind-buttons">
-        <div class="oauth-bind-btn oauth-google" @click="handleBindOAuth('google')">
+        <div
+          v-for="p in oauthProviders"
+          :key="p.id"
+          class="oauth-bind-btn"
+          :style="{ borderColor: providerColor(p.id), color: providerColor(p.id) }"
+          @click="handleBindOAuth(p.id)"
+        >
           <el-icon size="20"><Connection /></el-icon>
-          <span>Google</span>
-        </div>
-        <div class="oauth-bind-btn oauth-github" @click="handleBindOAuth('github')">
-          <el-icon size="20"><Connection /></el-icon>
-          <span>GitHub</span>
+          <span>{{ p.label }}</span>
         </div>
       </div>
       <div v-if="bindOAuthLoading" style="text-align: center; margin-top: 12px;">
@@ -423,6 +425,8 @@ import { useUserStore } from '@/stores/user'
 import { getProfile, updateProfile, changePassword } from '@/api/modules/user'
 import { getUserRoles } from '@/api/modules/role'
 import { createAPIToken, listAPITokens, revokeAPIToken, type APITokenItem, listOAuthAccounts, unbindOAuth, type OAuthAccountItem, getOAuthRedirectURL, sendEmailVerification, setup2FA, enable2FA, disable2FA } from '@/api/auth'
+import { listOAuthProviders, type ProviderMeta } from '@/api/modules/oauth'
+import { providerColor } from '@/providers'
 
 const userStore = useUserStore()
 
@@ -674,6 +678,19 @@ async function submitPassword() {
 const oauthAccounts = ref<OAuthAccountItem[]>([])
 const oauthLoading = ref(false)
 
+// 已启用第三方登录提供商（动态渲染绑定按钮）
+const oauthProviders = ref<ProviderMeta[]>([])
+
+async function loadOAuthProviders() {
+  try {
+    const res = await listOAuthProviders()
+    const data = (res as { data?: typeof res }).data || res
+    oauthProviders.value = data?.providers || []
+  } catch {
+    oauthProviders.value = []
+  }
+}
+
 async function loadOAuthAccounts() {
   oauthLoading.value = true
   try {
@@ -820,6 +837,7 @@ onMounted(() => {
   loadUserInfo()
   loadUserRoles()
   loadOAuthAccounts()
+  loadOAuthProviders()
   loadAPITokens()
 })
 </script>
@@ -896,24 +914,16 @@ onMounted(() => {
   gap: 8px;
   width: 160px;
   height: 44px;
+  border: 1px solid #dcdfe6;
   border-radius: 8px;
+  background: #fff;
   cursor: pointer;
   font-size: 15px;
   font-weight: 500;
   transition: all 0.2s;
 
-  &.oauth-google {
-    background: #fff;
-    border: 1px solid #d9d9d9;
-    color: #333;
-    &:hover { border-color: #40a9ff; box-shadow: 0 2px 8px rgba(24, 144, 255, 0.15); }
-  }
-
-  &.oauth-github {
-    background: #24292e;
-    border: 1px solid #24292e;
-    color: #fff;
-    &:hover { background: #2f363d; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
+  &:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   }
 }
 .totp-secret {

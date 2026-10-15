@@ -5,10 +5,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"strings"
+
 	"meteorx/internal/cache"
 	"meteorx/internal/common/jwt"
 	"meteorx/internal/config"
@@ -20,9 +20,6 @@ import (
 	userModel "meteorx/internal/modules/user/model"
 	"meteorx/internal/modules/user/repository"
 	"meteorx/pkg/idgen"
-	"net/http"
-	"net/url"
-	"strings"
 )
 
 var (
@@ -32,7 +29,6 @@ var (
 	ErrOAuthInvalidState        = errors.New("invalid or expired OAuth state")
 	ErrOAuthAccountNotFound     = errors.New("OAuth account not found")
 	ErrOAuthAccountAlreadyBound = errors.New("this provider is already bound to your account")
-	ErrOAuthEmailRequired       = errors.New("email is required for OAuth login")
 	ErrRefreshTokenInvalid      = errors.New("invalid or expired refresh token")
 )
 
@@ -44,6 +40,7 @@ const (
 // OAuthService OAuth 认证服务，处理第三方登录、账号绑定和令牌刷新
 type OAuthService struct {
 	cfg                config.OAuthConfig
+	registry           *ProviderRegistry
 	userRepo           repository.UserRepository
 	roleRepo           rbacRepo.RoleRepository
 	userRoleRepo       rbacRepo.UserRoleRepository
@@ -68,6 +65,7 @@ func NewOAuthService(
 ) *OAuthService {
 	return &OAuthService{
 		cfg:                cfg,
+		registry:           NewProviderRegistry(cfg),
 		userRepo:           userRepo,
 		roleRepo:           roleRepo,
 		userRoleRepo:       userRoleRepo,
@@ -158,20 +156,14 @@ func (s *OAuthService) GetRedirectURL(ctx context.Context, provider string) (str
 	}
 
 	var redirectURL string
-	switch provider {
-	case "google":
-		if !s.cfg.Google.Enabled {
-			return "", "", ErrOAuthProviderDisabled
-		}
-		redirectURL = s.buildGoogleRedirectURL(state)
-	case "github":
-		if !s.cfg.GitHub.Enabled {
-			return "", "", ErrOAuthProviderDisabled
-		}
-		redirectURL = s.buildGitHubRedirectURL(state)
-	default:
+	p, ok := s.registry.Get(provider)
+	if !ok {
 		return "", "", fmt.Errorf("unsupported provider: %s", provider)
 	}
+	if !p.IsEnabled() {
+		return "", "", ErrOAuthProviderDisabled
+	}
+	redirectURL = p.RedirectURL(state)
 
 	if err := s.saveState(ctx, state); err != nil {
 		return "", "", fmt.Errorf("failed to save state: %w", err)
@@ -189,21 +181,23 @@ func (s *OAuthService) Login(ctx context.Context, provider, code, state, tenantI
 	var userInfo *dto.OAuthUserInfo
 	var err error
 
-	switch provider {
-	case "google":
-		userInfo, err = s.exchangeGoogleCode(ctx, code)
-	case "github":
-		userInfo, err = s.exchangeGitHubCode(ctx, code)
-	default:
+	p, ok := s.registry.Get(provider)
+	if !ok {
 		return nil, nil, nil, "", "", false, fmt.Errorf("unsupported provider: %s", provider)
 	}
+	// 与 GetRedirectURL 口径一致：未启用（未配置/被关闭）的 provider 拒绝登录，
+	// 避免用任意 code 触发服务端向第三方发起出站请求
+	if !p.IsEnabled() {
+		return nil, nil, nil, "", "", false, ErrOAuthProviderDisabled
+	}
+	userInfo, err = p.Exchange(ctx, code)
 
 	if err != nil {
 		return nil, nil, nil, "", "", false, err
 	}
-
-	if userInfo.Email == "" {
-		return nil, nil, nil, "", "", false, ErrOAuthEmailRequired
+	// 拒绝空 ProviderID：否则会命中 oauth_accounts 中 provider_id='' 的历史记录，导致身份误匹配
+	if userInfo.ProviderID == "" {
+		return nil, nil, nil, "", "", false, ErrOAuthUserInfoFailed
 	}
 
 	user, isNew, err := s.findOrCreateUser(ctx, userInfo, tenantID)
@@ -225,7 +219,7 @@ func (s *OAuthService) Login(ctx context.Context, provider, code, state, tenantI
 
 	permCodes := s.collectPermissionCodes(ctx, user.ID, user.IsMaster)
 
-	token, err := s.tokenHelper.GenerateToken(user.ID, user.TenantID, roleCodes)
+	token, err := s.tokenHelper.GenerateTokenEx(user.ID, user.TenantID, roleCodes, user.Email == "")
 	if err != nil {
 		return nil, nil, nil, "", "", false, err
 	}
@@ -258,7 +252,8 @@ func (s *OAuthService) RefreshToken(ctx context.Context, refreshToken string) (s
 	// 刷新时同样补齐 superadmin，避免主账号刷新后丢失超管角色
 	roleCodes = jwt.EnsureSuperadminRole(user.IsMaster, roleCodes)
 
-	newToken, err := s.tokenHelper.GenerateToken(user.ID, user.TenantID, roleCodes)
+	// 未补全邮箱的用户刷新时保持 email_pending 标记，防止刷新一次即绕过补全约束
+	newToken, err := s.tokenHelper.GenerateTokenEx(user.ID, user.TenantID, roleCodes, user.Email == "")
 	if err != nil {
 		return "", "", err
 	}
@@ -321,25 +316,28 @@ func (s *OAuthService) BindOAuth(ctx context.Context, userID, provider, code, st
 		return err
 	}
 
+	// 先校验 provider 可用性（与 Login 口径一致），再访问仓储，
+	// 避免未启用/不支持的 provider 白白触发仓储查询与出站交换
+	p, ok := s.registry.Get(provider)
+	if !ok {
+		return fmt.Errorf("unsupported provider: %s", provider)
+	}
+	if !p.IsEnabled() {
+		return ErrOAuthProviderDisabled
+	}
+
 	existing, _ := s.oauthAccountRepo.GetByUserIDAndProvider(ctx, userID, provider)
 	if existing != nil {
 		return ErrOAuthAccountAlreadyBound
 	}
 
-	var userInfo *dto.OAuthUserInfo
-	var err error
-
-	switch provider {
-	case "google":
-		userInfo, err = s.exchangeGoogleCode(ctx, code)
-	case "github":
-		userInfo, err = s.exchangeGitHubCode(ctx, code)
-	default:
-		return fmt.Errorf("unsupported provider: %s", provider)
-	}
-
+	userInfo, err := p.Exchange(ctx, code)
 	if err != nil {
 		return err
+	}
+	// 拒绝空 ProviderID，避免绑定到 provider_id='' 的脏数据账号
+	if userInfo.ProviderID == "" {
+		return ErrOAuthUserInfoFailed
 	}
 
 	existingBinding, _ := s.oauthAccountRepo.GetByProviderAndProviderID(ctx, provider, userInfo.ProviderID)
@@ -423,18 +421,31 @@ func (s *OAuthService) findOrCreateUser(ctx context.Context, info *dto.OAuthUser
 		return nil, false, errors.New("tenant not found or disabled")
 	}
 
-	user, err := s.userRepo.GetByEmail(ctx, info.Email)
-	if err == nil && user != nil {
-		return user, false, nil
+	// 仅在有邮箱时才按邮箱匹配已有账号：空串会命中任意 email='' 的用户，
+	// 造成微信/QQ 等无邮箱 provider 的登录串号（越权登录他人账号）
+	if info.Email != "" {
+		user, err := s.userRepo.GetByEmail(ctx, info.Email)
+		if err == nil && user != nil {
+			return user, false, nil
+		}
 	}
 
 	userID := idgen.New()
 	now := idgen.New()
 
+	// 用户名派生：优先邮箱前缀，无邮箱时用 ProviderID 前缀，避免生成 "wechat_" 这类退化名
+	suffix := info.Email
+	if suffix == "" {
+		suffix = info.ProviderID
+	}
+	if len(suffix) > 8 {
+		suffix = suffix[:8]
+	}
+
 	newUser := &userModel.User{
 		ID:       userID,
 		TenantID: tenantID,
-		Username: fmt.Sprintf("%s_%s", info.Provider, strings.ToLower(info.Email[:min(8, len(info.Email))])),
+		Username: fmt.Sprintf("%s_%s", info.Provider, strings.ToLower(suffix)),
 		Password: "",
 		Nickname: info.Name,
 		Email:    info.Email,
@@ -460,203 +471,47 @@ func (s *OAuthService) findOrCreateUser(ctx context.Context, info *dto.OAuthUser
 	return newUser, true, nil
 }
 
-func (s *OAuthService) buildGoogleRedirectURL(state string) string {
-	params := url.Values{}
-	params.Set("client_id", s.cfg.Google.ClientID)
-	params.Set("redirect_uri", s.cfg.Google.RedirectURL)
-	params.Set("response_type", "code")
-	params.Set("scope", "openid email profile")
-	params.Set("access_type", "online")
-	params.Set("prompt", "select_account")
-	params.Set("state", state)
-
-	return fmt.Sprintf("https://accounts.google.com/o/oauth2/v2/auth?%s", params.Encode())
+// ListProviders 返回当前已启用（配置且开启）的第三方登录提供商列表，供前端渲染按钮。
+func (s *OAuthService) ListProviders(ctx context.Context) []dto.ProviderMeta {
+	metas := s.registry.Enabled()
+	out := make([]dto.ProviderMeta, 0, len(metas))
+	for _, m := range metas {
+		out = append(out, dto.ProviderMeta{ID: m.ID, Label: m.Label})
+	}
+	return out
 }
 
-func (s *OAuthService) buildGitHubRedirectURL(state string) string {
-	params := url.Values{}
-	params.Set("client_id", s.cfg.GitHub.ClientID)
-	params.Set("redirect_uri", s.cfg.GitHub.RedirectURL)
-	params.Set("scope", "read:user user:email")
-	params.Set("state", state)
+// CompleteEmail 第三方登录未返回邮箱时，补全邮箱并换发正式令牌。
+// 调用方需携带登录时签发的（含 email_pending 声明）临时令牌于 Authorization 头。
+func (s *OAuthService) CompleteEmail(ctx context.Context, bearerToken, email string) (string, string, error) {
+	claims, err := s.tokenHelper.ParseToken(bearerToken)
+	if err != nil || !claims.EmailPending {
+		return "", "", errors.New("无效的邮箱补全令牌或已过期")
+	}
 
-	return fmt.Sprintf("https://github.com/login/oauth/authorize?%s", params.Encode())
-}
+	user, err := s.userRepo.GetByID(ctx, claims.UserID)
+	if err != nil || user == nil {
+		return "", "", errors.New("用户不存在")
+	}
 
-func (s *OAuthService) exchangeGoogleCode(ctx context.Context, code string) (*dto.OAuthUserInfo, error) {
-	tokenURL := "https://oauth2.googleapis.com/token"
-	tokenData := url.Values{}
-	tokenData.Set("code", code)
-	tokenData.Set("client_id", s.cfg.Google.ClientID)
-	tokenData.Set("client_secret", s.cfg.Google.ClientSecret)
-	tokenData.Set("redirect_uri", s.cfg.Google.RedirectURL)
-	tokenData.Set("grant_type", "authorization_code")
+	if existing, _ := s.userRepo.GetByEmail(ctx, email); existing != nil && existing.ID != user.ID {
+		return "", "", errors.New("该邮箱已被其他账号使用")
+	}
 
-	resp, err := http.PostForm(tokenURL, tokenData)
+	user.Email = email
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return "", "", err
+	}
+
+	roleCodes, _ := s.userRoleRepo.GetRoleCodesByUserID(ctx, user.ID)
+	roleCodes = jwt.EnsureSuperadminRole(user.IsMaster, roleCodes)
+
+	newToken, err := s.tokenHelper.GenerateToken(user.ID, user.TenantID, roleCodes)
 	if err != nil {
-		return nil, ErrOAuthExchangeFailed
+		return "", "", err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	newRefresh := s.generateRefreshToken()
+	_ = s.storeRefreshToken(ctx, newRefresh, user.ID, user.TenantID)
 
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w: %s", ErrOAuthExchangeFailed, string(body))
-	}
-
-	var tokenResp struct {
-		AccessToken string `json:"access_token"`
-		IDToken     string `json:"id_token"`
-	}
-	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return nil, ErrOAuthExchangeFailed
-	}
-
-	userInfoURL := "https://www.googleapis.com/oauth2/v2/userinfo?alt=json"
-	req, _ := http.NewRequestWithContext(ctx, "GET", userInfoURL, nil)
-	req.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
-
-	client := &http.Client{}
-	userResp, err := client.Do(req)
-	if err != nil {
-		return nil, ErrOAuthUserInfoFailed
-	}
-	defer func() { _ = userResp.Body.Close() }()
-
-	userBody, _ := io.ReadAll(userResp.Body)
-	if userResp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w: %s", ErrOAuthUserInfoFailed, string(userBody))
-	}
-
-	var googleUser struct {
-		ID      string `json:"id"`
-		Email   string `json:"email"`
-		Name    string `json:"name"`
-		Picture string `json:"picture"`
-	}
-	if err := json.Unmarshal(userBody, &googleUser); err != nil {
-		return nil, ErrOAuthUserInfoFailed
-	}
-
-	return &dto.OAuthUserInfo{
-		Provider:    "google",
-		ProviderID:  googleUser.ID,
-		Email:       googleUser.Email,
-		Name:        googleUser.Name,
-		AvatarURL:   googleUser.Picture,
-		AccessToken: tokenResp.AccessToken,
-	}, nil
-}
-
-func (s *OAuthService) exchangeGitHubCode(ctx context.Context, code string) (*dto.OAuthUserInfo, error) {
-	tokenURL := "https://github.com/login/oauth/access_token"
-	tokenData := url.Values{}
-	tokenData.Set("code", code)
-	tokenData.Set("client_id", s.cfg.GitHub.ClientID)
-	tokenData.Set("client_secret", s.cfg.GitHub.ClientSecret)
-	tokenData.Set("redirect_uri", s.cfg.GitHub.RedirectURL)
-
-	req, _ := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(tokenData.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, ErrOAuthExchangeFailed
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w: %s", ErrOAuthExchangeFailed, string(body))
-	}
-
-	var tokenResp struct {
-		AccessToken string `json:"access_token"`
-		TokenType   string `json:"token_type"`
-		Scope       string `json:"scope"`
-	}
-	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return nil, ErrOAuthExchangeFailed
-	}
-
-	userInfoURL := "https://api.github.com/user"
-	userReq, _ := http.NewRequestWithContext(ctx, "GET", userInfoURL, nil)
-	userReq.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
-	userReq.Header.Set("Accept", "application/json")
-
-	userResp, err := client.Do(userReq)
-	if err != nil {
-		return nil, ErrOAuthUserInfoFailed
-	}
-	defer func() { _ = userResp.Body.Close() }()
-
-	userBody, _ := io.ReadAll(userResp.Body)
-	if userResp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w: %s", ErrOAuthUserInfoFailed, string(userBody))
-	}
-
-	var githubUser struct {
-		ID     int    `json:"id"`
-		Email  string `json:"email"`
-		Name   string `json:"name"`
-		Login  string `json:"login"`
-		Avatar string `json:"avatar_url"`
-	}
-	if err := json.Unmarshal(userBody, &githubUser); err != nil {
-		return nil, ErrOAuthUserInfoFailed
-	}
-
-	email := githubUser.Email
-	if email == "" {
-		email = s.fetchGitHubPrimaryEmail(ctx, tokenResp.AccessToken)
-	}
-
-	name := githubUser.Name
-	if name == "" {
-		name = githubUser.Login
-	}
-
-	return &dto.OAuthUserInfo{
-		Provider:    "github",
-		ProviderID:  fmt.Sprintf("%d", githubUser.ID),
-		Email:       email,
-		Name:        name,
-		AvatarURL:   githubUser.Avatar,
-		AccessToken: tokenResp.AccessToken,
-	}, nil
-}
-
-func (s *OAuthService) fetchGitHubPrimaryEmail(ctx context.Context, accessToken string) string {
-	emailURL := "https://api.github.com/user/emails"
-	req, _ := http.NewRequestWithContext(ctx, "GET", emailURL, nil)
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return ""
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, _ := io.ReadAll(resp.Body)
-	var emails []struct {
-		Email    string `json:"email"`
-		Primary  bool   `json:"primary"`
-		Verified bool   `json:"verified"`
-	}
-	if err := json.Unmarshal(body, &emails); err != nil {
-		return ""
-	}
-
-	for _, e := range emails {
-		if e.Primary && e.Verified {
-			return e.Email
-		}
-	}
-	if len(emails) > 0 {
-		return emails[0].Email
-	}
-	return ""
+	return newToken, newRefresh, nil
 }

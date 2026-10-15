@@ -13,6 +13,8 @@ func RegisterRoutes(r chi.Router, h *handler.OAuthHandler) {
 		r.Post("/callback", h.Callback)                 // 第三方授权回调，完成登录或注册
 		r.Get("/tenants", h.GetTenantList)              // 回调后查询该 OAuth 账号关联的租户列表
 		r.Post("/token/refresh", h.RefreshToken)        // 刷新 OAuth 临时 Token
+		r.Get("/providers", h.ListProviders)            // 获取已启用第三方登录提供商列表
+		r.Post("/complete-email", h.CompleteEmail)      // 第三方登录后补全邮箱
 	})
 }
 

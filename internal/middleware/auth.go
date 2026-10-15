@@ -105,6 +105,14 @@ func Auth(helper *jwt.TokenHelper, checker TokenBlacklistChecker, appMode string
 					userID = claims.UserID
 					tenantID = claims.TenantID
 					roles = claims.Roles
+
+					// 【email_pending 服务端门禁】第三方登录未补全邮箱的临时令牌，
+					// 仅放行补全邮箱/刷新令牌接口，其余一律 403，防止仅靠前端拦截被绕过
+					if claims.EmailPending && !isEmailPendingExempt(r.URL.Path) {
+						w.Header().Set("X-Error-Code", "EMAIL_PENDING")
+						http.Error(w, "请先补全邮箱后再使用系统功能", http.StatusForbidden)
+						return
+					}
 				}
 			}
 
@@ -117,6 +125,17 @@ func Auth(helper *jwt.TokenHelper, checker TokenBlacklistChecker, appMode string
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// emailPendingExemptPaths email_pending 临时令牌允许访问的路径白名单（路径前缀对齐匹配）。
+var emailPendingExemptPaths = []string{
+	"/api/v1/auth/oauth/complete-email", // 补全邮箱
+	"/api/v1/auth/oauth/token/refresh",  // 刷新令牌（刷新后仍带 pending 标记，不会因此提权）
+}
+
+// isEmailPendingExempt 判断请求路径是否在 email_pending 门禁豁免白名单内。
+func isEmailPendingExempt(requestPath string) bool {
+	return matchAllowedPath(requestPath, emailPendingExemptPaths)
 }
 
 // RedisBlacklistChecker 使用 Redis 检查 token 黑名单

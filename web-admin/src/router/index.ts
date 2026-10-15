@@ -46,6 +46,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '第三方登录', public: true }
   },
   {
+    path: '/oauth/complete-email',
+    name: 'OAuthCompleteEmail',
+    component: () => import('@/views/login/CompleteEmail.vue'),
+    meta: { title: '补全邮箱', public: true }
+  },
+  {
     path: '/verify-email',
     name: 'VerifyEmail',
     component: () => import('@/views/verify-email/index.vue'),

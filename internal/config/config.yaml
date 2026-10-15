@@ -149,6 +149,46 @@ oauth:
     client_id: ""
     client_secret: ""
     redirect_url: "http://localhost:5173/auth/github/callback"
+  # 国内主流第三方登录（默认均关闭，按需开启并填写对应开放平台凭证）
+  wechat:
+    enabled: false
+    client_id: ""        # 微信开放平台 AppID
+    client_secret: ""    # AppSecret
+    redirect_url: "http://localhost:5173/auth/wechat/callback"
+  feishu:
+    enabled: false
+    client_id: ""        # 飞书 App ID
+    client_secret: ""    # App Secret
+    redirect_url: "http://localhost:5173/auth/feishu/callback"
+  dingtalk:
+    enabled: false
+    client_id: ""        # 钉钉 AppKey
+    client_secret: ""    # AppSecret
+    redirect_url: "http://localhost:5173/auth/dingtalk/callback"
+  qq:
+    enabled: false
+    client_id: ""        # QQ 互联 AppID
+    client_secret: ""    # AppKey
+    redirect_url: "http://localhost:5173/auth/qq/callback"
+  # 企业身份提供商：Microsoft Entra ID（Azure AD）
+  microsoft:
+    enabled: false
+    client_id: ""
+    client_secret: ""
+    tenant: "common"     # 目录(租户) ID，或 "common"/"organizations"
+    redirect_url: "http://localhost:5173/auth/microsoft/callback"
+  # 通用企业 OIDC：key 即 provider 标识（最终为 "oidc_<key>"），可对接任意标准 OIDC IdP
+  oidc:
+    # acme:
+    #   enabled: true
+    #   display_name: "Acme SSO"
+    #   client_id: ""
+    #   client_secret: ""
+    #   redirect_url: "http://localhost:5173/auth/oidc_acme/callback"
+    #   auth_url: "https://idp.example.com/oauth2/authorize"
+    #   token_url: "https://idp.example.com/oauth2/token"
+    #   userinfo_url: "https://idp.example.com/oauth2/userinfo"
+    #   scopes: ["openid", "email", "profile"]
 
 # 认证模块通用配置
 auth:

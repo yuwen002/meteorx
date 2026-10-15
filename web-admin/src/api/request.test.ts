@@ -70,6 +70,12 @@ describe('请求拦截器', () => {
     expect(reqFulfilled(config).headers.Authorization).toBe('Bearer tk')
   })
 
+  it('已显式设置 Authorization 时不被全局 token 覆盖', () => {
+    h.userStore.token = 'tk'
+    const config = { headers: { Authorization: 'Bearer pending-tk' } as Record<string, string> }
+    expect(reqFulfilled(config).headers.Authorization).toBe('Bearer pending-tk')
+  })
+
   it('无 token 时不注入 Authorization 头', () => {
     h.userStore.token = ''
     const config = { headers: {} as Record<string, string> }

@@ -126,10 +126,39 @@ type OTelConfig struct {
 
 // OAuthConfig OAuth2 登录配置
 type OAuthConfig struct {
-	Google          OAuthProviderConfig `mapstructure:"google"`
-	GitHub          OAuthProviderConfig `mapstructure:"github"`
+	Google    OAuthProviderConfig      `mapstructure:"google"`
+	GitHub    OAuthProviderConfig      `mapstructure:"github"`
+	WeChat    OAuthProviderConfig      `mapstructure:"wechat"`
+	Feishu    OAuthProviderConfig      `mapstructure:"feishu"`
+	DingTalk  OAuthProviderConfig      `mapstructure:"dingtalk"`
+	QQ        OAuthProviderConfig      `mapstructure:"qq"`
+	Microsoft MicrosoftOAuthConfig     `mapstructure:"microsoft"`
+	OIDC      map[string]OIDCProviderConfig `mapstructure:"oidc"`
 	RefreshTokenTTL time.Duration       `mapstructure:"refresh_token_ttl"`
 	StateTTL        time.Duration       `mapstructure:"state_ttl"`
+}
+
+// MicrosoftOAuthConfig Microsoft Entra ID（Azure AD）登录配置，需要租户目录 ID。
+type MicrosoftOAuthConfig struct {
+	Enabled      bool   `mapstructure:"enabled"`
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURL  string `mapstructure:"redirect_url"`
+	Tenant       string `mapstructure:"tenant"` // 目录(租户) ID 或 "common"/"organizations"
+}
+
+// OIDCProviderConfig 通用企业 OIDC 提供商配置，可对接任意标准 OIDC IdP。
+// map 的 key 即 provider 标识（如 "oidc_acme"），会写入绑定表与下游传参。
+type OIDCProviderConfig struct {
+	Enabled       bool     `mapstructure:"enabled"`
+	DisplayName   string   `mapstructure:"display_name"` // 展示名，如 "Acme SSO"
+	ClientID      string   `mapstructure:"client_id"`
+	ClientSecret  string   `mapstructure:"client_secret"`
+	RedirectURL   string   `mapstructure:"redirect_url"`
+	AuthURL       string   `mapstructure:"auth_url"`    // 授权端点
+	TokenURL      string   `mapstructure:"token_url"`   // 令牌端点
+	UserInfoURL   string   `mapstructure:"userinfo_url"` // 用户信息端点
+	Scopes        []string `mapstructure:"scopes"`       // 授权范围，如 ["openid","email","profile"]
 }
 
 // GetRefreshTokenTTL 返回刷新令牌有效期，未配置时默认 7 天

@@ -35,6 +35,26 @@ export interface RefreshTokenResponse {
   refresh_token: string
 }
 
+// ProviderMeta 已启用第三方登录提供商的展示元信息
+export interface ProviderMeta {
+  id: string
+  label: string
+}
+
+// 获取已启用的第三方登录提供商列表
+export function listOAuthProviders() {
+  return get<{ providers: ProviderMeta[] }>('/auth/oauth/providers')
+}
+
+// 第三方登录后补全邮箱（需携带登录签发的临时令牌）
+export function completeOAuthEmail(token: string, email: string) {
+  return post<RefreshTokenResponse>(
+    '/auth/oauth/complete-email',
+    { email },
+    { headers: { Authorization: `Bearer ${token}` } }
+  )
+}
+
 // 获取第三方授权跳转地址
 export function getOAuthRedirect(provider: string) {
   return get<OAuthRedirectResponse>(`/auth/oauth/${provider}/redirect`)

@@ -5,10 +5,10 @@ import "time"
 
 // OAuthLoginRequest 第三方登录请求
 type OAuthLoginRequest struct {
-	Provider string `json:"provider" validate:"required,oneof=google github"` // 提供商
-	Code     string `json:"code" validate:"required"`                         // 授权码
-	State    string `json:"state" validate:"required"`                        // CSRF 状态码（必填）
-	TenantID string `json:"tenant_id" validate:"required"`                    // 租户ID（OAuth登录时选择租户）
+	Provider string `json:"provider" validate:"required"` // 提供商（白名单由服务层根据已配置 provider 校验）
+	Code     string `json:"code" validate:"required"`     // 授权码
+	State    string `json:"state" validate:"required"`    // CSRF 状态码（必填）
+	TenantID string `json:"tenant_id" validate:"required"` // 租户ID（OAuth登录时选择租户）
 }
 
 // OAuthRedirectResponse OAuth2 跳转链接响应
@@ -19,11 +19,12 @@ type OAuthRedirectResponse struct {
 
 // OAuthLoginResponse 登录成功响应
 type OAuthLoginResponse struct {
-	Token        string      `json:"token"`
-	RefreshToken string      `json:"refresh_token,omitempty"`
-	User         interface{} `json:"user"`
-	Permissions  []string    `json:"permissions"`
-	IsNewUser    bool        `json:"is_new_user"` // 是否首次登录（新用户）
+	Token           string      `json:"token"`
+	RefreshToken    string      `json:"refresh_token,omitempty"`
+	User            interface{} `json:"user"`
+	Permissions     []string    `json:"permissions"`
+	IsNewUser       bool        `json:"is_new_user"`       // 是否首次登录（新用户）
+	NeedCompleteEmail bool      `json:"need_complete_email"` // 第三方未返回邮箱，需前端引导补全
 }
 
 // OAuthUserInfo OAuth2 用户信息（第三方返回）
@@ -62,14 +63,19 @@ type OAuthAccountListResponse struct {
 
 // UnbindOAuthRequest 解绑第三方账号请求
 type UnbindOAuthRequest struct {
-	Provider string `json:"provider" validate:"required,oneof=google github"` // 提供商
+	Provider string `json:"provider" validate:"required"` // 提供商
 }
 
 // BindOAuthRequest 绑定已有第三方账号请求（已登录用户绑定新 provider）
 type BindOAuthRequest struct {
-	Provider string `json:"provider" validate:"required,oneof=google github"` // 提供商
-	Code     string `json:"code" validate:"required"`                         // 授权码
-	State    string `json:"state" validate:"required"`                        // CSRF 状态码
+	Provider string `json:"provider" validate:"required"` // 提供商
+	Code     string `json:"code" validate:"required"`     // 授权码
+	State    string `json:"state" validate:"required"`    // CSRF 状态码
+}
+
+// CompleteEmailRequest 第三方登录后补全邮箱请求
+type CompleteEmailRequest struct {
+	Email string `json:"email" validate:"required,email"` // 补全的邮箱
 }
 
 // RefreshTokenRequest 刷新 Token 请求
@@ -81,4 +87,10 @@ type RefreshTokenRequest struct {
 type RefreshTokenResponse struct {
 	Token        string `json:"token"`
 	RefreshToken string `json:"refresh_token"`
+}
+
+// ProviderMeta 已启用第三方登录提供商的展示元信息
+type ProviderMeta struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
 }

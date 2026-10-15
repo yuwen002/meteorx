@@ -58,6 +58,12 @@ const submitting = ref(false)
 const tenantList = ref<Array<{ id: string; name: string }>>([])
 const selectedTenantId = ref('')
 
+// sanitizeRedirect 仅允许站内绝对路径，拒绝 //host 这类协议相对跳转，防止开放重定向
+function sanitizeRedirect(target: string): string {
+  if (target && target.startsWith('/') && !target.startsWith('//')) return target
+  return '/'
+}
+
 // OAuth 回调参数
 const oauthParams = ref({
   provider: '',
@@ -153,6 +159,19 @@ async function handleTenantSelect() {
     // 清除 sessionStorage
     sessionStorage.removeItem('oauth_tenant_id')
     
+    // 微信/QQ 等未返回邮箱的提供商，需先引导用户补全邮箱
+    if (data.need_complete_email) {
+      sessionStorage.setItem('oauth_pending_token', data.token || '')
+      sessionStorage.setItem('oauth_pending_user', JSON.stringify(data.user || null))
+      sessionStorage.setItem('oauth_pending_permissions', JSON.stringify(data.permissions || []))
+      sessionStorage.removeItem('oauth_tenant_id')
+      router.push({
+        path: '/oauth/complete-email',
+        query: { redirect: sanitizeRedirect(route.query.redirect as string) }
+      })
+      return
+    }
+
     // 使用 OAuth 返回的 token 和用户信息登录
     userStore.setOAuthUser({
       token: data.token || '',
@@ -161,7 +180,7 @@ async function handleTenantSelect() {
     })
 
     ElMessage.success('登录成功')
-    const redirect = route.query.redirect as string || '/'
+    const redirect = sanitizeRedirect(route.query.redirect as string)
     router.push(redirect)
   } catch (e) {
     ElMessage.error((e as Error)?.message || '登录失败')

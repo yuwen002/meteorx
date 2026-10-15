@@ -16,6 +16,12 @@ type OAuthAccount struct {
 }
 
 const (
-	ProviderGoogle = "google"
-	ProviderGitHub = "github"
+	ProviderGoogle   = "google"
+	ProviderGitHub   = "github"
+	ProviderWeChat   = "wechat"
+	ProviderFeishu   = "feishu"
+	ProviderDingTalk = "dingtalk"
+	ProviderQQ       = "qq"
+	ProviderMicrosoft = "microsoft"
+	// ProviderOIDC 前缀：通用 OIDC 的 provider 标识为 "oidc_" + 配置 key，不在此列固定常量
 )

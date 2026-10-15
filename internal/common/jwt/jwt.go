@@ -19,9 +19,10 @@ type TokenHelper struct {
 
 // CustomClaims 自定义载荷
 type CustomClaims struct {
-	UserID   string   `json:"user_id"`
-	TenantID string   `json:"tenant_id"`
-	Roles    []string `json:"roles"`
+	UserID       string   `json:"user_id"`
+	TenantID     string   `json:"tenant_id"`
+	Roles        []string `json:"roles"`
+	EmailPending bool     `json:"email_pending,omitempty"` // 第三方登录尚未补全邮箱时的临时态
 	jwt.RegisteredClaims
 }
 
@@ -54,10 +55,17 @@ func NewTokenHelper(cfg config.JWTConfig) *TokenHelper {
 
 // GenerateToken 生成 Token
 func (h *TokenHelper) GenerateToken(userID, tenantID string, roles []string) (string, error) {
+	return h.GenerateTokenEx(userID, tenantID, roles, false)
+}
+
+// GenerateTokenEx 生成 Token，emailPending 为 true 时写入 email_pending 声明，
+// 标记该账号仍需补全邮箱（第三方登录未返回邮箱场景），前端据此引导补全后才放行。
+func (h *TokenHelper) GenerateTokenEx(userID, tenantID string, roles []string, emailPending bool) (string, error) {
 	claims := CustomClaims{
-		UserID:   userID,
-		TenantID: tenantID,
-		Roles:    roles,
+		UserID:       userID,
+		TenantID:     tenantID,
+		Roles:        roles,
+		EmailPending: emailPending,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(h.expiration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

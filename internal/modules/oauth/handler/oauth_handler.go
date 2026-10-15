@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
@@ -20,10 +21,12 @@ type OAuthService interface {
 	GetRedirectURL(ctx context.Context, provider string) (string, string, error)
 	Login(ctx context.Context, provider, code, state, tenantID string) (*userModel.User, []string, []string, string, string, bool, error)
 	GetTenantList(ctx context.Context) ([]dto.TenantOption, error)
+	ListProviders(ctx context.Context) []dto.ProviderMeta
 	ListOAuthAccounts(ctx context.Context, userID string) ([]dto.OAuthAccountResp, error)
 	UnbindOAuth(ctx context.Context, userID, provider string) error
 	BindOAuth(ctx context.Context, userID, provider, code, state string) error
 	RefreshToken(ctx context.Context, refreshToken string) (string, string, error)
+	CompleteEmail(ctx context.Context, bearerToken, email string) (string, string, error)
 }
 
 // OAuthHandler OAuth 处理器
@@ -68,28 +71,70 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	user, _, permCodes, token, refreshToken, isNew, err := h.svc.Login(r.Context(), req.Provider, req.Code, req.State, req.TenantID)
 	if err != nil {
-		if errors.Is(err, service.ErrOAuthInvalidState) {
+		// 按哨兵错误映射固定文案：服务层错误可能携带上游细节，不得原样回显给客户端
+		switch {
+		case errors.Is(err, service.ErrOAuthInvalidState):
 			response.Fail(w, http.StatusBadRequest, "CSRF state 验证失败，请重新发起授权")
-			return
+		case errors.Is(err, service.ErrOAuthProviderDisabled):
+			response.Fail(w, http.StatusBadRequest, "该 OAuth 提供商未启用")
+		case errors.Is(err, service.ErrOAuthExchangeFailed):
+			response.Fail(w, http.StatusUnauthorized, "授权码交换失败，请重新发起授权")
+		case errors.Is(err, service.ErrOAuthUserInfoFailed):
+			response.Fail(w, http.StatusUnauthorized, "获取第三方用户信息失败，请稍后重试")
+		default:
+			response.Fail(w, http.StatusUnauthorized, "OAuth 登录失败，请稍后重试或联系管理员")
 		}
-		if errors.Is(err, service.ErrOAuthEmailRequired) {
-			response.Fail(w, http.StatusBadRequest, "第三方账号未提供邮箱，无法完成登录")
-			return
-		}
-		response.Fail(w, http.StatusUnauthorized, "OAuth 登录失败: "+err.Error())
 		return
 	}
 
 	converter := userdto.UserConverter{}
 	loginResp := dto.OAuthLoginResponse{
-		Token:        token,
-		RefreshToken: refreshToken,
-		User:         converter.ToResponse(user),
-		Permissions:  permCodes,
-		IsNewUser:    isNew,
+		Token:             token,
+		RefreshToken:      refreshToken,
+		User:              converter.ToResponse(user),
+		Permissions:       permCodes,
+		IsNewUser:         isNew,
+		NeedCompleteEmail: user.Email == "",
 	}
 
 	response.Success(w, loginResp)
+}
+
+// ListProviders 获取已启用的第三方登录提供商列表
+// GET /api/v1/auth/oauth/providers
+func (h *OAuthHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
+	providers := h.svc.ListProviders(r.Context())
+	response.Success(w, map[string][]dto.ProviderMeta{"providers": providers})
+}
+
+// CompleteEmail 第三方登录后补全邮箱（需携带登录签发的临时令牌）
+// POST /api/v1/auth/oauth/complete-email
+func (h *OAuthHandler) CompleteEmail(w http.ResponseWriter, r *http.Request) {
+	var req dto.CompleteEmailRequest
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	bearer := r.Header.Get("Authorization")
+	const prefix = "Bearer "
+	if len(bearer) > len(prefix) && strings.HasPrefix(bearer, prefix) {
+		bearer = bearer[len(prefix):]
+	}
+	if bearer == "" {
+		response.Fail(w, http.StatusUnauthorized, "缺少认证令牌")
+		return
+	}
+
+	newToken, newRefresh, err := h.svc.CompleteEmail(r.Context(), bearer, req.Email)
+	if err != nil {
+		response.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(w, dto.RefreshTokenResponse{
+		Token:        newToken,
+		RefreshToken: newRefresh,
+	})
 }
 
 // GetTenantList 获取 OAuth 登录可用的租户列表
@@ -163,15 +208,21 @@ func (h *OAuthHandler) Bind(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.BindOAuth(r.Context(), userID, req.Provider, req.Code, req.State); err != nil {
-		if errors.Is(err, service.ErrOAuthInvalidState) {
+		// 同样按哨兵错误映射固定文案，避免上游细节回显
+		switch {
+		case errors.Is(err, service.ErrOAuthInvalidState):
 			response.Fail(w, http.StatusBadRequest, "CSRF state 验证失败，请重新发起授权")
-			return
-		}
-		if errors.Is(err, service.ErrOAuthAccountAlreadyBound) {
+		case errors.Is(err, service.ErrOAuthAccountAlreadyBound):
 			response.Fail(w, http.StatusConflict, "该提供商已绑定到当前账号")
-			return
+		case errors.Is(err, service.ErrOAuthProviderDisabled):
+			response.Fail(w, http.StatusBadRequest, "该 OAuth 提供商未启用")
+		case errors.Is(err, service.ErrOAuthExchangeFailed):
+			response.Fail(w, http.StatusBadRequest, "授权码交换失败，请重新发起授权")
+		case errors.Is(err, service.ErrOAuthUserInfoFailed):
+			response.Fail(w, http.StatusBadRequest, "获取第三方用户信息失败，请稍后重试")
+		default:
+			response.Fail(w, http.StatusInternalServerError, "绑定失败，请稍后重试")
 		}
-		response.Fail(w, http.StatusInternalServerError, "绑定失败: "+err.Error())
 		return
 	}
 

@@ -76,6 +76,14 @@ func (s *stubOAuthService) RefreshToken(_ context.Context, refreshToken string) 
 	return s.refreshToken, s.refreshRefreshToken, s.refreshErr
 }
 
+func (s *stubOAuthService) ListProviders(_ context.Context) []dto.ProviderMeta {
+	return nil
+}
+
+func (s *stubOAuthService) CompleteEmail(_ context.Context, bearerToken, email string) (string, string, error) {
+	return "", "", nil
+}
+
 func newOAuthRouter(stub *stubOAuthService) http.Handler {
 	h := handler.NewOAuthHandler(stub)
 	r := chi.NewRouter()
@@ -163,17 +171,6 @@ func TestCallback_InvalidState(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "CSRF state")
-}
-
-func TestCallback_EmailRequired(t *testing.T) {
-	stub := &stubOAuthService{loginErr: service.ErrOAuthEmailRequired}
-	router := newOAuthRouter(stub)
-
-	body := `{"provider":"github","code":"auth-code","state":"csrf-state","tenant_id":"t-1"}`
-	w := doOAuth(t, router, http.MethodPost, "/callback", body, "")
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "邮箱")
 }
 
 func TestCallback_ValidationFailure(t *testing.T) {

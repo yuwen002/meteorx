@@ -107,13 +107,14 @@
           <span>或</span>
         </div>
         <div class="oauth-buttons">
-          <div class="oauth-btn oauth-google" @click="handleOAuthLogin('google')">
-            <el-icon><Link /></el-icon>
-            <span>Google 登录</span>
-          </div>
-          <div class="oauth-btn oauth-github" @click="handleOAuthLogin('github')">
-            <el-icon><Connection /></el-icon>
-            <span>GitHub 登录</span>
+          <div
+            v-for="p in oauthProviders"
+            :key="p.id"
+            class="oauth-btn"
+            :style="{ borderColor: providerColor(p.id), color: providerColor(p.id) }"
+            @click="handleOAuthLogin(p.id)"
+          >
+            <span>{{ p.label }} 登录</span>
           </div>
         </div>
 
@@ -158,13 +159,15 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus/es/components/message/index'
-import { InfoFilled, Warning, Avatar, OfficeBuilding, Link, Connection, ArrowDown } from '@element-plus/icons-vue'
+import { InfoFilled, Warning, Avatar, OfficeBuilding, ArrowDown } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { getOAuthRedirectURL, getOAuthTenants, type LoginParams, type LoginErrorData } from '@/api/auth'
+import { listOAuthProviders, type ProviderMeta } from '@/api/modules/oauth'
+import { providerColor } from '@/providers'
 
 const router = useRouter()
 const route = useRoute()
@@ -178,6 +181,21 @@ const oauthSubmitting = ref(false)
 const tenantList = ref<Array<{ id: string; name: string }>>([])
 const selectedTenantId = ref('')
 const currentOAuthProvider = ref('')
+
+// 已启用第三方登录提供商（动态渲染登录按钮）
+const oauthProviders = ref<ProviderMeta[]>([])
+
+async function loadOAuthProviders() {
+  try {
+    const res = await listOAuthProviders()
+    const data = (res as { data?: typeof res }).data || res
+    oauthProviders.value = data?.providers || []
+  } catch {
+    oauthProviders.value = []
+  }
+}
+
+onMounted(loadOAuthProviders)
 
 type LoginMode = 'admin' | 'tenant'
 const loginMode = ref<LoginMode>('admin')

@@ -12,7 +12,9 @@ const service: AxiosInstance = axios.create({
 service.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const userStore = useUserStore()
-    if (userStore.token) {
+    // 仅当调用方未显式设置 Authorization 时才注入全局 token，
+    // 避免补全邮箱等携带临时令牌的请求被登录态 token 覆盖
+    if (userStore.token && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${userStore.token}`
     }
     return config
