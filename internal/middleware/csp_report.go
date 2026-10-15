@@ -28,8 +28,8 @@ type cspReportPayload struct {
 
 // CSPReport 接收浏览器上报的 CSP 违规报告，仅落服务端日志、始终返回 204。
 //
-// 用途：配合 nginx 中的 Content-Security-Policy-Report-Only，把「观察期」内命中的
-// 违规收集到服务端日志，便于后续把策略从 Report-Only 收紧为正式 CSP 前评估影响面。
+// 用途：配合 nginx 中强制执行的 Content-Security-Policy：违规资源被浏览器拦截后仍会
+// POST 到本端点落服务端日志，作为策略持续监控与攻击感知（XSS 尝试探测）渠道。
 //
 // 设计取舍：
 //   - 无鉴权：CSP 报告由浏览器直接发出、无法携带 Authorization，因此注册在公开分组，

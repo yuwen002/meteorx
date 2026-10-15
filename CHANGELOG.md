@@ -7,7 +7,8 @@
 
 ## [Unreleased]
 
-_暂无待发布变更。_
+### 变更
+- **CSP 从 Report-Only 切换为强制执行**：两处 nginx（`web-admin/nginx.conf`、`deploy/nginx/nginx.conf`）头部名由 `Content-Security-Policy-Report-Only` 改为 `Content-Security-Policy`，策略内容不变（已经观察期验证），违反策略的资源加载自浏览器侧直接拦截；保留 `report-uri /api/v1/csp-report`，被拦截的违规仍 POST 后端落 `[csp-violation]` 日志，转为持续监控与 XSS 攻击感知渠道；`CSPReport` 处理器与路由装配注释同步更新口径，并注明新外部资源被拦截时应查日志放宽策略而非回退 Report-Only
 
 ## [1.2.0] - 2026-10-16
 
