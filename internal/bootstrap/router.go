@@ -162,6 +162,11 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 全局接口限流
 			r.Use(middleware.RateLimitMiddleware(rateLimiter))
 
+			// CSP 违规上报（配合 nginx 的 Content-Security-Policy-Report-Only）：
+			// 浏览器直接 POST、无法携带 Authorization，故置于公开分组、仅落服务端日志，
+			// 由上行 IP 限流防止被刷爆日志。
+			r.Post("/csp-report", middleware.CSPReport())
+
 			// 1. 认证模块（登录、签发 Token）
 			authH = auth.InitModule(r, db, *cfg, rdb)
 
