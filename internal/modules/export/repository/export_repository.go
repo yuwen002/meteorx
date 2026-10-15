@@ -17,6 +17,7 @@ type ExportJobPO struct {
 	TenantID    string     `gorm:"index;size:26;comment:'租户ID'"`
 	UserID      string     `gorm:"index;size:26;comment:'创建用户ID'"`
 	Resource    string     `gorm:"size:32;index;comment:'资源类型：user/task/audit_log/wiki_document'"`
+	Format      string     `gorm:"size:8;comment:'导出格式：csv/xlsx/json/pdf，空为csv'"`
 	FiltersJSON string     `gorm:"type:text;comment:'筛选条件 JSON'"`
 	Status      string     `gorm:"size:16;index;comment:'状态：pending/running/completed/failed'"`
 	FilePath    string     `gorm:"size:512;comment:'生成的 CSV 文件路径'"`
@@ -38,6 +39,7 @@ func (po ExportJobPO) toDomain() *model.ExportJob {
 		TenantID:    po.TenantID,
 		UserID:      po.UserID,
 		Resource:    po.Resource,
+		Format:      po.Format,
 		FiltersJSON: po.FiltersJSON,
 		Status:      po.Status,
 		FilePath:    po.FilePath,
@@ -56,6 +58,7 @@ func fromDomain(m *model.ExportJob) *ExportJobPO {
 		TenantID:    m.TenantID,
 		UserID:      m.UserID,
 		Resource:    m.Resource,
+		Format:      m.Format,
 		FiltersJSON: m.FiltersJSON,
 		Status:      m.Status,
 		FilePath:    m.FilePath,

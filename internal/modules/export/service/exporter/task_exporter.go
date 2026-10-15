@@ -2,7 +2,6 @@ package exporter
 
 import (
 	"context"
-	"encoding/csv"
 	"time"
 
 	"meteorx/internal/modules/export/model"
@@ -33,10 +32,10 @@ type taskRow struct {
 	CreatedAt   time.Time  `gorm:"column:created_at"`
 }
 
-// Stream 分批流式写出任务 CSV。
-func (e *taskExporter) Stream(ctx context.Context, tenantID string, filters map[string]any, w *csv.Writer) (int64, error) {
+// Stream 分批流式写出任务数据。
+func (e *taskExporter) Stream(ctx context.Context, tenantID string, filters map[string]any, sink RowSink) (int64, error) {
 	header := []string{"ID", "标题", "状态", "优先级", "创建人ID", "负责人ID", "截止时间", "可见范围", "完成时间", "创建时间"}
-	if err := writeHeader(w, header); err != nil {
+	if err := sink.WriteHeader(header); err != nil {
 		return 0, err
 	}
 
@@ -63,9 +62,12 @@ func (e *taskExporter) Stream(ctx context.Context, tenantID string, filters map[
 				fmtNullTime(r.DueDate), r.Visibility, fmtNullTime(r.CompletedAt), fmtTime(r.CreatedAt),
 			})
 		}
-		n, err := writeRows(w, records)
+		n, err := sink.WriteRows(records)
 		total += n
-		return err
+		if err != nil {
+			return err
+		}
+		return nil
 	}).Error
 	return total, err
 }

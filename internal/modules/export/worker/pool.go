@@ -5,7 +5,6 @@ package worker
 
 import (
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -134,11 +133,12 @@ func (p *Pool) processJob(ctx context.Context, id string) {
 		}
 	}
 
-	filePath := filepath.Join(p.cfg.Dir, id+".csv")
+	filePath := filepath.Join(p.cfg.Dir, id+"."+model.FormatExt(job.Format))
 	rows, err := p.runExport(ctx, exp, job, filePath, filters)
 	if err != nil {
 		_ = os.Remove(filePath) // 清理半成品文件
-		p.markFailed(ctx, id, err.Error())
+		// 完整错误只进服务端日志，落库的 error_msg 截断后回显，避免内部细节原样泄给前端
+		p.markFailed(ctx, id, truncateErrMsg(err.Error()))
 		return
 	}
 	if err := p.repo.MarkCompleted(ctx, id, filePath, rows, time.Now()); err != nil {
@@ -146,7 +146,8 @@ func (p *Pool) processJob(ctx context.Context, id string) {
 	}
 }
 
-// runExport 打开文件、写 BOM、调用 exporter 流式写出，返回数据行数。
+// runExport 打开文件、按格式构造 RowSink、调用 exporter 流式写出，返回数据行数。
+// CSV 额外写入 UTF-8 BOM 以保证 Excel 打开中文不乱码；其余格式直写。
 func (p *Pool) runExport(ctx context.Context, exp exporter.Exporter, job *model.ExportJob, filePath string, filters map[string]any) (int64, error) {
 	f, err := os.OpenFile(filePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o640)
 	if err != nil {
@@ -154,19 +155,26 @@ func (p *Pool) runExport(ctx context.Context, exp exporter.Exporter, job *model.
 	}
 	defer func() { _ = f.Close() }()
 
-	// 写入 UTF-8 BOM，保证 Excel 打开中文不乱码
-	if _, err := f.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
-		return 0, fmt.Errorf("写入 BOM 失败: %w", err)
+	var sink exporter.RowSink
+	if job.Format == model.FormatCSV || job.Format == "" {
+		// 写入 UTF-8 BOM，保证 Excel 打开中文不乱码
+		if _, err := f.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+			return 0, fmt.Errorf("写入 BOM 失败: %w", err)
+		}
+		sink = exporter.NewCSVSink(f)
+	} else {
+		sink, err = exporter.NewSink(job.Format, f)
+		if err != nil {
+			return 0, err
+		}
 	}
 
-	cw := csv.NewWriter(f)
-	rows, err := exp.Stream(ctx, job.TenantID, filters, cw)
+	rows, err := exp.Stream(ctx, job.TenantID, filters, sink)
 	if err != nil {
 		return 0, err
 	}
-	cw.Flush()
-	if err := cw.Error(); err != nil {
-		return 0, fmt.Errorf("刷新 CSV 缓冲失败: %w", err)
+	if err := sink.Close(); err != nil {
+		return 0, fmt.Errorf("收尾导出文件失败: %w", err)
 	}
 	if err := f.Sync(); err != nil {
 		return 0, fmt.Errorf("同步文件失败: %w", err)
@@ -180,4 +188,16 @@ func (p *Pool) markFailed(ctx context.Context, id, msg string) {
 		logger.Errorf("[Export] 回写任务 %s 失败状态出错: %v", id, err)
 	}
 	logger.Warnf("[Export] 任务 %s 导出失败: %s", id, msg)
+}
+
+// maxErrMsgLen error_msg 落库/回显的最大长度，防止将驱动层长错误（含路径/堆砌信息）原样展示。
+const maxErrMsgLen = 200
+
+// truncateErrMsg 截断错误摘要，保留前 maxErrMsgLen 个字符（按 rune 避免乱码）。
+func truncateErrMsg(msg string) string {
+	r := []rune(msg)
+	if len(r) <= maxErrMsgLen {
+		return msg
+	}
+	return string(r[:maxErrMsgLen]) + "..."
 }

@@ -17,12 +17,17 @@ export type ExportStatus = 'pending' | 'running' | 'completed' | 'failed'
 /** 可导出资源类型 */
 export type ExportResource = 'user' | 'task' | 'audit_log' | 'wiki_document'
 
+/** 导出文件格式 */
+export type ExportFormat = 'csv' | 'xlsx' | 'json' | 'pdf'
+
 /** 导出任务记录（与后端 dto.ExportJobResp 对齐） */
 export interface ExportJobItem {
   id: string
   tenant_id: string
   user_id: string
   resource: string
+  /** 导出格式：csv / xlsx / json / pdf，空表示 csv */
+  format?: string
   status: string
   rows: number
   error_msg?: string
@@ -35,6 +40,8 @@ export interface ExportJobItem {
 /** 创建导出任务参数 */
 export interface CreateExportParams {
   resource: ExportResource
+  /** 导出格式，不传默认 csv */
+  format?: ExportFormat
   filters?: Record<string, unknown>
 }
 

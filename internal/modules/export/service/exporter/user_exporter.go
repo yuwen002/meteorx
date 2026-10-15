@@ -2,7 +2,6 @@ package exporter
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
 	"time"
 
@@ -35,10 +34,10 @@ type userRow struct {
 	CreatedAt   time.Time  `gorm:"column:created_at"`
 }
 
-// Stream 分批流式写出用户 CSV，返回数据行数（不含表头）。
-func (e *userExporter) Stream(ctx context.Context, tenantID string, filters map[string]any, w *csv.Writer) (int64, error) {
+// Stream 分批流式写出用户数据，返回数据行数（不含表头）。
+func (e *userExporter) Stream(ctx context.Context, tenantID string, filters map[string]any, sink RowSink) (int64, error) {
 	header := []string{"ID", "用户名", "昵称", "邮箱", "手机号", "部门", "岗位", "状态", "是否主管理员", "最后登录时间", "创建时间"}
-	if err := writeHeader(w, header); err != nil {
+	if err := sink.WriteHeader(header); err != nil {
 		return 0, err
 	}
 
@@ -63,9 +62,12 @@ func (e *userExporter) Stream(ctx context.Context, tenantID string, filters map[
 				boolStr(r.IsMaster), fmtNullTime(r.LastLoginAt), fmtTime(r.CreatedAt),
 			})
 		}
-		n, err := writeRows(w, records)
+		n, err := sink.WriteRows(records)
 		total += n
-		return err
+		if err != nil {
+			return err
+		}
+		return nil
 	}).Error
 	if err != nil {
 		return total, err

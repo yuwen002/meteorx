@@ -2,7 +2,6 @@ package exporter
 
 import (
 	"context"
-	"encoding/csv"
 	"strconv"
 	"time"
 
@@ -38,10 +37,10 @@ type auditRow struct {
 	CreatedAt  time.Time `gorm:"column:created_at"`
 }
 
-// Stream 分批流式写出审计日志 CSV。
-func (e *auditExporter) Stream(ctx context.Context, tenantID string, filters map[string]any, w *csv.Writer) (int64, error) {
+// Stream 分批流式写出审计日志数据。
+func (e *auditExporter) Stream(ctx context.Context, tenantID string, filters map[string]any, sink RowSink) (int64, error) {
 	header := []string{"ID", "操作用户", "用户ID", "模块", "动作", "资源", "结果", "风险等级", "客户端IP", "方法", "路径", "状态码", "耗时(ms)", "时间"}
-	if err := writeHeader(w, header); err != nil {
+	if err := sink.WriteHeader(header); err != nil {
 		return 0, err
 	}
 
@@ -81,9 +80,12 @@ func (e *auditExporter) Stream(ctx context.Context, tenantID string, filters map
 				fmtStr(r.Method), fmtStr(r.Path), fmtInt(r.StatusCode), fmtInt64(r.Duration), fmtTime(r.CreatedAt),
 			})
 		}
-		n, err := writeRows(w, records)
+		n, err := sink.WriteRows(records)
 		total += n
-		return err
+		if err != nil {
+			return err
+		}
+		return nil
 	}).Error
 	return total, err
 }

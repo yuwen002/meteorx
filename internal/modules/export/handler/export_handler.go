@@ -115,8 +115,9 @@ func (h *ExportHandler) Download(w http.ResponseWriter, r *http.Request) {
 		response.NotFound(w, "导出文件已过期或被删除")
 		return
 	}
-	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+id+`.csv"`)
+	ext := model.FormatExt(job.Format)
+	w.Header().Set("Content-Type", model.FormatContentType(job.Format))
+	w.Header().Set("Content-Disposition", `attachment; filename="`+id+`.`+ext+`"`)
 	http.ServeFile(w, r, job.FilePath)
 }
 

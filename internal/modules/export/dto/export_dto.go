@@ -10,6 +10,7 @@ import (
 // CreateExportReq 创建导出任务请求
 type CreateExportReq struct {
 	Resource string         `json:"resource" validate:"required,oneof=user task audit_log wiki_document" label:"资源类型"`
+	Format   string         `json:"format,omitempty" validate:"omitempty,oneof=csv xlsx json pdf" label:"导出格式"`
 	Filters  map[string]any `json:"filters,omitempty" validate:"max=32" label:"筛选条件"`
 }
 
@@ -19,6 +20,7 @@ type ExportJobResp struct {
 	TenantID    string  `json:"tenant_id"`
 	UserID      string  `json:"user_id"`
 	Resource    string  `json:"resource"`
+	Format      string  `json:"format"`
 	Status      string  `json:"status"`
 	Rows        int64   `json:"rows"`
 	ErrorMsg    string  `json:"error_msg,omitempty"`
@@ -43,6 +45,7 @@ func ToResp(m *model.ExportJob) *ExportJobResp {
 		TenantID:  m.TenantID,
 		UserID:    m.UserID,
 		Resource:  m.Resource,
+		Format:    m.Format,
 		Status:    m.Status,
 		Rows:      m.Rows,
 		ErrorMsg:  m.ErrorMsg,

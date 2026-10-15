@@ -54,6 +54,11 @@ func (s *ExportService) CreateExport(ctx context.Context, tenantID, userID strin
 	if !model.ValidResourceType(req.Resource) {
 		return nil, ErrInvalidResource
 	}
+	format := req.Format
+	if !model.ValidFormat(format) {
+		// 非法的格式（理论上已被 handler 校验拦截）回落默认 CSV，保证任务可正常创建
+		format = model.DefaultFormat
+	}
 	// 队列上限准入：未完结任务达上限时拒绝新建，查询失败时不阻断创建（fail-open）
 	limit := s.config.MaxActiveJobs
 	if limit <= 0 {
@@ -83,6 +88,7 @@ func (s *ExportService) CreateExport(ctx context.Context, tenantID, userID strin
 		TenantID:    tenantID,
 		UserID:      userID,
 		Resource:    req.Resource,
+		Format:      format,
 		FiltersJSON: filters,
 		Status:      model.ExportStatusPending,
 		CreatedAt:   now,

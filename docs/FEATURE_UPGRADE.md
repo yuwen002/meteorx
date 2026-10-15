@@ -1126,6 +1126,43 @@ client:
 
 **i18n 铺开**
 - `layouts/DefaultLayout.vue` 全局外壳（侧边栏菜单/面包屑/顶栏提示/用户下拉/退出确认/品牌对话框）统一改用 `t()`，复用早已存在的 `nav.*` 等 key
+
+---
+
+## 三十三、导出模块多格式支持（CSV / XLSX / JSON / PDF）
+
+原导出模块仅支持 CSV。本次将「数据生产」与「文件格式」解耦，一套数据可导出为四种格式。
+
+### 33.1 解耦设计：RowSink 接口
+- `service/exporter/exporter.go`：`Exporter.Stream` 签名由 `*csv.Writer` 改为 `RowSink` 接口（`WriteHeader` / `WriteRows` / `Close`）；新增 `NewSink(format, dst)` 工厂按格式构造对应 sink。
+- 四个资源导出器（user / task / audit_log / wiki_document）保持不变的 SQL 与分页逻辑，仅将写 CSV 的 `writeHeader`/`writeRows` 改为调用 sink，零业务逻辑改动。
+- 新增四种 sink：
+  - `sink_csv.go`：纯 CSV（不含 BOM，由 worker 在文件头写入 UTF-8 BOM，保证 Excel 中文不乱码）。
+  - `sink_json.go`：以 `[{列名: 值}, ...]` 数组输出（stdlib `encoding/json`，零依赖）。
+  - `sink_xlsx.go`：基于 `github.com/xuri/excelize/v2` 的 `StreamWriter` 流式写出，内存友好。
+  - `sink_pdf.go`：基于 `github.com/jung-kurt/gofpdf` 渲染带边框表格；因数据含中文，必须可定位 CJK 字体（见 33.3）。
+
+### 33.2 字段与接线
+- `model.ExportJob.Format`、`repository.ExportJobPO.Format` 新增格式字段（GORM AutoMigrate 自动加列）。
+- `dto.CreateExportReq.Format`（`omitempty,oneof=csv xlsx json pdf`）、`ExportJobResp.Format`。
+- `service.CreateExport` 校验/默认化格式（非法格式回落 `csv`），`worker.runExport` 按格式生成 `.{ext}` 文件名并选择 sink，仅 CSV 写 BOM。
+- `handler.Download` 按 `format` 设置 `Content-Type` 与 `filename.{ext}`。
+- 前端 `web-admin`：`api/modules/export.ts` 增加 `ExportFormat`、`CreateExportParams.format`、`ExportJobItem.format`；`views/export/index.vue` 新建对话框增加「导出格式」下拉，列表增加格式列，下载文件名按格式扩展名。
+
+### 33.3 PDF 中文字体约束（重要）
+- gofpdf 核心字体不支持中文，PDF 必须内嵌/可定位 CJK 字体，否则中文乱码。
+- 字体解析顺序：环境变量 `METEORX_EXPORT_PDF_FONT`（可选 `METEORX_EXPORT_PDF_FONT_NAME`）→ 启动配置 `exporter.SetPDFFont(path, name)` → 常见系统路径（Windows `msyh.ttf`、Linux Noto/WQY、macOS 等）。
+- 三者皆不可得时，PDF 任务被 worker 标记为 `failed` 并记录「PDF 导出需要 CJK 字体」，**绝不输出乱码**；`.ttc` 集合不被 `AddUTF8Font` 支持，需单一 `.ttf`。
+
+### 33.4 验证状态
+- ✅ `go build ./...` 通过；`go mod tidy` 干净（新增 `excelize/v2`、`gofpdf`）
+- ✅ `go vet ./internal/modules/export/...` 通过
+- ✅ `go test ./internal/modules/export/...` 全量通过
+  - 新增 `sink_test.go`：`TestJSONSink` / `TestJSONSink_Empty` / `TestXLSXSink`（excelize 回读校验）/ `TestNewSink`（含 PDF 无字体报错、非法格式报错）
+  - 新增 `TestService_CreateExport_Format`（显式格式 / 默认 csv / 非法回落）
+  - 更新 `exporter_test.go`、`worker/pool_test.go` 适配 `RowSink`
+- ✅ 前端 `vue-tsc --noEmit` 对 `export.ts` / `index.vue` 无类型错误
+- 文档：`docs/api/export-api.md` 补充 `format` 字段、按格式 Content-Type 表、4.5 格式支持与 PDF 字体说明
 - `stores/i18n.ts` 补齐缺失 key：`nav.task/export/invitation/tenantHealth`、`theme.toLight/toDark`、`header.wsConnected/wsDisconnected`、`brand.*`、`auth.logoutConfirm/loggedOut`、`common.tip`
 
 **路由守卫**

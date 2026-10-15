@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"encoding/csv"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,20 +26,22 @@ type fakeExporter struct {
 }
 
 func (f *fakeExporter) Resource() string { return f.resource }
-func (f *fakeExporter) Stream(_ context.Context, _ string, _ map[string]any, w *csv.Writer) (int64, error) {
+func (f *fakeExporter) Stream(_ context.Context, _ string, _ map[string]any, sink exporter.RowSink) (int64, error) {
 	if f.err != nil {
 		return 0, f.err
 	}
-	if err := w.Write([]string{"id", "name"}); err != nil {
+	if err := sink.WriteHeader([]string{"id", "name"}); err != nil {
 		return 0, err
 	}
+	records := make([][]string, 0, f.rows)
 	for i := int64(0); i < f.rows; i++ {
-		if err := w.Write([]string{"x", "y"}); err != nil {
-			return 0, err
-		}
+		records = append(records, []string{"x", "y"})
 	}
-	w.Flush()
-	return f.rows, w.Error()
+	n, err := sink.WriteRows(records)
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 func newPoolTest(t *testing.T) (*Pool, repository.ExportRepository, string) {
@@ -128,4 +129,20 @@ func TestPool_ProcessJob_ExporterError(t *testing.T) {
 	// 半成品文件应被清理
 	_, statErr := os.Stat(filepath.Join(dir, "job1.csv"))
 	require.True(t, os.IsNotExist(statErr))
+}
+
+// TestTruncateErrMsg 验证长错误按 rune 截断，短错误原样返回，避免内部长错误原样回显前端。
+func TestTruncateErrMsg(t *testing.T) {
+	short := "简短错误"
+	require.Equal(t, short, truncateErrMsg(short))
+
+	// 构造超长含中文错误，验证不会按字节切断导致乱码
+	long := ""
+	for i := 0; i < 300; i++ {
+		long += "错"
+	}
+	got := truncateErrMsg(long)
+	runes := []rune(got)
+	require.LessOrEqual(t, len(runes), maxErrMsgLen+3, "截断后长度应受限（含省略号）")
+	require.True(t, got[len(got)-3:] == "..." || got == long, "超长应以省略号结尾")
 }

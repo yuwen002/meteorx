@@ -117,10 +117,10 @@ func TestUserExporter_Stream(t *testing.T) {
 	require.NoError(t, db.Create(&tUser{ID: "u4", TenantID: "t1", Username: "ghost", Status: 1, CreatedAt: now, DeletedAt: ptr(now)}).Error)
 
 	var buf bytes.Buffer
-	w := csv.NewWriter(&buf)
+	sink := NewCSVSink(&buf)
 	exp := NewUserExporter(db)
-	rows, err := exp.Stream(ctx, "t1", nil, w)
-	w.Flush()
+	rows, err := exp.Stream(ctx, "t1", nil, sink)
+	require.NoError(t, sink.Close())
 	require.NoError(t, err)
 	require.Equal(t, int64(2), rows, "仅导出本租户未删除用户")
 
@@ -137,9 +137,9 @@ func TestUserExporter_FilterStatus(t *testing.T) {
 	require.NoError(t, db.Create(&tUser{ID: "u2", TenantID: "t1", Username: "bob", Status: 0, CreatedAt: now}).Error)
 
 	var buf bytes.Buffer
-	w := csv.NewWriter(&buf)
-	rows, err := NewUserExporter(db).Stream(context.Background(), "t1", map[string]any{"status": "1"}, w)
-	w.Flush()
+	sink := NewCSVSink(&buf)
+	rows, err := NewUserExporter(db).Stream(context.Background(), "t1", map[string]any{"status": "1"}, sink)
+	require.NoError(t, sink.Close())
 	require.NoError(t, err)
 	require.Equal(t, int64(1), rows)
 }
@@ -152,9 +152,9 @@ func TestTaskExporter_Stream(t *testing.T) {
 	require.NoError(t, db.Create(&tTask{ID: "k3", TenantID: "t2", Title: "他租户", Status: "pending", Priority: "normal", CreatedAt: now}).Error)
 
 	var buf bytes.Buffer
-	w := csv.NewWriter(&buf)
-	rows, err := NewTaskExporter(db).Stream(context.Background(), "t1", map[string]any{"status": "done"}, w)
-	w.Flush()
+	sink := NewCSVSink(&buf)
+	rows, err := NewTaskExporter(db).Stream(context.Background(), "t1", map[string]any{"status": "done"}, sink)
+	require.NoError(t, sink.Close())
 	require.NoError(t, err)
 	require.Equal(t, int64(1), rows)
 	records := readCSV(t, &buf)
@@ -169,9 +169,9 @@ func TestAuditExporter_Stream(t *testing.T) {
 	require.NoError(t, db.Create(&tAudit{ID: "a3", TenantID: "t2", Username: ptr("x"), Module: ptr("auth"), CreatedAt: now}).Error)
 
 	var buf bytes.Buffer
-	w := csv.NewWriter(&buf)
-	rows, err := NewAuditExporter(db).Stream(context.Background(), "t1", map[string]any{"module": "auth"}, w)
-	w.Flush()
+	sink := NewCSVSink(&buf)
+	rows, err := NewAuditExporter(db).Stream(context.Background(), "t1", map[string]any{"module": "auth"}, sink)
+	require.NoError(t, sink.Close())
 	require.NoError(t, err)
 	require.Equal(t, int64(1), rows)
 	records := readCSV(t, &buf)
@@ -188,9 +188,9 @@ func TestWikiDocumentExporter_Stream(t *testing.T) {
 	require.NoError(t, db.Create(&tWikiDoc{ID: "d3", TenantID: "t2", NodeID: "n3", PublishStatus: ptr("published"), CreatedAt: now, UpdatedAt: now}).Error)
 
 	var buf bytes.Buffer
-	w := csv.NewWriter(&buf)
-	rows, err := NewWikiDocumentExporter(db).Stream(context.Background(), "t1", map[string]any{"publishStatus": "published"}, w)
-	w.Flush()
+	sink := NewCSVSink(&buf)
+	rows, err := NewWikiDocumentExporter(db).Stream(context.Background(), "t1", map[string]any{"publishStatus": "published"}, sink)
+	require.NoError(t, sink.Close())
 	require.NoError(t, err)
 	require.Equal(t, int64(1), rows)
 	records := readCSV(t, &buf)

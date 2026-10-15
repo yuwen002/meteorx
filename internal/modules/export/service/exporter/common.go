@@ -1,7 +1,6 @@
 package exporter
 
 import (
-	"encoding/csv"
 	"time"
 )
 
@@ -83,28 +82,4 @@ func boolStr(b bool) string {
 		return "true"
 	}
 	return "false"
-}
-
-// writeRows 将一批记录写入 CSV writer 并刷新缓冲，返回遇到的写入错误。
-func writeRows(w *csv.Writer, records [][]string) (int64, error) {
-	if len(records) == 0 {
-		return 0, nil
-	}
-	if err := w.WriteAll(records); err != nil {
-		return 0, err
-	}
-	w.Flush()
-	if err := w.Error(); err != nil {
-		return 0, err
-	}
-	return int64(len(records)), nil
-}
-
-// writeHeader 写出 CSV 表头行并刷新
-func writeHeader(w *csv.Writer, header []string) error {
-	if err := w.Write(header); err != nil {
-		return err
-	}
-	w.Flush()
-	return w.Error()
 }

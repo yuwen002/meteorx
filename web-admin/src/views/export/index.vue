@@ -25,16 +25,19 @@
       </div>
 
       <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        title="导出为异步任务，创建后在此列表查看进度；完成后即可下载 CSV 文件（UTF-8 带 BOM，Excel 直接打开不乱码）。"
-        style="margin-bottom: 16px;"
+      type="info"
+      :closable="false"
+      show-icon
+      title="导出为异步任务，创建后在此列表查看进度；完成后即可下载。支持 CSV / Excel(xlsx) / JSON / PDF 格式（CSV 为 UTF-8 带 BOM，Excel 直接打开不乱码；PDF 需服务端配置中文字体）。"
+      style="margin-bottom: 16px;"
       />
 
       <el-table v-loading="loading" :data="list" stripe style="width: 100%;">
         <el-table-column label="资源类型" width="130">
           <template #default="{ row }">{{ resourceLabel(row.resource) }}</template>
+        </el-table-column>
+        <el-table-column label="格式" width="90" align="center">
+          <template #default="{ row }">{{ (row.format || 'csv').toUpperCase() }}</template>
         </el-table-column>
         <el-table-column label="状态" width="110" align="center">
           <template #default="{ row }">
@@ -86,6 +89,11 @@
             <el-option v-for="opt in resourceOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
+        <el-form-item label="导出格式" prop="format">
+          <el-select v-model="createForm.format" placeholder="请选择导出格式" style="width: 100%;">
+            <el-option v-for="opt in formatOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="createDialogVisible = false">取消</el-button>
@@ -106,7 +114,8 @@ import {
   downloadExport,
   deleteExport,
   type ExportJobItem,
-  type ExportResource
+  type ExportResource,
+  type ExportFormat
 } from '@/api/modules/export'
 import { toPageResult } from '@/types/pagination'
 
@@ -115,6 +124,13 @@ const resourceOptions: { label: string; value: ExportResource }[] = [
   { label: '任务', value: 'task' },
   { label: '审计日志', value: 'audit_log' },
   { label: 'Wiki 文档', value: 'wiki_document' }
+]
+
+const formatOptions: { label: string; value: ExportFormat }[] = [
+  { label: 'CSV（Excel 可直接打开）', value: 'csv' },
+  { label: 'Excel（.xlsx）', value: 'xlsx' },
+  { label: 'JSON', value: 'json' },
+  { label: 'PDF（需服务端配置中文字体）', value: 'pdf' }
 ]
 
 function resourceLabel(resource: string) {
@@ -178,7 +194,7 @@ onUnmounted(() => {
 const createDialogVisible = ref(false)
 const createFormRef = ref<FormInstance>()
 const createLoading = ref(false)
-const createForm = reactive({ resource: '' as ExportResource | '' })
+const createForm = reactive({ resource: '' as ExportResource | '', format: 'csv' as ExportFormat })
 const createRules: FormRules = {
   resource: [{ required: true, message: '请选择资源类型', trigger: 'change' }]
 }
@@ -194,7 +210,7 @@ async function submitCreate() {
     if (!valid) return
     createLoading.value = true
     try {
-      await createExport({ resource: createForm.resource as ExportResource })
+      await createExport({ resource: createForm.resource as ExportResource, format: createForm.format })
       ElMessage.success('导出任务已创建，正在后台生成')
       createDialogVisible.value = false
       page.value = 1
@@ -213,7 +229,7 @@ async function handleDownload(row: ExportJobItem) {
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `${row.resource}-${row.id}.csv`
+    link.download = `${row.resource}-${row.id}.${row.format || 'csv'}`
     link.click()
     window.URL.revokeObjectURL(url)
   } catch {

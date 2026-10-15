@@ -2,7 +2,6 @@ package exporter
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
 	"time"
 
@@ -34,10 +33,10 @@ type wikiDocRow struct {
 	UpdatedAt     time.Time  `gorm:"column:updated_at"`
 }
 
-// Stream 分批流式写出 Wiki 文档 CSV。
-func (e *wikiDocumentExporter) Stream(ctx context.Context, tenantID string, filters map[string]any, w *csv.Writer) (int64, error) {
+// Stream 分批流式写出 Wiki 文档数据。
+func (e *wikiDocumentExporter) Stream(ctx context.Context, tenantID string, filters map[string]any, sink RowSink) (int64, error) {
 	header := []string{"ID", "节点ID", "格式", "当前版本", "浏览数", "发布状态", "最后编辑人", "发布时间", "创建时间", "更新时间"}
-	if err := writeHeader(w, header); err != nil {
+	if err := sink.WriteHeader(header); err != nil {
 		return 0, err
 	}
 
@@ -62,9 +61,12 @@ func (e *wikiDocumentExporter) Stream(ctx context.Context, tenantID string, filt
 				fmtTime(r.CreatedAt), fmtTime(r.UpdatedAt),
 			})
 		}
-		n, err := writeRows(w, records)
+		n, err := sink.WriteRows(records)
 		total += n
-		return err
+		if err != nil {
+			return err
+		}
+		return nil
 	}).Error
 	return total, err
 }

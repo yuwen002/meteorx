@@ -58,6 +58,26 @@ func TestService_CreateExport_InvalidResource(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidResource)
 }
 
+func TestService_CreateExport_Format(t *testing.T) {
+	svc, _ := newService(t, 7)
+	ctx := context.Background()
+
+	// 显式指定 xlsx
+	job, err := svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{Resource: model.ResourceUser, Format: model.FormatXLSX})
+	require.NoError(t, err)
+	require.Equal(t, model.FormatXLSX, job.Format)
+
+	// 不传格式 -> 默认 csv
+	job2, err := svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{Resource: model.ResourceTask})
+	require.NoError(t, err)
+	require.Equal(t, model.FormatCSV, job2.Format)
+
+	// 非法格式 -> 回落默认 csv（保证任务可创建）
+	job3, err := svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{Resource: model.ResourceTask, Format: "doc"})
+	require.NoError(t, err)
+	require.Equal(t, model.FormatCSV, job3.Format)
+}
+
 func TestService_CreateExport_QueueFull(t *testing.T) {
 	svc, _ := newService(t, 7)
 	ctx := context.Background()

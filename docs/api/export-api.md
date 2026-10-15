@@ -7,7 +7,7 @@
 > DTO：`internal/modules/export/dto/export_dto.go`  
 > 前端页面：`web-admin/src/views/export/index.vue`（下载中心，路由 `/export`）
 
-异步 CSV 导出：创建任务后立即返回，worker 池后台执行，完成后到下载中心轮询状态并下载文件。
+异步导出：创建任务后立即返回，worker 池后台执行，完成后到下载中心轮询状态并下载文件。支持 **CSV / Excel(xlsx) / JSON / PDF** 四种格式（由创建请求中的 `format` 字段决定，缺省为 CSV）。
 
 ---
 
@@ -18,7 +18,7 @@
 | GET | `/exports` | 导出任务列表（当前用户） | `export:list` |
 | POST | `/exports` | 创建导出任务 | `export:create` |
 | GET | `/exports/{id}` | 导出任务详情 | `export:read` |
-| GET | `/exports/{id}/download` | 下载导出 CSV 文件 | `export:list`（下载动作复用列表权限） |
+| GET | `/exports/{id}/download` | 下载导出文件（格式由任务决定） | `export:list`（下载动作复用列表权限） |
 | DELETE | `/exports/{id}` | 删除导出任务及文件 | `export:delete` |
 
 **说明：**
@@ -34,6 +34,7 @@
 | 字段 | 类型 | 必填 | 校验规则 | 说明 |
 |------|------|------|----------|------|
 | resource | string | 是 | oneof | 资源类型：`user` / `task` / `audit_log` / `wiki_document` |
+| format | string | 否 | oneof | 导出格式：`csv` / `xlsx` / `json` / `pdf`；不传默认 `csv` |
 | filters | object | 否 | 最多 32 个键 | 筛选条件（自由键值对，按资源类型解释，见 4.1） |
 
 ### 2.2 ExportJobResp（导出任务响应）
@@ -44,6 +45,7 @@
 | tenant_id | string | 所属租户 ID |
 | user_id | string | 创建人 ID |
 | resource | string | 资源类型 |
+| format | string | 导出格式：`csv` / `xlsx` / `json` / `pdf`（空表示 csv） |
 | status | string | 状态：`pending` / `running` / `completed` / `failed` |
 | rows | int64 | 导出行数（完成后有值） |
 | error_msg | string | 失败原因（仅 failed 时返回） |
@@ -72,6 +74,7 @@ pending ──worker 拉取──▶ running ──▶ completed
 ```json
 {
   "resource": "task",
+  "format": "xlsx",
   "filters": { "status": "done" }
 }
 ```
@@ -109,9 +112,14 @@ pending ──worker 拉取──▶ running ──▶ completed
 
 `GET /api/v1/exports/{id}/download`
 
-**成功响应（200）：** CSV 文件流
-- `Content-Type: text/csv; charset=utf-8`
-- `Content-Disposition: attachment; filename="{id}.csv"`
+**成功响应（200）：** 导出文件流，`Content-Type` 与文件名后缀随任务 `format` 变化：
+
+| format | Content-Type | 文件名后缀 |
+|--------|-------------|------------|
+| csv（默认） | `text/csv; charset=utf-8` | `.csv`（文件内含 UTF-8 BOM，Excel 直接打开不乱码） |
+| xlsx | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | `.xlsx` |
+| json | `application/json; charset=utf-8` | `.json` |
+| pdf | `application/pdf` | `.pdf` |
 
 **错误响应：**
 
@@ -168,5 +176,16 @@ export:
 
 | 任务 | 周期 | 职责 |
 |------|------|------|
-| Export Worker 池 | 每 2 秒轮询 | 拉取 pending 任务，按资源类型分派 exporter 流式写出 CSV |
-| ExportExpiryJob | 每 6 小时 | 删除超过 `expires_at` 的 CSV 文件与任务记录，单轮上限 200 条 |
+| Export Worker 池 | 每 2 秒轮询 | 拉取 pending 任务，按资源类型分派 exporter 流式写出文件（格式由任务决定） |
+| ExportExpiryJob | 每 6 小时 | 删除超过 `expires_at` 的导出文件与任务记录，单轮上限 200 条 |
+
+### 4.5 格式支持与依赖
+
+- **CSV**：零依赖，文件内写入 UTF-8 BOM，Excel / Numbers / WPS 直接打开中文不乱码。
+- **XLSX**：基于 `github.com/xuri/excelize/v2` 的 `StreamWriter` 流式写出，内存占用低，适合大数据量。
+- **JSON**：以 `[{表头键: 值}, ...]` 数组形式输出，字段名为各资源的导出列名。
+- **PDF**：基于 `github.com/jung-kurt/gofpdf` 渲染带边框的表格。**因导出数据含中文，PDF 必须内嵌/可定位 CJK 字体，否则中文会乱码**。服务端按以下顺序解析字体：
+  1. 环境变量 `METEORX_EXPORT_PDF_FONT`（指向一个 `.ttf` 字体文件，可选 `METEORX_EXPORT_PDF_FONT_NAME` 指定字体族名）；
+  2. 启动配置中通过 `exporter.SetPDFFont(path, name)` 注入的路径；
+  3. 常见系统路径（Windows `msyh.ttf`、Linux Noto/WQY、macOS 等）。
+  若三者皆不可得，创建 PDF 导出任务后 worker 会将该任务标记为 `failed` 并记录「PDF 导出需要 CJK 字体」，**绝不输出中文乱码**。注意：`.ttc` 字体集合不被 gofpdf 的 `AddUTF8Font` 支持，请使用单一 `.ttf`。
