@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+_暂无待发布变更。_
+
+## [1.2.0] - 2026-10-16
+
 ### 新增
 - **双因素认证（2FA / TOTP）**：纯标准库实现 `pkg/totp`（RFC 6238，±1 时间窗容错 + `otpauth://` provisioning URI）；`User` 增 `totp_secret`/`totp_enabled` 字段与 `UpdateTOTP` 仓储方法；登录流程在租户软着陆校验后追加 TOTP 分支（缺码/错码返回 `require_2fa`，错码计入账户锁定）；新增 `POST /api/v1/auth/2fa/setup|enable|disable` 三端点，绑定密钥经 Redis 暂存（TTL 15 分钟）不落库直至验证通过；前端登录页二段式揭示验证码输入、个人中心三步绑定/关闭
 - **慢查询看板**：新增 `internal/dbmonitor` 以 GORM `logger.Interface` 包装器在进程内采集超阈值 SQL 至内存环形缓冲（默认容量 200），无需外部慢查询日志；配置 `database.slow_query_ms`（未配置默认 500ms，负值关闭）；新增 `GET /api/v1/admin/dashboard/slow-queries` 与 `POST /api/v1/admin/dashboard/slow-queries/reset`（权限 `admin:dashboard:list`/`create`）；前端 `#/system/dashboard/slow-queries` 看板页（四指标卡 + 明细表 + 5 秒自动刷新 + 重置）
@@ -62,5 +66,6 @@
 
 v1.0.0 基线：多租户 SaaS 后端（认证 / RBAC / 用户 / 租户 / 审计 / 文件 / 任务 / Wiki / 计划套餐 / 邀请 / 通知 / OAuth / 仪表盘）与 web-admin 管理前端。本自 v1.1.0 起维护变更日志。
 
-[Unreleased]: https://github.com/yuwen002/meteorx/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/yuwen002/meteorx/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/yuwen002/meteorx/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/yuwen002/meteorx/releases/tag/v1.1.0
