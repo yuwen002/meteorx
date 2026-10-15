@@ -119,9 +119,14 @@ func NewTaskRepository(db *gorm.DB) TaskRepository {
 	return &taskRepository{db: db}
 }
 
+// Models 返回本模块全部待迁移模型，作为 AutoMigrate 与脏列巡检的单一模型来源。
+func Models() []interface{} {
+	return []interface{}{&TaskPO{}}
+}
+
 // AutoMigrate 自动迁移任务表结构。
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&TaskPO{})
+	return db.AutoMigrate(Models()...)
 }
 
 // Create 新建任务记录。

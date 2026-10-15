@@ -7,7 +7,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// Models 返回本模块全部待迁移模型，作为 AutoMigrate 与脏列巡检的单一模型来源。
+func Models() []interface{} {
+	return []interface{}{&model.File{}}
+}
+
 // AutoMigrate 自动迁移文件表
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&model.File{})
+	return db.AutoMigrate(Models()...)
 }

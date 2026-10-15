@@ -74,9 +74,14 @@ func NewAnnouncementRepository(db *gorm.DB) AnnouncementRepository {
 	return &announcementRepository{db: db}
 }
 
+// Models 返回本模块全部待迁移模型，作为 AutoMigrate 与脏列巡检的单一模型来源。
+func Models() []interface{} {
+	return []interface{}{&AnnouncementPO{}}
+}
+
 // AutoMigrate 自动迁移表结构
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&AnnouncementPO{})
+	return db.AutoMigrate(Models()...)
 }
 
 // Create 新建公告记录。

@@ -30,8 +30,8 @@ type TenantPO struct {
 	Status       int            `gorm:"comment:'状态：1-启用 0-禁用'"`                   // 租户状态：1-启用，0-禁用
 	Description  *string        `gorm:"size:255;comment:'租户简述'"`                  // 租户简述
 	ContactEmail *string        `gorm:"size:100;comment:'联系邮箱'"`                  // 联系邮箱
-	ContactPhone *string        `gorm:"size:20;comment:'联系电话'"`                  // 联系电话
-	Industry     *string        `gorm:"size:100;comment:'所属行业'"`                 // 所属行业
+	ContactPhone *string        `gorm:"size:20;comment:'联系电话'"`                   // 联系电话
+	Industry     *string        `gorm:"size:100;comment:'所属行业'"`                  // 所属行业
 	Region       *string        `gorm:"size:50;comment:'地区/数据中心'"`                // 地区/数据中心
 	Logo         *string        `gorm:"size:500;comment:'租户Logo URL'"`            // 租户 Logo URL
 	Extra        *string        `gorm:"type:text;comment:'扩展字段(JSON格式)'"`         // 扩展字段，存储 JSON 格式
@@ -93,6 +93,12 @@ func (record TenantPO) toDomain() *model.Tenant {
 // 返回值：error - 迁移过程中的错误
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&TenantPO{})
+}
+
+// Models 聚合租户模块全部待迁移模型，供脏列巡检枚举表结构。
+// 需与 AutoMigrate/AutoMigrateTenantSettings/CancelRequestsAutoMigrate 三处迁移的模型保持一致。
+func Models() []interface{} {
+	return []interface{}{&TenantPO{}, &TenantSettingsPO{}, &CancelRequestPO{}}
 }
 
 // tenantRepository 租户仓储实现

@@ -121,12 +121,14 @@ func NewAuditLogRepository(db *gorm.DB) AuditLogRepository {
 	return &auditLogRepository{db: db}
 }
 
+// Models 返回本模块全部待迁移模型，作为 AutoMigrate 与脏列巡检的单一模型来源。
+func Models() []interface{} {
+	return []interface{}{&AuditLogPO{}, &AlertRulePO{}, &AuditAlertPO{}}
+}
+
 // AutoMigrate 自动迁移表结构
 func AutoMigrate(db *gorm.DB) error {
-	if err := db.AutoMigrate(&AuditLogPO{}, &AlertRulePO{}, &AuditAlertPO{}); err != nil {
-		return err
-	}
-	return nil
+	return db.AutoMigrate(Models()...)
 }
 
 // Create 写入单条审计日志。

@@ -54,9 +54,14 @@ type SubscriptionPO struct {
 // TableName 返回订阅表名 tenant_subscriptions。
 func (SubscriptionPO) TableName() string { return "tenant_subscriptions" }
 
+// Models 返回本模块全部待迁移模型，作为 AutoMigrate 与脏列巡检的单一模型来源。
+func Models() []interface{} {
+	return []interface{}{&PlanPO{}, &SubscriptionPO{}}
+}
+
 // AutoMigrate 套餐模块数据库迁移
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&PlanPO{}, &SubscriptionPO{})
+	return db.AutoMigrate(Models()...)
 }
 
 // ---------- 工具函数 ----------

@@ -67,9 +67,14 @@ func (record UserPO) toDomain() *model.User {
 	return u
 }
 
+// Models 返回本模块全部待迁移模型，作为 AutoMigrate 与脏列巡检的单一模型来源。
+func Models() []interface{} {
+	return []interface{}{&UserPO{}}
+}
+
 // AutoMigrate 自动迁移用户表结构。
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&UserPO{})
+	return db.AutoMigrate(Models()...)
 }
 
 // 接口实现

@@ -124,7 +124,12 @@ func (r *wikiRepository) getDB(ctx context.Context) *gorm.DB {
 
 // AutoMigrate 自动迁移 Wiki 模块涉及的全部表结构。
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(
+	return db.AutoMigrate(Models()...)
+}
+
+// Models 返回 Wiki 模块全部待迁移模型，作为 AutoMigrate 与脏列巡检的单一模型来源。
+func Models() []interface{} {
+	return []interface{}{
 		&model.WikiSpace{},
 		&model.WikiNode{},
 		&model.Document{},
@@ -143,7 +148,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.Notification{},
 		&model.EditLock{},
 		&model.ReviewComment{},
-	)
+	}
 }
 
 // CreateSpace 新建知识空间，自动补齐 ID、租户ID与创建/更新时间。

@@ -60,9 +60,14 @@ func NewInvitationRepository(db *gorm.DB) InvitationRepository {
 	return &invitationRepository{db: db}
 }
 
+// Models 返回本模块全部待迁移模型，作为 AutoMigrate 与脏列巡检的单一模型来源。
+func Models() []interface{} {
+	return []interface{}{&InvitationPO{}}
+}
+
 // AutoMigrate 自动迁移邀请表结构。
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&InvitationPO{})
+	return db.AutoMigrate(Models()...)
 }
 
 // Create 新建邀请记录。

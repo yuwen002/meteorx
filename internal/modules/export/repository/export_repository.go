@@ -223,7 +223,12 @@ func (r *exportRepository) Delete(ctx context.Context, id string) error {
 // ErrExportJobNotFound 导出任务不存在
 var ErrExportJobNotFound = errors.New("export job not found")
 
+// Models 返回本模块全部待迁移模型，作为 AutoMigrate 与脏列巡检的单一模型来源。
+func Models() []interface{} {
+	return []interface{}{&ExportJobPO{}}
+}
+
 // AutoMigrate 迁移导出任务表
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&ExportJobPO{})
+	return db.AutoMigrate(Models()...)
 }
