@@ -186,7 +186,7 @@ jobs:
           CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-w -s" -o dist/meteorx-darwin-amd64 ./cmd/server
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-w -s" -o dist/meteorx-windows-amd64.exe ./cmd/server
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: backend-binaries
           path: dist/
@@ -217,7 +217,7 @@ jobs:
       - name: Build
         run: npm run build
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
           path: web-admin/dist/
