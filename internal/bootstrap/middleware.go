@@ -20,6 +20,8 @@ import (
 // 由 security.GetClientIP / chimiddleware.GetClientIP 读取，不修改 RemoteAddr。
 func SetupMiddleware(r *chi.Mux, allowedOrigins []string, trustedProxies []string) {
 	r.Use(middleware.GlobalErrorHandler)
+	// 安全响应头纵深防御：紧跟错误处理之后，确保异常/恢复路径的响应同样携带安全头
+	r.Use(middleware.SecurityHeaders)
 	// 替代已弃用的 chimiddleware.RealIP：后者无条件信任最左 XFF/True-Client-IP/X-Real-IP，
 	// 可被客户端伪造审计来源 IP（GHSA-3fxj-6jh8-hvhx）
 	r.Use(chimiddleware.ClientIPFromXFF(trustedProxies...))

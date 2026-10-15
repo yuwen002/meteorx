@@ -10,6 +10,7 @@ import (
 	"meteorx/internal/pkg/emailer"
 	"meteorx/pkg/iplocation"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -122,6 +123,27 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 		if health["status"] == "error" {
 			statusCode = http.StatusServiceUnavailable
 		}
+
+		// 运行时与数据库连接池明细：辅助容量规划与泄漏/连接耗尽排查，均为本地读数无额外开销。
+		var ms runtime.MemStats
+		runtime.ReadMemStats(&ms)
+		health["runtime"] = map[string]interface{}{
+			"goroutines":    runtime.NumGoroutine(),
+			"heap_alloc_mb": ms.HeapAlloc / 1024 / 1024,
+			"sys_mb":        ms.Sys / 1024 / 1024,
+			"num_gc":        ms.NumGC,
+		}
+		if sqlDB != nil {
+			pool := sqlDB.Stats()
+			health["db_pool"] = map[string]interface{}{
+				"open_connections": pool.OpenConnections,
+				"in_use":           pool.InUse,
+				"idle":             pool.Idle,
+				"wait_count":       pool.WaitCount,
+				"wait_duration_ms": pool.WaitDuration.Milliseconds(),
+			}
+		}
+
 		w.WriteHeader(statusCode)
 		_ = json.NewEncoder(w).Encode(health)
 	})
