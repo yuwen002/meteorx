@@ -124,7 +124,8 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			statusCode = http.StatusServiceUnavailable
 		}
 
-		// 运行时与数据库连接池明细：辅助容量规划与泄漏/连接耗尽排查，均为本地读数无额外开销。
+		// 运行时与数据库连接池明细：辅助容量规划与泄漏/连接耗尽排查。均为进程内本地读数，
+		// 开销极小；但 runtime.ReadMemStats 会短暂锁堆，若健康检查被高频拉取可改走 runtime/metrics。
 		var ms runtime.MemStats
 		runtime.ReadMemStats(&ms)
 		health["runtime"] = map[string]interface{}{
