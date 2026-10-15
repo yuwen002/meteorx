@@ -38,19 +38,20 @@ func TestSecurityHeaders_BaseHeadersAlwaysSet(t *testing.T) {
 	}
 }
 
-func TestSecurityHeaders_HSTSWhenForwardedProtoHTTPS(t *testing.T) {
+func TestSecurityHeaders_NoHSTSWhenBehindProxy(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	// 仅有 X-Forwarded-Proto=https 但本进程未直接终结 TLS：HSTS 应交由边缘层，Go 不发以免重复头
 	req := httptest.NewRequest(http.MethodGet, "/api/x", nil)
 	req.Header.Set("X-Forwarded-Proto", "https")
 	rr := httptest.NewRecorder()
 	SecurityHeaders(next).ServeHTTP(rr, req)
 
 	assertBaseHeaders(t, rr)
-	if rr.Header().Get("Strict-Transport-Security") == "" {
-		t.Fatal("X-Forwarded-Proto=https 时应下发 HSTS")
+	if rr.Header().Get("Strict-Transport-Security") != "" {
+		t.Fatalf("被反代挡在前面时 Go 不应下发 HSTS，实际 %q", rr.Header().Get("Strict-Transport-Security"))
 	}
 }
 
