@@ -45,6 +45,13 @@
         <div class="card-header">
           <span>任务管理</span>
           <div>
+            <el-tooltip :disabled="aiEnabled" content="AI 能力未启用，请在服务端配置后开启" placement="bottom">
+              <span>
+                <el-button :disabled="!aiEnabled" @click="openSummary">
+                  <el-icon><MagicStick /></el-icon>AI 摘要
+                </el-button>
+              </span>
+            </el-tooltip>
             <el-button @click="openTrash">
               <el-icon><Files /></el-icon>回收站
             </el-button>
@@ -157,11 +164,22 @@
 
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑任务' : '新建任务'" width="520px" :close-on-click-modal="false">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
+        <el-form-item v-if="!editingId && aiEnabled" label="AI 解析">
+          <div class="ai-parse">
+            <el-input v-model="nlText" type="textarea" :rows="2" maxlength="500" placeholder="用自然语言描述任务，如“下周五前高优先级写完周报并加标签 运营”，AI 会预填下方表单" />
+            <el-button class="ai-parse__btn" type="primary" plain :loading="aiParsing" @click="handleAIParse">
+              <el-icon><MagicStick /></el-icon>解析预填
+            </el-button>
+          </div>
+        </el-form-item>
         <el-form-item label="标题" prop="title">
           <el-input v-model="form.title" placeholder="请输入任务标题" maxlength="200" show-word-limit />
         </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="form.description" type="textarea" :rows="3" placeholder="任务详细描述（可选）" maxlength="2000" show-word-limit />
+          <el-button v-if="aiEnabled" class="ai-inline-btn" size="small" plain :loading="aiExpanding" @click="handleAIExpand">
+            <el-icon><MagicStick /></el-icon>AI 扩写/拆解
+          </el-button>
         </el-form-item>
         <el-form-item label="可见范围" prop="visibility">
           <el-radio-group v-model="form.visibility">
@@ -170,12 +188,17 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="优先级">
-          <el-select v-model="form.priority" style="width: 100%;">
-            <el-option label="低" value="low" />
-            <el-option label="普通" value="normal" />
-            <el-option label="高" value="high" />
-            <el-option label="紧急" value="urgent" />
-          </el-select>
+          <div class="ai-field-row">
+            <el-select v-model="form.priority" style="flex: 1;">
+              <el-option label="低" value="low" />
+              <el-option label="普通" value="normal" />
+              <el-option label="高" value="high" />
+              <el-option label="紧急" value="urgent" />
+            </el-select>
+            <el-button v-if="aiEnabled" size="small" plain :loading="aiSuggesting" @click="handleAISuggest">
+              <el-icon><MagicStick /></el-icon>AI 建议
+            </el-button>
+          </div>
         </el-form-item>
         <el-form-item v-if="form.visibility === 'tenant'" label="负责人">
           <el-input v-model="form.assignee_id" placeholder="负责人用户 ID（可选，留空则自己负责）" clearable />
@@ -239,6 +262,36 @@
         />
       </div>
     </el-drawer>
+
+    <el-dialog v-model="summaryVisible" title="AI 任务摘要 / 周报" width="560px">
+      <div class="summary-toolbar">
+        <el-radio-group v-model="summaryScope" size="small" @change="loadSummary">
+          <el-radio-button label="today">今日</el-radio-button>
+          <el-radio-button label="week">本周</el-radio-button>
+          <el-radio-button label="overdue">逾期</el-radio-button>
+          <el-radio-button label="all">全部</el-radio-button>
+        </el-radio-group>
+        <span v-if="summary" class="summary-tip">共 {{ summary.total }} 项</span>
+      </div>
+      <div v-loading="summaryLoading" class="summary-body">
+        <template v-if="summary">
+          <p class="summary-text">{{ summary.text }}</p>
+          <div v-if="summary.highlights?.length" class="summary-block">
+            <div class="summary-block__title">重点</div>
+            <ul><li v-for="(h, i) in summary.highlights" :key="'h'+i">{{ h }}</li></ul>
+          </div>
+          <div v-if="summary.suggested_focus?.length" class="summary-block">
+            <div class="summary-block__title">优先处理建议</div>
+            <ul><li v-for="(f, i) in summary.suggested_focus" :key="'f'+i">{{ f }}</li></ul>
+          </div>
+        </template>
+        <el-empty v-else-if="!summaryLoading" description="暂无摘要" />
+      </div>
+      <template #footer>
+        <el-button @click="summaryVisible = false">关闭</el-button>
+        <el-button type="primary" :loading="summaryLoading" @click="loadSummary">重新生成</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -246,7 +299,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Plus, Files } from '@element-plus/icons-vue'
+import { Plus, Files, MagicStick } from '@element-plus/icons-vue'
 import {
   getTaskList,
   createTask,
@@ -267,6 +320,15 @@ import {
   type TaskVisibility,
   type TaskRecurrence,
 } from '@/api/modules/task'
+import {
+  getAICapabilities,
+  parseTaskByNL,
+  suggestTaskFields,
+  expandTaskDescription,
+  summarizeTasks,
+  type TaskSummary,
+  type TaskSummaryScope,
+} from '@/api/modules/task-ai'
 import { toPageResult } from '@/types/pagination'
 
 const loading = ref(false)
@@ -536,8 +598,113 @@ async function handlePermanentDelete(row: TaskItem) {
   } catch { /* cancelled */ }
 }
 
+// ===== AI 辅助（可选叠加层，未启用时相关入口隐藏/禁用） =====
+const aiEnabled = ref(false)
+const aiModel = ref('')
+const nlText = ref('')
+const aiParsing = ref(false)
+const aiSuggesting = ref(false)
+const aiExpanding = ref(false)
+
+const summaryVisible = ref(false)
+const summaryLoading = ref(false)
+const summaryScope = ref<TaskSummaryScope>('all')
+const summary = ref<TaskSummary | null>(null)
+
+// loadAICapabilities 探测后端 AI 可用性；失败静默降级为不可用（不阻断任务页）。
+async function loadAICapabilities() {
+  try {
+    const cap = await getAICapabilities()
+    aiEnabled.value = cap.enabled
+    aiModel.value = cap.model
+  } catch {
+    aiEnabled.value = false
+  }
+}
+
+// handleAIParse 自然语言解析并预填新建表单（仅新建态使用）。
+async function handleAIParse() {
+  const text = nlText.value.trim()
+  if (!text) {
+    ElMessage.warning('请先输入任务描述')
+    return
+  }
+  aiParsing.value = true
+  try {
+    const draft = await parseTaskByNL(text)
+    if (draft.title) form.title = draft.title
+    if (draft.priority) form.priority = draft.priority
+    if (draft.due_date) form.due_date = draft.due_date
+    if (draft.recurrence) form.recurrence = draft.recurrence
+    if (draft.tags?.length) form.tags = [...draft.tags]
+    ElMessage.success('已根据描述预填，请确认后创建')
+  } catch (e) {
+    ElMessage.error((e as Error).message || 'AI 解析失败')
+  } finally {
+    aiParsing.value = false
+  }
+}
+
+// handleAISuggest 依据当前标题/描述给出优先级与标签建议。
+async function handleAISuggest() {
+  if (!form.title.trim()) {
+    ElMessage.warning('请先填写标题')
+    return
+  }
+  aiSuggesting.value = true
+  try {
+    const s = await suggestTaskFields(form.title, form.description)
+    if (s.priority) form.priority = s.priority
+    if (s.tags?.length) form.tags = Array.from(new Set([...form.tags, ...s.tags]))
+    if (s.reason) ElMessage.info(`建议：${s.reason}`)
+  } catch (e) {
+    ElMessage.error((e as Error).message || 'AI 建议失败')
+  } finally {
+    aiSuggesting.value = false
+  }
+}
+
+// handleAIExpand 扩写描述并追加拆解步骤。
+async function handleAIExpand() {
+  if (!form.title.trim()) {
+    ElMessage.warning('请先填写标题')
+    return
+  }
+  aiExpanding.value = true
+  try {
+    const e2 = await expandTaskDescription(form.title, form.description)
+    let text = e2.description || ''
+    if (e2.steps?.length) text += (text ? '\n\n' : '') + e2.steps.map((s, i) => `${i + 1}. ${s}`).join('\n')
+    if (text) form.description = text
+    else ElMessage.info('AI 未返回可用内容')
+  } catch (e) {
+    ElMessage.error((e as Error).message || 'AI 扩写失败')
+  } finally {
+    aiExpanding.value = false
+  }
+}
+
+// openSummary 打开摘要对话框并按当前范围生成。
+function openSummary() {
+  summaryVisible.value = true
+  loadSummary()
+}
+
+async function loadSummary() {
+  summaryLoading.value = true
+  try {
+    summary.value = await summarizeTasks(summaryScope.value)
+  } catch (e) {
+    summary.value = null
+    ElMessage.error((e as Error).message || '生成摘要失败')
+  } finally {
+    summaryLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadList()
+  loadAICapabilities()
 })
 </script>
 
@@ -604,5 +771,51 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+.ai-parse {
+  width: 100%;
+}
+.ai-parse__btn {
+  margin-top: 8px;
+}
+.ai-inline-btn {
+  margin-top: 6px;
+}
+.ai-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.summary-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.summary-tip {
+  font-size: 12px;
+  color: #909399;
+}
+.summary-body {
+  min-height: 120px;
+}
+.summary-text {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  color: #303133;
+  margin: 0 0 12px;
+}
+.summary-block__title {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 4px;
+  color: #606266;
+}
+.summary-block ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  color: #606266;
+  line-height: 1.6;
 }
 </style>
