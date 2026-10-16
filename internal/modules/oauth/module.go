@@ -24,6 +24,8 @@ import (
 )
 
 // InitModule 迁移 OAuth 账号表、装配依赖并注册公开的 OAuth 授权/回调路由。
+// 该侧承载登录页按钮（GET /auth/oauth/providers）与实际登录流程，必须定时从 DB 重建注册表，
+// 否则后台配置不会反映到登录侧（热更新对消费侧失效）。
 func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, tokenHelper *jwt.TokenHelper, rdb *cache.Redis) {
 	// OAuth 全部表（oauth_accounts / oauth_providers / oauth_provider_meta）经单一来源 Models() 迁移
 	if err := repository.Migrate(db); err != nil {
@@ -40,12 +42,15 @@ func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, tokenHelper *jwt.T
 
 	svc := newOAuthService(cfg.OAuth, uRepo, rRepo, urRepo, rpRepo, tRepo, oauthRepo, providerRepo, tokenHelper, rdb)
 
+	startProviderReloadLoop(context.Background(), svc)
+
 	h := handler.NewOAuthHandler(svc)
 
 	RegisterRoutes(r, h)
 }
 
 // InitProtectedModule 装配 OAuth 依赖并注册需登录的 OAuth 账号绑定/解绑路由。
+// 绑定流程同样依赖注册表判断 provider 是否可用，因此也需定时从 DB 重建。
 func InitProtectedModule(r chi.Router, db *gorm.DB, cfg config.Config, tokenHelper *jwt.TokenHelper, rdb *cache.Redis) {
 	oauthRepo := repository.NewOAuthAccountRepository(db)
 	uRepo := userrepo.NewUserRepository(db)
@@ -54,10 +59,21 @@ func InitProtectedModule(r chi.Router, db *gorm.DB, cfg config.Config, tokenHelp
 	rpRepo := rbacRepo.NewRolePermissionRepository(db)
 	tRepo := tenantRepo.NewTenantRepository(db)
 
-	svc := service.NewOAuthService(cfg.OAuth, uRepo, rRepo, urRepo, rpRepo, tRepo, oauthRepo, tokenHelper, rdb, nil, nil)
+	svc := newOAuthService(cfg.OAuth, uRepo, rRepo, urRepo, rpRepo, tRepo, oauthRepo, providerRepoSafe(db), tokenHelper, rdb)
+
+	startProviderReloadLoop(context.Background(), svc)
+
 	h := handler.NewOAuthHandler(svc)
 
 	RegisterProtectedRoutes(r, h)
+}
+
+// providerRepoSafe 构造 providers 仓储（空 DB 句柄时返回 nil，便于降级）。
+func providerRepoSafe(db *gorm.DB) repository.OAuthProviderRepository {
+	if db == nil {
+		return nil
+	}
+	return repository.NewOAuthProviderRepository(db)
 }
 
 // InitAdminModule 装配 OAuth 提供商配置管理依赖、注册平台级 CRUD 路由，并启动注册表定时刷新。
@@ -85,7 +101,15 @@ func InitAdminModule(ctx context.Context, r chi.Router, db *gorm.DB, cfg config.
 	h := handler.NewOAuthProviderAdminHandler(svc)
 	RegisterAdminRoutes(r, h, initPermissionChecker(db))
 
-	// 启动时立即加载一次，随后定时刷新（多副本下任一副本写入后其余副本在此间隔内收敛）
+	startProviderReloadLoop(ctx, svc)
+}
+
+// startProviderReloadLoop 启动时立即从 DB 重建一次注册表，随后定时刷新。
+// 多副本部署下任一副本写入后，其余副本在此间隔内收敛（最多 ProviderReloadInterval）。
+func startProviderReloadLoop(ctx context.Context, svc *service.OAuthService) {
+	if svc == nil {
+		return
+	}
 	go func() {
 		if err := svc.ReloadProviders(ctx); err != nil {
 			logger.Warnf("[oauth] initial provider reload failed: %v", err)
