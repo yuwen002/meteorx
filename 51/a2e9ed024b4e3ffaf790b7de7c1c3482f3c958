@@ -1,0 +1,23 @@
+pkg/crypto/secret_cipher_test.go
+  s_f00af1d8c88a9e::t_aabb582878389f 1-102,105
+  s_f00af1d8c88a9e::t_72230dcb56a65a 103-104
+pkg/crypto/secret_cipher.go
+  s_f00af1d8c88a9e::t_3e277ab0ac2aa2 1-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "51a2e9ed024b4e3ffaf790b7de7c1c3482f3c958",
+  "prompts": {},
+  "sessions": {
+    "s_f00af1d8c88a9e": {
+      "agent_id": {
+        "tool": "codebuddy",
+        "id": "eaafc3a9536348a0be0c326daac2fb23",
+        "model": "step-5-preview"
+      },
+      "human_author": "liuxingyu <yuwen002@163.com>",
+      "generated_lines": 2989
+    }
+  }
+}
