@@ -259,6 +259,12 @@ const routes: RouteRecordRaw[] = [
         name: 'SystemAnnouncement',
         component: () => import('@/views/system/announcement/index.vue'),
         meta: { title: '公告管理', icon: 'Bell', permission: 'admin:announcement:list', requireMaster: true }
+      },
+      {
+        path: 'system/oauth-provider',
+        name: 'OAuthProvider',
+        component: () => import('@/views/system/oauth-provider/index.vue'),
+        meta: { title: '第三方登录', icon: 'Link', permission: 'admin:oauth_provider:list', requireMaster: true }
       }
     ]
   },

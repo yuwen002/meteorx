@@ -137,6 +137,10 @@
             <el-icon><Bell /></el-icon>
             <template #title>{{ t('nav.announcementMgmt') }}</template>
           </el-menu-item>
+          <el-menu-item index="/system/oauth-provider">
+            <el-icon><Link /></el-icon>
+            <template #title>{{ t('nav.oauthProvider') }}</template>
+          </el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>
@@ -279,6 +283,7 @@ import {
   Folder,
   Goods,
   HomeFilled,
+  Link,
   List,
   Lock,
   Message,
