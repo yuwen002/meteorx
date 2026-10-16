@@ -96,6 +96,34 @@ oauth:
     client_id: ""
     client_secret: ""
     redirect_url: "http://localhost:5173/auth/github/callback"
+  # 国内主流第三方登录（微信/飞书/钉钉/QQ），字段与 google/github 相同
+  wechat: { enabled: false, client_id: "", client_secret: "", redirect_url: "http://localhost:5173/auth/wechat/callback" }
+  feishu: { enabled: false, client_id: "", client_secret: "", redirect_url: "http://localhost:5173/auth/feishu/callback" }
+  dingtalk: { enabled: false, client_id: "", client_secret: "", redirect_url: "http://localhost:5173/auth/dingtalk/callback" }
+  qq: { enabled: false, client_id: "", client_secret: "", redirect_url: "http://localhost:5173/auth/qq/callback" }
+  # 企业身份提供商：Microsoft Entra ID（Azure AD），多一个 tenant 字段
+  microsoft:
+    enabled: false
+    client_id: ""
+    client_secret: ""
+    tenant: "common"
+    redirect_url: "http://localhost:5173/auth/microsoft/callback"
+  # 通用企业 OIDC：key 即 provider 标识（最终为 "oidc_<key>"），可对接任意标准 OIDC IdP
+  oidc:
+    # acme:
+    #   enabled: true
+    #   display_name: "Acme SSO"
+    #   client_id: ""
+    #   client_secret: ""
+    #   redirect_url: "http://localhost:5173/auth/oidc_acme/callback"
+    #   auth_url: "https://idp.example.com/oauth2/authorize"
+    #   token_url: "https://idp.example.com/oauth2/token"
+    #   userinfo_url: "https://idp.example.com/oauth2/userinfo"
+    #   scopes: ["openid", "email", "profile"]
+  # OAuth 凭据加密主密钥（base64 编码的 32 字节随机值，openssl rand -base64 32）。
+  # 后台「第三方登录」保存的 client_secret 以此密钥 AES-256-GCM 加密后存入 oauth_providers 表。
+  # 未配置时后台保存 secret 会被拒绝（422），启动时会告警。
+  secret_key: ""
 
 auth:
   api_token_max_ttl: 2160h   # API Token 最长有效期，默认 2160h（90 天）

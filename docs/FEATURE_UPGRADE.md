@@ -1170,3 +1170,141 @@ client:
 - `afterEach` 标题改用当前白标品牌名，修复硬编码 `- MeteorX` 覆盖租户品牌的 bug
 - 新增 `router/guard.test.ts`（5 例）覆盖 permission 缺失拦截、requireMaster 对非超管拦截/超管放行
 - 验证：`vue-tsc` ✅、`vitest` 123 例全过 ✅、`eslint` ✅、`vite build` ✅
+
+---
+
+## 三十四、OAuth 多 Provider 支持（国内 IdP + 企业 OIDC + 邮箱补全）
+
+原 OAuth 模块仅支持 Google / GitHub，且 provider 以三处 `switch` + 私有函数硬编码。本次重构为**策略 + 注册表**架构，新增 7 类 Provider，并补齐「第三方未返回邮箱」的强制补全闭环。
+
+### 34.1 策略 + 注册表架构（核心重构）
+- `service/provider.go`（新增）：
+  - `Provider` 接口：`Name()` / `IsEnabled()` / `RedirectURL(state)` / `Exchange(ctx, code)`，将「数据生产」与「身份提供商」解耦。
+  - `ProviderRegistry`：`NewProviderRegistry(cfg)` 依据配置构建；`Get(name)` 按名取用；`Enabled()` 返回已启用 provider 的展示元信息（按 ID 排序）。
+  - 已知固定 provider（google/github/wechat/feishu/dingtalk/qq/microsoft）**始终登记**，其 `IsEnabled()` 同时要求 `enabled=true` 且已填写 `client_id`；未配置时处于「禁用态」而非「不存在」，保持既有错误语义。
+  - 通用 OIDC 仅在配置（填写 `client_id`）时登记，provider 标识为 `oidc_<key>`。
+  - 共享 HTTP 辅助：`httpPostForm` / `httpGetJSON` / `standardUserInfo` / `standardOAuthProvider`（标准授权码流程：表单换 token + Bearer 取 userinfo）。
+- `service/oauth_service.go`：删除三处 `switch`（`GetRedirectURL` / `Login` / `BindOAuth`）与全部私有 `buildXxx` / `exchangeXxx` / `fetchGitHubPrimaryEmail`，改为 `registry.Get(provider)` + 接口调用；服务持有 `registry` 字段并在 `NewOAuthService` 时构建。
+
+### 34.2 各 Provider 实现
+| Provider | 文件 | 关键适配点 |
+|----------|------|-----------|
+| Google | `provider.go` 内 `standardOAuthProvider` | 标准 OIDC，`openid email profile` |
+| GitHub | `service/github.go` | 令牌端点需 `Accept: application/json`；邮箱空时查 `/user/emails` |
+| 微信 | `service/wechat.go` | `qrconnect` 扫码授权；ProviderID 优先 `unionid`；**不返回邮箱** |
+| 飞书 | `service/feishu.go` | 开放平台 v1 接口，令牌/用户信息均为 JSON 信封（`data` 内层） |
+| 钉钉 | `service/dingtalk.go` | 新版 OAuth2.0，`clientId/clientSecret/grantType` 字段名 |
+| QQ | `service/qq.go` | 令牌端点返回 urlencoded（非 JSON）；openid 端点返回 JSONP 包裹；**不返回邮箱** |
+| Microsoft Entra | `service/microsoft.go` | 目录租户 ID 注入授权/令牌端点，userinfo 走 Graph OIDC |
+| 通用 OIDC | `provider.go` 内按 `oidc_<key>` | 完全配置化 `auth/token/userinfo` 端点与 scopes |
+
+### 34.3 邮箱补全闭环（`need_complete_email`）
+- 微信 / QQ 不返回邮箱。`Login` 不再拦截空邮箱（移除 `ErrOAuthEmailRequired`），而是签发带 `email_pending` 声明的临时令牌（`jwt.GenerateTokenEx`，`CustomClaims.EmailPending`）。
+- 响应新增 `OAuthLoginResponse.NeedCompleteEmail`；前端 `OAuthCallback.vue` 据此暂存 `token/user/permissions` 并跳转 `/oauth/complete-email`。
+- 新增公开端点 `POST /api/v1/auth/oauth/complete-email`（`handler.CompleteEmail` / `service.CompleteEmail`）：校验 `email_pending` 声明 → 校验邮箱唯一性 → 写回 `users.email` → 换发正式令牌。
+- 新增 `GET /api/v1/auth/oauth/providers`：返回已启用 provider 列表，使前端登录/绑定按钮**与后端解耦**。
+
+### 34.4 配置与前端
+- `config.OAuthConfig` 新增 `WeChat/Feishu/DingTalk/QQ/Microsoft` 字段与 `OIDC map[string]OIDCProviderConfig`；新增 `MicrosoftOAuthConfig`（含 `Tenant`）、`OIDCProviderConfig`（含 `AuthURL/TokenURL/UserInfoURL/Scopes/DisplayName`）。
+- `config/config.yaml` 增加各 provider 配置示例，**默认全部 `enabled: false`**，不影响现有部署。
+- `dto`：移除 `OAuthLoginRequest` / `BindOAuthRequest` / `UnbindOAuthRequest` 中写死的 `oneof=google github`（provider 白名单改由服务层注册表校验）；新增 `CompleteEmailRequest`、`ProviderMeta`。
+- 前端：
+  - `api/modules/oauth.ts`：新增 `listOAuthProviders`、`completeOAuthEmail`（携带临时令牌于 Authorization 头）。
+  - `api/auth.ts`：`OAuthLoginResult` 增加 `need_complete_email`。
+  - 新增 `web-admin/src/providers.ts`：provider 品牌色映射（未知/自定义 OIDC 回落中性色）。
+  - `views/login/index.vue`、`views/profile/index.vue`：写死的 Google/GitHub 按钮改为 `v-for` 动态渲染（label 取后端、品牌色取前端）。
+  - 新增 `views/login/CompleteEmail.vue` 与路由 `/oauth/complete-email`（public）。
+
+### 34.5 验证状态
+- ✅ `go build ./...` 通过
+- ✅ `go test ./internal/modules/oauth/...`、`./internal/config/...`、`./internal/common/jwt/...`、`./internal/middleware/...` 全绿
+  - 新增 `service/providers_test.go`：注册表登记、各 provider 跳转 URL、`extractQQOpenID`（JSONP）、`standardUserInfo`（id/sub 兼容）、`ListProviders` 排序与标签、OIDC 注册、令牌交换失败哨兵错误
+  - 新增 `TestListProviders_OnlyEnabled` / `TestNewProviderRegistry_OIDC`
+  - 重写 `TestGoogleRedirectURL_*` / `TestGitHubRedirectURL_*` 改用注册表
+  - `handler` stub 补齐新接口方法；移除失效的 `TestCallback_EmailRequired`
+  - `middleware/auth_test.go` 覆盖 `email_pending` 临时令牌门禁（豁免路径放行 / 其余 403）
+- ✅ 前端 `vue-tsc --noEmit`、`eslint`、`vite build` 通过
+
+### 34.6 安全加固（与本功能同步落地）
+- **空邮箱串号修复**：`findOrCreateUser` 仅在 `info.Email != ""` 时才按邮箱匹配已有账号，杜绝微信/QQ 等无邮箱 provider 命中任意 `email=''` 用户导致的越权登录。
+- **用户名派生兜底**：无邮箱时用户名后缀改用 `ProviderID`，避免生成 `wechat_` 这类退化用户名。
+- **统一拒绝空 ProviderID**：`Login` / `BindOAuth` 在交换后校验 `ProviderID` 非空，否则返回 `ErrOAuthUserInfoFailed`。
+- **`email_pending` 服务端门禁**：认证中间件对带 `email_pending` 声明的临时令牌仅放行 `complete-email` / `token/refresh` 白名单，其余一律 403（`X-Error-Code: EMAIL_PENDING`），防止仅靠前端拦截被绕过；刷新令牌时保留 pending 标记，不会因此提权。
+- **错误脱敏**：各 provider 令牌/用户信息解析失败改为「脱敏日志（`safeBodyPreview`）+ 哨兵错误」，不再向客户端回显上游响应体，避免泄露 IdP 细节。
+- **启用态前置校验**：`Login` / `BindOAuth` 在发起上游交换前先校验 provider 已启用。
+- **出站请求加固**：统一复用带 10s 超时的共享 HTTP 客户端，并限制响应体大小。
+- **前端 Authorization 注入加固**：`request.ts` 仅在调用方未显式设置 `Authorization` 时才注入全局 token，避免补全邮箱等携带临时令牌的请求被登录态 token 覆盖。
+
+---
+
+## 三十五、OAuth 提供商运行时配置（DB 热更新 + 凭据加密 + 管理后台）
+
+第三十四节落地了多 Provider 架构，但配置依赖 `config.yaml`，**每次新增或修改 provider 都要改文件并重启**。本节把 provider 配置下沉到数据库，提供平台超管后台，实现免重启热生效。
+
+### 35.1 数据层：`oauth_providers` 表
+- 领域模型 `model.OAuthProvider`（含 `Kind/Code/DisplayName/Enabled/ClientID/ClientSecret/RedirectURL/Tenant/AuthURL/TokenURL/UserInfoURL/Scopes`）。
+- PO `oauthProviderPO`（`repository/oauth_provider_repository.go`）：
+  - `Code` 唯一索引；`Scopes []string` 使用 `serializer:json`（GORM 原生序列化）。
+  - `ClientSecretEnc` 存放密文，**绝不存明文**。
+  - 迁移必须用 PO：`repository.AutoMigrateProvider(db)`（领域模型含 `[]string`，GORM 无法直接迁移）。
+  - `Update` 采用「先查后 `Save`」：`Save` 会更新全部列（含零值），同时规避手写列名与 GORM 命名策略不一致的问题（`UserInfoURL` → `user_info_url`，URL 是内置缩写）。
+- 元数据表 `oauth_provider_meta`（键值对）：记录 `seeded_from_config` 种子化标记，**避免管理员删光配置后被重新种子化**（「删除后复活」问题）。
+
+### 35.2 凭据加密（AES-256-GCM）
+- `pkg/crypto/secret_cipher.go`：`SecretCipher` 基于 AES-256-GCM，主密钥为 base64 编码的 32 字节随机值。
+  - 密文格式 `enc:v1:<base64(nonce||ciphertext)>`；每次加密使用随机 nonce，同一明文产生不同密文。
+  - 无前缀的历史明文**读取时原样返回**（平滑升级），但保存新 secret 时一律加密。
+  - `MaskSecret` 脱敏：仅保留末尾 4 位。
+- 主密钥来源：`oauth.secret_key`（`METEORX_OAUTH_SECRET_KEY`），生成方式 `openssl rand -base64 32`。
+- **未配置主密钥时，后台保存 client_secret 直接返回 422 拒绝**，绝不落明文；启动时告警提示。
+
+### 35.3 配置来源统一为 ProviderSpec
+- `service/provider.go` 新增 `ProviderSpec` 作为「配置来源」与「Provider 实现」之间的中介：
+  - `ProviderSpecsFromConfig(cfg)`：config.yaml → Spec 列表（供种子化与兜底）。
+  - `BuildProvider(spec)`：按 `Kind` 构建具体 Provider（8 类）。
+  - `NewProviderRegistryFromSpecs(specs)`：Spec 列表 → 注册表。
+- `ProviderRegistry` 改为**可热重载**：`RWMutex` 保护内部快照，`Replace(providers, labels)` 原子替换；`Get`/`Enabled` 走读锁。
+- `OAuthService` 持有 `providerRepo` + `cipher`（均可为 nil，nil 时退回 config.yaml，便于测试与降级）。
+
+### 35.4 热重载与种子化
+- `service.ReloadProviders(ctx)`：
+  1. `Count == 0` 且未标记种子化 → 从 config.yaml 种子化（**只种子化填了 `client_id` 的项**，不造空壳）→ 写入 `seeded_from_config` 标记。
+  2. 读取全部行 → 解密 secret → 转 Spec → `Replace` 注册表。
+- 触发时机：**写入即时触发**（CRUD 成功后调用）+ **定时 30s 兜底刷新**（`ProviderReloadInterval`），多副本部署下任一副本写入后其余副本在 30s 内收敛。
+- 后台协程由 `bootstrap` 传入的 `ctx` 控制，随进程优雅退出。
+
+### 35.5 平台级管理接口
+- 路由 `/api/v1/admin/oauth-providers`（挂 `AutoRequirePermission`，权限码由 `singularize` 新增 `oauth-providers → oauth_provider` 映射推导）：
+  - `GET /` 列表、`POST /` 新建、`GET /{code}` 详情、`PUT /{code}` 更新、`DELETE /{code}` 删除、`PUT /{code}/status` 启停。
+- 权限码 `admin:oauth_provider:{list,create,read,update,delete,status}`，已在 `rbac/permissions.go` 注册。
+- 服务层校验（`normalizeProviderReq`）：
+  - `Kind` 必须合法；内置类型的 `Code` 必须等于 `Kind`；OIDC 的 `Code` 须匹配 `^oidc_[a-z][a-z0-9_]{2,63}$` 且唯一。
+  - `client_id`、`redirect_url` 必填；OIDC 必须填 `auth_url/token_url/userinfo_url` 且为 http(s)。
+  - `client_secret` 传空表示「保持原值」（更新场景），支持密钥轮换。
+  - 错误分类：`ErrOAuthProviderInvalid`(400) / `ErrOAuthProviderCodeTaken`(409) / `ErrOAuthSecretKeyNotConfigured`(422) / `ErrOAuthProviderNotFound`(404)。
+- 响应**只返回脱敏 secret**（`client_secret_mask` + `has_secret`），明文仅在内存中短暂存在。
+
+### 35.6 前端管理页
+- 新增 `web-admin/src/api/modules/oauth-provider.ts`（CRUD + 类型选项）。
+- 新增 `web-admin/src/views/system/oauth-provider/index.vue`：列表（登录方式/标识/类型/Client ID/脱敏 Secret/回调地址/状态）、新建/编辑对话框（按类型动态显示 Microsoft 目录租户或 OIDC 端点字段）、启停、删除；内置类型自动填充标识与默认回调地址。
+- 路由 `/system/oauth-provider`（`permission: admin:oauth_provider:list` + `requireMaster`），侧边栏「平台管理 → 第三方登录」。
+- 页面显著提示「配置即时生效，无需重启」与「最多 30 秒同步至全部副本」。
+
+### 35.7 验证状态
+- ✅ `go build ./...` 通过
+- ✅ 测试全绿：
+  - `pkg/crypto`：往返加解密、空明文、nonce 唯一性、错误密钥、历史明文、未配置主密钥、`MaskSecret`
+  - `repository`：`TestProviderRepo_*`（sqlite）：增删改查、按创建时间排序、状态切换、计数
+  - `service`：`TestReloadProviders_SeedsFromConfig` / `_DBOverridesConfig` / `_NoStoreIsNoop`、`TestCreateProvider_Validation`（6 类非法输入）、`TestCreateProvider_RejectsPlaintextWithoutKey`、`TestCreateProvider_OIDC`、`TestUpdateProvider_KeepsSecretWhenOmitted`（含轮换）、`TestDeleteProvider`、`TestSetProviderStatus`、`TestListProviderConfigs_MasksSecret`
+  - `handler`：`TestProviderAdmin_*`（列表/新建/校验失败/非法输入 400/标识冲突 409/缺主密钥 422/更新/删除/启停/详情/404）
+  - 回归：`middleware`、`bootstrap`、`rbac`、`config` 全绿
+- ✅ 前端 `vue-tsc --noEmit`、`eslint` 通过
+- 运维提示：生产环境务必配置 `METEORX_OAUTH_SECRET_KEY`；密钥遗失将无法解密已存储的 client_secret（需重新录入）。
+
+### 35.8 配置方式对照
+| 场景 | 做法 |
+|------|------|
+| 首次升级（已有 config.yaml 配置） | 自动种子化到 DB，原有配置不丢失，后台可见 |
+| 日常新增/调整 provider | 后台「第三方登录」页面操作，即时生效，无需重启 |
+| 轮换 client_secret | 编辑时填写新值保存；留空表示不变 |
+| 彻底改用 config.yaml | 删除 DB 中对应配置即可回落（表非空不会再次种子化） |

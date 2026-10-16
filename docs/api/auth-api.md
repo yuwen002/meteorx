@@ -21,7 +21,11 @@
 | GET | `/auth/oauth/:provider/redirect` | 获取 OAuth2 跳转链接 | 公开 |
 | POST | `/auth/oauth/callback` | OAuth2 登录回调 | 公开 |
 | GET | `/auth/oauth/tenants` | 获取可用租户列表（OAuth登录时选择租户） | 公开 |
+| GET | `/auth/oauth/providers` | 获取已启用的第三方登录提供商列表 | 公开 |
+| POST | `/auth/oauth/complete-email` | 第三方登录后补全邮箱 | 携带 email_pending 临时令牌 |
 | POST | `/auth/oauth/token/refresh` | 刷新 Token | 公开 |
+
+> 平台级「第三方登录提供商配置管理」接口见 [oauth-provider-api.md](./oauth-provider-api.md)。
 | GET | `/auth/oauth/accounts` | 获取已绑定的第三方账号列表 | 需 Token |
 | POST | `/auth/oauth/unbind` | 解绑第三方账号 | 需 Token |
 | POST | `/auth/oauth/bind` | 绑定新的第三方账号 | 需 Token |
@@ -374,7 +378,7 @@
 **路径参数：**
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| provider | string | 第三方登录提供商，支持 `google`、`github` |
+| provider | string | 第三方登录提供商，支持 `google`、`github`、`wechat`、`feishu`、`dingtalk`、`qq`、`microsoft` 及通用 OIDC（`oidc_<key>`） |
 
 **成功响应（200）：**
 ```json
@@ -389,7 +393,9 @@
 ```
 
 **业务规则：**
-- 支持的 provider：`google`、`github`
+- 支持的 provider：`google`、`github`、`wechat`、`feishu`、`dingtalk`、`qq`、`microsoft`，以及 `oauth.oidc` 下配置的通用 OIDC（标识为 `oidc_<key>`）
+- 已启用 provider 清单通过 `GET /auth/oauth/providers` 获取，前端据此渲染登录按钮，无需硬编码
+- 未填写 `client_id` 或 `enabled=false` 的 provider 视为「未启用」，返回 `该 OAuth 提供商未启用`
 - 服务端生成随机 `state` 并存入 Redis（有效期由 `oauth.state_ttl` 控制，默认 10 分钟），用于 CSRF 防护
 - 前端收到 `url` 和 `state` 后，需保存 `state`，然后跳转到 `url`
 - 跳转后用户授权，第三方平台回调到前端 `OAuthCallback.vue` 页面
@@ -441,7 +447,7 @@
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| provider | string | 是 | OAuth 提供商，支持 `google`、`github` |
+| provider | string | 是 | OAuth 提供商，支持 `google`、`github`、`wechat`、`feishu`、`dingtalk`、`qq`、`microsoft` 及通用 OIDC（`oidc_<key>`） |
 | code | string | 是 | 第三方返回的授权码 |
 | state | string | 是 | 防 CSRF 状态码（从跳转链接响应中获取，必填） |
 | tenant_id | string | 是 | 租户ID（通过 GET /api/v1/auth/oauth/tenants 获取） |
@@ -465,7 +471,8 @@
       "is_master": false
     },
     "permissions": ["file:list", "user:list"],
-    "is_new_user": true
+    "is_new_user": true,
+    "need_complete_email": false
   }
 }
 ```
@@ -478,11 +485,12 @@
 - 自动分配租户默认角色（tenant_user）
 - 返回 `is_new_user` 字段标识是否为新注册用户
 - 返回 `refresh_token` 用于长期会话（有效期由 `oauth.refresh_token_ttl` 控制，默认 7 天，一次性使用）
+- 微信 / QQ 等不返回邮箱的 provider：`need_complete_email` 为 `true`，此时返回的令牌带 `email_pending` 声明，需调用 `POST /auth/oauth/complete-email` 补全邮箱后才可正常使用（见 5.6）
 
 **错误响应：**
 | 状态码 | 场景 |
 |--------|------|
-| 400 | 缺少必要参数 / CSRF state 验证失败 / 第三方账号未提供邮箱 |
+| 400 | 缺少必要参数 / CSRF state 验证失败 |
 | 401 | 第三方授权码无效或已过期 / 租户不存在或已禁用 |
 | 500 | 服务器内部错误 |
 
@@ -623,6 +631,67 @@
 | 400 | CSRF state 验证失败 |
 | 409 | 该提供商已绑定到当前账号 |
 | 500 | 服务器内部错误 |
+
+---
+
+### 5.8 获取已启用的第三方登录提供商列表
+
+`GET /api/v1/auth/oauth/providers`
+
+无需认证。返回当前服务端已配置且启用的 provider 列表，供前端动态渲染登录 / 绑定按钮，避免前后端硬编码 provider 清单。
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "providers": [
+      { "id": "google", "label": "Google" },
+      { "id": "wechat", "label": "微信" }
+    ]
+  }
+}
+```
+
+**业务规则：**
+- 仅返回 `enabled=true` 且已填写 `client_id` 的 provider，按 ID 升序
+- `label` 为服务端展示名（通用 OIDC 取 `display_name`，未设置时取 `oidc_<key>`）
+- 未配置任何 provider 时返回空数组，前端应隐藏第三方登录入口
+
+---
+
+### 5.9 补全邮箱（第三方登录未返回邮箱）
+
+`POST /api/v1/auth/oauth/complete-email`
+
+**请求头：** `Authorization: Bearer <email_pending 临时令牌>`
+
+**请求体：**
+```json
+{
+  "email": "zhangsan@example.com"
+}
+```
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "refresh_token": "a1b2c3d4-e5f6-..."
+  }
+}
+```
+
+**业务规则：**
+- 仅当 OAuth 登录回调返回 `need_complete_email=true`（如微信 / QQ 未返回邮箱）时才需要调用
+- 令牌必须携带 `email_pending` 声明，否则返回 400「无效的邮箱补全令牌或已过期」
+- 邮箱需全局唯一，若已被其他账号使用返回 400「该邮箱已被其他账号使用」
+- 补全成功后签发**不含** `email_pending` 声明的正式令牌，前端据此完成登录态设置
+- 该临时令牌访问其他受保护接口时，服务端直接返回 403（响应头 `X-Error-Code: EMAIL_PENDING`），防止仅靠前端拦截被绕过
 
 ---
 
