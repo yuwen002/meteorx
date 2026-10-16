@@ -1,0 +1,65 @@
+internal/integration/wiki_test.go
+  s_f00af1d8c88a9e::t_3d4e5a59ee96d8 1-44,47-50,54-55,59-83
+  s_f00af1d8c88a9e::t_c54b0d2e063d54 46,52-53,56-57
+internal/integration/file_download_test.go
+  s_f00af1d8c88a9e::t_18f556d0ea22e4 1-46
+internal/integration/ai_test.go
+  s_f00af1d8c88a9e::t_97955f09808679 40-41
+  s_f00af1d8c88a9e::t_8d841467681d7d 1-39,42
+internal/integration/helpers_test.go
+  s_f00af1d8c88a9e::t_e8e089f5be6c39 4,6-7,10,29,49-55,87,101-123
+  s_f00af1d8c88a9e::t_df49f59b81ab5f 45-48
+  s_f00af1d8c88a9e::t_35b7a6d93b83a5 88-100
+internal/integration/file_test.go
+  s_f00af1d8c88a9e::t_8d8238e351d7c8 1-34
+internal/integration/task_test.go
+  s_f00af1d8c88a9e::t_fc49d4a9a0acf2 1-39,42-54,57,59
+  s_f00af1d8c88a9e::t_bc1b757ab508df 41
+  s_f00af1d8c88a9e::t_81fafa17a58bf4 56,58
+internal/integration/auth_lifecycle_test.go
+  s_f00af1d8c88a9e::t_2d68c59fb0abcf 8
+  s_f00af1d8c88a9e::t_58a906a0c8ac76 52
+  s_f00af1d8c88a9e::t_50cc57632862e4 123
+  s_f00af1d8c88a9e::t_710a6fc82557d8 139,141
+  s_f00af1d8c88a9e::t_4473bd9d23663b 95
+  s_f00af1d8c88a9e::t_04566eec9c2a95 40
+  s_f00af1d8c88a9e::t_d617843b620187 10
+  s_f00af1d8c88a9e::t_fc153b97808fd1 129-131
+  s_f00af1d8c88a9e::t_97ec1b09633a4b 1-7,11-39,41-51,53-71,77-94,97-122,124-128,133-137,140,142-144
+internal/integration/export_test.go
+  s_f00af1d8c88a9e::t_4dbd361143af36 1-35
+internal/integration/dashboard_test.go
+  s_f00af1d8c88a9e::t_e358aff3d754a2 1-27
+internal/integration/audit_test.go
+  s_f00af1d8c88a9e::t_4ba3cfdfbea1a4 1-43
+internal/integration/invitation_test.go
+  s_f00af1d8c88a9e::t_f367e45134fc7c 1-69
+internal/integration/oauth_test.go
+  s_f00af1d8c88a9e::t_23c1cfc11903f6 27,29
+  s_f00af1d8c88a9e::t_b291fe3dc73471 58,60
+  s_f00af1d8c88a9e::t_1cf5efa6efc6e2 1-25,28,31-56,59,61-62
+internal/middleware/auto_permission_middleware_test.go
+  s_f00af1d8c88a9e::t_f23bb07beef46d 508-515,518-530
+  s_f00af1d8c88a9e::t_ddd7208f903f42 188-198
+  s_f00af1d8c88a9e::t_9efe078348858b 516-517
+  s_f00af1d8c88a9e::t_375e4ad5af10d6 164-187
+  s_f00af1d8c88a9e::t_d3583af539f09e 458-507
+internal/testkit/testkit.go
+  s_f00af1d8c88a9e::t_f1253e7096a764 64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "fb13d0b76587ea79495b71e5bd485900d7fbcdcf",
+  "prompts": {},
+  "sessions": {
+    "s_f00af1d8c88a9e": {
+      "agent_id": {
+        "tool": "codebuddy",
+        "id": "eaafc3a9536348a0be0c326daac2fb23",
+        "model": "step-5-preview"
+      },
+      "human_author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
