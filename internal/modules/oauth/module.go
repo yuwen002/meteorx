@@ -13,7 +13,6 @@ import (
 	"meteorx/internal/config"
 	"meteorx/internal/middleware"
 	"meteorx/internal/modules/oauth/handler"
-	"meteorx/internal/modules/oauth/model"
 	"meteorx/internal/modules/oauth/repository"
 	"meteorx/internal/modules/oauth/service"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
@@ -26,12 +25,9 @@ import (
 
 // InitModule 迁移 OAuth 账号表、装配依赖并注册公开的 OAuth 授权/回调路由。
 func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, tokenHelper *jwt.TokenHelper, rdb *cache.Redis) {
-	if err := db.AutoMigrate(&model.OAuthAccount{}); err != nil {
-		logger.Warnf("[oauth] AutoMigrate OAuthAccount failed: %v", err)
-	}
-	// oauth_providers 必须用 PO 迁移：领域模型含 []string 字段，GORM 无法直接迁移
-	if err := repository.AutoMigrateProvider(db); err != nil {
-		logger.Warnf("[oauth] AutoMigrate oauth_providers failed: %v", err)
+	// OAuth 全部表（oauth_accounts / oauth_providers / oauth_provider_meta）经单一来源 Models() 迁移
+	if err := repository.Migrate(db); err != nil {
+		logger.Warnf("[oauth] AutoMigrate oauth tables failed: %v", err)
 	}
 
 	uRepo := userrepo.NewUserRepository(db)

@@ -34,13 +34,26 @@ type oauthProviderPO struct {
 // TableName 显式指定表名，避免 GORM 复数化推导出意外结果
 func (oauthProviderPO) TableName() string { return "oauth_providers" }
 
+// providerModels 提供商配置相关 PO 清单（迁移与脏列巡检共用）。
+// 必须以 PO 为准：领域模型 OAuthProvider 含 []string 字段，GORM 无法直接迁移。
+func providerModels() []interface{} {
+	return []interface{}{&oauthProviderPO{}, &oauthProviderMetaPO{}}
+}
+
 // AutoMigrateProvider 迁移 oauth_providers 表及其元数据表。
-// 必须以 PO 为准：领域模型含 []string 字段，GORM 无法直接迁移。
 func AutoMigrateProvider(db *gorm.DB) error {
-	if err := db.AutoMigrate(&oauthProviderPO{}); err != nil {
-		return err
-	}
-	return db.AutoMigrate(&oauthProviderMetaPO{})
+	return db.AutoMigrate(providerModels()...)
+}
+
+// Models 返回 OAuth 模块全部 AutoMigrate 迁移的模型清单，
+// 作为迁移（Migrate）与脏列巡检（bootstrap.migrationModels）的单一来源，避免两处漂移。
+func Models() []interface{} {
+	return append([]interface{}{&model.OAuthAccount{}}, providerModels()...)
+}
+
+// Migrate 迁移 OAuth 模块的全部表（账号绑定 + 提供商配置 + 元数据）。
+func Migrate(db *gorm.DB) error {
+	return db.AutoMigrate(Models()...)
 }
 
 func (po *oauthProviderPO) toDomain() *model.OAuthProvider {

@@ -10,6 +10,9 @@
 ### 新增
 - **OAuth 提供商运行时配置（DB 热更新 + 凭据加密 + 管理后台）**：将第三方登录 provider 配置从需改文件重启的 `config.yaml` 下沉到数据库，平台超管可在后台增删改查、免重启热生效。新增 `oauth_providers` 与 `oauth_provider_meta` 两表（`AutoMigrateProvider` 迁移，`Code` 唯一索引，`Scopes` 用 GORM `serializer:json`）；`client_secret` 以 `pkg/crypto/SecretCipher`（AES-256-GCM，密文格式 `enc:v1:<base64(nonce||ciphertext)>`、每次随机 nonce）加密落库、读取仅返回脱敏值（`client_secret_mask`+`has_secret`），未配置主密钥 `oauth.secret_key`（`METEORX_OAUTH_SECRET_KEY`）时保存直接返回 422、绝不落明文；`ProviderRegistry` 改为 `RWMutex` 保护的可热重载快照（`Replace` 原子替换），配置来源统一收敛为 `ProviderSpec`（`ProviderSpecsFromConfig`/`BuildProvider`/`NewProviderRegistryFromSpecs`）；`ReloadProviders` 首次从 config.yaml 只种子化已填 `client_id` 的项并写 `seeded_from_config` 标记（避免管理员删光后「复活」），CRUD 成功后即时触发 + 30s 定时兜底刷新使多副本收敛；新增平台级端点 `/api/v1/admin/oauth-providers`（列表/新建/详情/更新/删除/启停），权限码 `admin:oauth_provider:{list,create,read,update,delete,status}` 已注册；删除写死的 `service/microsoft.go`，Microsoft 改由 DB/OIDC 配置驱动；前端新增 `api/modules/oauth-provider.ts` 与 `views/system/oauth-provider/index.vue`（按类型动态显示 Microsoft 目录租户 / OIDC 端点字段），路由 `/system/oauth-provider`（`requireMaster`）、侧边栏「平台管理 → 第三方登录」。补 `pkg/crypto`、repository（sqlite 增删改查/排序/启停/计数）、service（种子化/DB 覆盖 config/校验/密钥轮换/脱敏）、handler（400/404/409/422 错误映射）与前端 `oauth-provider` API 单测
 
+### 变更
+- **脏列（孤儿列）巡检纳入 OAuth 三表**：`bootstrap.migrationModels()` 此前未含 oauth，导致 `oauth_accounts`（历来未覆盖）与新增的 `oauth_providers`/`oauth_provider_meta` 游离在 AutoMigrate 脏列只读巡检之外。现由 oauth repository 导出 `Models()`（`oauth_accounts` 领域模型 + 两个 provider PO）作为迁移与巡检的单一来源，`AutoMigrateProvider` 与新增 `Migrate(db)` 均委托它，`module.go` 启动迁移改为 `repository.Migrate(db)`，`migrationModels()` 追加 `oauthrepo.Models()`（`TestMigrationModels_Parseable` 同步覆盖）
+
 ## [1.2.1] - 2026-10-16
 
 ### 新增
