@@ -105,6 +105,18 @@ const (
 )
 
 // ============================================================
+// 第三方登录提供商配置权限码（/api/v1/admin/oauth-providers 相关）
+// ============================================================
+const (
+	OAuthProviderList   = "admin:oauth_provider:list"   // 查询第三方登录配置列表
+	OAuthProviderCreate = "admin:oauth_provider:create" // 新建第三方登录配置
+	OAuthProviderRead   = "admin:oauth_provider:read"   // 查询第三方登录配置详情
+	OAuthProviderUpdate = "admin:oauth_provider:update" // 编辑第三方登录配置
+	OAuthProviderDelete = "admin:oauth_provider:delete" // 删除第三方登录配置
+	OAuthProviderStatus = "admin:oauth_provider:status" // 切换第三方登录启用状态
+)
+
+// ============================================================
 // 审计日志权限码（/api/v1/audit 相关）
 // ============================================================
 const (
@@ -325,6 +337,14 @@ func GetPermissionDefs() []PermissionDef {
 		{Name: "删除套餐", Code: PlanDelete, Description: "删除套餐", Resource: "plan", Action: "delete"},
 		{Name: "分配套餐", Code: PlanAssign, Description: "为租户分配/变更套餐", Resource: "plan", Action: "assign"},
 		{Name: "查询套餐下拉", Code: PlanSelect, Description: "查询启用套餐下拉列表（不分页）", Resource: "plan", Action: "select"},
+
+		// 第三方登录提供商配置
+		{Name: "查询第三方登录配置", Code: OAuthProviderList, Description: "查询全部第三方登录提供商配置", Resource: "oauth_provider", Action: "list"},
+		{Name: "新建第三方登录配置", Code: OAuthProviderCreate, Description: "新建第三方登录提供商配置", Resource: "oauth_provider", Action: "create"},
+		{Name: "查询第三方登录配置详情", Code: OAuthProviderRead, Description: "查看单个第三方登录提供商配置", Resource: "oauth_provider", Action: "read"},
+		{Name: "编辑第三方登录配置", Code: OAuthProviderUpdate, Description: "修改第三方登录提供商配置", Resource: "oauth_provider", Action: "update"},
+		{Name: "删除第三方登录配置", Code: OAuthProviderDelete, Description: "删除第三方登录提供商配置", Resource: "oauth_provider", Action: "delete"},
+		{Name: "切换第三方登录启用状态", Code: OAuthProviderStatus, Description: "启用/禁用第三方登录提供商", Resource: "oauth_provider", Action: "status"},
 
 		// 文件管理
 		{Name: "查询文件列表", Code: FileList, Description: "查询租户文件列表", Resource: "file", Action: "list"},

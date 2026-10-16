@@ -11,7 +11,7 @@ import (
 )
 
 func newTestOAuthService(cfg config.OAuthConfig) *OAuthService {
-	return NewOAuthService(cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+	return NewOAuthService(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestGetRedirectURL_UnsupportedProvider(t *testing.T) {
@@ -182,9 +182,10 @@ func TestNewOAuthService(t *testing.T) {
 		Google: config.OAuthProviderConfig{Enabled: true},
 		GitHub: config.OAuthProviderConfig{Enabled: false},
 	}
-	svc := NewOAuthService(cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewOAuthService(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	assert.NotNil(t, svc)
 	assert.NotNil(t, svc.cfg)
+	assert.NotNil(t, svc.registry)
 }
 
 func TestGenerateState(t *testing.T) {

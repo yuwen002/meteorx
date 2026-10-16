@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"strings"
 
-	"meteorx/internal/config"
 	"meteorx/internal/modules/oauth/dto"
 	"meteorx/internal/modules/oauth/model"
 	"meteorx/pkg/logger"
@@ -18,18 +17,20 @@ import (
 // 注意：QQ 令牌端点返回 urlencoded（非 JSON），openid 端点返回 JSONP 包裹，
 // 且 userinfo 不返回邮箱——均按对应格式解析，并触发邮箱补全。
 type qqProvider struct {
+	name         string
 	enabled      bool
 	clientID     string
 	clientSecret string
 	redirectURL  string
 }
 
-func newQQProvider(c config.OAuthProviderConfig) *qqProvider {
+func newQQProvider(cred providerCred) *qqProvider {
 	return &qqProvider{
-		enabled:      c.Enabled,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		redirectURL:  c.RedirectURL,
+		name:         cred.code,
+		enabled:      cred.enabled,
+		clientID:     cred.clientID,
+		clientSecret: cred.clientSecret,
+		redirectURL:  cred.redirectURL,
 	}
 }
 

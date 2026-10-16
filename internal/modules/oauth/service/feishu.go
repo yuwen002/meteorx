@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"meteorx/internal/config"
 	"meteorx/internal/modules/oauth/dto"
 	"meteorx/internal/modules/oauth/model"
 	"meteorx/pkg/logger"
@@ -17,18 +16,20 @@ import (
 
 // feishuProvider 飞书 OAuth2 适配（授权/令牌/用户信息均走开放平台 v1 接口）。
 type feishuProvider struct {
+	name         string
 	enabled      bool
 	clientID     string // 飞书称 app_id
 	clientSecret string // 飞书称 app_secret
 	redirectURL  string
 }
 
-func newFeishuProvider(c config.OAuthProviderConfig) *feishuProvider {
+func newFeishuProvider(cred providerCred) *feishuProvider {
 	return &feishuProvider{
-		enabled:      c.Enabled,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		redirectURL:  c.RedirectURL,
+		name:         cred.code,
+		enabled:      cred.enabled,
+		clientID:     cred.clientID,
+		clientSecret: cred.clientSecret,
+		redirectURL:  cred.redirectURL,
 	}
 }
 

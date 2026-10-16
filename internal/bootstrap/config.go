@@ -61,6 +61,7 @@ func LoadConfig() (*config.Config, error) {
 		// OAuth
 		{"oauth.refresh_token_ttl", "METEORX_OAUTH_REFRESH_TOKEN_TTL"},
 		{"oauth.state_ttl", "METEORX_OAUTH_STATE_TTL"},
+		{"oauth.secret_key", "METEORX_OAUTH_SECRET_KEY"},
 		// Auth
 		{"auth.api_token_max_ttl", "METEORX_AUTH_API_TOKEN_MAX_TTL"},
 		// Task reminder

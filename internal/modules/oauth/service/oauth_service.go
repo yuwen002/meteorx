@@ -19,6 +19,7 @@ import (
 	tenantRepo "meteorx/internal/modules/tenant/repository"
 	userModel "meteorx/internal/modules/user/model"
 	"meteorx/internal/modules/user/repository"
+	"meteorx/pkg/crypto"
 	"meteorx/pkg/idgen"
 )
 
@@ -41,6 +42,8 @@ const (
 type OAuthService struct {
 	cfg                config.OAuthConfig
 	registry           *ProviderRegistry
+	providerRepo       oauthRepo.OAuthProviderRepository
+	cipher             *crypto.SecretCipher
 	userRepo           repository.UserRepository
 	roleRepo           rbacRepo.RoleRepository
 	userRoleRepo       rbacRepo.UserRoleRepository
@@ -51,7 +54,8 @@ type OAuthService struct {
 	redis              *cache.Redis
 }
 
-// NewOAuthService 创建 OAuth 服务实例
+// NewOAuthService 创建 OAuth 服务实例。
+// providerRepo 与 cipher 可为 nil：此时退回 config.yaml 静态配置（便于测试与降级运行）。
 func NewOAuthService(
 	cfg config.OAuthConfig,
 	userRepo repository.UserRepository,
@@ -62,10 +66,14 @@ func NewOAuthService(
 	oauthAccountRepo oauthRepo.OAuthAccountRepository,
 	tokenHelper *jwt.TokenHelper,
 	redis *cache.Redis,
+	providerRepo oauthRepo.OAuthProviderRepository,
+	cipher *crypto.SecretCipher,
 ) *OAuthService {
 	return &OAuthService{
 		cfg:                cfg,
 		registry:           NewProviderRegistry(cfg),
+		providerRepo:       providerRepo,
+		cipher:             cipher,
 		userRepo:           userRepo,
 		roleRepo:           roleRepo,
 		userRoleRepo:       userRoleRepo,

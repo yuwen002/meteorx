@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"meteorx/internal/config"
@@ -46,7 +47,8 @@ var providerDisplayNames = map[string]string{
 	model.ProviderMicrosoft: "Microsoft",
 }
 
-func displayName(id string) string {
+// defaultDisplayName 按内置规则推导展示名（Google/微信/…或 OIDC 去掉前缀）
+func defaultDisplayName(id string) string {
 	if n, ok := providerDisplayNames[id]; ok {
 		return n
 	}
@@ -212,76 +214,224 @@ func (p *standardOAuthProvider) Exchange(ctx context.Context, code string) (*dto
 	}, nil
 }
 
-// ProviderRegistry 所有已配置 provider 的注册表，业务层通过 Get 按名取用。
-type ProviderRegistry struct {
-	providers map[string]Provider
+// ProviderSpec 描述一个 provider 的完整参数，是「配置来源」与「Provider 实现」之间的中介。
+// 配置可来自 config.yaml（静态）或 oauth_providers 表（运行时），二者最终都转换为 Spec 再构建。
+type ProviderSpec struct {
+	Kind         string   // provider 类型（model.ProviderKindXxx）
+	Code         string   // provider 标识（唯一），固定类型时等于 Kind
+	DisplayName  string   // 展示名，为空时按内置规则推导
+	Enabled      bool     // 是否启用
+	ClientID     string   // 客户端 ID
+	ClientSecret string   // 客户端密钥（明文）
+	RedirectURL  string   // 授权回调地址
+	Tenant       string   // Microsoft 目录租户
+	AuthURL      string   // OIDC 授权端点
+	TokenURL     string   // OIDC 令牌端点
+	UserInfoURL  string   // OIDC 用户信息端点
+	Scopes       []string // OIDC 授权范围
 }
 
-// NewProviderRegistry 依据配置构建 provider 注册表。
+// providerCred 各 provider 共用的凭据字段
+type providerCred struct {
+	code         string
+	enabled      bool
+	clientID     string
+	clientSecret string
+	redirectURL  string
+}
+
+// BuildProvider 按类型把 Spec 构建为具体 Provider 实现；未知类型返回 nil。
+func BuildProvider(spec ProviderSpec) Provider {
+	cred := providerCred{
+		code:         spec.Code,
+		enabled:      spec.Enabled,
+		clientID:     spec.ClientID,
+		clientSecret: spec.ClientSecret,
+		redirectURL:  spec.RedirectURL,
+	}
+	scopes := spec.Scopes
+	if len(scopes) == 0 {
+		scopes = []string{"openid", "email", "profile"}
+	}
+
+	switch spec.Kind {
+	case model.ProviderKindGoogle:
+		return &standardOAuthProvider{
+			name:         spec.Code,
+			enabled:      cred.enabled,
+			clientID:     cred.clientID,
+			clientSecret: cred.clientSecret,
+			redirectURL:  cred.redirectURL,
+			authURL:      "https://accounts.google.com/o/oauth2/v2/auth",
+			tokenURL:     "https://oauth2.googleapis.com/token",
+			userInfoURL:  "https://www.googleapis.com/oauth2/v2/userinfo",
+			scopes:       scopes,
+		}
+	case model.ProviderKindGitHub:
+		return newGitHubProvider(cred)
+	case model.ProviderKindWeChat:
+		return newWeChatProvider(cred)
+	case model.ProviderKindFeishu:
+		return newFeishuProvider(cred)
+	case model.ProviderKindDingTalk:
+		return newDingTalkProvider(cred)
+	case model.ProviderKindQQ:
+		return newQQProvider(cred)
+	case model.ProviderKindMicrosoft:
+		tenant := spec.Tenant
+		if tenant == "" {
+			tenant = "common"
+		}
+		base := "https://login.microsoftonline.com/" + tenant + "/oauth2/v2.0"
+		return &standardOAuthProvider{
+			name:         spec.Code,
+			enabled:      cred.enabled,
+			clientID:     cred.clientID,
+			clientSecret: cred.clientSecret,
+			redirectURL:  cred.redirectURL,
+			authURL:      base + "/authorize",
+			tokenURL:     base + "/token",
+			userInfoURL:  "https://graph.microsoft.com/oidc/userinfo",
+			scopes:       scopes,
+		}
+	case model.ProviderKindOIDC:
+		return &standardOAuthProvider{
+			name:         spec.Code,
+			enabled:      cred.enabled,
+			clientID:     cred.clientID,
+			clientSecret: cred.clientSecret,
+			redirectURL:  cred.redirectURL,
+			authURL:      spec.AuthURL,
+			tokenURL:     spec.TokenURL,
+			userInfoURL:  spec.UserInfoURL,
+			scopes:       scopes,
+		}
+	default:
+		return nil
+	}
+}
+
+// ProviderRegistry 所有已配置 provider 的注册表，业务层通过 Get 按名取用。
+// 支持热重载：Replace 原子替换内部快照，多副本下配合定时刷新即可免重启生效。
+type ProviderRegistry struct {
+	mu        sync.RWMutex
+	providers map[string]Provider
+	labels    map[string]string // code → 展示名（DB 配置优先于内置推导）
+}
+
+// NewProviderRegistryFromSpecs 依据 Spec 列表构建注册表；未知类型或标识为空的 Spec 被跳过。
+func NewProviderRegistryFromSpecs(specs []ProviderSpec) *ProviderRegistry {
+	m := make(map[string]Provider, len(specs))
+	labels := make(map[string]string, len(specs))
+	for _, spec := range specs {
+		if spec.Code == "" {
+			continue
+		}
+		p := BuildProvider(spec)
+		if p == nil {
+			logger.Warnf("[oauth] skip provider %q: unknown kind %q", spec.Code, spec.Kind)
+			continue
+		}
+		m[spec.Code] = p
+		if spec.DisplayName != "" {
+			labels[spec.Code] = spec.DisplayName
+		}
+	}
+	return &ProviderRegistry{providers: m, labels: labels}
+}
+
+// NewProviderRegistry 依据 config.yaml 构建注册表（作为 DB 运行时配置的种子与兜底）。
 // 已知固定 provider（google/github/wechat/feishu/dingtalk/qq/microsoft）始终登记，
 // 其 IsEnabled 同时要求 enabled=true 且已填写 client_id；未配置的 provider 虽存在但处于禁用态。
 // 通用 OIDC 仅在配置（填写 client_id）时登记，其 provider 标识为 "oidc_<key>"。
 func NewProviderRegistry(cfg config.OAuthConfig) *ProviderRegistry {
-	m := map[string]Provider{}
+	specs := ProviderSpecsFromConfig(cfg)
+	return NewProviderRegistryFromSpecs(specs)
+}
 
-	m[model.ProviderGoogle] = &standardOAuthProvider{
-		name:         model.ProviderGoogle,
-		enabled:      cfg.Google.Enabled,
-		clientID:     cfg.Google.ClientID,
-		clientSecret: cfg.Google.ClientSecret,
-		redirectURL:  cfg.Google.RedirectURL,
-		authURL:      "https://accounts.google.com/o/oauth2/v2/auth",
-		tokenURL:     "https://oauth2.googleapis.com/token",
-		userInfoURL:  "https://www.googleapis.com/oauth2/v2/userinfo",
-		scopes:       []string{"openid", "email", "profile"},
+// ProviderSpecsFromConfig 把 config.yaml 的静态配置转换为 ProviderSpec 列表。
+// 提取为公开函数以便「首次启动种子化」复用同一套转换逻辑。
+func ProviderSpecsFromConfig(cfg config.OAuthConfig) []ProviderSpec {
+	specs := make([]ProviderSpec, 0, len(cfg.OIDC)+7)
+
+	specs = append(specs, ProviderSpec{
+		Kind: model.ProviderKindGoogle, Code: model.ProviderGoogle,
+		Enabled: cfg.Google.Enabled, ClientID: cfg.Google.ClientID,
+		ClientSecret: cfg.Google.ClientSecret, RedirectURL: cfg.Google.RedirectURL,
+	})
+	for _, item := range []struct {
+		kind string
+		cfg  config.OAuthProviderConfig
+	}{
+		{model.ProviderKindGitHub, cfg.GitHub},
+		{model.ProviderKindWeChat, cfg.WeChat},
+		{model.ProviderKindFeishu, cfg.Feishu},
+		{model.ProviderKindDingTalk, cfg.DingTalk},
+		{model.ProviderKindQQ, cfg.QQ},
+	} {
+		specs = append(specs, ProviderSpec{
+			Kind: item.kind, Code: item.kind,
+			Enabled: item.cfg.Enabled, ClientID: item.cfg.ClientID,
+			ClientSecret: item.cfg.ClientSecret, RedirectURL: item.cfg.RedirectURL,
+		})
 	}
-
-	m[model.ProviderGitHub] = newGitHubProvider(cfg.GitHub)
-	m[model.ProviderWeChat] = newWeChatProvider(cfg.WeChat)
-	m[model.ProviderFeishu] = newFeishuProvider(cfg.Feishu)
-	m[model.ProviderDingTalk] = newDingTalkProvider(cfg.DingTalk)
-	m[model.ProviderQQ] = newQQProvider(cfg.QQ)
-	m[model.ProviderMicrosoft] = newMicrosoftProvider(cfg.Microsoft)
+	specs = append(specs, ProviderSpec{
+		Kind: model.ProviderKindMicrosoft, Code: model.ProviderMicrosoft,
+		Enabled: cfg.Microsoft.Enabled, ClientID: cfg.Microsoft.ClientID,
+		ClientSecret: cfg.Microsoft.ClientSecret, RedirectURL: cfg.Microsoft.RedirectURL,
+		Tenant: cfg.Microsoft.Tenant,
+	})
 
 	for key, oc := range cfg.OIDC {
 		if oc.ClientID == "" {
 			continue
 		}
-		name := "oidc_" + key
-		scopes := oc.Scopes
-		if len(scopes) == 0 {
-			scopes = []string{"openid", "email", "profile"}
-		}
-		m[name] = &standardOAuthProvider{
-			name:         name,
-			enabled:      oc.Enabled,
-			clientID:     oc.ClientID,
-			clientSecret: oc.ClientSecret,
-			redirectURL:  oc.RedirectURL,
-			authURL:      oc.AuthURL,
-			tokenURL:     oc.TokenURL,
-			userInfoURL:  oc.UserInfoURL,
-			scopes:       scopes,
-		}
+		specs = append(specs, ProviderSpec{
+			Kind: model.ProviderKindOIDC, Code: "oidc_" + key,
+			DisplayName: oc.DisplayName,
+			Enabled:     oc.Enabled, ClientID: oc.ClientID,
+			ClientSecret: oc.ClientSecret, RedirectURL: oc.RedirectURL,
+			AuthURL: oc.AuthURL, TokenURL: oc.TokenURL, UserInfoURL: oc.UserInfoURL,
+			Scopes: oc.Scopes,
+		})
 	}
-
-	return &ProviderRegistry{providers: m}
+	return specs
 }
 
 // Get 按名获取 provider，未登记返回 (nil, false)。
 func (r *ProviderRegistry) Get(name string) (Provider, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	p, ok := r.providers[name]
 	return p, ok
 }
 
 // Enabled 返回所有已启用的 provider 展示元信息（按 ID 排序）。
 func (r *ProviderRegistry) Enabled() []ProviderMeta {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	metas := make([]ProviderMeta, 0, len(r.providers))
 	for _, p := range r.providers {
-		if p.IsEnabled() {
-			metas = append(metas, ProviderMeta{ID: p.Name(), Label: displayName(p.Name())})
+		if !p.IsEnabled() {
+			continue
 		}
+		label := r.labels[p.Name()]
+		if label == "" {
+			label = defaultDisplayName(p.Name())
+		}
+		metas = append(metas, ProviderMeta{ID: p.Name(), Label: label})
 	}
 	sort.Slice(metas, func(i, j int) bool { return metas[i].ID < metas[j].ID })
 	return metas
+}
+
+// Replace 用新的 provider 集合原子替换当前快照（热重载入口）。
+func (r *ProviderRegistry) Replace(providers map[string]Provider, labels map[string]string) {
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.providers = providers
+	r.labels = labels
 }

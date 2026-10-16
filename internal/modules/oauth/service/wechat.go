@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"meteorx/internal/config"
 	"meteorx/internal/modules/oauth/dto"
 	"meteorx/internal/modules/oauth/model"
 	"meteorx/pkg/logger"
@@ -17,18 +16,20 @@ import (
 // weChatProvider 微信网站应用扫码登录适配。
 // 说明：微信不返回邮箱，ProviderID 优先取 unionid（同一开放平台下跨应用一致），否则取 openid。
 type weChatProvider struct {
+	name         string
 	enabled      bool
 	clientID     string
 	clientSecret string
 	redirectURL  string
 }
 
-func newWeChatProvider(c config.OAuthProviderConfig) *weChatProvider {
+func newWeChatProvider(cred providerCred) *weChatProvider {
 	return &weChatProvider{
-		enabled:      c.Enabled,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		redirectURL:  c.RedirectURL,
+		name:         cred.code,
+		enabled:      cred.enabled,
+		clientID:     cred.clientID,
+		clientSecret: cred.clientSecret,
+		redirectURL:  cred.redirectURL,
 	}
 }
 

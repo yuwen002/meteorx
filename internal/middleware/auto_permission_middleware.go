@@ -246,6 +246,8 @@ func singularize(part string) string {
 		return "announcement"
 	case "cancel-requests", "cancel_requests":
 		return "cancel_request"
+	case "oauth-providers", "oauth_providers":
+		return "oauth_provider"
 	default:
 		return part
 	}

@@ -232,6 +232,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 4.2 OAuth2 账号管理（需登录：查看绑定、解绑、绑定新账号）
 			oauth.InitProtectedModule(r, db, *cfg, tokenHelper, rdb)
 
+			// 4.2.1 第三方登录提供商配置管理（平台超管）+ 注册表定时刷新（免重启生效）
+			oauth.InitAdminModule(ctx, r, db, *cfg, tokenHelper, rdb)
+
 			// 4.3 API Token 管理（需登录：创建、查看、撤销长期令牌）
 			auth.InitAPITokenModule(r, db, *cfg, rdb)
 

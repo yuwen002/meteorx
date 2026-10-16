@@ -139,6 +139,11 @@ ip_location:
 oauth:
   refresh_token_ttl: 168h    # 刷新令牌有效期，默认 168h（7 天）；改短可增强安全性
   state_ttl: 10m             # CSRF state 有效期，默认 10m；一般无需修改
+  # OAuth 凭据加密主密钥（base64 编码的 32 字节随机值）。
+  # 后台「第三方登录管理」保存的 client_secret 以此密钥 AES-256-GCM 加密后落库。
+  # 生成：openssl rand -base64 32
+  # 留空则仅告警、secret 以明文存储（不推荐生产使用）。
+  secret_key: ""
   google:
     enabled: false
     client_id: ""

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 
-	"meteorx/internal/config"
 	"meteorx/internal/modules/oauth/dto"
 	"meteorx/internal/modules/oauth/model"
 	"meteorx/pkg/logger"
@@ -14,18 +13,20 @@ import (
 
 // dingTalkProvider 钉钉 OAuth2 适配（新版 OAuth2.0 授权登录）。
 type dingTalkProvider struct {
+	name         string
 	enabled      bool
 	clientID     string
 	clientSecret string
 	redirectURL  string
 }
 
-func newDingTalkProvider(c config.OAuthProviderConfig) *dingTalkProvider {
+func newDingTalkProvider(cred providerCred) *dingTalkProvider {
 	return &dingTalkProvider{
-		enabled:      c.Enabled,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		redirectURL:  c.RedirectURL,
+		name:         cred.code,
+		enabled:      cred.enabled,
+		clientID:     cred.clientID,
+		clientSecret: cred.clientSecret,
+		redirectURL:  cred.redirectURL,
 	}
 }
 

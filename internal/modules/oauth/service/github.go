@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 
-	"meteorx/internal/config"
 	"meteorx/internal/modules/oauth/dto"
 	"meteorx/internal/modules/oauth/model"
 	"meteorx/pkg/logger"
@@ -14,18 +13,20 @@ import (
 
 // githubProvider GitHub OAuth2 适配（令牌端点需 Accept: application/json，邮箱需额外查询）。
 type githubProvider struct {
+	name         string
 	enabled      bool
 	clientID     string
 	clientSecret string
 	redirectURL  string
 }
 
-func newGitHubProvider(c config.OAuthProviderConfig) *githubProvider {
+func newGitHubProvider(cred providerCred) *githubProvider {
 	return &githubProvider{
-		enabled:      c.Enabled,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		redirectURL:  c.RedirectURL,
+		name:         cred.code,
+		enabled:      cred.enabled,
+		clientID:     cred.clientID,
+		clientSecret: cred.clientSecret,
+		redirectURL:  cred.redirectURL,
 	}
 }
 

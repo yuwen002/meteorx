@@ -94,3 +94,50 @@ type ProviderMeta struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
 }
+
+// SaveOAuthProviderReq 新建/更新第三方登录提供商配置请求
+type SaveOAuthProviderReq struct {
+	Kind        string   `json:"kind" validate:"required"`             // provider 类型：google/github/wechat/feishu/dingtalk/qq/microsoft/oidc
+	Code        string   `json:"code" validate:"required"`             // provider 标识；固定类型必须等于 kind，oidc 形如 oidc_<key>
+	DisplayName string   `json:"display_name,omitempty"`              // 展示名，留空按内置规则推导
+	Enabled     bool     `json:"enabled"`                             // 是否启用
+	ClientID    string   `json:"client_id" validate:"required"`       // 客户端 ID
+	ClientSecret string   `json:"client_secret,omitempty"`            // 客户端密钥；更新时留空表示保持原值
+	RedirectURL string   `json:"redirect_url" validate:"required"`    // 授权回调地址
+	Tenant      string   `json:"tenant,omitempty"`                    // Microsoft 目录租户（common/organizations/租户ID）
+	AuthURL     string   `json:"auth_url,omitempty"`                  // OIDC 授权端点
+	TokenURL    string   `json:"token_url,omitempty"`                 // OIDC 令牌端点
+	UserInfoURL string   `json:"userinfo_url,omitempty"`              // OIDC 用户信息端点
+	Scopes      []string `json:"scopes,omitempty"`                    // OIDC 授权范围
+}
+
+// SetOAuthProviderStatusReq 切换提供商启用状态请求。
+// Enabled 用指针区分「未传该字段」（校验失败）与「显式传 false」（禁用）。
+type SetOAuthProviderStatusReq struct {
+	Enabled *bool `json:"enabled" validate:"required"` // 是否启用
+}
+
+// OAuthProviderResp 第三方登录提供商配置响应（client_secret 仅返回脱敏值）
+type OAuthProviderResp struct {
+	Code              string    `json:"code"`
+	Kind              string    `json:"kind"`
+	DisplayName       string    `json:"display_name"`
+	Enabled           bool      `json:"enabled"`
+	ClientID          string    `json:"client_id"`
+	ClientSecretMask  string    `json:"client_secret_mask"`
+	HasSecret         bool      `json:"has_secret"`
+	RedirectURL       string    `json:"redirect_url"`
+	Tenant            string    `json:"tenant,omitempty"`
+	AuthURL           string    `json:"auth_url,omitempty"`
+	TokenURL          string    `json:"token_url,omitempty"`
+	UserInfoURL       string    `json:"userinfo_url,omitempty"`
+	Scopes            []string  `json:"scopes,omitempty"`
+	EditableEndpoint  bool      `json:"editable_endpoint"` // 是否可自行配置端点（通用 OIDC）
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+// OAuthProviderListResponse 提供商配置列表响应
+type OAuthProviderListResponse struct {
+	Providers []OAuthProviderResp `json:"providers"`
+}
