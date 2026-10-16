@@ -1,0 +1,18 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "8663373d115a597b8d6c2331010b69d3fb06516b",
+  "prompts": {},
+  "sessions": {
+    "s_f00af1d8c88a9e": {
+      "agent_id": {
+        "tool": "codebuddy",
+        "id": "eaafc3a9536348a0be0c326daac2fb23",
+        "model": "step-5-preview"
+      },
+      "human_author": "liuxingyu <yuwen002@163.com>",
+      "generated_lines": 214
+    }
+  }
+}
