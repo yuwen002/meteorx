@@ -315,10 +315,13 @@ func (r *wikiRepository) CountChildNodes(ctx context.Context, parentID string) (
 	return count, err
 }
 
-// CreateDocument 新建文档，自动补齐 ID 与时间戳。
+// CreateDocument 新建文档，自动补齐 ID、租户ID与时间戳。
 func (r *wikiRepository) CreateDocument(ctx context.Context, doc *model.Document) error {
 	if doc.ID == "" {
 		doc.ID = idgen.New()
+	}
+	if doc.TenantID == "" {
+		doc.TenantID = tenantctx.TenantID(ctx)
 	}
 	doc.CreatedAt = time.Now()
 	doc.UpdatedAt = time.Now()

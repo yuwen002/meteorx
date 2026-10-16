@@ -77,6 +77,8 @@ func (h *UserHandler) CreateMasterAdmin(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		if errors.Is(err, service.ErrUsernameExists) {
 			response.Fail(w, http.StatusConflict, "用户名已被使用")
+		} else if errors.Is(err, service.ErrValidation) {
+			response.BadRequest(w, err.Error())
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "创建系统管理员失败")
 		}
@@ -103,6 +105,8 @@ func (h *UserHandler) UpdateMasterAdmin(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		if errors.Is(err, service.ErrUserNotSystemAdmin) {
 			response.Fail(w, http.StatusNotFound, "系统管理员不存在")
+		} else if errors.Is(err, service.ErrValidation) {
+			response.BadRequest(w, err.Error())
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "更新系统管理员失败")
 		}
@@ -263,6 +267,8 @@ func (h *UserHandler) AdminCreateTenantUser(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		if errors.Is(err, service.ErrUsernameExists) {
 			response.Fail(w, http.StatusConflict, "用户名已被使用")
+		} else if errors.Is(err, service.ErrValidation) {
+			response.BadRequest(w, err.Error())
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "创建用户失败")
 		}
@@ -344,6 +350,8 @@ func (h *UserHandler) AdminUpdateTenantUser(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		if errors.Is(err, service.ErrUserNotInTenant) {
 			response.Fail(w, http.StatusBadRequest, "用户不属于指定租户")
+		} else if errors.Is(err, service.ErrValidation) {
+			response.BadRequest(w, err.Error())
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "更新用户失败")
 		}

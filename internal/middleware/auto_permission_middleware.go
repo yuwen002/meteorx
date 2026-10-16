@@ -242,6 +242,12 @@ func singularize(part string) string {
 		return "user"
 	case "logs":
 		return "log"
+	case "files":
+		return "file"
+	case "exports":
+		return "export"
+	case "invitations":
+		return "invitation"
 	case "announcements":
 		return "announcement"
 	case "cancel-requests", "cancel_requests":
@@ -295,6 +301,20 @@ func deriveAction(method, remaining string) string {
 	if strings.Contains(remaining, "export") {
 		if method == "GET" {
 			return "export"
+		}
+	}
+
+	// 上传：upload（如 /files/upload → file:upload）
+	if strings.Contains(remaining, "upload") {
+		if method == "POST" {
+			return "upload"
+		}
+	}
+
+	// 下载：download（如 /files/{id}/download → file:download）
+	if strings.Contains(remaining, "download") {
+		if method == "GET" {
+			return "download"
 		}
 	}
 

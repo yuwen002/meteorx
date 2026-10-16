@@ -156,6 +156,7 @@ func (s *AuthService) Register(ctx context.Context, req dto.RegisterUserReq) (*m
 		Username:  req.Username,
 		Password:  hashedPassword,
 		Nickname:  req.Nickname,
+		Email:     req.Email,
 		Roles:     []string{defaultRole},
 		Status:    1,
 		CreatedAt: now,

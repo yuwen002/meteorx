@@ -3,6 +3,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"meteorx/internal/modules/auth/model"
 
@@ -53,8 +54,9 @@ func (r *apiTokenRepository) ListByUserID(ctx context.Context, userID string) ([
 }
 
 // RevokeByID 吊销指定令牌，写入吊销时间（仅对未吊销的生效）。
+// 使用 Go 侧时间而非 SQL NOW()，保证跨数据库（MySQL/SQLite）兼容。
 func (r *apiTokenRepository) RevokeByID(ctx context.Context, id string) error {
-	now := gorm.Expr("NOW()")
+	now := time.Now()
 	return r.db.WithContext(ctx).Model(&model.APIToken{}).Where("id = ? AND revoked_at IS NULL", id).Update("revoked_at", now).Error
 }
 
@@ -67,8 +69,8 @@ func (r *apiTokenRepository) GetByID(ctx context.Context, id string) (*model.API
 	return &token, nil
 }
 
-// UpdateLastUsedAt 刷新令牌的最近使用时间。
+// UpdateLastUsedAt 刷新令牌的最近使用时间（Go 侧时间，跨数据库兼容）。
 func (r *apiTokenRepository) UpdateLastUsedAt(ctx context.Context, id string) error {
-	now := gorm.Expr("NOW()")
+	now := time.Now()
 	return r.db.WithContext(ctx).Model(&model.APIToken{}).Where("id = ?", id).Update("last_used_at", now).Error
 }

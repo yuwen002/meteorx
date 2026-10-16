@@ -196,6 +196,9 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, service.ErrUsernameExists) {
 			response.Fail(w, http.StatusConflict, "用户名已被使用")
+		} else if errors.Is(err, service.ErrValidation) {
+			// 客户端输入错误（角色不存在/禁用/scope 不符、套餐配额超限等）→ 400 并透传真实原因
+			response.BadRequest(w, err.Error())
 		} else {
 			response.Fail(w, http.StatusInternalServerError, "创建用户失败")
 		}
@@ -232,7 +235,11 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.svc.Update(r.Context(), userID, req)
 	if err != nil {
-		response.Fail(w, http.StatusInternalServerError, "更新用户失败")
+		if errors.Is(err, service.ErrValidation) {
+			response.BadRequest(w, err.Error())
+		} else {
+			response.Fail(w, http.StatusInternalServerError, "更新用户失败")
+		}
 		return
 	}
 	response.Success(w, user)

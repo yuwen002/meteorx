@@ -25,7 +25,24 @@ var (
 	ErrUserNotSystemAdmin = errors.New("用户不是系统管理员")
 	ErrUserNotInTenant    = errors.New("用户不属于指定租户")
 	ErrWrongOldPassword   = errors.New("原密码错误")
+	// ErrValidation 标识客户端输入错误（角色不存在/禁用/scope 不符、套餐配额超限等），
+	// Handler 层据此返回 HTTP 400 并透传具体原因，避免误报为 500 内部错误。
+	ErrValidation = errors.New("参数校验失败")
 )
+
+// ValidationError 携带面向用户的可读消息，同时通过 Is 匹配 ErrValidation 哨兵。
+type ValidationError struct{ Msg string }
+
+// Error 返回可读的错误消息。
+func (e *ValidationError) Error() string { return e.Msg }
+
+// Is 使 errors.Is(err, ErrValidation) 返回 true。
+func (e *ValidationError) Is(target error) bool { return target == ErrValidation }
+
+// newValidationErr 构造一个客户端输入错误。
+func newValidationErr(format string, args ...any) error {
+	return &ValidationError{Msg: fmt.Sprintf(format, args...)}
+}
 
 // UserService 用户模块业务服务，聚合用户/租户/角色仓库与套餐配额校验。
 type UserService struct {
@@ -64,15 +81,15 @@ func (s *UserService) checkUserQuota(ctx context.Context, tenantID string) error
 	overLimit, users, limit, err := s.quotaVerifier.CheckUserLimit(ctx, tenantID)
 	if err != nil {
 		if errors.Is(err, planService.ErrPlanExpired) {
-			return errors.New("套餐已到期，请联系平台管理员续费")
+			return &ValidationError{Msg: "套餐已到期，请联系平台管理员续费"}
 		}
 		if errors.Is(err, planService.ErrUserLimitExceeded) {
-			return fmt.Errorf("已达到套餐用户数上限（%d/%d），请联系平台管理员升级套餐", users, limit)
+			return newValidationErr("已达到套餐用户数上限（%d/%d），请联系平台管理员升级套餐", users, limit)
 		}
 		return err
 	}
 	if overLimit {
-		return fmt.Errorf("已达到套餐用户数上限（%d/%d），请联系平台管理员升级套餐", users, limit)
+		return newValidationErr("已达到套餐用户数上限（%d/%d），请联系平台管理员升级套餐", users, limit)
 	}
 	return nil
 }
@@ -82,13 +99,13 @@ func (s *UserService) validateRoleIDs(ctx context.Context, roleIDs []string, sco
 	for _, roleID := range roleIDs {
 		role, err := s.roleRepo.GetByID(ctx, roleID)
 		if err != nil {
-			return fmt.Errorf("角色 '%s' 不存在", roleID)
+			return newValidationErr("角色 '%s' 不存在", roleID)
 		}
 		if role.Status == 0 {
-			return fmt.Errorf("角色 '%s' 已禁用", role.Code)
+			return newValidationErr("角色 '%s' 已禁用", role.Code)
 		}
 		if role.Scope != rbacModel.RoleScopeAll && role.Scope != scope {
-			return fmt.Errorf("角色 '%s' 不允许在当前上下文分配", role.Code)
+			return newValidationErr("角色 '%s' 不允许在当前上下文分配", role.Code)
 		}
 	}
 	return nil
@@ -98,14 +115,14 @@ func (s *UserService) validateRoleIDs(ctx context.Context, roleIDs []string, sco
 func (s *UserService) validateSystemAdminRoleID(ctx context.Context, roleID string) error {
 	role, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
-		return fmt.Errorf("角色 '%s' 不存在", roleID)
+		return newValidationErr("角色 '%s' 不存在", roleID)
 	}
 	if role.Status == 0 {
-		return fmt.Errorf("角色 '%s' 已禁用", role.Code)
+		return newValidationErr("角色 '%s' 已禁用", role.Code)
 	}
 	// 必须是系统级别角色：scope 为 system 或 all
 	if role.Scope != rbacModel.RoleScopeSystem && role.Scope != rbacModel.RoleScopeAll {
-		return fmt.Errorf("角色 '%s' 不是系统级别角色，无法分配给系统管理员", role.Code)
+		return newValidationErr("角色 '%s' 不是系统级别角色，无法分配给系统管理员", role.Code)
 	}
 	return nil
 }
