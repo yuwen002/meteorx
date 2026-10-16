@@ -4,8 +4,10 @@ import (
 	"context"
 	"regexp"
 	"testing"
+	"time"
 
 	"meteorx/internal/modules/dashboard/model"
+	"meteorx/pkg/timeutil"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -112,16 +114,23 @@ func TestDashboardRepo_GetOverview_PartialFailure(t *testing.T) {
 func TestDashboardRepo_GetTrend(t *testing.T) {
 	gormDB, mock := newDashTestDB(t)
 
+	// 分桶日期由实现按“业务时区当天”往前回推得出，测试必须以同一口径生成相对日期键，
+	// 否则硬编码绝对日期只在特定一天成立（跨天/跨时区/CI 上必然全 0）。
+	// days=2 → 窗口为 [昨天, 今天]，与 GetTrend 中 start=StartOfDay(now).AddDate(0,0,-(days-1)) 对齐。
+	start := timeutil.StartOfDay(time.Now()).AddDate(0, 0, -1)
+	keyYesterday := start.Format("2006-01-02")
+	keyToday := start.AddDate(0, 0, 1).Format("2006-01-02")
+
 	// 租户/用户查询带 deleted_at IS NULL，审计日志不带，均使用同一个 group-by-day 正则。
 	groupPattern := "SELECT DATE\\(created_at\\) as day, COUNT\\(\\*\\) as count FROM .*tenants.* GROUP BY DATE\\(created_at\\)"
 	mock.ExpectQuery(groupPattern).WillReturnRows(
-		sqlmock.NewRows([]string{"day", "count"}).AddRow("2026-10-14", 2),
+		sqlmock.NewRows([]string{"day", "count"}).AddRow(keyToday, 2),
 	)
 	mock.ExpectQuery("SELECT DATE\\(created_at\\) as day, COUNT\\(\\*\\) as count FROM .*users.* GROUP BY DATE\\(created_at\\)").WillReturnRows(
-		sqlmock.NewRows([]string{"day", "count"}).AddRow("2026-10-13", 3).AddRow("2026-10-14", 1),
+		sqlmock.NewRows([]string{"day", "count"}).AddRow(keyYesterday, 3).AddRow(keyToday, 1),
 	)
 	mock.ExpectQuery("SELECT DATE\\(created_at\\) as day, COUNT\\(\\*\\) as count FROM .*audit_logs.* GROUP BY DATE\\(created_at\\)").WillReturnRows(
-		sqlmock.NewRows([]string{"day", "count"}).AddRow("2026-10-14", 40),
+		sqlmock.NewRows([]string{"day", "count"}).AddRow(keyToday, 40),
 	)
 
 	repo := NewDashboardRepository(gormDB)

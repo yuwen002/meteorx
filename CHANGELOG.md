@@ -17,6 +17,9 @@ _暂无待发布的变更。_
 ### 变更
 - **CSP 从 Report-Only 切换为强制执行**：两处 nginx（`web-admin/nginx.conf`、`deploy/nginx/nginx.conf`）头部名由 `Content-Security-Policy-Report-Only` 改为 `Content-Security-Policy`，策略内容不变（已经观察期验证），违反策略的资源加载自浏览器侧直接拦截；保留 `report-uri /api/v1/csp-report`，被拦截的违规仍 POST 后端落 `[csp-violation]` 日志，转为持续监控与 XSS 攻击感知渠道；`CSPReport` 处理器与路由装配注释同步更新口径，并注明新外部资源被拦截时应查日志放宽策略而非回退 Report-Only
 
+### 修复
+- **增长趋势单测的日历/时区依赖**：`TestDashboardRepo_GetTrend` 此前将 mock 返回行的 `day` 写死为绝对日期（`2026-10-13`/`2026-10-14`），而 `GetTrend` 按“业务时区当天”往前回推分桶，导致仅在写入当天能通过、跨天或在 UTC runner（CI）上分桶窗口与硬编码日期无交集而全归 0。现改为用 `timeutil.StartOfDay(time.Now())` 按与实现相同的口径生成相对日期键（昨天/今天），与当前日历日和 runner 时区无关，保证本地与 CI 一致通过
+
 ## [1.2.0] - 2026-10-16
 
 ### 新增
