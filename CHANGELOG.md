@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+_暂无待发布的变更。_
+
+## [1.2.1] - 2026-10-16
+
+### 新增
+- **CI 自动发布 GitHub Release**：`ci-cd.yml` 新增 `release` job，在半版本 tag（`v*`）推送时自动创建 GitHub Release——汇集 `build`/`frontend` 产出的四平台后端二进制与前端 `web-admin.tar.gz` 作为附件，并以 awk 从本 CHANGELOG 切出对应版本段落作为 Release 说明
+
 ### 变更
 - **CSP 从 Report-Only 切换为强制执行**：两处 nginx（`web-admin/nginx.conf`、`deploy/nginx/nginx.conf`）头部名由 `Content-Security-Policy-Report-Only` 改为 `Content-Security-Policy`，策略内容不变（已经观察期验证），违反策略的资源加载自浏览器侧直接拦截；保留 `report-uri /api/v1/csp-report`，被拦截的违规仍 POST 后端落 `[csp-violation]` 日志，转为持续监控与 XSS 攻击感知渠道；`CSPReport` 处理器与路由装配注释同步更新口径，并注明新外部资源被拦截时应查日志放宽策略而非回退 Report-Only
 
@@ -67,6 +74,7 @@
 
 v1.0.0 基线：多租户 SaaS 后端（认证 / RBAC / 用户 / 租户 / 审计 / 文件 / 任务 / Wiki / 计划套餐 / 邀请 / 通知 / OAuth / 仪表盘）与 web-admin 管理前端。本自 v1.1.0 起维护变更日志。
 
-[Unreleased]: https://github.com/yuwen002/meteorx/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/yuwen002/meteorx/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/yuwen002/meteorx/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/yuwen002/meteorx/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/yuwen002/meteorx/releases/tag/v1.1.0

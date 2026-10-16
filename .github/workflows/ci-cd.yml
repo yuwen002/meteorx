@@ -323,3 +323,52 @@ jobs:
             docker image prune -f
             sleep 10
             curl -sf http://localhost:8081/health && echo "Deployment successful!" || echo "Health check failed"
+
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    # 仅在半版本 tag（v*）推送时触发；build 与 frontend 产出的制品作为 Release 附件。
+    needs: [build, frontend]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download backend binaries
+        uses: actions/download-artifact@v5
+        with:
+          name: backend-binaries
+          path: dist/
+      - name: Download frontend dist
+        uses: actions/download-artifact@v5
+        with:
+          name: frontend-dist
+          path: web-admin/dist/
+      - name: Package frontend dist
+        run: tar -czf dist/web-admin.tar.gz -C web-admin/dist .
+      - name: Extract version
+        id: ver
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+      # 从 CHANGELOG 切出当前版本段落作为 Release 说明（Keep-a-Changelog 的 `## [x.y.z]` 标题之间）
+      - name: Extract changelog section
+        run: |
+          VER="${GITHUB_REF#refs/tags/v}"
+          awk -v ver="$VER" '
+            /^## \[/ {
+              if (grab) exit
+              if ($0 ~ "^## \\[" ver "\\]") { grab = 1; next }
+            }
+            grab { print }
+          ' CHANGELOG.md > .release_notes.md
+          printf '# %s\n\n' "v$VER" | cat - .release_notes.md > RELEASE_NOTES.md
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          body_path: RELEASE_NOTES.md
+          files: |
+            dist/meteorx-linux-amd64
+            dist/meteorx-linux-arm64
+            dist/meteorx-darwin-amd64
+            dist/meteorx-windows-amd64.exe
+            dist/web-admin.tar.gz
