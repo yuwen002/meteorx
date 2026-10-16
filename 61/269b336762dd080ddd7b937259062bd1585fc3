@@ -1,0 +1,33 @@
+docs/api/auth-api.md
+  s_f00af1d8c88a9e::t_7e946a546ab91f 381
+  s_f00af1d8c88a9e::t_720b07905bb7f8 694
+  s_f00af1d8c88a9e::t_db7e324aa420f0 396-398
+  s_f00af1d8c88a9e::t_777be503c8866d 450
+  s_f00af1d8c88a9e::t_6857101fbcb6aa 637-644,655-671,675-678,687-693,696
+  s_f00af1d8c88a9e::t_be0371a7ee0998 488,493
+  s_f00af1d8c88a9e::t_3b21e5f6d96b1a 28
+  s_f00af1d8c88a9e::t_f8e2db79d466d4 24-25
+docs/api/oauth-provider-api.md
+  s_f00af1d8c88a9e::t_7d552cbd8b6286 1-40,62-75,85-88,102-105,115-152,154-172
+docs/architecture/config.md
+  s_f00af1d8c88a9e::t_fa69be471f17c1 124-126
+  s_f00af1d8c88a9e::t_d9fc24fe23cf99 99-123
+docs/FEATURE_UPGRADE.md
+  s_f00af1d8c88a9e::t_30ac5058089b8e 1310
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "61269b336762dd080ddd7b937259062bd1585fc3",
+  "prompts": {},
+  "sessions": {
+    "s_f00af1d8c88a9e": {
+      "agent_id": {
+        "tool": "codebuddy",
+        "id": "eaafc3a9536348a0be0c326daac2fb23",
+        "model": "step-5-preview"
+      },
+      "human_author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
