@@ -1,0 +1,31 @@
+web-admin/src/layouts/DefaultLayout.vue
+  s_f00af1d8c88a9e::t_3d46ec03a4474e 140-143
+  s_f00af1d8c88a9e::t_23ac3c7a714cea 286
+web-admin/src/router/index.ts
+  s_f00af1d8c88a9e::t_bf8264d158763d 262-267
+web-admin/src/views/system/oauth-provider/index.vue
+  s_f00af1d8c88a9e::t_f358453cc22683 1-143,145-235,237-242,244-364
+  s_f00af1d8c88a9e::t_ac75d2a51c82f0 236,243
+  s_f00af1d8c88a9e::t_3cc1a2e1ea86d9 144
+web-admin/src/stores/i18n.ts
+  s_f00af1d8c88a9e::t_88ba67d7077328 46
+  s_f00af1d8c88a9e::t_6436313d32a1d5 167
+web-admin/src/api/modules/oauth-provider.ts
+  s_f00af1d8c88a9e::t_a1970fad2d4334 1-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "14459c89eea622c7f62a52ca44d0d3d5c55cf566",
+  "prompts": {},
+  "sessions": {
+    "s_f00af1d8c88a9e": {
+      "agent_id": {
+        "tool": "codebuddy",
+        "id": "eaafc3a9536348a0be0c326daac2fb23",
+        "model": "step-5-preview"
+      },
+      "human_author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
