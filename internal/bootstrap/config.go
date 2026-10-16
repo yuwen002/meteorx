@@ -69,6 +69,14 @@ func LoadConfig() (*config.Config, error) {
 		{"task_reminder.interval", "METEORX_TASK_REMINDER_INTERVAL"},
 		{"task_reminder.overdue_cooldown", "METEORX_TASK_REMINDER_OVERDUE_COOLDOWN"},
 		{"task_reminder.batch_limit", "METEORX_TASK_REMINDER_BATCH_LIMIT"},
+		// AI 通用能力（ai.* 在 config.yaml 中默认注释，Unmarshal 不会对其应用 AutomaticEnv，故显式绑定以支持环境变量覆盖）
+		{"ai.enabled", "METEORX_AI_ENABLED"},
+		{"ai.base_url", "METEORX_AI_BASE_URL"},
+		{"ai.api_key", "METEORX_AI_API_KEY"},
+		{"ai.model", "METEORX_AI_MODEL"},
+		{"ai.temperature", "METEORX_AI_TEMPERATURE"},
+		{"ai.max_tokens", "METEORX_AI_MAX_TOKENS"},
+		{"ai.timeout", "METEORX_AI_TIMEOUT"},
 		// File / 云存储（cloud.* 在 config.yaml 中默认注释，Unmarshal 不会对其应用 AutomaticEnv，故显式绑定以支持环境变量覆盖）
 		{"file.storage_type", "METEORX_FILE_STORAGE_TYPE"},
 		{"file.cloud.endpoint", "METEORX_FILE_CLOUD_ENDPOINT"},

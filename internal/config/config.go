@@ -26,6 +26,7 @@ type Config struct {
 	Search       SearchConfig       `mapstructure:"search"`
 	TaskReminder TaskReminderConfig `mapstructure:"task_reminder"`
 	Export       ExportConfig       `mapstructure:"export"`
+	AI           AIConfig           `mapstructure:"ai"`
 }
 
 // ExportConfig 数据导出模块配置。
@@ -79,6 +80,64 @@ func (c TaskReminderConfig) GetBatchLimit() int {
 	return 200
 }
 
+// AIConfig 通用 AI 能力配置（OpenAI 兼容接口）。
+// 作为可选叠加层默认关闭：Enabled 为 false 或未配置 APIKey 时，
+// 依赖方（如任务模块）应自动降级，不影响核心业务流程。
+type AIConfig struct {
+	Enabled     bool          `mapstructure:"enabled"`     // 总开关，默认 false
+	BaseURL     string        `mapstructure:"base_url"`    // OpenAI 兼容端点基址，默认 https://api.openai.com/v1
+	APIKey      string        `mapstructure:"api_key"`     // 访问密钥（建议经 METEORX_AI_API_KEY 注入）
+	Model       string        `mapstructure:"model"`       // 默认模型，默认 gpt-4o-mini
+	Temperature float64       `mapstructure:"temperature"` // 采样温度，负值回落默认 0.2（0 为合法值，表示确定性输出）
+	MaxTokens   int           `mapstructure:"max_tokens"`  // 单次补全最大 token，默认 512
+	Timeout     time.Duration `mapstructure:"timeout"`     // 上游调用超时，默认 20s
+}
+
+// IsUsable 是否具备发起真实调用的条件：已启用且配置了非空 API Key。
+func (c AIConfig) IsUsable() bool {
+	return c.Enabled && strings.TrimSpace(c.APIKey) != ""
+}
+
+// GetBaseURL 返回端点基址，未配置时默认 https://api.openai.com/v1。
+func (c AIConfig) GetBaseURL() string {
+	if strings.TrimSpace(c.BaseURL) == "" {
+		return "https://api.openai.com/v1"
+	}
+	return strings.TrimSpace(c.BaseURL)
+}
+
+// GetModel 返回默认模型名，未配置时默认 gpt-4o-mini。
+func (c AIConfig) GetModel() string {
+	if strings.TrimSpace(c.Model) == "" {
+		return "gpt-4o-mini"
+	}
+	return strings.TrimSpace(c.Model)
+}
+
+// GetTemperature 返回采样温度，仅在负值时回落默认 0.2（0 为合法确定性取值，不覆盖）。
+func (c AIConfig) GetTemperature() float64 {
+	if c.Temperature < 0 {
+		return 0.2
+	}
+	return c.Temperature
+}
+
+// GetMaxTokens 返回单次补全最大 token，未配置（<=0）时默认 512。
+func (c AIConfig) GetMaxTokens() int {
+	if c.MaxTokens <= 0 {
+		return 512
+	}
+	return c.MaxTokens
+}
+
+// GetTimeout 返回上游调用超时，未配置（<=0）时默认 20s。
+func (c AIConfig) GetTimeout() time.Duration {
+	if c.Timeout <= 0 {
+		return 20 * time.Second
+	}
+	return c.Timeout
+}
+
 // SearchConfig 全文检索引擎配置
 type SearchConfig struct {
 	// Provider 搜索引擎类型：meilisearch / none
@@ -126,17 +185,17 @@ type OTelConfig struct {
 
 // OAuthConfig OAuth2 登录配置
 type OAuthConfig struct {
-	Google          OAuthProviderConfig `mapstructure:"google"`
-	GitHub          OAuthProviderConfig `mapstructure:"github"`
-	WeChat          OAuthProviderConfig `mapstructure:"wechat"`
-	Feishu          OAuthProviderConfig `mapstructure:"feishu"`
-	DingTalk        OAuthProviderConfig `mapstructure:"dingtalk"`
-	QQ              OAuthProviderConfig `mapstructure:"qq"`
-	Microsoft       MicrosoftOAuthConfig `mapstructure:"microsoft"`
+	Google          OAuthProviderConfig           `mapstructure:"google"`
+	GitHub          OAuthProviderConfig           `mapstructure:"github"`
+	WeChat          OAuthProviderConfig           `mapstructure:"wechat"`
+	Feishu          OAuthProviderConfig           `mapstructure:"feishu"`
+	DingTalk        OAuthProviderConfig           `mapstructure:"dingtalk"`
+	QQ              OAuthProviderConfig           `mapstructure:"qq"`
+	Microsoft       MicrosoftOAuthConfig          `mapstructure:"microsoft"`
 	OIDC            map[string]OIDCProviderConfig `mapstructure:"oidc"`
-	SecretKey       string    `mapstructure:"secret_key"` // OAuth 凭据加密主密钥（base64，32 字节）；DB 运行时配置的 client_secret 以此加密存储
-	RefreshTokenTTL time.Duration       `mapstructure:"refresh_token_ttl"`
-	StateTTL        time.Duration       `mapstructure:"state_ttl"`
+	SecretKey       string                        `mapstructure:"secret_key"` // OAuth 凭据加密主密钥（base64，32 字节）；DB 运行时配置的 client_secret 以此加密存储
+	RefreshTokenTTL time.Duration                 `mapstructure:"refresh_token_ttl"`
+	StateTTL        time.Duration                 `mapstructure:"state_ttl"`
 }
 
 // HasSecretKey 是否配置了 OAuth 凭据加密主密钥。
@@ -157,15 +216,15 @@ type MicrosoftOAuthConfig struct {
 // OIDCProviderConfig 通用企业 OIDC 提供商配置，可对接任意标准 OIDC IdP。
 // map 的 key 即 provider 标识（如 "oidc_acme"），会写入绑定表与下游传参。
 type OIDCProviderConfig struct {
-	Enabled       bool     `mapstructure:"enabled"`
-	DisplayName   string   `mapstructure:"display_name"` // 展示名，如 "Acme SSO"
-	ClientID      string   `mapstructure:"client_id"`
-	ClientSecret  string   `mapstructure:"client_secret"`
-	RedirectURL   string   `mapstructure:"redirect_url"`
-	AuthURL       string   `mapstructure:"auth_url"`    // 授权端点
-	TokenURL      string   `mapstructure:"token_url"`   // 令牌端点
-	UserInfoURL   string   `mapstructure:"userinfo_url"` // 用户信息端点
-	Scopes        []string `mapstructure:"scopes"`       // 授权范围，如 ["openid","email","profile"]
+	Enabled      bool     `mapstructure:"enabled"`
+	DisplayName  string   `mapstructure:"display_name"` // 展示名，如 "Acme SSO"
+	ClientID     string   `mapstructure:"client_id"`
+	ClientSecret string   `mapstructure:"client_secret"`
+	RedirectURL  string   `mapstructure:"redirect_url"`
+	AuthURL      string   `mapstructure:"auth_url"`     // 授权端点
+	TokenURL     string   `mapstructure:"token_url"`    // 令牌端点
+	UserInfoURL  string   `mapstructure:"userinfo_url"` // 用户信息端点
+	Scopes       []string `mapstructure:"scopes"`       // 授权范围，如 ["openid","email","profile"]
 }
 
 // GetRefreshTokenTTL 返回刷新令牌有效期，未配置时默认 7 天

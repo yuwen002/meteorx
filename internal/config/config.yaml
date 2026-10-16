@@ -214,6 +214,19 @@ export:
   batch_size: 1000           # CSV 流式分批写出阈值（行），默认 1000
   max_active_jobs: 10        # 单租户未完结（pending/running）导出任务数上限，达到后新建返回 429，默认 10
 
+# 通用 AI 能力配置（OpenAI 兼容接口，任务模块等作为可选叠加层调用）
+# 默认关闭：enabled=false 或未配置 api_key 时，相关 AI 端点返回 503、前端按钮自动禁用，
+# 任务等核心业务流程不受任何影响。各字段均可经环境变量覆盖，详见 .env.example。
+# 生成密钥：仅支持兼容 OpenAI /chat/completions 协议的端点（含自建网关）。
+# ai:
+#   enabled: false             # 总开关，默认 false
+#   base_url: ""               # OpenAI 兼容端点基址，留空默认 https://api.openai.com/v1
+#   api_key: ""                # 访问密钥（建议经 METEORX_AI_API_KEY 注入，勿明文提交）
+#   model: ""                  # 默认模型，留空默认 gpt-4o-mini
+#   temperature: -1            # 采样温度，负值回落默认 0.2（0 为合法确定性取值）
+#   max_tokens: 0             # 单次补全最大 token，<=0 回落默认 512
+#   timeout: 20s               # 上游调用超时，<=0 回落默认 20s
+
 # WebSocket 实时推送配置
 ws:
   enabled: true
