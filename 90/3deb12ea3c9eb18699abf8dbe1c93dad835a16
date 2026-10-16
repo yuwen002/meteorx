@@ -1,0 +1,20 @@
+web-admin/src/views/task/index.vue
+  s_f00af1d8c88a9e::t_a1bc82b5cc130c 601-704,707
+  s_f00af1d8c88a9e::t_c259cf18a17345 274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "903deb12ea3c9eb18699abf8dbe1c93dad835a16",
+  "prompts": {},
+  "sessions": {
+    "s_f00af1d8c88a9e": {
+      "agent_id": {
+        "tool": "codebuddy",
+        "id": "eaafc3a9536348a0be0c326daac2fb23",
+        "model": "hy3"
+      },
+      "human_author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
