@@ -7,7 +7,8 @@
 
 ## [Unreleased]
 
-_暂无待发布的变更。_
+### 新增
+- **任务模块 AI 能力（可选叠加层 + OpenAI 兼容 + 自动降级）**：新增通用 AI 抽象层 `internal/ai`（`Provider` 接口 + OpenAI 兼容 `Client`，`POST {base_url}/chat/completions`、Bearer 鉴权、带超时、`JSONMode` 置 `response_format=json_object`、限读 2MB、非 2xx 包装错误不外泄上游细节；`Usable()` + 哨兵 `ErrDisabled` 作为降级点），可跨模块复用。任务模块叠加四类只读/草稿能力：自然语言建任务（`ParseDraft` 注入当前时间以正确解析「下周五/三天后」等相对日期）、任务摘要/周报（按 `scope=today/week/overdue/all` + 归属过滤读任务后汇总，无任务短路不空跑模型）、优先级/标签建议、描述扩写/拆解；均为附加能力、**不直接写库**，用户确认后走原有创建/更新。新增 5 个端点 `GET /api/v1/tasks/ai/capabilities`、`POST /api/v1/tasks/ai/{parse,suggest,expand,summary}` 挂在既有**受保护** `/tasks` 分组内（需登录、**无新 RBAC 权限码**，静态段先于 `/{id}` 注册）；降级映射 `ErrAIUnavailable`→503、`ErrAIRuntime`→502、校验失败 400，任务 CRUD 永不依赖 AI。配置来源为**静态 config.yaml + 环境变量**（`ai` 段默认 `enabled: false`，getter 零值回落默认 `base_url=https://api.openai.com/v1`/`model=gpt-4o-mini`/`max_tokens=512`/`timeout=20s`，`temperature` 仅负值回落 0.2），`bootstrap` 显式 `BindEnv` 7 条 `ai.* → METEORX_AI_*`，`.env.example` 追加对应变量。前端新增 `api/modules/task-ai.ts`（零新依赖）与 `views/task/index.vue` 接入：新建态「AI 解析」预填、优先级旁「AI 建议」（同时回填标签）、描述旁「AI 扩写/拆解」、工具栏「AI 摘要」对话框；`onMounted` 拉 `getAICapabilities` 门控，`enabled=false` 时按钮禁用并 tooltip 说明，503/502 走既有 toast 不阻断手动填写。补 `internal/ai/openai_test.go`（httptest 正常/非 2xx/`!Usable`→`ErrDisabled`）、`task/service/task_ai_service_test.go`（stub `Provider` 覆盖四类能力与降级、坏 JSON→`ErrAIRuntime`，`now` 作固定入参不随真实时钟翻转）与前端 `task-ai.test.ts`（6 例）
 
 ## [1.3.0] - 2026-10-16
 

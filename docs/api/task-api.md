@@ -47,6 +47,11 @@
 | POST | `/tasks/batch/delete` | 批量删除任务（软删除） |
 | POST | `/tasks/batch/status` | 批量修改任务状态 |
 | POST | `/tasks/batch/assign` | 批量指派负责人 |
+| GET | `/tasks/ai/capabilities` | 探测 AI 能力可用性（可选叠加层，详见第 8 节） |
+| POST | `/tasks/ai/parse` | 自然语言解析为任务草稿 |
+| POST | `/tasks/ai/suggest` | 优先级/标签建议 |
+| POST | `/tasks/ai/expand` | 描述扩写/拆解 |
+| POST | `/tasks/ai/summary` | 任务摘要/周报 |
 
 > 路由注册顺序上静态段（`/stats`、`/deleted`、`/batch/*`）必须先于 `/{id}`，避免路径参数吞掉静态段。
 
@@ -721,7 +726,80 @@
 
 ---
 
-## 8. 错误响应约定
+## 8. AI 辅助接口（可选叠加层）
+
+> Handler：`internal/modules/task/handler/task_ai_handler.go`  
+> Service：`internal/modules/task/service/task_ai_service.go`  
+> DTO：`internal/modules/task/dto/task_ai_dto.go`  
+> 通用 AI 抽象层：`internal/ai/`（OpenAI 兼容）
+
+AI 能力为**默认关闭的可选叠加层**：走 OpenAI 兼容接口，由配置 `ai`（`METEORX_AI_*`）控制；配置缺失或调用失败时**自动降级**，任务 CRUD 永不依赖 AI。所有 AI 端点均为**只读/草稿**能力，本身不写库，解析结果由用户确认后再走原有创建/更新流程。端点同挂受保护 `/tasks` 分组（需登录、无新权限码），静态段 `/ai/*` 先于 `/{id}` 注册。
+
+| 方法 | 路径 | 功能 |
+|------|------|------|
+| GET | `/tasks/ai/capabilities` | 探测 AI 可用性与默认模型（供前端门控按钮） |
+| POST | `/tasks/ai/parse` | 自然语言解析为任务草稿 |
+| POST | `/tasks/ai/suggest` | 优先级/标签建议 |
+| POST | `/tasks/ai/expand` | 描述扩写/拆解 |
+| POST | `/tasks/ai/summary` | 任务摘要/周报 |
+
+**降级约定**：`ErrAIUnavailable`（未启用/无凭据）返回 `503 AI 能力未启用`；`ErrAIRuntime`（上游失败/坏响应）返回 `502 AI 服务暂不可用，请稍后重试`；校验失败 `400`。
+
+### 8.1 探测能力
+
+`GET /api/v1/tasks/ai/capabilities` — 无需请求体。
+
+**成功响应（200）：**
+```json
+{ "code": 200, "message": "success", "data": { "enabled": false, "model": "gpt-4o-mini" } }
+```
+
+### 8.2 自然语言建任务
+
+`POST /api/v1/tasks/ai/parse`
+
+**请求体：** `{ "text": "下周五前高优先级写完周报并加标签 运营" }`（`text` 必填，max=500）
+
+**成功响应（200）——任务草稿（对齐创建表单，供预填）：**
+```json
+{
+  "code": 200, "message": "success",
+  "data": { "title": "写周报", "priority": "high", "due_date": "2026-10-23 18:00:00", "tags": ["运营"], "recurrence": "weekly" }
+}
+```
+> 服务向模型注入当前时间以正确解析「下周五/三天后」等相对日期；`due_date` 无法确定时省略，`recurrence` 未提及为空。
+
+### 8.3 优先级/标签建议
+
+`POST /api/v1/tasks/ai/suggest` — `{ "title": "修复登录报错", "description": "线上故障" }`（`title` 必填 max=200，`description` max=2000）
+
+**响应 `data`：** `{ "priority": "urgent", "tags": ["线上", "故障"], "reason": "线上故障需优先处理" }`
+
+### 8.4 描述扩写/拆解
+
+`POST /api/v1/tasks/ai/expand` — `{ "title": "写周报", "description": "初稿" }`
+
+**响应 `data`：** `{ "description": "扩写后的完整描述", "steps": ["收集本周数据", "撰写结论"] }`
+
+### 8.5 任务摘要/周报
+
+`POST /api/v1/tasks/ai/summary` — `{ "scope": "week" }`（`scope` 可选：`today`/`week`/`overdue`/`all`，缺省 `all`；请求体须为 JSON 对象，`{}` 表示默认）
+
+服务按 `scope` + 数据归属读取当前用户任务后交给模型汇总；无任务时短路返回「暂无任务」，不调用模型。
+
+**响应 `data`：**
+```json
+{
+  "text": "本周共 8 项任务，已完成 5 项……",
+  "highlights": ["2 项高优先级待办"],
+  "suggested_focus": ["优先处理逾期的「合同复审」"],
+  "total": 8
+}
+```
+
+---
+
+## 9. 错误响应约定
 
 所有错误遵循全局响应结构：
 
@@ -737,7 +815,7 @@
 
 ---
 
-## 9. 说明
+## 10. 说明
 
 - 本模块**不需要单独配置权限码**：任何已登录用户均可直接使用，靠数据归属实现隔离。
 - 任务表 `tasks` 随应用启动自动迁移（非关键迁移项），使用软删除。

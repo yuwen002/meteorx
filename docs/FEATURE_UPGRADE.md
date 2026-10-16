@@ -1308,3 +1308,42 @@ client:
 | 日常新增/调整 provider | 后台「第三方登录」页面操作，即时生效，无需重启 |
 | 轮换 client_secret | 编辑时填写新值保存；留空表示不变 |
 | 彻底改用 config.yaml | 删除 DB 中对应配置即可回落（表非空不会再次种子化） |
+
+## 三十六、任务模块 AI 能力（可选叠加层 + OpenAI 兼容 + 自动降级）
+
+为任务模块叠加四类 AI 辅助能力：**自然语言建任务、任务摘要/周报、优先级/标签建议、描述扩写/拆解**。定位为**可选叠加层、默认关闭**——走 OpenAI 兼容接口，配置缺失或调用失败**自动降级**，任务 CRUD 永不依赖 AI。
+
+### 36.1 通用 AI 抽象层 `internal/ai/`（跨模块可复用）
+- `provider.go`：定义 `Message{Role,Content}`、`ChatRequest{Model,Messages,Temperature,MaxTokens,JSONMode}`、`ChatResponse{Content,Model}` 与 `Provider` 接口（`Chat(ctx, ChatRequest) (ChatResponse, error)`）。
+- `openai.go`：OpenAI 兼容实现——`POST {base_url}/chat/completions`、`Authorization: Bearer {api_key}`、带超时的 `net/http`；`JSONMode` 时置 `response_format={"type":"json_object"}`；响应体 `io.LimitReader` 限读 2MB；非 2xx 解析上游 `error.message` 包装为错误、**不外泄上游细节**。
+- `client.go`：`Client` 实现 `Provider`，含 `Usable()`（Enabled 且 APIKey 非空）、`Enabled()`、`Model()` 与哨兵错误 `ErrDisabled`；`New(cfg config.AIConfig)` 按 getter 回落默认。`Chat` 在 `!Usable()` 时直接返回 `ErrDisabled`（**降级点**）。
+- 配置来源为**静态 config.yaml + 环境变量**（非 DB 热更新）：`Provider` 接口保留可插拔性，但无需 §35 式 registry/热重载（配置静态，避免过度设计）。
+
+### 36.2 配置 `internal/config`
+- `config.go`：`Config` 增 `AI AIConfig`（`mapstructure:"ai"`）；`AIConfig{Enabled,BaseURL,APIKey,Model,Temperature,MaxTokens,Timeout}`；getter 零值回落默认（`base_url=https://api.openai.com/v1`、`model=gpt-4o-mini`、`max_tokens=512`、`timeout=20s`；`temperature` 仅负值回落 0.2，0 为合法确定性值）；`IsUsable()=Enabled && trim(APIKey)!=""`。
+- `config.yaml`：新增默认注释的 `ai:` 段（`enabled: false`）；`.env.example` 追加 `METEORX_AI_ENABLED/BASE_URL/API_KEY/MODEL/TEMPERATURE/MAX_TOKENS/TIMEOUT`。
+- `bootstrap/config.go`：`envBindings` 增 7 条 `ai.* → METEORX_AI_*`（因 config.yaml 中该段为注释项，`Unmarshal` 不应用 `AutomaticEnv`，须显式 `BindEnv`）。
+
+### 36.3 装配与路由
+- `bootstrap/router.go`：`task.InitModule(r, db, cfg.AI)`。
+- `task/module.go`：构造 `ai.New(aiCfg)` → `service.NewTaskAIService(aiClient, repo)` → `handler.NewTaskAIHandler(aiSvc)`；`/ai/*` 挂在既有**受保护** `/tasks` 分组内（需登录，无新 RBAC 权限码），静态段先于 `/{id}` 注册：
+  - `GET  /api/v1/tasks/ai/capabilities`、`POST /api/v1/tasks/ai/parse|suggest|expand|summary`。
+
+### 36.4 AI 服务 `service/task_ai_service.go`
+- `TaskAIService` 依赖 `aiProvider` 接口（便于 stub 测试）+ `repository.TaskRepository`（摘要只读用户任务）。
+- 四类能力统一：`!Usable()` → `ErrAIUnavailable`；构造任务专属 prompt（`ParseDraft` 注入 `now` 以正确解析「下周五/三天后」等相对日期）；`JSONMode` 调用；`json.Unmarshal` + 归一化（非法枚举回落）；解析失败 → `ErrAIRuntime`，**绝不写库/panic**。
+- `Summarize` 按 `scope=today/week/overdue/all` + 归属过滤取任务（Page1/PageSize100），无任务时短路返回「暂无任务」，不空跑模型。
+- 错误：`ErrAIUnavailable`（未启用/降级）、`ErrAIRuntime`（上游失败/坏响应）。
+
+### 36.5 DTO 与 Handler
+- `dto/task_ai_dto.go`：`ParseTaskReq{Text max=500}`、`TaskDraftResp{Title,Priority,DueDate,Tags,Recurrence}`（对齐 `CreateTaskReq` 便于预填，不含 assignee/visibility 敏感项）；`SuggestReq/Resp`、`ExpandReq/Resp`、`SummaryReq{Scope oneof=today week overdue all}/Resp{Text,Highlights,SuggestedFocus,Total}`、`AICapabilityResp{Enabled,Model}`（JSON 字段下划线命名）。
+- `handler/task_ai_handler.go`：复用 `currentIdentity(r)` 与 `validator.ValidateJSON`；错误映射 `ErrAIUnavailable`→**503**「AI 能力未启用」、`ErrAIRuntime`→**502**「AI 服务暂不可用，请稍后重试」、校验失败 400、成功 `response.Success`。
+
+### 36.6 前端 `web-admin/`
+- 新增 `src/api/modules/task-ai.ts`（复用 `@/api/request`，零新依赖）：`getAICapabilities/parseTaskByNL/suggestTaskFields/expandTaskDescription/summarizeTasks`。
+- `src/views/task/index.vue`：新建/编辑对话框接入——①新建态「AI 解析」输入 → 预填表单；②优先级旁「AI 建议」（同时回填标签）；③描述旁「AI 扩写/拆解」；④工具栏「AI 摘要」对话框（范围切换 + 正文/重点/优先处理建议）。所有入口以 `onMounted` 拉 `getAICapabilities` 门控：`enabled=false` 时按钮禁用并 tooltip 说明；503/502 走既有 toast，不阻断手动填写。
+
+### 36.7 验证状态
+- ✅ `go build ./...`；`go test ./internal/ai/... ./internal/modules/task/...` 全绿（`openai_test.go`：httptest 正常/非 2xx/`!Usable`→`ErrDisabled`；`task_ai_service_test.go`：stub `Provider` 覆盖四类能力与降级、坏 JSON→`ErrAIRuntime`，`now` 作固定入参不随真实时钟翻转）。
+- ✅ 前端 `npm run build`、`npm run lint`、`npm run test`（含 `task-ai.test.ts` 6 例）全绿。
+- 手工：`ai.enabled=false` 时 capabilities 返回 disabled、端点 503、前端按钮禁用；配好 key 后四类调用返回合理结果；上游超时/坏响应返回 502 且不影响手动创建任务。
