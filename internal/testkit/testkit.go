@@ -32,7 +32,8 @@ type TestApp struct {
 	TokenHelper *jwt.TokenHelper
 	Cfg         *config.Config
 
-	mr   *miniredis.Miniredis
+	// MR 是内嵌的 miniredis 实例，供测试断言 Redis 键状态（如登出黑名单）。
+	MR   *miniredis.Miniredis
 	stop context.CancelFunc
 }
 
@@ -60,7 +61,7 @@ func NewTestApp(t *testing.T) *TestApp {
 			Issuer:     "meteorx-test",
 		},
 		OAuth: config.OAuthConfig{
-			SecretKey: "oauth-test-secret-key-0000000000ab", // 32 字节，用于 client_secret 加密
+			SecretKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=", // base64(32 bytes)，用于 client_secret 加密
 		},
 		Client: config.ClientConfig{BaseURL: "http://localhost:3000"},
 		Security: config.SecurityConfig{
@@ -81,7 +82,7 @@ func NewTestApp(t *testing.T) *TestApp {
 		DB:          db,
 		TokenHelper: jwt.NewTokenHelper(cfg.JWT),
 		Cfg:         cfg,
-		mr:          mr,
+		MR:          mr,
 		stop:        stop,
 	}
 }

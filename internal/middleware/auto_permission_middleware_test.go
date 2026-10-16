@@ -161,6 +161,41 @@ func buildTestRouter() *chi.Mux {
 			r.Get("/search", noop)
 			r.Get("/stats", noop)
 		})
+
+		// 文件管理路由（受保护，AutoRequirePermission）
+		r.Route("/files", func(r chi.Router) {
+			r.Post("/upload", noop)
+			r.Get("/", noop)
+			r.Get("/my", noop)
+			r.Get("/deleted", noop)
+			r.Get("/{id}", noop)
+			r.Get("/{id}/download", noop)
+			r.Put("/{id}", noop)
+			r.Delete("/{id}", noop)
+			r.Post("/batch/delete", noop)
+			r.Put("/{id}/restore", noop)
+			r.Delete("/{id}/permanent", noop)
+		})
+
+		// 数据导出路由（受保护，AutoRequirePermission）
+		r.Route("/exports", func(r chi.Router) {
+			r.Get("/", noop)
+			r.Post("/", noop)
+			r.Get("/{id}", noop)
+			r.Get("/{id}/download", noop)
+			r.Delete("/{id}", noop)
+		})
+
+		// 邀请路由（受保护，AutoRequirePermission）
+		r.Route("/invitations", func(r chi.Router) {
+			r.Get("/", noop)
+			r.Post("/", noop)
+			r.Post("/batch", noop)
+			r.Get("/roles", noop)
+			r.Put("/{id}/cancel", noop)
+			r.Put("/{id}/resend", noop)
+			r.Delete("/{id}/delete", noop)
+		})
 	})
 	return r
 }
@@ -420,10 +455,82 @@ func TestDerivePermissionCode_Wiki(t *testing.T) {
 	}
 }
 
+// TestDerivePermissionCode_File 锁定文件模块权限码推导：必须与 permissions.go 播种的单数码一致
+// （file:list / file:upload / file:download ...），避免复数化导致非超管用户被误 403。
+func TestDerivePermissionCode_File(t *testing.T) {
+	r := buildTestRouter()
+
+	cases := []testCase{
+		{"file list", http.MethodGet, "/api/v1/files", "file:list"},
+		{"file upload", http.MethodPost, "/api/v1/files/upload", "file:upload"},
+		{"file read", http.MethodGet, "/api/v1/files/{id}", "file:read"},
+		{"file download", http.MethodGet, "/api/v1/files/{id}/download", "file:download"},
+		{"file update", http.MethodPut, "/api/v1/files/{id}", "file:update"},
+		{"file delete", http.MethodDelete, "/api/v1/files/{id}", "file:delete"},
+		{"file list_deleted", http.MethodGet, "/api/v1/files/deleted", "file:list_deleted"},
+		{"file restore", http.MethodPut, "/api/v1/files/{id}/restore", "file:restore"},
+		{"file permanent_delete", http.MethodDelete, "/api/v1/files/{id}/permanent", "file:permanent_delete"},
+		{"file batch_delete", http.MethodPost, "/api/v1/files/batch/delete", "file:batch_delete"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := doRequest(r, c.method, c.path)
+			if got != c.want {
+				t.Errorf("derivePermissionCode(%s %s) = %q, want %q", c.method, c.path, got, c.want)
+			}
+		})
+	}
+}
+
+// TestDerivePermissionCode_Export 锁定导出模块权限码推导：单数 export:* 与文档/前端一致。
+func TestDerivePermissionCode_Export(t *testing.T) {
+	r := buildTestRouter()
+
+	cases := []testCase{
+		{"export list", http.MethodGet, "/api/v1/exports", "export:list"},
+		{"export create", http.MethodPost, "/api/v1/exports", "export:create"},
+		{"export read", http.MethodGet, "/api/v1/exports/{id}", "export:read"},
+		{"export download", http.MethodGet, "/api/v1/exports/{id}/download", "export:download"},
+		{"export delete", http.MethodDelete, "/api/v1/exports/{id}", "export:delete"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := doRequest(r, c.method, c.path)
+			if got != c.want {
+				t.Errorf("derivePermissionCode(%s %s) = %q, want %q", c.method, c.path, got, c.want)
+			}
+		})
+	}
+}
+
+// TestDerivePermissionCode_Invitation 锁定邀请模块权限码推导：单数 invitation:* 与 handler 约定一致。
+func TestDerivePermissionCode_Invitation(t *testing.T) {
+	r := buildTestRouter()
+
+	cases := []testCase{
+		{"invitation list", http.MethodGet, "/api/v1/invitations", "invitation:list"},
+		{"invitation create", http.MethodPost, "/api/v1/invitations", "invitation:create"},
+		{"invitation batch", http.MethodPost, "/api/v1/invitations/batch", "invitation:create"},
+		{"invitation roles", http.MethodGet, "/api/v1/invitations/roles", "invitation:get_roles"},
+		{"invitation cancel", http.MethodPut, "/api/v1/invitations/{id}/cancel", "invitation:update"},
+		{"invitation delete", http.MethodDelete, "/api/v1/invitations/{id}/delete", "invitation:delete"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := doRequest(r, c.method, c.path)
+			if got != c.want {
+				t.Errorf("derivePermissionCode(%s %s) = %q, want %q", c.method, c.path, got, c.want)
+			}
+		})
+	}
+}
+
 // doRequest 执行一次请求，返回中间件捕获的权限码
 // 中间件将 derivePermissionCode 结果写入响应头 X-Derived-Perm
 func doRequest(r *chi.Mux, method, path string) string {
-	// 在顶层路由挂一个写 header 的中间件
 	// 重新包装 router：通过拦截 ServeHTTP 调用
 	// 更简单的方式：用一个闭包包裹每个 handler 写 header
 	// 这里选择在 capturePermMiddleware 中写 header

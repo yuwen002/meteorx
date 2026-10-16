@@ -1,12 +1,15 @@
 package integration
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"mime/multipart"
 	"net/http/httptest"
 	"testing"
+	"net/textproto"
 
 	rbacModel "meteorx/internal/modules/rbac/model"
-
 	"meteorx/internal/testkit"
 
 	"github.com/stretchr/testify/require"
@@ -23,8 +26,7 @@ func seedTenantAdminRole(t *testing.T, db *gorm.DB) {
 	}
 }
 
-// grantPermissionToUser 为用户在指定租户下绑定一个含目标权限码的角色（绕过 API，直接落库），
-// 用于端到端验证 AutoRequirePermission 是否真正按数据库权限码放行/拦截。
+// grantPermissionToUser 为用户在指定租户下绑定一个含目标权限码的角色（绕过 API，直接落库）。
 // 权限/角色可能已由种子数据预置，故存在则复用其 ID，仅在缺失时新建。
 func grantPermissionToUser(t *testing.T, db *gorm.DB, userID, tenantID, permCode string) {
 	var perm rbacModel.Permission
@@ -40,8 +42,17 @@ func grantPermissionToUser(t *testing.T, db *gorm.DB, userID, tenantID, permCode
 		require.NoError(t, db.Create(&role).Error)
 	}
 
-	require.NoError(t, db.Create(&rbacModel.RolePermission{RoleID: role.ID, PermissionID: perm.ID}).Error)
-	require.NoError(t, db.Create(&rbacModel.UserRole{UserID: userID, RoleID: role.ID}).Error)
+	require.NoError(t, db.Where(rbacModel.RolePermission{RoleID: role.ID, PermissionID: perm.ID}).
+		FirstOrCreate(&rbacModel.RolePermission{RoleID: role.ID, PermissionID: perm.ID}).Error)
+	require.NoError(t, db.Where(rbacModel.UserRole{UserID: userID, RoleID: role.ID}).
+		FirstOrCreate(&rbacModel.UserRole{UserID: userID, RoleID: role.ID}).Error)
+}
+
+// grantPermissions 批量授予用户多个权限码（每个码绑定一个角色，用户权限取其并集）。
+func grantPermissions(t *testing.T, db *gorm.DB, userID, tenantID string, codes ...string) {
+	for _, c := range codes {
+		grantPermissionToUser(t, db, userID, tenantID, c)
+	}
 }
 
 // ensureTenant 通过后台 API 创建一个启用状态的租户并返回其 ID（供 plan/tenant 等测试复用）。
@@ -72,4 +83,41 @@ func decodeID(t *testing.T, w *httptest.ResponseRecorder) string {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
 	require.NotEmpty(t, out.Data.ID)
 	return out.Data.ID
+}
+
+// decodeToken 从登录/创建响应体 data.token 取出令牌。
+func decodeToken(t *testing.T, w *httptest.ResponseRecorder) string {
+	t.Helper()
+	var out struct {
+		Data struct {
+			Token string `json:"token"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
+	require.NotEmpty(t, out.Data.Token)
+	return out.Data.Token
+}
+
+// doMultipart 构造带指定 Content-Type 的 multipart 上传请求并驱动完整路由。
+func doMultipart(t *testing.T, app *testkit.TestApp, method, path, field, filename, contentType string, content []byte, auth string) *httptest.ResponseRecorder {
+	t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, field, filename))
+	h.Set("Content-Type", contentType)
+	fw, err := mw.CreatePart(h)
+	require.NoError(t, err)
+	_, err = fw.Write(content)
+	require.NoError(t, err)
+	require.NoError(t, mw.Close())
+
+	req := httptest.NewRequest(method, path, &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	if auth != "" {
+		req.Header.Set("Authorization", auth)
+	}
+	w := httptest.NewRecorder()
+	app.Router.ServeHTTP(w, req)
+	return w
 }
