@@ -1,0 +1,26 @@
+internal/middleware/auto_permission_middleware.go
+  s_f00af1d8c88a9e::t_e7cc106a8b1f93 307-320
+  s_f00af1d8c88a9e::t_accb34d37761e4 249-250
+  s_f00af1d8c88a9e::t_51f879bfa114c8 245-248
+internal/modules/auth/repository/api_token_repository.go
+  s_f00af1d8c88a9e::t_5ba49fdaabf35a 6,57,59,72,74
+internal/modules/wiki/repository/wiki_repository.go
+  s_f00af1d8c88a9e::t_01fce28db2e57f 318,323-325
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "c81689bd9bbf0be9912039156fe1ab50a6cadd78",
+  "prompts": {},
+  "sessions": {
+    "s_f00af1d8c88a9e": {
+      "agent_id": {
+        "tool": "codebuddy",
+        "id": "eaafc3a9536348a0be0c326daac2fb23",
+        "model": "step-5-preview"
+      },
+      "human_author": "liuxingyu <yuwen002@163.com>",
+      "generated_lines": 881
+    }
+  }
+}
