@@ -1,0 +1,89 @@
+internal/modules/oauth/model/oauth_provider.go
+  s_f00af1d8c88a9e::t_462df547b4695e 1-62
+internal/middleware/auto_permission_middleware.go
+  s_f00af1d8c88a9e::t_ce4595e26f8450 249-250
+internal/modules/oauth/service/oauth_provider_service_test.go
+  s_f00af1d8c88a9e::t_f4a9af26a38d81 1-25,27-318
+  s_f00af1d8c88a9e::t_1b7fbd1e5b9106 26
+internal/modules/oauth/module.go
+  s_f00af1d8c88a9e::t_d5c70a85185019 5-7,14,20,23,43-45,61,66,70-139
+  s_f00af1d8c88a9e::t_9e2cc74a56f587 32-34
+  s_f00af1d8c88a9e::t_f64a40b34a0d88 67-69
+internal/bootstrap/router.go
+  s_f00af1d8c88a9e::t_02065543115165 235-237
+internal/modules/oauth/service/provider.go
+  s_f00af1d8c88a9e::t_3300464cb3fae1 420
+  s_f00af1d8c88a9e::t_2605f4022b0692 12
+  s_f00af1d8c88a9e::t_79aaf7ab0b47a3 50-51
+  s_f00af1d8c88a9e::t_1c2415a0930a5a 217-313,315,317,319,322-340,342-343,348-350,352-383,389-396,398,403-404,411-412,415-419,422,427-437
+internal/modules/oauth/handler/oauth_provider_handler_test.go
+  s_f00af1d8c88a9e::t_063a15d6a8145f 1-214
+internal/modules/oauth/dto/oauth_dto.go
+  s_f00af1d8c88a9e::t_6ebbe9c283c87a 114-115,117
+  s_f00af1d8c88a9e::t_3981493256dd8e 97-113,116,118-143
+internal/modules/oauth/service/oauth_provider_service.go
+  s_f00af1d8c88a9e::t_a6b8103b8f3c58 1-12,14-28,33-44,46-47,52-89,98-100,103-421
+  s_f00af1d8c88a9e::t_8a506a04e35f01 13
+  s_f00af1d8c88a9e::t_b94aa188fb12f2 91-97
+  s_f00af1d8c88a9e::t_29afe813fecb12 30-31
+  s_f00af1d8c88a9e::t_a5e7d84cc06b9f 45,48-51
+  s_f00af1d8c88a9e::t_b6b3ef268c9961 101-102
+internal/modules/oauth/handler/oauth_provider_handler.go
+  s_f00af1d8c88a9e::t_d9331e8ca16148 130-131
+  s_f00af1d8c88a9e::t_0194764bb5a745 1-4,6-129,132-156
+  s_f00af1d8c88a9e::t_27d2a9ff2a23e3 5
+internal/bootstrap/config.go
+  s_f00af1d8c88a9e::t_44b53492896b3e 64
+internal/modules/oauth/routes.go
+  s_f00af1d8c88a9e::t_557fe20a3ee11f 27-40
+  s_f00af1d8c88a9e::t_ba80eb7a08d37b 4
+internal/modules/oauth/service/oauth_service.go
+  s_f00af1d8c88a9e::t_86ea82d41bc128 45-46,57-58,69-70,75-76
+  s_f00af1d8c88a9e::t_f617c35365e960 22
+internal/modules/oauth/service/wechat.go
+  s_f00af1d8c88a9e::t_4b0fc3a773bf06 19,26,28-32
+internal/modules/rbac/permissions.go
+  s_f00af1d8c88a9e::t_47e8e0dc14af59 107-118
+  s_f00af1d8c88a9e::t_2eab3c5418ee1f 341-348
+internal/modules/oauth/service/dingtalk.go
+  s_f00af1d8c88a9e::t_398e41ce7a6a81 16,23,25-29
+internal/modules/oauth/service/oauth_service_test.go
+  s_f00af1d8c88a9e::t_77bf2692f766b7 14
+  s_f00af1d8c88a9e::t_07b1e701fc5847 185,188
+internal/modules/oauth/service/github.go
+  s_f00af1d8c88a9e::t_f4488b8c4aaf2e 16,23,25-29
+internal/modules/oauth/service/qq.go
+  s_f00af1d8c88a9e::t_f25b52d80aa3cc 20,27,29-33
+internal/modules/oauth/repository/oauth_provider_repository.go
+  s_f00af1d8c88a9e::t_2dc0515e633588 11
+  s_f00af1d8c88a9e::t_fe22a0f3d5f502 29,38-39,44,60,80
+  s_f00af1d8c88a9e::t_941fee458f03a0 163-182
+  s_f00af1d8c88a9e::t_86f096e33e4d8f 196-213
+  s_f00af1d8c88a9e::t_06977c3656d0be 1-10,12-28,30-35,46-59,61-79,81-91,93-101,106,121-162,183-194
+  s_f00af1d8c88a9e::t_191afde1754564 37,40-43
+  s_f00af1d8c88a9e::t_2e9dcbaa90266a 92,102-105,108-119
+internal/config/config.go
+  s_f00af1d8c88a9e::t_30bc6a925de7e5 129-137,142-147
+internal/config/config.yaml
+  s_f00af1d8c88a9e::t_8f77d93e8f1c6f 142-146
+internal/modules/oauth/service/feishu.go
+  s_f00af1d8c88a9e::t_e74c5251af9904 19,26,28-32
+internal/modules/oauth/repository/oauth_provider_repo_test.go
+  s_f00af1d8c88a9e::t_ca340d2d0eeaa8 1-147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "26.9.9",
+  "base_commit_sha": "0eb9f64326d58de6526e7bec8fe09dd3e333fad2",
+  "prompts": {},
+  "sessions": {
+    "s_f00af1d8c88a9e": {
+      "agent_id": {
+        "tool": "codebuddy",
+        "id": "eaafc3a9536348a0be0c326daac2fb23",
+        "model": "step-5-preview"
+      },
+      "human_author": "liuxingyu <yuwen002@163.com>"
+    }
+  }
+}
