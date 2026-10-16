@@ -259,8 +259,8 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 4.8 邀请管理接口（租户管理员邀请成员）
 			invitation.InitModule(r, db, *cfg)
 
-			// 4.9 任务管理接口（个人待办 + 租户团队协作，仅需登录）
-			task.InitModule(r, db)
+			// 4.9 任务管理接口（个人待办 + 租户团队协作，仅需登录）；AI 辅助为可选叠加层，由 cfg.AI 控制
+			task.InitModule(r, db, cfg.AI)
 
 			// 4.10 数据导出接口（下载中心，异步 CSV 导出）
 			export.InitModule(r, db, *cfg)
