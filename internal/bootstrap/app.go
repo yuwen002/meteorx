@@ -47,10 +47,15 @@ func StartApp() {
 		logger.Warnf("Seed data initialization failed: %v", err)
 	}
 
-	// 6. 初始化 Redis（允许降级：连接失败时继续运行，仅禁用缓存能力）
+	// 6. 初始化 Redis：release（生产）模式下连接失败直接拒绝启动——
+	// Redis 承载 token 黑名单、租户级限流等安全能力，静默降级等于关闭防线；
+	// 非 release 模式保持可降级：连接失败仅告警，禁用缓存能力后继续运行
 	redisAddr := fmt.Sprintf("%s:%d", cfg.Redis.Host, cfg.Redis.Port)
 	rdb, redisErr := cache.NewRedis(redisAddr, cfg.Redis.Password, cfg.Redis.DB)
 	if redisErr != nil {
+		if isReleaseMode(cfg.Server.Mode) {
+			logger.Fatalf("Redis connection failed in release mode, refusing to start: %v", redisErr)
+		}
 		logger.Warnf("Redis connection failed, running without cache: %v", redisErr)
 	}
 

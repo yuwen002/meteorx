@@ -217,7 +217,7 @@ main.go
     ↓
 3. 初始化数据库（连接、迁移）
     ↓
-4. 初始化 Redis（可选）
+4. 初始化 Redis（release 模式必需，其他模式可降级）
     ↓
 5. 初始化 JWT / 认证
     ↓
@@ -336,27 +336,39 @@ bootstrap.Shutdown(appCtx)
 
 ### Redis 可用性
 
-Redis 是可选的 — 没有 Redis 应用也能正常工作：
+Redis 的必需性按运行模式区分：
+
+- **release（生产）模式**：连接失败直接 `Fatal` 拒绝启动。Redis 承载 token 黑名单、租户级限流、
+  OAuth state/刷新令牌等安全相关能力，静默降级等同于关闭防线，必须显式暴露为启动失败。
+- **非 release（debug/dev/test）模式**：连接失败仅 `Warn` 告警后继续运行，相关能力自动降级，
+  便于本地无 Redis 环境开发与运行集成测试。
+
+判定统一收口在 `bootstrap.isReleaseMode`（大小写不敏感），与弱 JWT 密钥校验共用同一条件。
 
 ```go
-func InitRedis(cfg *config.Config) (*redis.Client, error) {
-    if cfg.Redis.Host == "" {
-        log.Println("Redis not configured, skipping")
-        return nil, nil  // 返回 nil，不是错误
+// internal/bootstrap/app.go
+rdb, redisErr := cache.NewRedis(redisAddr, cfg.Redis.Password, cfg.Redis.DB)
+if redisErr != nil {
+    if isReleaseMode(cfg.Server.Mode) {
+        logger.Fatalf("Redis connection failed in release mode, refusing to start: %v", redisErr)
     }
-    // ... 连接 Redis
+    logger.Warnf("Redis connection failed, running without cache: %v", redisErr)
 }
 ```
+
+降级期间各能力的行为（仅非 release 模式可达）：
 
 | 组件 | 无 Redis | 有 Redis |
 |------|----------|----------|
 | 接口限流 | 内存（仅单节点） | 分布式（多节点） |
+| 租户级限流 | fail-open 放行 | 按套餐配额限流 |
 | 权限缓存 | 每次请求查数据库 | Redis 缓存 + TTL |
-| 会话存储 | 仅 JWT | JWT + Redis 黑名单 |
+| 会话存储 | 仅 JWT（登出不生效） | JWT + Redis 黑名单 |
 | 登录锁定追踪 | 内存 | Redis 共享 |
 | OAuth CSRF state | 跳过校验（不安全） | Redis 存储 + TTL（`oauth.state_ttl`） |
 | OAuth 刷新令牌 | 不支持 | Redis 存储 + 轮转（`oauth.refresh_token_ttl`） |
 | API Token 缓存 | 降级为纯 DB 查询 | Redis 缓存加速（TTL 1h） |
+| Wiki 回收站清理 | 每副本各自执行 | 分布式锁仅一个副本执行 |
 
 ### 数据库启动失败策略
 
@@ -444,7 +456,7 @@ internal/config/
 1. **禁止**硬编码配置值 — 始终使用 config.yaml 或环境变量
 2. **始终**在启动服务之前校验配置
 3. **始终**实现优雅关闭（30 秒超时）
-4. **将**数据库视为必需，Redis 视为可选
+4. **将**数据库视为始终必需；Redis 在 release 模式必需、非 release 模式可降级
 5. **使用**针对不同环境的配置覆盖来管理生产环境
 6. **记录**启动时的配置值（但要遮盖密钥！）
 7. **保持** bootstrap 代码聚焦于生命周期，而非业务逻辑

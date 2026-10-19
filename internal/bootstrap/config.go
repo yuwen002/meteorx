@@ -118,10 +118,16 @@ func LoadConfig() (*config.Config, error) {
 	return conf, nil
 }
 
+// isReleaseMode 判断是否为生产（release）模式：忽略首尾空白与大小写（环境变量注入常带空格），
+// 统一收口启动阶段的强校验判定，供 JWT 密钥与 Redis 连接等检查复用
+func isReleaseMode(mode string) bool {
+	return strings.EqualFold(strings.TrimSpace(mode), "release")
+}
+
 // validateJWTSecret release 模式下拒绝弱 JWT 密钥，防止使用默认/占位密钥上线；
 // 非 release（debug/dev/test）仅告警提示，便于本地调试
 func validateJWTSecret(conf *config.Config) error {
-	if !strings.EqualFold(conf.Server.Mode, "release") {
+	if !isReleaseMode(conf.Server.Mode) {
 		if isWeakJWTSecret(conf.JWT.Secret) {
 			logger.Warnf("JWT secret 为默认/弱值，仅可用于本地调试；生产请通过 METEORX_JWT_SECRET 配置强随机密钥（>=32字节）")
 		}

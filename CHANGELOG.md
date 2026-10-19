@@ -10,6 +10,9 @@
 ### 新增
 - **任务模块 AI 能力（可选叠加层 + OpenAI 兼容 + 自动降级）**：新增通用 AI 抽象层 `internal/ai`（`Provider` 接口 + OpenAI 兼容 `Client`，`POST {base_url}/chat/completions`、Bearer 鉴权、带超时、`JSONMode` 置 `response_format=json_object`、限读 2MB、非 2xx 包装错误不外泄上游细节；`Usable()` + 哨兵 `ErrDisabled` 作为降级点），可跨模块复用。任务模块叠加四类只读/草稿能力：自然语言建任务（`ParseDraft` 注入当前时间以正确解析「下周五/三天后」等相对日期）、任务摘要/周报（按 `scope=today/week/overdue/all` + 归属过滤读任务后汇总，无任务短路不空跑模型）、优先级/标签建议、描述扩写/拆解；均为附加能力、**不直接写库**，用户确认后走原有创建/更新。新增 5 个端点 `GET /api/v1/tasks/ai/capabilities`、`POST /api/v1/tasks/ai/{parse,suggest,expand,summary}` 挂在既有**受保护** `/tasks` 分组内（需登录、**无新 RBAC 权限码**，静态段先于 `/{id}` 注册）；降级映射 `ErrAIUnavailable`→503、`ErrAIRuntime`→502、校验失败 400，任务 CRUD 永不依赖 AI。配置来源为**静态 config.yaml + 环境变量**（`ai` 段默认 `enabled: false`，getter 零值回落默认 `base_url=https://api.openai.com/v1`/`model=gpt-4o-mini`/`max_tokens=512`/`timeout=20s`，`temperature` 仅负值回落 0.2），`bootstrap` 显式 `BindEnv` 7 条 `ai.* → METEORX_AI_*`，`.env.example` 追加对应变量。前端新增 `api/modules/task-ai.ts`（零新依赖）与 `views/task/index.vue` 接入：新建态「AI 解析」预填、优先级旁「AI 建议」（同时回填标签）、描述旁「AI 扩写/拆解」、工具栏「AI 摘要」对话框；`onMounted` 拉 `getAICapabilities` 门控，`enabled=false` 时按钮禁用并 tooltip 说明，503/502 走既有 toast 不阻断手动填写。补 `internal/ai/openai_test.go`（httptest 正常/非 2xx/`!Usable`→`ErrDisabled`）、`task/service/task_ai_service_test.go`（stub `Provider` 覆盖四类能力与降级、坏 JSON→`ErrAIRuntime`，`now` 作固定入参不随真实时钟翻转）与前端 `task-ai.test.ts`（6 例）
 
+### 变更
+- **Redis 连接失败在 release 模式阻断启动**：原启动逻辑对 Redis 连接失败仅记 `Warn` 后降级继续运行，但 Redis 承载 token 黑名单（登出/注销失效）、租户级限流、OAuth state 与刷新令牌等安全能力，生产环境静默降级等同于关闭防线。现按运行模式分级：`isReleaseMode(cfg.Server.Mode)` 为真时连接失败直接 `Fatalf` 拒绝启动（与数据库同等对待），非 release 模式保持可降级以支持本地无 Redis 开发与集成测试（`testkit` 用 miniredis、不走 `StartApp`，不受影响）。为此将原内联的 `strings.EqualFold(conf.Server.Mode, "release")` 抽为 `bootstrap.isReleaseMode`（额外忽略首尾空白，兼容环境变量注入带空格的场景），由弱 JWT 密钥校验与 Redis 检查共用；同步更新 `docs/architecture/config.md` 的「Redis 可用性」与最佳实践口径（原「Redis 视为可选」），补 `release_mode_test.go` 覆盖模式判定与 JWT 分级校验
+
 ## [1.3.0] - 2026-10-16
 
 ### 新增
