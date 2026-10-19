@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"meteorx/internal/config"
+	"meteorx/pkg/uuid"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -67,6 +68,10 @@ func (h *TokenHelper) GenerateTokenEx(userID, tenantID string, roles []string, e
 		Roles:        roles,
 		EmailPending: emailPending,
 		RegisteredClaims: jwt.RegisteredClaims{
+			// ID(jti) 为每次签发注入随机 UUID：HS256 签名是确定性的，若仅靠整秒精度的
+			// iat/exp，同一秒内同一用户/租户/角色的两次登录会生成完全相同的 token 字符串，
+			// 导致登出写入黑名单的 token 误杀随后重登的新 token（黑名单以原始 token 串为键）。
+			ID:        uuid.Generate(),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(h.expiration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    h.issuer,

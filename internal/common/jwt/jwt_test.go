@@ -33,6 +33,26 @@ func TestGenerateAndParse_RoundTrip(t *testing.T) {
 	assert.True(t, claims.ExpiresAt.After(time.Now()))
 }
 
+func TestGenerateToken_UniquePerSigning(t *testing.T) {
+	helper := newTestHelper("2h")
+
+	// 同一秒内以完全相同的入参连续签发，因 jti 随机 nonce 兜底，token 字符串必不相同，
+	// 避免登出黑名单以原始 token 串为键时误杀随后重登的新 token。
+	first, err := helper.GenerateToken("user-1", "tenant-1", []string{"admin"})
+	assert.NoError(t, err)
+	second, err := helper.GenerateToken("user-1", "tenant-1", []string{"admin"})
+	assert.NoError(t, err)
+	assert.NotEqual(t, first, second, "同秒同参签发的 token 应因 jti 而不同")
+
+	c1, err := helper.ParseToken(first)
+	assert.NoError(t, err)
+	c2, err := helper.ParseToken(second)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, c1.ID, "jti 应被填充")
+	assert.NotEmpty(t, c2.ID)
+	assert.NotEqual(t, c1.ID, c2.ID, "两次签发的 jti 应唯一")
+}
+
 func TestParseToken_Expired(t *testing.T) {
 	helper := newTestHelper("10ms")
 	token, err := helper.GenerateToken("user-1", "tenant-1", nil)
