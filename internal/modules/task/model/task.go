@@ -127,7 +127,20 @@ func NextOccurrence(recurrence string, base time.Time) (time.Time, bool) {
 	case TaskRecurrenceWeekly:
 		return base.AddDate(0, 0, 7), true
 	case TaskRecurrenceMonthly:
-		return base.AddDate(0, 1, 0), true
+		// 直接 AddDate(0,1,0) 会规范化溢出：1/31 → “2/31” → 3/3，使月末任务跳到再下个月
+		// 且锚定日被污染（后续永久锁定在 3 号）。改为定位到目标月并按其最后一天钳制，
+		// 使 1/31 → 2/28（闰年 2/29）、3/31 → 4/30，与主流日历的“每月最后一天”语义一致。
+		y, m, d := base.Date()
+		ny, nm := y, int(m)+1
+		if nm > 12 {
+			ny, nm = ny+1, 1
+		}
+		// 目标月天数：取下下月的第 0 天即目标月最后一天（time.Date 会自动处理月份越界）
+		lastDay := time.Date(ny, time.Month(nm)+1, 0, 0, 0, 0, 0, base.Location()).Day()
+		if d > lastDay {
+			d = lastDay
+		}
+		return time.Date(ny, time.Month(nm), d, base.Hour(), base.Minute(), base.Second(), base.Nanosecond(), base.Location()), true
 	default:
 		return base, false
 	}

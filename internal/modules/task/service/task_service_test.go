@@ -873,6 +873,45 @@ func TestNextOccurrence(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// TestNextOccurrence_MonthEndClamp 锁定月末修复：1/31 之类的锚定日不得溢出到再下个月，
+// 应钳制到目标月最后一天（与主流日历“每月最后一天”语义一致）。
+func TestNextOccurrence_MonthEndClamp(t *testing.T) {
+	loc := time.Local
+	cases := []struct {
+		name  string
+		base  time.Time
+		wantY int
+		wantM time.Month
+		wantD int
+	}{
+		// 2026 非闰年：1/31 → 2/28（而非旧逻辑的 3/3）
+		{"Jan31_to_Feb28", time.Date(2026, 1, 31, 10, 30, 0, 0, loc), 2026, 2, 28},
+		// 闰年：2028 1/31 → 2/29
+		{"LeapJan31_to_Feb29", time.Date(2028, 1, 31, 10, 30, 0, 0, loc), 2028, 2, 29},
+		// 3/31 → 4/30（4 月无 31 号）
+		{"Mar31_to_Apr30", time.Date(2026, 3, 31, 0, 0, 0, 0, loc), 2026, 4, 30},
+		// 1/30 → 2/28（而非旧逻辑的 3/2）
+		{"Jan30_to_Feb28", time.Date(2026, 1, 30, 8, 0, 0, 0, loc), 2026, 2, 28},
+		// 年份进位：2026/12/31 → 2027/1/31（1 月有 31 天，不钳制）
+		{"Dec31_yearRollover", time.Date(2026, 12, 31, 23, 59, 59, 0, loc), 2027, 1, 31},
+		// 普通日不受影响：1/10 → 2/10
+		{"NormalDay", time.Date(2026, 1, 10, 9, 0, 0, 0, loc), 2026, 2, 10},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			d, ok := model.NextOccurrence(model.TaskRecurrenceMonthly, c.base)
+			require.True(t, ok)
+			assert.Equal(t, c.wantY, d.Year())
+			assert.Equal(t, c.wantM, d.Month())
+			assert.Equal(t, c.wantD, d.Day())
+			// 时分秒应原样保留（仅日期部分受钳制）
+			assert.Equal(t, c.base.Hour(), d.Hour())
+			assert.Equal(t, c.base.Minute(), d.Minute())
+			assert.Equal(t, c.base.Second(), d.Second())
+		})
+	}
+}
+
 func TestCreate_RecurrenceInvalid(t *testing.T) {
 	svc, _ := newService()
 	_, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
@@ -943,7 +982,9 @@ func TestUpdate_TransitionToCompletedSpawnsNext(t *testing.T) {
 	next := findPendingCopy(repo, task.ID)
 	require.NotNil(t, next)
 	require.NotNil(t, next.DueDate)
-	assert.True(t, next.DueDate.Equal(task.DueDate.AddDate(0, 1, 0)))
+	// 2026-01-31 月重复：应钳制到 2 月末 2026-02-28（而非旧逻辑溢出的 03-03），时分秒保留
+	assert.True(t, next.DueDate.Equal(time.Date(2026, 2, 28, 10, 0, 0, 0, time.Local)),
+		"expect clamped Feb 28, got %s", next.DueDate.Format("2006-01-02 15:04:05"))
 }
 
 func TestUpdate_SetRecurrenceWithoutDueRejected(t *testing.T) {

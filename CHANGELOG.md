@@ -15,6 +15,7 @@
 
 ### 修复
 - **同秒重登新 token 被登出黑名单误杀**：`jwt.GenerateTokenEx` 此前不含唯一 `jti`，claims 仅有整秒精度的 `iat`/`exp` 加固定字段，而 HS256 签名是确定性的——同一秒内同一用户/租户/角色的两次登录会生成**完全相同**的 token 字符串。因黑名单以原始 token 串为键（`token:blacklist:<jwt>`），用户登出后再于一秒内重新登录时，新签发的 token 与被拉黑的旧 token 完全相等，访问受保护接口被误判 401。现为每次签发注入随机 UUID 作 `jti`（`pkg/uuid.Generate`），使 token 串必然唯一，同时修正生产语义（登出只拉黑那一次会话，不影响随后重登）；补 `TestGenerateToken_UniquePerSigning` 断言同秒同参签发的 token 与 jti 均不同，并消除集成测试 `TestInteg_AuthLifecycle` 的相关偶发失败
+- **月重复任务月末锚定日溢出漂移**：`model.NextOccurrence` 的月重复分支直接 `base.AddDate(0, 1, 0)`，而 Go 的 `AddDate` 会规范化溢出——1/31 → “2/31” → **3/3**（而非 2 月末），且 `spawnNextOccurrence` 以上一次的截止日为基准链式推算，后续永久锁定在 3 号（4/3、5/3……），用户莫名单损失近 3 天且锚定日被污染（1/30→3/2、1/29→3/1 同理）。现改为定位到目标月并按其**最后一天钳制**（取下下月第 0 天即目标月天数），使 1/31→2/28（闰年 2/29）、3/31→4/30、12/31→次年 1/31，时分秒原样保留，与主流日历“每月最后一天”语义一致；`daily`/`weekly` 走天数加法不受影响。新增 `TestNextOccurrence_MonthEndClamp`（月末/闰年/年进位/时间保持 6 例）锁定回归，并订正 `TestUpdate_TransitionToCompletedSpawnsNext` 中将旧溢出行为（`AddDate(0,1,0)`）误当预期的断言
 
 ## [1.3.0] - 2026-10-16
 
