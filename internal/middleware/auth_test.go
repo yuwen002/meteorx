@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -183,5 +185,97 @@ func TestAuthInjectsContext(t *testing.T) {
 	}
 	if userID != "user-7" || tenantID != "tenant-9" {
 		t.Fatalf("context injection mismatch: user=%q tenant=%q", userID, tenantID)
+	}
+}
+
+// stubBlacklist 实现 TokenBlacklistChecker，命中 set 中令牌的返回已拉黑，用于隔离验证黑名单分支。
+type stubBlacklist struct {
+	set   map[string]bool
+	callN int
+}
+
+func (s *stubBlacklist) IsTokenBlacklisted(_ context.Context, tokenString string) (bool, error) {
+	s.callN++
+	return s.set[tokenString], nil
+}
+
+// errBlacklist 始终报错的检查器，验证 Redis 层故障时的拒绝行为。
+type errBlacklist struct{}
+
+func (errBlacklist) IsTokenBlacklisted(_ context.Context, _ string) (bool, error) {
+	return false, errors.New("redis down")
+}
+
+// newAuthHandlerWithChecker 构造带黑名单检查器的认证中间件（release 模式、无测试旁路）。
+func newAuthHandlerWithChecker(checker TokenBlacklistChecker) http.Handler {
+	helper := jwt.NewTokenHelper(config.JWTConfig{
+		Secret:     authTestSecret,
+		Expiration: "1h",
+		Issuer:     "meteorx-test",
+	})
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	return Auth(helper, checker, "release", false, nil)(next)
+}
+
+// TestAuthBlacklistRejectsLoggedOutToken 验证被拉黑（登出）的令牌访问受保护接口返回 401。
+func TestAuthBlacklistRejectsLoggedOutToken(t *testing.T) {
+	helper := jwt.NewTokenHelper(config.JWTConfig{Secret: authTestSecret, Expiration: "1h", Issuer: "meteorx-test"})
+	revoked, err := helper.GenerateToken("user-1", "tenant-1", []string{"member"})
+	if err != nil {
+		t.Fatalf("generate token: %v", err)
+	}
+	bl := &stubBlacklist{set: map[string]bool{revoked: true}}
+	h := newAuthHandlerWithChecker(bl)
+
+	rr := authTestRequest(h, revoked)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("blacklisted token: expected 401, got %d", rr.Code)
+	}
+	if bl.callN == 0 {
+		t.Fatal("黑名单检查器应被调用")
+	}
+}
+
+// TestAuthBlacklistDoesNotHitReissuedToken 是本次 jti 修复的核心回归：
+// 登出后同一秒内重新登录的令牌（同用户/租户/角色）必须与被拉黑的旧令牌不同，
+// 因而在旧令牌已入黑名单时新令牌仍能放行。若签发缺少唯一 jti，两者会字节相同而误杀。
+func TestAuthBlacklistDoesNotHitReissuedToken(t *testing.T) {
+	helper := jwt.NewTokenHelper(config.JWTConfig{Secret: authTestSecret, Expiration: "1h", Issuer: "meteorx-test"})
+
+	// 完全相同的入参、同一秒连续签发两次：一次登出拉黑，一次作为重登新令牌
+	loggedOut, err := helper.GenerateToken("user-1", "tenant-1", []string{"member"})
+	if err != nil {
+		t.Fatalf("generate logged-out token: %v", err)
+	}
+	reissued, err := helper.GenerateToken("user-1", "tenant-1", []string{"member"})
+	if err != nil {
+		t.Fatalf("generate reissued token: %v", err)
+	}
+	if loggedOut == reissued {
+		t.Fatal("同秒同参签发得到相同 token——签发未注入唯一 jti，将导致重登新令牌被黑名单误杀")
+	}
+
+	bl := &stubBlacklist{set: map[string]bool{loggedOut: true}}
+	h := newAuthHandlerWithChecker(bl)
+
+	// 旧令牌应 401，新令牌应 200
+	if rr := authTestRequest(h, loggedOut); rr.Code != http.StatusUnauthorized {
+		t.Fatalf("logged-out token: expected 401, got %d", rr.Code)
+	}
+	if rr := authTestRequest(h, reissued); rr.Code != http.StatusOK {
+		t.Fatalf("reissued token should NOT be blacklisted: expected 200, got %d", rr.Code)
+	}
+}
+
+// TestAuthBlacklistErrorRejects 验证黑名单检查报错（如 Redis 故障）时拒绝请求而非放行。
+func TestAuthBlacklistErrorRejects(t *testing.T) {
+	helper := jwt.NewTokenHelper(config.JWTConfig{Secret: authTestSecret, Expiration: "1h", Issuer: "meteorx-test"})
+	token, err := helper.GenerateToken("user-1", "tenant-1", []string{"member"})
+	if err != nil {
+		t.Fatalf("generate token: %v", err)
+	}
+	h := newAuthHandlerWithChecker(errBlacklist{})
+	if rr := authTestRequest(h, token); rr.Code != http.StatusUnauthorized {
+		t.Fatalf("blacklist check error: expected 401, got %d", rr.Code)
 	}
 }
