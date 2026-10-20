@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	"meteorx/internal/modules/plan/repository"
@@ -158,6 +159,7 @@ func (j *ExpiryJob) remindExpiringSoon(ctx context.Context) {
 		j.logger.Printf("[ExpiryJob] 查询即将到期订阅失败: %v", err)
 		return
 	}
+	var undelivered []string
 	for _, sub := range subs {
 		if sub.ExpiresAt == nil {
 			continue
@@ -180,12 +182,19 @@ func (j *ExpiryJob) remindExpiringSoon(ctx context.Context) {
 		results := m.NotifySubscriptionExpiry(ctx, tenant.Name, daysLeft, tenant.ContactEmail, memberIDs)
 		if !expiryRemindDelivered(results) {
 			// 不回写提醒时间，下一轮（5 分钟后）仍会重试
-			j.logger.Printf("[ExpiryJob] 订阅 %s 的到期提醒未送达任何渠道，本轮不销账", sub.ID)
+			undelivered = append(undelivered, sub.ID)
 			continue
 		}
 		if err := j.subRepo.MarkExpiryReminded(ctx, sub.ID, time.Now()); err != nil {
 			j.logger.Printf("[ExpiryJob] 回写订阅 %s 提醒时间失败（已送达，下轮会重发一次）: %v", sub.ID, err)
 		}
+	}
+	// 未送达按轮聚合：默认部署只开了 WS，而 WS 会如实上报「收件人均不在线」，
+	// 逐条打日志会让同一个订阅每 5 分钟刷一行（七天窗口下单订阅可达两千行）。
+	// 聚合成一行后，订阅名单仍在但不随轮数放大。
+	if len(undelivered) > 0 {
+		j.logger.Printf("[ExpiryJob] %d 条到期提醒未送达任何渠道，本轮不销账（下轮重试）: %s",
+			len(undelivered), strings.Join(undelivered, ", "))
 	}
 }
 

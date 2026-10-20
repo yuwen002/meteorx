@@ -74,8 +74,11 @@ func (m *Manager) NotifyAnnouncement(ctx context.Context, title, content string,
 }
 
 // NotifyCancelRequestStatus 取消申请状态变更通知
-// 通知租户管理员
-func (m *Manager) NotifyCancelRequestStatus(ctx context.Context, tenantName string, status string, reason string, adminEmail string) []SendResult {
+// adminEmail 为邮件收件人（租户联系人），memberUserIDs 为 WebSocket 收件人（租户成员用户 ID）。
+// 与 NotifySubscriptionExpiry 同一口径：两个收件人类型不可互换，hub.clients 以
+// claims.UserID 为键，传邮箱只会静默 miss；每渠道各构造一份 Message 以免相互覆盖。
+func (m *Manager) NotifyCancelRequestStatus(ctx context.Context, tenantName string, status string, reason string,
+	adminEmail string, memberUserIDs []string) []SendResult {
 	title := "租户注销申请状态更新"
 	content := "您的租户 \"" + tenantName + "\" 的注销申请"
 	switch status {
@@ -93,27 +96,24 @@ func (m *Manager) NotifyCancelRequestStatus(ctx context.Context, tenantName stri
 		content += "状态变更为: " + status
 	}
 
-	msg := &Message{
-		Title:      title,
-		Content:    content,
-		Priority:   PriorityHigh,
-		Recipients: []string{adminEmail},
-		Extra: map[string]interface{}{
-			"type":   "cancel_request",
-			"status": status,
-		},
+	extra := map[string]interface{}{
+		"type":   "cancel_request",
+		"status": status,
 	}
 
-	// WebSocket 推送给租户管理员，邮件发送
 	var results []SendResult
-	if m.composite.HasChannel(ChannelWebSocket) {
-		msg.Channel = ChannelWebSocket
-		results = append(results, m.composite.Send(ctx, msg)...)
-	}
 	if adminEmail != "" && m.composite.HasChannel(ChannelEmail) {
-		msg.Channel = ChannelEmail
-		msg.Recipients = []string{adminEmail}
-		results = append(results, m.composite.Send(ctx, msg)...)
+		results = append(results, m.composite.Send(ctx, &Message{
+			Title: title, Content: content, Priority: PriorityHigh,
+			Channel: ChannelEmail, Recipients: []string{adminEmail}, Extra: extra,
+		})...)
+	}
+	// 成员为空时不产生 WS 结果：否则空转发回的 Success=true 会被当成已通知
+	if len(memberUserIDs) > 0 && m.composite.HasChannel(ChannelWebSocket) {
+		results = append(results, m.composite.Send(ctx, &Message{
+			Title: title, Content: content, Priority: PriorityHigh,
+			Channel: ChannelWebSocket, Recipients: memberUserIDs, Extra: extra,
+		})...)
 	}
 
 	return results

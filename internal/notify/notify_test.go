@@ -206,13 +206,57 @@ func TestManager_NotifyCancelRequestStatus_Rejected(t *testing.T) {
 	wsC := &fakeNotifier{channel: ChannelWebSocket, name: "ws"}
 	m := newTestManager(email, wsC)
 
-	results := m.NotifyCancelRequestStatus(context.Background(), "ACME", "rejected", "不符合政策", "admin@x.com")
+	results := m.NotifyCancelRequestStatus(context.Background(), "ACME", "rejected", "不符合政策", "admin@x.com", []string{"u-1"})
 	// WebSocket + Email 两条
 	assert.Len(t, results, 2)
 	require.NotNil(t, email.lastMsg)
 	assert.Contains(t, email.lastMsg.Content, "已被驳回")
 	assert.Contains(t, email.lastMsg.Content, "不符合政策")
 	assert.Equal(t, []string{"admin@x.com"}, email.lastMsg.Recipients)
+}
+
+// TestManager_NotifyCancelRequestStatus_WSTargetsUserIDsNotEmail 与到期提醒同族：
+// 旧实现把邮箱当 WS 收件人，而 hub.clients 以 claims.UserID 为键，永远 miss 且不报错。
+func TestManager_NotifyCancelRequestStatus_WSTargetsUserIDsNotEmail(t *testing.T) {
+	email := &fakeNotifier{channel: ChannelEmail, name: "email"}
+	wsC := &fakeNotifier{channel: ChannelWebSocket, name: "ws"}
+	m := newTestManager(email, wsC)
+
+	results := m.NotifyCancelRequestStatus(context.Background(), "ACME", "approved", "", "admin@x.com", []string{"u-1", "u-2"})
+	require.Len(t, results, 2)
+
+	require.NotNil(t, wsC.lastMsg)
+	assert.Equal(t, []string{"u-1", "u-2"}, wsC.lastMsg.Recipients, "WS 收件人必须是用户 ID")
+	assert.NotContains(t, wsC.lastMsg.Recipients, "admin@x.com", "邮箱不得混入 WS 收件人")
+	assert.Equal(t, ChannelWebSocket, wsC.lastMsg.Channel)
+
+	require.NotNil(t, email.lastMsg)
+	assert.Equal(t, []string{"admin@x.com"}, email.lastMsg.Recipients, "邮箱仅用于邮件渠道")
+	assert.Equal(t, ChannelEmail, email.lastMsg.Channel)
+}
+
+// TestManager_NotifyCancelRequestStatus_ChannelMessagesIndependent 两个渠道不得复用同一个
+// *Message：渠道可能持有对象引用，复用后一份消息的收件人与渠道会被后续渠道覆盖。
+// 上面那条 WS 断言 Channel == ChannelWebSocket 在本用例里同样关键（旧写法两渠道拿到的是同一个指针）。
+func TestManager_NotifyCancelRequestStatus_ChannelMessagesIndependent(t *testing.T) {
+	email := &fakeNotifier{channel: ChannelEmail, name: "email"}
+	wsC := &fakeNotifier{channel: ChannelWebSocket, name: "ws"}
+	m := newTestManager(email, wsC)
+
+	m.NotifyCancelRequestStatus(context.Background(), "ACME", "approved", "", "admin@x.com", []string{"u-1"})
+	require.NotNil(t, email.lastMsg)
+	require.NotNil(t, wsC.lastMsg)
+	assert.NotSame(t, email.lastMsg, wsC.lastMsg, "两渠道的消息对象必须各自独立")
+}
+
+// TestManager_NotifyCancelRequestStatus_SkipsWSWithoutMembers 无成员 ID 时不应产生空转的 WS 结果。
+func TestManager_NotifyCancelRequestStatus_SkipsWSWithoutMembers(t *testing.T) {
+	wsC := &fakeNotifier{channel: ChannelWebSocket, name: "ws"}
+	m := newTestManager(wsC)
+
+	results := m.NotifyCancelRequestStatus(context.Background(), "ACME", "approved", "", "admin@x.com", nil)
+	assert.Empty(t, results)
+	assert.Equal(t, int32(0), wsC.calls)
 }
 
 func TestManager_NotifySubscriptionExpiry_OnlyEmailWhenNoWS(t *testing.T) {
@@ -429,6 +473,17 @@ func TestNewWSNotifier_NilHub(t *testing.T) {
 	assert.True(t, NewWSNotifier(nil) == nil)
 }
 
+// stubHub wsHub 的测试桩：只登记在线连接数，并记录实际投递了哪些人。
+type stubHub struct {
+	online map[string]int
+	sent   []string
+	all    int
+}
+
+func (s *stubHub) SendToUser(userID string, _ *ws.Message) { s.sent = append(s.sent, userID) }
+func (s *stubHub) SendToAll(_ *ws.Message)                 { s.all++ }
+func (s *stubHub) CountByUser(userID string) int           { return s.online[userID] }
+
 func TestWSNotifier_SendBroadcast(t *testing.T) {
 	hub := ws.NewHub() // 不启动 Run，SendToAll 仅入缓冲通道
 	n := NewWSNotifier(hub)
@@ -437,17 +492,50 @@ func TestWSNotifier_SendBroadcast(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestWSNotifier_SendToUser_NoPanic(t *testing.T) {
-	hub := ws.NewHub()
-	n := NewWSNotifier(hub)
+// TestWSNotifier_SendToUser_AllOfflineReportsFailure 锁住空转不再被当成成功。
+// 旧写法 `var errs []string` 从未 append，无论收件人在不在都返回 nil，
+// CompositeNotifier 按 err == nil 汇报 Success=true，调用方无法区分
+// 「确实推进了在线连接」与「一个人都没找到」。
+func TestWSNotifier_SendToUser_AllOfflineReportsFailure(t *testing.T) {
+	hub := &stubHub{online: map[string]int{}}
+	n := &WSNotifier{hub: hub}
 
 	err := n.Send(context.Background(), &Message{
 		Title: "T", Content: "C",
-		Recipients: []string{"u1", "", "u2"},
+		Recipients: []string{"u1", "u2"},
 		CreatedAt:  time.Now(),
-		Extra:      map[string]interface{}{"type": "task_due"},
+	})
+	require.Error(t, err, "一个收件人都不可达时不得报成功")
+	assert.Contains(t, err.Error(), "u1")
+	assert.Empty(t, hub.sent, "离线用户不应被投递")
+}
+
+// TestWSNotifier_SendToUser_DeliversOnlyOnline 部分在线仍算送达（否则在线用户
+// 拿到的推送会被同批离线用户抹掉），但只有在线的那一个被投递。
+func TestWSNotifier_SendToUser_DeliversOnlyOnline(t *testing.T) {
+	hub := &stubHub{online: map[string]int{"u1": 2}}
+	n := &WSNotifier{hub: hub}
+
+	err := n.Send(context.Background(), &Message{
+		Title: "T", Content: "C",
+		Recipients: []string{"u1", "u2"},
+		CreatedAt:  time.Now(),
 	})
 	require.NoError(t, err)
+	assert.Equal(t, []string{"u1"}, hub.sent)
+}
+
+// TestWSNotifier_Send_BlankRecipientsBroadcast 收件人全为空串时走广播，
+// 不能因「过滤后一个不剩」而被误判为「无人在线」。
+func TestWSNotifier_Send_BlankRecipientsBroadcast(t *testing.T) {
+	hub := &stubHub{}
+	n := &WSNotifier{hub: hub}
+
+	require.NoError(t, n.Send(context.Background(), &Message{
+		Title: "T", Content: "C", Recipients: []string{"", ""}, CreatedAt: time.Now(),
+	}))
+	assert.Equal(t, 1, hub.all)
+	assert.Empty(t, hub.sent)
 }
 
 func TestWSNotifier_SendContextCanceled(t *testing.T) {

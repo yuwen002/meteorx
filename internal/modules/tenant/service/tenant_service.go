@@ -583,8 +583,10 @@ func (s *TenantService) ApproveCancellation(ctx context.Context, requestID, appr
 	return toCancelRequestResp(cancelReq), nil
 }
 
-// notifyCancelRequest 向租户管理员发送注销审批结果通知
-// 通过全局通知管理器投递 Email + WebSocket，通知器未初始化或查询失败时静默跳过
+// notifyCancelRequest 向租户联系邮箱发送注销审批结果邮件，并推送给租户启用成员。
+// 通知失败不回滚审批（申请状态已落库），但必须留下一行日志：旧写法把邮箱当 WS
+// 收件人（必然静默 miss）又丢弃返回结果，管理员点了「通过」却没有任何人被通知到时，
+// 事后完全无从查证。
 func (s *TenantService) notifyCancelRequest(ctx context.Context, tenantID, tenantName, status, remark string) {
 	m := notify.GetGlobalManager()
 	if m == nil {
@@ -594,7 +596,53 @@ func (s *TenantService) notifyCancelRequest(ctx context.Context, tenantID, tenan
 	if t, err := s.repo.GetByID(ctx, tenantID); err == nil && t != nil {
 		adminEmail = t.ContactEmail
 	}
-	m.NotifyCancelRequestStatus(ctx, tenantName, status, remark, adminEmail)
+	memberIDs, err := s.enabledMemberIDs(ctx, tenantID)
+	if err != nil {
+		// 成员查询失败只降级掉 WS，不能连带吞掉邮件通知
+		logger.Warnf("查询租户 %s 成员失败，注销审批结果仅走邮件: %v", tenantID, err)
+	}
+	results := m.NotifyCancelRequestStatus(ctx, tenantName, status, remark, adminEmail, memberIDs)
+	if !anyChannelDelivered(results) {
+		logger.Warnf("租户 %s 的注销审批结果未送达任何渠道 tenant=%s status=%s（审批已生效，需人工确认通知渠道）",
+			tenantName, tenantID, status)
+	}
+}
+
+// cancelNoticeMemberLimit 一次取成员 ID 的上限，与 plan 模块到期提醒同口径：
+// 注销通知属低频操作，不需要为超大租户一次拉全表。
+const cancelNoticeMemberLimit = 200
+
+// enabledMemberIDs 取租户启用状态成员的用户 ID，供 WS 渠道定向推送。
+// 注销申请表只记了审批人 ID、未记申请人 ID，因此退化为通知全员：
+// 租户即将注销本就是全员应知的信息，驳回备注同理。
+func (s *TenantService) enabledMemberIDs(ctx context.Context, tenantID string) ([]string, error) {
+	if s.userRepo == nil || tenantID == "" {
+		return nil, nil
+	}
+	enabled := 1 // user.status 取值：1-正常 0-禁用；被禁用的成员不应收到推送
+	users, _, err := s.userRepo.ListByTenant(ctx, tenantID, 1, cancelNoticeMemberLimit, "", &enabled)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(users))
+	for _, u := range users {
+		if u.ID != "" {
+			ids = append(ids, u.ID)
+		}
+	}
+	return ids, nil
+}
+
+// anyChannelDelivered 判断一次通知是否存在任一成功投递。
+// 与 plan 模块的 expiryRemindDelivered 不同：这里只用于失败留痕（无落库销账语义，
+// 下一轮也不会重驱），因此不需区分渠道可达性，有人被告知就不告警。
+func anyChannelDelivered(results []notify.SendResult) bool {
+	for _, r := range results {
+		if r.Success {
+			return true
+		}
+	}
+	return false
 }
 
 // RejectCancellation 驳回注销申请（平台管理员）

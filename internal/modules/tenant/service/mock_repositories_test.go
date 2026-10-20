@@ -227,12 +227,18 @@ var _ tenantRepo.TenantRepository = (*mockTenantRepo)(nil)
 
 type mockUserRepo struct {
 	userRepo.UserRepository
-	names  map[string]bool
-	counts map[string]int64 // tenantID -> 用户数，供 CountByTenant 返回
+	names   map[string]bool
+	counts  map[string]int64 // tenantID -> 用户数，供 CountByTenant 返回
+	users   map[string][]*userModel.User
+	listErr error // 非空时 ListByTenant 返回该错误，用于验证降级路径
 }
 
 func newMockUserRepo() *mockUserRepo {
-	return &mockUserRepo{names: make(map[string]bool), counts: make(map[string]int64)}
+	return &mockUserRepo{
+		names:  make(map[string]bool),
+		counts: make(map[string]int64),
+		users:  make(map[string][]*userModel.User),
+	}
 }
 
 func (m *mockUserRepo) UsernameExists(_ context.Context, username string) (bool, error) {
@@ -241,6 +247,21 @@ func (m *mockUserRepo) UsernameExists(_ context.Context, username string) (bool,
 
 func (m *mockUserRepo) CountByTenant(_ context.Context, tenantID string) (int64, error) {
 	return m.counts[tenantID], nil
+}
+
+// ListByTenant 按真实实现口径过滤 status（传 nil 表示不限），仅返回 ID 与租户内用户。
+func (m *mockUserRepo) ListByTenant(_ context.Context, tenantID string, _, _ int, _ string, status *int) ([]*userModel.User, int64, error) {
+	if m.listErr != nil {
+		return nil, 0, m.listErr
+	}
+	var out []*userModel.User
+	for _, u := range m.users[tenantID] {
+		if status != nil && u.Status != *status {
+			continue
+		}
+		out = append(out, u)
+	}
+	return out, int64(len(out)), nil
 }
 
 func (m *mockUserRepo) Create(_ context.Context, u *userModel.User) error {
