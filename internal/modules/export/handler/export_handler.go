@@ -121,7 +121,7 @@ func (h *ExportHandler) Download(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, job.FilePath)
 }
 
-// Delete 删除导出任务（同时删除文件）DELETE /api/v1/exports/{id}
+// Delete 删除导出任务（服务层会同时删除文件）DELETE /api/v1/exports/{id}
 func (h *ExportHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	tenantID := contextx.GetTenantID(r.Context())
@@ -129,13 +129,11 @@ func (h *ExportHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	info, _ := tenantctx.From(r.Context())
 	isMaster := info != nil && info.IsMaster
 
-	job, err := h.svc.Delete(r.Context(), id, tenantID, userID, isMaster)
-	if err != nil {
+	// 删文件的动作由 service 层内部完成（先文件后记录），此处不再补删，
+	// 否则记录已删而文件删失败会变成无法重试的孤儿文件。
+	if _, err := h.svc.Delete(r.Context(), id, tenantID, userID, isMaster); err != nil {
 		writeExportErr(w, err)
 		return
-	}
-	if job.FilePath != "" {
-		_ = os.Remove(job.FilePath)
 	}
 	response.Success(w, nil)
 }
@@ -160,6 +158,8 @@ func writeExportErr(w http.ResponseWriter, err error) {
 		response.Fail(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, service.ErrExportQueueFull):
 		response.Fail(w, http.StatusTooManyRequests, err.Error())
+	case errors.Is(err, service.ErrExportFileInUse):
+		response.Fail(w, http.StatusConflict, err.Error())
 	default:
 		response.Fail(w, http.StatusInternalServerError, "导出服务异常")
 	}

@@ -247,12 +247,8 @@ func TestHandler_Download_Success(t *testing.T) {
 
 // ---------- Delete ----------
 
-func TestHandler_Delete_RemovesFile(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "exp1.csv")
-	require.NoError(t, os.WriteFile(path, []byte("a\n"), 0o600))
-
-	svc := &stubExportService{delJob: completedJob("exp1", path)}
+func TestHandler_Delete_OK(t *testing.T) {
+	svc := &stubExportService{delJob: completedJob("exp1", filepath.Join(t.TempDir(), "exp1.csv"))}
 	h := handler.NewExportHandler(svc)
 
 	w := httptest.NewRecorder()
@@ -260,8 +256,19 @@ func TestHandler_Delete_RemovesFile(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Equal(t, "exp1", svc.gotID)
-	_, err := os.Stat(path)
-	require.True(t, os.IsNotExist(err), "删除任务后 CSV 文件应被移除")
+	require.Equal(t, "t1", svc.gotTenant)
+	require.Equal(t, "u1", svc.gotUser)
+	// 文件删除已下沉到 service.Delete（先文件后记录），具体行为由 service 层用例覆盖；
+	// handler 不得再自行 os.Remove，否则错误被丢弃且记录已先删，无法重试。
+}
+
+// TestHandler_Delete_FileInUseMapping 文件被占用时返回 409，供前端提示重试。
+func TestHandler_Delete_FileInUseMapping(t *testing.T) {
+	svc := &stubExportService{delErr: service.ErrExportFileInUse}
+	h := handler.NewExportHandler(svc)
+	w := httptest.NewRecorder()
+	newExportRouter(h).ServeHTTP(w, newRequest(http.MethodDelete, "/api/v1/exports/exp1", "", "t1", "u1"))
+	require.Equal(t, http.StatusConflict, w.Code)
 }
 
 func TestHandler_Delete_ErrorMapping(t *testing.T) {

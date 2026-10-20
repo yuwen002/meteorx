@@ -21,6 +21,8 @@ var (
 	ErrExportForbidden = errors.New("无权访问该导出任务")
 	ErrInvalidResource = errors.New("不支持的资源类型")
 	ErrExportQueueFull = errors.New("导出队列已满，请稍后再试")
+	// ErrExportFileInUse 导出文件无法删除（正被占用或权限不足），此时保留记录供重试，对应 HTTP 409
+	ErrExportFileInUse = errors.New("导出文件正被占用，请稍后重试")
 )
 
 // MaxActiveJobsPerTenant 单租户未完结（pending/running）导出任务数的默认上限，
@@ -126,11 +128,20 @@ func (s *ExportService) List(ctx context.Context, tenantID, userID string, req d
 	return s.repo.ListByUser(ctx, tenantID, userID, req.Page, req.PageSize, req.Status, req.Resource)
 }
 
-// Delete 删除任务记录（同时删文件由 handler 层调用 RemoveFile 完成）
+// Delete 删除任务及其导出文件。
+// 顺序必须是“先删文件、再删记录”：文件删不掉时报错并保留记录，由调用方重试；
+// 若先删记录，这个文件就再也无人引用（过期清理只扫数据库行），会永久占用磁盘。
+// 文件本就不存在视为成功，避免记录删不掉。
 func (s *ExportService) Delete(ctx context.Context, id, tenantID, userID string, isMaster bool) (*model.ExportJob, error) {
 	job, err := s.GetByID(ctx, id, tenantID, userID, isMaster)
 	if err != nil {
 		return nil, err
+	}
+	if job.FilePath != "" {
+		if err := os.Remove(job.FilePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			logger.Warnf("[Export] 删除任务 %s 的文件 %s 失败，保留记录待重试: %v", id, job.FilePath, err)
+			return nil, ErrExportFileInUse
+		}
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
@@ -141,8 +152,9 @@ func (s *ExportService) Delete(ctx context.Context, id, tenantID, userID string,
 // Config 返回服务配置（供 handler 层构造文件路径等）
 func (s *ExportService) Config() Config { return s.config }
 
-// CleanupExpired 删除已过期（expires_at < now）的导出任务及其 CSV 文件，返回成功清理的记录数。
-// limit 为单轮扫描上限；文件删除失败不阻断记录删除，仅告警。
+// CleanupExpired 删除已过期（expires_at < now）的导出任务及其导出文件，返回成功清理的记录数。
+// limit 为单轮扫描上限。文件确实删不掉时（被下载句柄占用、权限不足）保留记录等下一轮重试，
+// 以免留下无任何记录引用、后续扫不到的孤儿文件；文件已不存在（ErrNotExist）则照常删记录。
 func (s *ExportService) CleanupExpired(ctx context.Context, now time.Time, limit int) (int64, error) {
 	jobs, err := s.repo.ListExpired(ctx, now, limit)
 	if err != nil {
@@ -152,7 +164,9 @@ func (s *ExportService) CleanupExpired(ctx context.Context, now time.Time, limit
 	for _, j := range jobs {
 		if j.FilePath != "" {
 			if err := os.Remove(j.FilePath); err != nil && !errors.Is(err, os.ErrNotExist) {
-				logger.Warnf("[Export] 删除过期文件 %s 失败: %v", j.FilePath, err)
+				// 先留记录：过期清理只扫数据库行，记录一删，这个文件就永久没人管了。
+				logger.Warnf("[Export] 删除过期文件 %s 失败，保留任务 %s 待下轮重试: %v", j.FilePath, j.ID, err)
+				continue
 			}
 		}
 		if err := s.repo.Delete(ctx, j.ID); err != nil {
