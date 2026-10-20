@@ -18,6 +18,9 @@ type TenantSubscription struct {
 	Status    int
 	StartedAt time.Time
 	ExpiresAt *time.Time
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	// ExpiryRemindedAt 到期提醒最近发送时间，nil 表示从未提醒过；
+	// 去重靠这一列而不是任务内存，因此重启与多副本都不会重发
+	ExpiryRemindedAt *time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }

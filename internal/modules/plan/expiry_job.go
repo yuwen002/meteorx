@@ -16,13 +16,29 @@ import (
 )
 
 // expiryRemindWindow 到期提醒窗口：订阅在此时间内到期将发送提醒
-const expiryRemindWindow = 7 * 24 * time.Hour
+// expiryRemindCooldown 同一订阅两次提醒的最小间隔。去重靠 subscription.expiry_reminded_at
+// 这一列而不是任务内存，因此跨进程重启与多副本都只会落回「每天最多一条」
+const (
+	expiryRemindWindow   = 7 * 24 * time.Hour
+	expiryRemindCooldown = 24 * time.Hour
+
+	// memberLookupLimit 单个租户一次取成员 ID 的上限：扫描每 5 分钟一轮，
+	// 不为超大租户一次拉全表；超出部分由邮件渠道兜住
+	memberLookupLimit = 200
+)
 
 // TenantDirectory 到期提醒文案所需的租户信息查询。
 // 声明为窄接口：本任务只需按 ID 取名称/邮箱，tenantRepo.TenantRepository 天然满足，
 // 既避免依赖含二十余个方法的胖接口，也使定时任务可脱离数据库单测。
 type TenantDirectory interface {
 	GetByID(ctx context.Context, id string) (*model.Tenant, error)
+}
+
+// MemberDirectory 租户成员用户 ID 查询（窄接口，与 plan 模块已有的 UserCounter 同族）。
+// WS 渠道以 claims.UserID 索引在线连接，收件人必须是用户 ID：
+// 旧实现把联系人邮箱当 userID 传入，永远 miss 且不报错，提醒静默空转。
+type MemberDirectory interface {
+	ListUserIDs(ctx context.Context, tenantID string) ([]string, error)
 }
 
 // tenantDisabler 将 tenant 仓储的 UpdateStatus 适配为 plan service 的到期禁用回调
@@ -32,13 +48,31 @@ func (d tenantDisabler) DisableTenant(ctx context.Context, tenantID string) erro
 	return d.repo.UpdateStatus(ctx, tenantID, model.StatusDisabled)
 }
 
+// tenantMembers 将 user 仓储适配为 MemberDirectory
+type tenantMembers struct{ repo userRepo.UserRepository }
+
+func (m tenantMembers) ListUserIDs(ctx context.Context, tenantID string) ([]string, error) {
+	enabled := 1 // user.status 取值：1-正常 0-禁用；被禁用的成员不应收到续费提醒
+	users, _, err := m.repo.ListByTenant(ctx, tenantID, 1, memberLookupLimit, "", &enabled)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(users))
+	for _, u := range users {
+		if u.ID != "" {
+			ids = append(ids, u.ID)
+		}
+	}
+	return ids, nil
+}
+
 // ExpiryJob 到期自动禁用租户的任务实例
 type ExpiryJob struct {
-	planSvc  *service.PlanService
-	subRepo  repository.SubscriptionRepository
-	tenants  TenantDirectory
-	logger   *log.Logger
-	notified map[string]struct{} // 已提醒的订阅+到期日，避免周期任务重复通知
+	planSvc *service.PlanService
+	subRepo repository.SubscriptionRepository
+	tenants TenantDirectory
+	members MemberDirectory
+	logger  *log.Logger
 }
 
 // NewExpiryJob 创建到期任务实例
@@ -54,22 +88,23 @@ func NewExpiryJob(db *gorm.DB) *ExpiryJob {
 	planSvc.SetTenantDisabler(tenantDisabler{repo: tRepo})
 
 	return &ExpiryJob{
-		planSvc:  planSvc,
-		subRepo:  subRepo,
-		tenants:  tRepo,
-		logger:   log.Default(),
-		notified: make(map[string]struct{}),
+		planSvc: planSvc,
+		subRepo: subRepo,
+		tenants: tRepo,
+		members: tenantMembers{repo: uRepo},
+		logger:  log.Default(),
 	}
 }
 
 // newExpiryJobWith 测试装配入口，与 NewExpiryJob 同构字段绑定
-func newExpiryJobWith(planSvc *service.PlanService, subRepo repository.SubscriptionRepository, tenants TenantDirectory) *ExpiryJob {
+func newExpiryJobWith(planSvc *service.PlanService, subRepo repository.SubscriptionRepository,
+	tenants TenantDirectory, members MemberDirectory) *ExpiryJob {
 	return &ExpiryJob{
-		planSvc:  planSvc,
-		subRepo:  subRepo,
-		tenants:  tenants,
-		logger:   log.Default(),
-		notified: make(map[string]struct{}),
+		planSvc: planSvc,
+		subRepo: subRepo,
+		tenants: tenants,
+		members: members,
+		logger:  log.Default(),
 	}
 }
 
@@ -109,14 +144,16 @@ func (j *ExpiryJob) runOnce(ctx context.Context) error {
 	return nil
 }
 
-// remindExpiringSoon 扫描即将到期的生效订阅，向租户管理员发送到期提醒
-// 通过进程内 notified 集合去重，避免同一订阅在同一到期日内被反复提醒
+// remindExpiringSoon 扫描即将到期的生效订阅，向租户发送邮件提醒并推送给在线成员。
+// 去重靠 subscription.expiry_reminded_at（由仓储按冷却期在 SQL 里过滤），
+// 并且只在确实送达后才销账：旧写法丢弃发送结果并无条件记入进程内集合，
+// 一次渠道抖动或一个未注册的渠道就会把该到期日的提醒永久吞掉。
 func (j *ExpiryJob) remindExpiringSoon(ctx context.Context) {
 	m := notify.GetGlobalManager()
 	if m == nil {
 		return
 	}
-	subs, err := j.subRepo.FindExpiringSoon(ctx, expiryRemindWindow)
+	subs, err := j.subRepo.FindExpiringSoon(ctx, expiryRemindWindow, expiryRemindCooldown)
 	if err != nil {
 		j.logger.Printf("[ExpiryJob] 查询即将到期订阅失败: %v", err)
 		return
@@ -125,21 +162,55 @@ func (j *ExpiryJob) remindExpiringSoon(ctx context.Context) {
 		if sub.ExpiresAt == nil {
 			continue
 		}
-		key := sub.ID + ":" + sub.ExpiresAt.Format("2006-01-02")
-		if _, ok := j.notified[key]; ok {
-			continue
-		}
 		tenant, err := j.tenants.GetByID(ctx, sub.TenantID)
 		if err != nil || tenant == nil {
 			continue
+		}
+		// 成员查询失败只降级掉 WS，不能连带吞掉邮件提醒
+		memberIDs, err := j.members.ListUserIDs(ctx, sub.TenantID)
+		if err != nil {
+			j.logger.Printf("[ExpiryJob] 查询租户 %s 成员失败，本轮仅走邮件: %v", sub.TenantID, err)
+			memberIDs = nil
 		}
 		daysLeft := int(time.Until(*sub.ExpiresAt).Hours() / 24)
 		if daysLeft < 0 {
 			daysLeft = 0
 		}
-		m.NotifySubscriptionExpiry(ctx, tenant.Name, daysLeft, tenant.ContactEmail)
-		j.notified[key] = struct{}{}
+
+		results := m.NotifySubscriptionExpiry(ctx, tenant.Name, daysLeft, tenant.ContactEmail, memberIDs)
+		if !expiryRemindDelivered(results) {
+			// 不回写提醒时间，下一轮（5 分钟后）仍会重试
+			j.logger.Printf("[ExpiryJob] 订阅 %s 的到期提醒未送达任何渠道，本轮不销账", sub.ID)
+			continue
+		}
+		if err := j.subRepo.MarkExpiryReminded(ctx, sub.ID, time.Now()); err != nil {
+			j.logger.Printf("[ExpiryJob] 回写订阅 %s 提醒时间失败（已送达，下轮会重发一次）: %v", sub.ID, err)
+		}
 	}
+}
+
+// expiryRemindDelivered 判定本轮到期提醒是否算已送达。
+// 邮件是唯一能在收件人不在线时仍然可达的渠道，只要结果里出现邮件渠道就必须邮件成功；
+// 否则「WS 成功 + 邮件失败」会被误销账，管理员离线时这条提醒就此消失。
+// 未配置邮件时（本项目默认 email.enabled=false）退化为看是否有任一渠道成功，
+// 以免每轮反复推送骚扰在线用户。
+func expiryRemindDelivered(results []notify.SendResult) bool {
+	var sawEmail, emailOK, anyOK bool
+	for _, r := range results {
+		if r.Channel == notify.ChannelEmail {
+			sawEmail = true
+			if r.Success {
+				emailOK = true
+			}
+		}
+		if r.Success {
+			anyOK = true
+		}
+	}
+	if sawEmail {
+		return emailOK
+	}
+	return anyOK
 }
 
 // RunOnce 手动执行一次扫描（供测试或运维触发）

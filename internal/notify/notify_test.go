@@ -219,9 +219,49 @@ func TestManager_NotifySubscriptionExpiry_OnlyEmailWhenNoWS(t *testing.T) {
 	email := &fakeNotifier{channel: ChannelEmail, name: "email"}
 	m := newTestManager(email)
 
-	results := m.NotifySubscriptionExpiry(context.Background(), "ACME", 3, "admin@x.com")
+	results := m.NotifySubscriptionExpiry(context.Background(), "ACME", 3, "admin@x.com", nil)
 	require.Len(t, results, 1)
 	assert.Contains(t, email.lastMsg.Content, "3 天后到期")
+}
+
+// TestManager_NotifySubscriptionExpiry_WSTargetsUserIDsNotEmail 锁住 WS 收件人的语义。
+// 旧实现把 tenant.ContactEmail 直接当 userID 传进 WS 渠道，而 hub.clients 以 claims.UserID 为键，
+// 邮箱永远 miss，SendToUser 对 miss 静默丢弃且不报错——默认部署（email.enabled=false、ws.enabled=true）
+// 下到期提醒 100% 空转，还被当成发送成功记入已提醒。
+func TestManager_NotifySubscriptionExpiry_WSTargetsUserIDsNotEmail(t *testing.T) {
+	email := &fakeNotifier{channel: ChannelEmail, name: "email"}
+	wsC := &fakeNotifier{channel: ChannelWebSocket, name: "ws"}
+	m := newTestManager(email, wsC)
+
+	results := m.NotifySubscriptionExpiry(context.Background(), "ACME", 3, "admin@x.com", []string{"u-1", "u-2"})
+	require.Len(t, results, 2)
+
+	require.NotNil(t, wsC.lastMsg)
+	assert.Equal(t, []string{"u-1", "u-2"}, wsC.lastMsg.Recipients, "WS 收件人必须是用户 ID")
+	assert.NotContains(t, wsC.lastMsg.Recipients, "admin@x.com", "邮箱不得混入 WS 收件人")
+
+	require.NotNil(t, email.lastMsg)
+	assert.Equal(t, []string{"admin@x.com"}, email.lastMsg.Recipients, "邮箱仅用于邮件渠道")
+}
+
+// TestManager_NotifySubscriptionExpiry_SkipsWSWithoutMembers 无成员 ID 时不得产生 WS 结果：
+// 否则调用方会把「空转发来的 Success=true」当成已提醒，跨重启也不会重试。
+func TestManager_NotifySubscriptionExpiry_SkipsWSWithoutMembers(t *testing.T) {
+	wsC := &fakeNotifier{channel: ChannelWebSocket, name: "ws"}
+	m := newTestManager(wsC)
+
+	results := m.NotifySubscriptionExpiry(context.Background(), "ACME", 3, "admin@x.com", nil)
+	assert.Empty(t, results)
+	assert.Equal(t, int32(0), wsC.calls)
+}
+
+// TestManager_NotifySubscriptionExpiry_NoChannelReturnsNoResults 渠道全不可用时返回空结果，
+// 让调用方能区分「真的没送出去」与「已送达」。
+func TestManager_NotifySubscriptionExpiry_NoChannelReturnsNoResults(t *testing.T) {
+	m := newTestManager()
+
+	results := m.NotifySubscriptionExpiry(context.Background(), "ACME", 3, "admin@x.com", []string{"u-1"})
+	assert.Empty(t, results)
 }
 
 func TestItoa(t *testing.T) {

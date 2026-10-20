@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"testing"
+	"time"
 
 	"meteorx/internal/modules/plan/model"
 
@@ -88,4 +89,77 @@ func TestPlanRepo_toDomain_KeepsExplicitValues(t *testing.T) {
 	require.Equal(t, int64(-1), free.StorageLimit)
 	require.Equal(t, -1, free.ApiRateLimit)
 	require.Equal(t, -1, free.WikiSpaceLimit)
+}
+
+// seedSoonSub 写入一条 3 天后到期的生效订阅，remindedAt 为上次提醒时间（nil 表示从未提醒）
+func seedSoonSub(t *testing.T, db *gorm.DB, id string, remindedAt *time.Time) {
+	t.Helper()
+	in3 := time.Now().Add(3 * 24 * time.Hour)
+	require.NoError(t, db.Create(&SubscriptionPO{
+		ID: id, TenantID: "t-" + id, PlanID: "p-1", Status: model.SubscriptionActive,
+		StartedAt: time.Now().Add(-24 * time.Hour), ExpiresAt: &in3, ExpiryRemindedAt: remindedAt,
+	}).Error)
+}
+
+// TestSubRepo_FindExpiringSoon_AppliesRemindCooldown 去重必须依赖库内时间而非进程内存：
+// 原实现只按到期窗口返回，调用方拿不到「是否刚提醒过」，重启后同一订阅会立即重发。
+// 现扫描同时承担冷却判定：未提醒过、上次提醒早于冷却期的入选，冷却期内的排除。
+func TestSubRepo_FindExpiringSoon_AppliesRemindCooldown(t *testing.T) {
+	db := newPlanTestDB(t)
+	ctx := context.Background()
+	now := time.Now()
+
+	seedSoonSub(t, db, "s-none", nil)
+	old := now.Add(-25 * time.Hour)
+	seedSoonSub(t, db, "s-old", &old)
+	fresh := now.Add(-time.Hour)
+	seedSoonSub(t, db, "s-fresh", &fresh)
+
+	repo := NewSubscriptionRepository(db)
+	subs, err := repo.FindExpiringSoon(ctx, 7*24*time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+
+	got := map[string]bool{}
+	for _, s := range subs {
+		got[s.ID] = true
+	}
+	require.True(t, got["s-none"], "从未提醒过的订阅必须进入提醒集合")
+	require.True(t, got["s-old"], "上次提醒已超冷却期的订阅应可再次提醒")
+	require.False(t, got["s-fresh"], "冷却期内的订阅不得重复提醒")
+	require.Len(t, subs, 2)
+
+	// 提醒时间需随领域模型上浮，否则上层无法区分「新提醒」与「重发」
+	for _, s := range subs {
+		if s.ID == "s-old" {
+			require.NotNil(t, s.ExpiryRemindedAt)
+			require.WithinDuration(t, old, *s.ExpiryRemindedAt, time.Minute)
+		} else {
+			require.Nil(t, s.ExpiryRemindedAt)
+		}
+	}
+}
+
+// TestSubRepo_MarkExpiryReminded 发送后回写提醒时间，且只影响目标行
+func TestSubRepo_MarkExpiryReminded(t *testing.T) {
+	db := newPlanTestDB(t)
+	ctx := context.Background()
+	seedSoonSub(t, db, "s-a", nil)
+	seedSoonSub(t, db, "s-b", nil)
+
+	at := time.Now()
+	repo := NewSubscriptionRepository(db)
+	require.NoError(t, repo.MarkExpiryReminded(ctx, "s-a", at))
+
+	var a, b SubscriptionPO
+	require.NoError(t, db.First(&a, "id = ?", "s-a").Error)
+	require.NoError(t, db.First(&b, "id = ?", "s-b").Error)
+	require.NotNil(t, a.ExpiryRemindedAt, "提醒时间必须落库，重启后仍生效")
+	require.WithinDuration(t, at, *a.ExpiryRemindedAt, time.Minute)
+	require.Nil(t, b.ExpiryRemindedAt, "不得误伤其它订阅")
+
+	// 回写后该行应立即从冷却期内的提醒集合中消失
+	subs, err := repo.FindExpiringSoon(ctx, 7*24*time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	require.Len(t, subs, 1)
+	require.Equal(t, "s-b", subs[0].ID)
 }

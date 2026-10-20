@@ -70,18 +70,45 @@ func (m *MockSubscriptionRepository) FindExpiredActive(_ context.Context) ([]*mo
 	return result, nil
 }
 
-// FindExpiringSoon 返回 within 时间内即将到期且仍生效的订阅
-func (m *MockSubscriptionRepository) FindExpiringSoon(_ context.Context, within time.Duration) ([]*model.TenantSubscription, error) {
+// FindExpiringSoon 返回 within 时间内即将到期、仍生效且距上次提醒已超过 cooldown 的订阅
+// 与 GORM 实现同口径：冷却过滤在此处完成，使任务层的去重语义不依赖进程内存
+func (m *MockSubscriptionRepository) FindExpiringSoon(_ context.Context, within, cooldown time.Duration) ([]*model.TenantSubscription, error) {
 	now := nowFunc()
 	limit := now.Add(within)
+	cutoff := now.Add(-cooldown)
 	var result []*model.TenantSubscription
 	for _, s := range m.subs {
-		if s.Status == model.SubscriptionActive && s.ExpiresAt != nil &&
-			!s.ExpiresAt.Before(now) && s.ExpiresAt.Before(limit) {
+		if s.Status != model.SubscriptionActive || s.ExpiresAt == nil {
+			continue
+		}
+		if !s.ExpiresAt.Before(now) && s.ExpiresAt.Before(limit) &&
+			(s.ExpiryRemindedAt == nil || s.ExpiryRemindedAt.Before(cutoff)) {
 			result = append(result, s)
 		}
 	}
 	return result, nil
+}
+
+// MarkExpiryReminded 回写提醒时间（内存实现）
+func (m *MockSubscriptionRepository) MarkExpiryReminded(_ context.Context, id string, at time.Time) error {
+	for _, s := range m.subs {
+		if s.ID == id {
+			v := at
+			s.ExpiryRemindedAt = &v
+			return nil
+		}
+	}
+	return nil
+}
+
+// RemindedAtOf 读取指定订阅的提醒时间（仅测试断言使用，未找到返回 nil）
+func (m *MockSubscriptionRepository) RemindedAtOf(id string) *time.Time {
+	for _, s := range m.subs {
+		if s.ID == id {
+			return s.ExpiryRemindedAt
+		}
+	}
+	return nil
 }
 
 func (m *MockSubscriptionRepository) CountByPlan(_ context.Context, planID string) (int64, error) {

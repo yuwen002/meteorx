@@ -137,29 +137,33 @@ func (m *Manager) NotifyAlert(ctx context.Context, ruleName, alertContent string
 }
 
 // NotifySubscriptionExpiry 订阅到期通知
-func (m *Manager) NotifySubscriptionExpiry(ctx context.Context, tenantName string, daysLeft int, adminEmail string) []SendResult {
+// adminEmail 为邮件收件人（租户联系人），memberUserIDs 为 WebSocket 收件人（租户成员用户 ID）。
+// 两个收件人类型不可互换：hub.clients 以 claims.UserID 为键，传邮箱会静默 miss。
+// 无任何可用渠道时返回空结果，供调用方判定「未送达」而不销账。
+func (m *Manager) NotifySubscriptionExpiry(ctx context.Context, tenantName string, daysLeft int, adminEmail string, memberUserIDs []string) []SendResult {
 	title := "订阅即将到期"
 	content := "租户 \"" + tenantName + "\" 的订阅将在 " + itoa(daysLeft) + " 天后到期，请及时续费。"
 
-	msg := &Message{
-		Title:      title,
-		Content:    content,
-		Priority:   PriorityNormal,
-		Recipients: []string{adminEmail},
-		Extra: map[string]interface{}{
-			"type":      "subscription_expiry",
-			"days_left": daysLeft,
-		},
+	extra := map[string]interface{}{
+		"type":      "subscription_expiry",
+		"days_left": daysLeft,
 	}
 
 	var results []SendResult
+	// 每渠道各构造一份 Message：渠道可能持有传入对象的引用（推送队列、测试桩），
+	// 复用同一对象再改 Recipients/Channel 会让先前那份消息的收件人被后续渠道覆盖
 	if adminEmail != "" && m.composite.HasChannel(ChannelEmail) {
-		msg.Channel = ChannelEmail
-		results = append(results, m.composite.Send(ctx, msg)...)
+		results = append(results, m.composite.Send(ctx, &Message{
+			Title: title, Content: content, Priority: PriorityNormal,
+			Channel: ChannelEmail, Recipients: []string{adminEmail}, Extra: extra,
+		})...)
 	}
-	if m.composite.HasChannel(ChannelWebSocket) {
-		msg.Channel = ChannelWebSocket
-		results = append(results, m.composite.Send(ctx, msg)...)
+	// 成员为空时不产生 WS 结果：否则空转发回的 Success=true 会被当成已提醒
+	if len(memberUserIDs) > 0 && m.composite.HasChannel(ChannelWebSocket) {
+		results = append(results, m.composite.Send(ctx, &Message{
+			Title: title, Content: content, Priority: PriorityNormal,
+			Channel: ChannelWebSocket, Recipients: memberUserIDs, Extra: extra,
+		})...)
 	}
 
 	return results

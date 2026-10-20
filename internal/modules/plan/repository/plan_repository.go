@@ -40,15 +40,17 @@ func (PlanPO) TableName() string { return "tenant_plans" }
 
 // SubscriptionPO 租户订阅持久化模型
 type SubscriptionPO struct {
-	ID        string         `gorm:"primaryKey;size:26;comment:'订阅唯一标识'"`
-	TenantID  string         `gorm:"size:26;index;comment:'租户ID'"`
-	PlanID    string         `gorm:"size:26;index;comment:'套餐ID'"`
-	Status    int            `gorm:"index;comment:'状态：1-生效 2-到期 3-取消'"`
-	StartedAt time.Time      `gorm:"comment:'生效开始时间'"`
-	ExpiresAt *time.Time     `gorm:"comment:'到期时间，NULL表示长期有效'"`
-	CreatedAt time.Time      `gorm:"comment:'创建时间'"`
-	UpdatedAt time.Time      `gorm:"comment:'更新时间'"`
-	DeletedAt gorm.DeletedAt `gorm:"index;comment:'软删除时间'"`
+	ID        string     `gorm:"primaryKey;size:26;comment:'订阅唯一标识'"`
+	TenantID  string     `gorm:"size:26;index;comment:'租户ID'"`
+	PlanID    string     `gorm:"size:26;index;comment:'套餐ID'"`
+	Status    int        `gorm:"index;comment:'状态：1-生效 2-到期 3-取消'"`
+	StartedAt time.Time  `gorm:"comment:'生效开始时间'"`
+	ExpiresAt *time.Time `gorm:"comment:'到期时间，NULL表示长期有效'"`
+	// ExpiryRemindedAt 到期提醒的最近发送时间：去重必须落库，否则进程内记录会随重启丢失、多副本各自发一份
+	ExpiryRemindedAt *time.Time     `gorm:"comment:'到期提醒最近发送时间，NULL表示从未提醒'"`
+	CreatedAt        time.Time      `gorm:"comment:'创建时间'"`
+	UpdatedAt        time.Time      `gorm:"comment:'更新时间'"`
+	DeletedAt        gorm.DeletedAt `gorm:"index;comment:'软删除时间'"`
 }
 
 // TableName 返回订阅表名 tenant_subscriptions。
@@ -129,6 +131,10 @@ func (s SubscriptionPO) toDomain() *model.TenantSubscription {
 	if s.ExpiresAt != nil {
 		exp := *s.ExpiresAt
 		sub.ExpiresAt = &exp
+	}
+	if s.ExpiryRemindedAt != nil {
+		reminded := *s.ExpiryRemindedAt
+		sub.ExpiryRemindedAt = &reminded
 	}
 	return sub
 }
@@ -351,12 +357,14 @@ func (r *subscriptionRepository) FindExpiredActive(ctx context.Context) ([]*mode
 	return subs, nil
 }
 
-// FindExpiringSoon 查找 within 时间内即将到期且仍生效的订阅
-func (r *subscriptionRepository) FindExpiringSoon(ctx context.Context, within time.Duration) ([]*model.TenantSubscription, error) {
+// FindExpiringSoon 查找 within 时间内即将到期、仍生效且距上次提醒已超过 cooldown 的订阅
+// 冷却判定放在 SQL 里，使去重跨进程重启与多副本一致（历史行该列为 NULL，视为未提醒过，会被提醒一次）
+func (r *subscriptionRepository) FindExpiringSoon(ctx context.Context, within, cooldown time.Duration) ([]*model.TenantSubscription, error) {
 	now := time.Now()
 	var pos []*SubscriptionPO
 	err := r.db.WithContext(ctx).
 		Where("status = ? AND expires_at IS NOT NULL AND expires_at >= ? AND expires_at < ?", model.SubscriptionActive, now, now.Add(within)).
+		Where("expiry_reminded_at IS NULL OR expiry_reminded_at < ?", now.Add(-cooldown)).
 		Find(&pos).Error
 	if err != nil {
 		return nil, err
@@ -366,6 +374,12 @@ func (r *subscriptionRepository) FindExpiringSoon(ctx context.Context, within ti
 		subs = append(subs, po.toDomain())
 	}
 	return subs, nil
+}
+
+// MarkExpiryReminded 回写到期提醒发送时间，使冷却期内的扫描不再重复提醒
+func (r *subscriptionRepository) MarkExpiryReminded(ctx context.Context, id string, at time.Time) error {
+	return r.db.WithContext(ctx).Model(&SubscriptionPO{}).
+		Where("id = ?", id).Update("expiry_reminded_at", at).Error
 }
 
 // CountByPlan 统计指定套餐的生效订阅数量
