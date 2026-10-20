@@ -18,13 +18,27 @@ import (
 // expiryRemindWindow 到期提醒窗口：订阅在此时间内到期将发送提醒
 const expiryRemindWindow = 7 * 24 * time.Hour
 
+// TenantDirectory 到期提醒文案所需的租户信息查询。
+// 声明为窄接口：本任务只需按 ID 取名称/邮箱，tenantRepo.TenantRepository 天然满足，
+// 既避免依赖含二十余个方法的胖接口，也使定时任务可脱离数据库单测。
+type TenantDirectory interface {
+	GetByID(ctx context.Context, id string) (*model.Tenant, error)
+}
+
+// tenantDisabler 将 tenant 仓储的 UpdateStatus 适配为 plan service 的到期禁用回调
+type tenantDisabler struct{ repo tenantRepo.TenantRepository }
+
+func (d tenantDisabler) DisableTenant(ctx context.Context, tenantID string) error {
+	return d.repo.UpdateStatus(ctx, tenantID, model.StatusDisabled)
+}
+
 // ExpiryJob 到期自动禁用租户的任务实例
 type ExpiryJob struct {
-	planSvc    *service.PlanService
-	subRepo    repository.SubscriptionRepository
-	tenantRepo tenantRepo.TenantRepository
-	logger     *log.Logger
-	notified   map[string]struct{} // 已提醒的订阅+到期日，避免周期任务重复通知
+	planSvc  *service.PlanService
+	subRepo  repository.SubscriptionRepository
+	tenants  TenantDirectory
+	logger   *log.Logger
+	notified map[string]struct{} // 已提醒的订阅+到期日，避免周期任务重复通知
 }
 
 // NewExpiryJob 创建到期任务实例
@@ -33,15 +47,29 @@ func NewExpiryJob(db *gorm.DB) *ExpiryJob {
 	planRepo := repository.NewPlanRepository(db)
 	subRepo := repository.NewSubscriptionRepository(db)
 	uRepo := userRepo.NewUserRepository(db)
-	tenantRepo := tenantRepo.NewTenantRepository(db)
+	tRepo := tenantRepo.NewTenantRepository(db)
 
 	planSvc := service.NewPlanService(planRepo, subRepo, uRepo)
+	// 禁用租户与翻转订阅状态必须作为一个可重入的整体处理（见 ExpireSubscriptions 注释）
+	planSvc.SetTenantDisabler(tenantDisabler{repo: tRepo})
+
 	return &ExpiryJob{
-		planSvc:    planSvc,
-		subRepo:    subRepo,
-		tenantRepo: tenantRepo,
-		logger:     log.Default(),
-		notified:   make(map[string]struct{}),
+		planSvc:  planSvc,
+		subRepo:  subRepo,
+		tenants:  tRepo,
+		logger:   log.Default(),
+		notified: make(map[string]struct{}),
+	}
+}
+
+// newExpiryJobWith 测试装配入口，与 NewExpiryJob 同构字段绑定
+func newExpiryJobWith(planSvc *service.PlanService, subRepo repository.SubscriptionRepository, tenants TenantDirectory) *ExpiryJob {
+	return &ExpiryJob{
+		planSvc:  planSvc,
+		subRepo:  subRepo,
+		tenants:  tenants,
+		logger:   log.Default(),
+		notified: make(map[string]struct{}),
 	}
 }
 
@@ -64,24 +92,19 @@ func (j *ExpiryJob) Start(ctx context.Context, interval time.Duration) {
 	j.logger.Printf("[ExpiryJob] 订阅到期监控已启动，间隔 %s", interval)
 }
 
-// runOnce 执行一次扫描：发现过期订阅 → 禁用对应租户
+// runOnce 执行一次扫描：到期订阅 → 禁用租户 → 即将到期提醒
 func (j *ExpiryJob) runOnce(ctx context.Context) error {
+	// ExpireSubscriptions 内部已保证「先禁用租户、后翻转订阅状态」，两步任一失败都能被下轮扫描重入
 	expiredTenantIDs, err := j.planSvc.ExpireSubscriptions(ctx)
 	if err != nil {
 		return err
 	}
-	if len(expiredTenantIDs) == 0 {
-		return nil
-	}
-	for _, tid := range expiredTenantIDs {
-		if err := j.tenantRepo.UpdateStatus(ctx, tid, model.StatusDisabled); err != nil {
-			j.logger.Printf("[ExpiryJob] 禁用租户 %s 失败: %v", tid, err)
-			continue
-		}
-		j.logger.Printf("[ExpiryJob] 套餐到期，已禁用租户 %s", tid)
+	if len(expiredTenantIDs) > 0 {
+		j.logger.Printf("[ExpiryJob] 套餐到期，已禁用 %d 个租户", len(expiredTenantIDs))
 	}
 
-	// 对即将到期（尚在有效期内）的订阅发送提醒
+	// 提醒必须无条件执行：原写法在本轮无到期订阅时提前 return，
+	// 使「7 天内到期」提醒只有在恰好有别的订阅过期的那一轮才发得出，多数轮次一条也不发
 	j.remindExpiringSoon(ctx)
 	return nil
 }
@@ -106,7 +129,7 @@ func (j *ExpiryJob) remindExpiringSoon(ctx context.Context) {
 		if _, ok := j.notified[key]; ok {
 			continue
 		}
-		tenant, err := j.tenantRepo.GetByID(ctx, sub.TenantID)
+		tenant, err := j.tenants.GetByID(ctx, sub.TenantID)
 		if err != nil || tenant == nil {
 			continue
 		}

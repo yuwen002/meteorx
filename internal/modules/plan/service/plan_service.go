@@ -11,6 +11,7 @@ import (
 	"meteorx/internal/modules/plan/model"
 	"meteorx/internal/modules/plan/repository"
 	"meteorx/pkg/idgen"
+	"meteorx/pkg/logger"
 )
 
 // 业务错误定义
@@ -33,6 +34,16 @@ type PlanService struct {
 	// 用量统计提供者（可选注入，用于 GetCurrentPlan 回填存储/空间实时用量）
 	storageUsage StorageUsageProvider
 	wikiUsage    WikiUsageProvider
+
+	// tenantDisabler 订阅到期后禁用租户的副作用（可选注入，由 ExpiryJob 装配）
+	tenantDisabler TenantDisabler
+}
+
+// TenantDisabler 到期订阅对应的租户禁用回调。
+// plan 模块不直接依赖 tenant 仓储，经此接口把「翻转订阅状态 + 禁用租户」收敛到同一处，
+// 使两步的先后顺序可被单元测试锁定（顺序写反会导致禁用动作永久无人重试）。
+type TenantDisabler interface {
+	DisableTenant(ctx context.Context, tenantID string) error
 }
 
 // StorageUsageProvider 统计租户已用存储字节（由文件仓储实现）。
@@ -306,8 +317,19 @@ func (s *PlanService) AssignPlan(ctx context.Context, tenantID string, req dto.A
 	return s.subRepo.Create(ctx, sub)
 }
 
-// ExpireSubscriptions 将已到期订阅标记为过期
-// 返回被标记的租户ID列表
+// SetTenantDisabler 注入到期禁用回调（未注入时仅翻转订阅状态，保持历史行为）。
+func (s *PlanService) SetTenantDisabler(d TenantDisabler) {
+	s.tenantDisabler = d
+}
+
+// ExpireSubscriptions 处理已到期但仍生效的订阅：先禁用租户，再翻转订阅状态
+// 返回本轮完整处理（禁用 + 翻转均成功）的租户 ID 列表
+//
+// 两步顺序不可颠倒：驱动本方法的 FindExpiredActive 只返回 status=active 且已到期的行，
+// 若先翻转为 expired，该行再也不会被扫到——随后禁用一旦失败（租户库抖动、连接超时），
+// 就永久无人重试，租户停在 enabled 继续自由使用，等于到期后免费续期（仅留一行日志）。
+// 改为当前顺序后两个方向前失败都可重入：禁用失败则保持 active，下轮重扫；
+// 禁用成功但翻转失败，下轮会再禁用一次（幂等 UPDATE）后重试翻转，多一次空更新远好于漏禁用。
 func (s *PlanService) ExpireSubscriptions(ctx context.Context) ([]string, error) {
 	subs, err := s.subRepo.FindExpiredActive(ctx)
 	if err != nil {
@@ -315,7 +337,14 @@ func (s *PlanService) ExpireSubscriptions(ctx context.Context) ([]string, error)
 	}
 	var expiredTenantIDs []string
 	for _, sub := range subs {
+		if s.tenantDisabler != nil {
+			if err := s.tenantDisabler.DisableTenant(ctx, sub.TenantID); err != nil {
+				logger.Errorf("[Plan] 到期禁用租户 %s 失败（订阅保持生效，下轮重试）: %v", sub.TenantID, err)
+				continue
+			}
+		}
 		if err := s.subRepo.UpdateStatus(ctx, sub.ID, model.SubscriptionExpired); err != nil {
+			logger.Errorf("[Plan] 标记订阅 %s 过期失败（租户已禁用，下轮重入）: %v", sub.ID, err)
 			continue
 		}
 		expiredTenantIDs = append(expiredTenantIDs, sub.TenantID)

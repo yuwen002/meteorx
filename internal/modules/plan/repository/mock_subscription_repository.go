@@ -10,6 +10,23 @@ import (
 // MockSubscriptionRepository 订阅仓库的内存实现（用于测试）
 type MockSubscriptionRepository struct {
 	subs []*model.TenantSubscription
+	// updateStatusErr 非 nil 时使 UpdateStatus 失败，用于验证写库出错时的重入语义
+	updateStatusErr error
+}
+
+// SetUpdateStatusErr 注入 UpdateStatus 失败（仅测试使用）
+func (m *MockSubscriptionRepository) SetUpdateStatusErr(err error) {
+	m.updateStatusErr = err
+}
+
+// StatusOf 读取指定订阅的当前状态（仅测试断言使用，未找到返回 0）
+func (m *MockSubscriptionRepository) StatusOf(id string) int {
+	for _, s := range m.subs {
+		if s.ID == id {
+			return s.Status
+		}
+	}
+	return 0
 }
 
 func NewMockSubscriptionRepository() *MockSubscriptionRepository {
@@ -31,6 +48,9 @@ func (m *MockSubscriptionRepository) Create(_ context.Context, sub *model.Tenant
 }
 
 func (m *MockSubscriptionRepository) UpdateStatus(_ context.Context, id string, status int) error {
+	if m.updateStatusErr != nil {
+		return m.updateStatusErr
+	}
 	for _, s := range m.subs {
 		if s.ID == id {
 			s.Status = status
