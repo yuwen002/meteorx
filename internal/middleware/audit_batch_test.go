@@ -17,8 +17,19 @@ import (
 
 func newAuditTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: glogger.Discard})
+	// 必须用具名 shared-cache 内存库：DSN 为裸 ":memory:" 时，sqlite 连接池每新开一条连接
+	// 都会拿到一个全新的空库，AutoMigrate 的表只对第一条连接可见；后台 flush 与轮询断言
+	// 并发时就会随机撞出“no such table: audit_logs”。与 testkit 保持同一口径。
+	dsn := "file:" + t.Name() + "?mode=memory&cache=shared"
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: glogger.Discard})
 	require.NoError(t, err)
+
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	// 单一连接：内存库的生命系于至少一条存活连接，且避开多连接的可见性差异。
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
 	require.NoError(t, repository.AutoMigrate(db))
 	return db
 }

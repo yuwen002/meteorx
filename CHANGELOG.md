@@ -22,6 +22,7 @@
 
 ### 测试
 - **真实 MySQL 方言执行测试（激活 CI 长期闲置的 MySQL 服务）**：任务模块的 `TIMESTAMPADD`、`JSON_CONTAINS`+`JSON_QUOTE`、`FIELD()`、`TIMESTAMPDIFF` 四处 SQL 的**语义此前从未被执行验证**——仓储层测试用 sqlmock 只匹配生成的 SQL 文本、从不运行，集成测试库是 sqlite（不支持这些函数，`internal/integration` 甚至为此注释绕开了 `List` 默认排序）。而 CI 的 Unit Tests job 其实早已 provision `mysql:8.0` 并注入 `METEORX_DB_*`，只是没有任何测试连接它（仅 `migrate` job 真实使用）。新增 `task_dialect_mysql_test.go` 在该服务上真实跑这几条查询，默认 `t.Skip`、需显式 `METEORX_MYSQL_DIALECT_TEST=1` 才开启（并要求库名以 `_test` 结尾，拒绝操作疑似业务库），本地无 MySQL 时 `go test ./...` 依旧全绿；`ci-cd.yml` 的 test job 补上该开关。已由真引擎坐实几件推测：`remind_before` 的单位确为分钟（将 PO 改存纳秒原值后用例立即失败，变异检验有效）；`tags` 列为 SQL NULL（AutoMigrate 给老行补列的真实历史态）不会使 `JSON_CONTAINS` 报错、仅不命中，无标签任务写入的 `null` 文本亦安全；而 `tags` 若为**空串**则 MySQL 直接报 `Error 3141 Invalid JSON text`（当前无任何代码路径产出该值，故不加投机防御，仅以用例固化边界）。另补 `TestTaskRepo_Stats_AvgHandleSecondsNull` 锁定“无已完成任务时聚合返回 NULL 必须降级为 0 而非报错”
+- **审计批量处理器测试的内存库偶发失败**：上一提交引入的 `audit_batch_test.go` 用 `sqlite.Open(":memory:")` 建库——该 DSN 下连接池每新开一条连接都会拿到一个**全新的空库**，AutoMigrate 建的表只对第一条连接可见，容量触发的异步 flush 与 `require.Eventually` 轮询断言并发时随机撞出 `no such table: audit_logs`（实测约 1/8 失败）。现改用与 `testkit` 同口径的具名 shared-cache DSN（`file:<t.Name()>?mode=memory&cache=shared`），并钉死单一连接、结束时关闭，12 次连续运行稳定通过
 
 ## [1.3.0] - 2026-10-16
 
