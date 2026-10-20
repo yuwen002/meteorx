@@ -193,6 +193,26 @@ func TestTaskRepo_Stats(t *testing.T) {
 	assert.Equal(t, int64(7200), stats.AvgHandleSeconds)
 }
 
+// TestTaskRepo_Stats_AvgHandleSecondsNull 租户没有任何已完成任务时，无 GROUP BY 的标量聚合
+// AVG(...) 仍返回一行，但值为 SQL NULL（MySQL/sqlite 均如此）。若直接扫进非指针 float64
+// 会因 NULL 无法转换而报错，使 /tasks/stats 对新租户直接 500。
+func TestTaskRepo_Stats_AvgHandleSecondsNull(t *testing.T) {
+	gormDB, mock := newTaskTestDB(t)
+	repo := NewTaskRepository(gormDB)
+
+	for range 5 {
+		mock.ExpectQuery("SELECT count\\(\\*\\) FROM `tasks`").
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(0)))
+	}
+	// 平均处理耗时返回 NULL 而非数值
+	mock.ExpectQuery("SELECT AVG.TIMESTAMPDIFF.SECOND, started_at, completed_at.").
+		WillReturnRows(sqlmock.NewRows([]string{"avg_handle_seconds"}).AddRow(nil))
+
+	stats, err := repo.Stats(context.Background(), ListFilter{TenantID: "t1", UserID: "u1"})
+	require.NoError(t, err, "无已完成任务时 Stats 不应因聚合返回 NULL 而报错")
+	assert.Equal(t, int64(0), stats.AvgHandleSeconds)
+}
+
 func TestTaskRepo_GetByIDUnscoped_IncludesDeleted(t *testing.T) {
 	gormDB, mock := newTaskTestDB(t)
 	repo := NewTaskRepository(gormDB)

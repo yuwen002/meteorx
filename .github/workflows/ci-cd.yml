@@ -81,6 +81,10 @@ jobs:
           METEORX_REDIS_HOST: localhost
           METEORX_REDIS_PORT: 6379
           METEORX_REDIS_PASSWORD: ""
+          # 打开真实 MySQL 方言测试：上面已 provision 的 mysql 服务长期闲置（没有任何测试连它），
+          # 而 TIMESTAMPADD / JSON_CONTAINS / FIELD() / TIMESTAMPDIFF 这几处 SQL 在 sqlmock 下
+          # 只断言了文本、在 sqlite 下根本不支持，语义从未被执行验证。库名需以 _test 结尾才生效。
+          METEORX_MYSQL_DIALECT_TEST: "1"
         run: |
           go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
           go tool cover -func=coverage.out
