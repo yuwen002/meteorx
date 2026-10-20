@@ -175,6 +175,9 @@ func (s *AlertService) EvaluateAndAlert(ctx context.Context, log *model.AuditLog
 		}
 
 		if err := s.alertRepo.CreateAlert(ctx, alert); err != nil {
+			// 首插失败不能裸 continue 静默吞掉：告警已不会产生，后续送达/回写都无依托，
+			// 至少留一行日志供事后查证（冷却仍会拦住本轮重复）
+			logger.Errorf("写入告警记录失败 rule=%s log=%s: %v", rule.ID, log.ID, err)
 			continue
 		}
 
@@ -221,20 +224,28 @@ func (s *AlertService) sendNotifications(ctx context.Context, rule *model.AlertR
 		return
 	}
 
+	// 按收件人类型拆分：邮箱只进邮件渠道、URL 只进 webhook 类渠道。规则 targets 常混装
+	// 两者，旧写法把整份 targets 同时喂给直发渠道与全局管理器，导致邮件对 URL 发信失败、
+	// WS 拿邮箱静默 miss（与到期提醒/注销通知同一病灶）。
+	emails := filterEmails(targets)
+
+	// delivered 只要任一直发渠道真正发成即为 true
+	delivered := false
 	for _, channel := range channels {
 		switch channel {
 		case model.NotifyChannelEmail:
-			s.sendEmailNotification(targets, alert)
+			delivered = s.sendEmailNotification(emails, alert) || delivered
 		case model.NotifyChannelDingTalk:
-			s.sendDingTalkNotification(targets, alert)
+			delivered = s.sendDingTalkNotification(targets, alert) || delivered
 		case model.NotifyChannelWeChat:
-			s.sendWeChatNotification(targets, alert)
+			delivered = s.sendWeChatNotification(targets, alert) || delivered
 		case model.NotifyChannelWebhook:
-			s.sendWebhookNotification(targets, alert)
+			delivered = s.sendWebhookNotification(targets, alert) || delivered
 		}
 	}
 
-	// WebSocket 实时推送告警通知
+	// WebSocket 实时推送告警通知（alert.UserID 本就是用户 ID，口径正确；
+	// 无人在线时静默 miss 不计入送达，与上面邮箱/URL 混用是两个问题）
 	ws.SendAlert(alert.UserID, map[string]interface{}{
 		"id":         alert.ID,
 		"rule_name":  alert.RuleName,
@@ -245,22 +256,49 @@ func (s *AlertService) sendNotifications(ctx context.Context, rule *model.AlertR
 		"time":       alert.CreatedAt.UnixMilli(),
 	})
 
-	// 通过多渠道通知管理器发送告警通知（补充渠道）
+	// 通过多渠道通知管理器发送告警通知（补充渠道）：只喂邮箱，结果参与送达判定
 	mgr := notify.GetGlobalManager()
 	if mgr != nil {
-		mgr.NotifyAlert(ctx, rule.Name, alert.Message, notify.PriorityUrgent, targets)
+		for _, r := range mgr.NotifyAlert(ctx, rule.Name, alert.Message, notify.PriorityUrgent, emails) {
+			if r.Success {
+				delivered = true
+				break
+			}
+		}
 	}
 
-	alert.Notified = true
-	alert.NotifyTime = time.Now()
-	_ = s.alertRepo.CreateAlert(ctx, alert)
-}
-
-func (s *AlertService) sendEmailNotification(targets []string, alert *model.AuditAlert) {
-	if s.emailer == nil {
+	// 送达才回写：此处无重驱机制（冷却按 created_at 判定、不重发），标记了也不重试，
+	// 因此「未送达不标记」的意义在于不谎报——否则看板 notified_count 恒等于告警总数、
+	// 故障被登记成「已处理」。回写本身失败也要留痕（旧写法 `_ =` 连错误都丢）。
+	if !delivered {
+		logger.Warnf("告警 %s 未送达任何渠道 rule=%s（告警已落库，需人工确认通知渠道）", alert.ID, rule.ID)
 		return
 	}
+	now := time.Now()
+	alert.Notified = true
+	alert.NotifyTime = now
+	if err := s.alertRepo.MarkAlertNotified(ctx, alert.ID, now); err != nil {
+		logger.Errorf("告警 %s 送达回写 notified 失败: %v", alert.ID, err)
+	}
+}
 
+// filterEmails 从混合收件人中只保留邮箱（与直发邮件渠道的 "@" 判定同口径）。
+func filterEmails(targets []string) []string {
+	emails := make([]string, 0, len(targets))
+	for _, t := range targets {
+		if strings.Contains(t, "@") {
+			emails = append(emails, t)
+		}
+	}
+	return emails
+}
+
+func (s *AlertService) sendEmailNotification(targets []string, alert *model.AuditAlert) bool {
+	if s.emailer == nil {
+		return false
+	}
+
+	sent := false
 	for _, target := range targets {
 		if !strings.Contains(target, "@") {
 			continue
@@ -320,8 +358,10 @@ func (s *AlertService) sendEmailNotification(targets []string, alert *model.Audi
 			logger.Errorf("[Email Alert] Failed to send to %s: %v", target, err)
 		} else {
 			logger.Infof("[Email Alert] Sent to %s successfully", target)
+			sent = true
 		}
 	}
+	return sent
 }
 
 func (s *AlertService) getRiskLevelColor(level string) string {
@@ -354,7 +394,8 @@ func (s *AlertService) getRiskLevelLabel(level string) string {
 	}
 }
 
-func (s *AlertService) sendDingTalkNotification(targets []string, alert *model.AuditAlert) {
+func (s *AlertService) sendDingTalkNotification(targets []string, alert *model.AuditAlert) bool {
+	sent := false
 	for _, target := range targets {
 		if !strings.HasPrefix(target, "http") {
 			continue
@@ -389,11 +430,14 @@ func (s *AlertService) sendDingTalkNotification(targets []string, alert *model.A
 			logger.Errorf("[DingTalk Alert] Failed to send to %s: %v", target, err)
 		} else {
 			logger.Infof("[DingTalk Alert] Sent to %s successfully", target)
+			sent = true
 		}
 	}
+	return sent
 }
 
-func (s *AlertService) sendWeChatNotification(targets []string, alert *model.AuditAlert) {
+func (s *AlertService) sendWeChatNotification(targets []string, alert *model.AuditAlert) bool {
+	sent := false
 	for _, target := range targets {
 		if !strings.HasPrefix(target, "http") {
 			continue
@@ -425,11 +469,14 @@ func (s *AlertService) sendWeChatNotification(targets []string, alert *model.Aud
 			logger.Errorf("[WeChat Alert] Failed to send to %s: %v", target, err)
 		} else {
 			logger.Infof("[WeChat Alert] Sent to %s successfully", target)
+			sent = true
 		}
 	}
+	return sent
 }
 
-func (s *AlertService) sendWebhookNotification(targets []string, alert *model.AuditAlert) {
+func (s *AlertService) sendWebhookNotification(targets []string, alert *model.AuditAlert) bool {
+	sent := false
 	for _, target := range targets {
 		if !strings.HasPrefix(target, "http") {
 			continue
@@ -451,8 +498,10 @@ func (s *AlertService) sendWebhookNotification(targets []string, alert *model.Au
 			logger.Errorf("[Webhook Alert] Failed to send to %s: %v", target, err)
 		} else {
 			logger.Infof("[Webhook Alert] Sent to %s successfully", target)
+			sent = true
 		}
 	}
+	return sent
 }
 
 func (s *AlertService) sendWebhookRequest(url string, payload interface{}) error {

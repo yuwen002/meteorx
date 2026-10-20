@@ -551,3 +551,69 @@ func TestJoinStrings(t *testing.T) {
 	assert.Equal(t, "a", joinStrings([]string{"a"}, "; "))
 	assert.Equal(t, "a; b; c", joinStrings([]string{"a", "b", "c"}, "; "))
 }
+
+// ---------------------------------------------------------------------------
+// manager.go NotifyAlert 按渠道类型路由
+// ---------------------------------------------------------------------------
+
+// TestManager_NotifyAlert_EmailsOnlyReachEmailChannel 告警通知按渠道类型分发：
+// emails 只进邮件渠道，webhook 用渠道绑定的全局 URL、不收收件人，WS 不得被牵进——
+// 旧签名把规则里的混合 targets（邮箱 + http URL）直喂 SendToAll：邮件渠道对 URL
+// 地址发信失败、WS 拿邮箱永远 miss，而 targets 为空时（wiki 运维告警）空收件人
+// 还会把含用户行为明细的告警广播给全体在线用户。
+func TestManager_NotifyAlert_EmailsOnlyReachEmailChannel(t *testing.T) {
+	email := &fakeNotifier{channel: ChannelEmail, name: "email"}
+	wsC := &fakeNotifier{channel: ChannelWebSocket, name: "ws"}
+	hook := &fakeNotifier{channel: ChannelWebhook, name: "webhook"}
+	m := newTestManager(email, wsC, hook)
+
+	results := m.NotifyAlert(context.Background(), "高风险操作", "用户 alice 删除了资源",
+		PriorityUrgent, []string{"a@x.com", "b@x.com"})
+	require.Len(t, results, 2, "只有 email 与 webhook 两条结果，WS 不得被牵进")
+	assert.Equal(t, int32(0), wsC.calls, "告警不得进 WS：收件人类型不对且广播会泄露用户行为明细")
+
+	require.NotNil(t, email.lastMsg)
+	assert.Equal(t, ChannelEmail, email.lastMsg.Channel)
+	assert.Equal(t, []string{"a@x.com", "b@x.com"}, email.lastMsg.Recipients)
+	assert.Equal(t, "[告警] 高风险操作", email.lastMsg.Title)
+
+	require.NotNil(t, hook.lastMsg)
+	assert.Equal(t, ChannelWebhook, hook.lastMsg.Channel)
+	assert.Empty(t, hook.lastMsg.Recipients, "webhook 收件人由渠道绑定，不得塞入邮箱")
+}
+
+// TestManager_NotifyAlert_SkipsEmailWithoutAddresses 无邮箱收件人时不得空跑邮件渠道：
+// EmailNotifier.Send 对空收件人返回 "no recipients" 错误，产生一条永远失败的噪声结果，
+// 会干扰调用方的送达判定。
+func TestManager_NotifyAlert_SkipsEmailWithoutAddresses(t *testing.T) {
+	email := &fakeNotifier{channel: ChannelEmail, name: "email"}
+	hook := &fakeNotifier{channel: ChannelWebhook, name: "webhook"}
+	m := newTestManager(email, hook)
+
+	results := m.NotifyAlert(context.Background(), "清理失败", "定时任务执行失败", PriorityHigh, nil)
+	require.Len(t, results, 1, "只剩 webhook 一条结果")
+	assert.Equal(t, int32(0), email.calls)
+	assert.Equal(t, int32(1), hook.calls)
+}
+
+// TestManager_NotifyAlert_NoChannelsNoResults 未注册任何渠道时返回空结果（no-op），
+// 与 wiki 运维告警调用点的既有契约一致。
+func TestManager_NotifyAlert_NoChannelsNoResults(t *testing.T) {
+	m := newTestManager()
+	assert.Empty(t, m.NotifyAlert(context.Background(), "r", "c", PriorityHigh, []string{"a@x.com"}))
+}
+
+// TestManager_NotifyAlert_ChannelMessagesIndependent 两渠道各构造一份 Message：
+// 复用同一对象时渠道持有的引用会被后续渠道覆盖（与 NotifySubscriptionExpiry 同口径）。
+func TestManager_NotifyAlert_ChannelMessagesIndependent(t *testing.T) {
+	email := &fakeNotifier{channel: ChannelEmail, name: "email"}
+	hook := &fakeNotifier{channel: ChannelWebhook, name: "webhook"}
+	m := newTestManager(email, hook)
+
+	m.NotifyAlert(context.Background(), "r", "c", PriorityUrgent, []string{"a@x.com"})
+	require.NotNil(t, email.lastMsg)
+	require.NotNil(t, hook.lastMsg)
+	assert.Equal(t, ChannelEmail, email.lastMsg.Channel, "两渠道消息对象不得相互覆盖")
+	assert.Equal(t, ChannelWebhook, hook.lastMsg.Channel)
+	assert.Equal(t, []string{"a@x.com"}, email.lastMsg.Recipients, "邮件收件人不得被后发渠道清空")
+}

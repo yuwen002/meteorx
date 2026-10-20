@@ -283,6 +283,9 @@ type MockAlertRuleRepository struct {
 	rules       []*model.AlertRule
 	alerts      []*model.AuditAlert
 	lastAlertAt map[string]time.Time
+	// NotifiedIDs 记录每次 MarkAlertNotified 的目标 ID（测试观察点）：
+	// 真库以 UPDATE 落库，mock 只能靠此切片与内存对象断言“送达才回写”与“不二次插入”。
+	NotifiedIDs []string
 }
 
 // NewMockAlertRuleRepository 创建 Mock 告警规则仓库
@@ -345,6 +348,18 @@ func (m *MockAlertRuleRepository) GetEnabledRules(ctx context.Context) ([]*model
 func (m *MockAlertRuleRepository) CreateAlert(ctx context.Context, alert *model.AuditAlert) error {
 	m.alerts = append(m.alerts, alert)
 	m.lastAlertAt[alert.RuleID] = time.Now()
+	return nil
+}
+
+// MarkAlertNotified 与真实实现对齐：只 UPDATE 已有行，不新增记录。
+func (m *MockAlertRuleRepository) MarkAlertNotified(ctx context.Context, id string, notifyTime time.Time) error {
+	m.NotifiedIDs = append(m.NotifiedIDs, id)
+	for _, a := range m.alerts {
+		if a.ID == id {
+			a.Notified = true
+			a.NotifyTime = notifyTime
+		}
+	}
 	return nil
 }
 

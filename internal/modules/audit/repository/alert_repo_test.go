@@ -121,6 +121,18 @@ func TestAlertRuleRepo_CreateAlert(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TestAlertRuleRepo_MarkAlertNotified 送达回写必须是 UPDATE 而非再次 INSERT：
+// 旧实现用同一 ID 二次 CreateAlert，主键冲突后错误被 `_ =` 丢弃，
+// notified/notify_time 在真实库上从未落过库。
+func TestAlertRuleRepo_MarkAlertNotified(t *testing.T) {
+	gormDB, mock := newAlertTestDB(t)
+	repo := NewAlertRuleRepository(gormDB)
+	mock.ExpectExec("UPDATE `audit_alerts` SET").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	err := repo.MarkAlertNotified(context.Background(), "aa-001", time.Now())
+	assert.NoError(t, err)
+}
+
 func TestAlertRuleRepo_GetAlertByID(t *testing.T) {
 	gormDB, mock := newAlertTestDB(t)
 	repo := NewAlertRuleRepository(gormDB)

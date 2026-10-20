@@ -3,6 +3,8 @@ package repository
 
 import (
 	"context"
+	"time"
+
 	"meteorx/internal/modules/audit/model"
 )
 
@@ -102,6 +104,10 @@ type AlertRuleRepository interface {
 
 	// CreateAlert 创建告警记录
 	CreateAlert(ctx context.Context, alert *model.AuditAlert) error
+
+	// MarkAlertNotified 送达后将告警标记为已通知（UPDATE）。
+	// 不可用 CreateAlert 二次插入代替：同一 ID 再 INSERT 必然主键冲突。
+	MarkAlertNotified(ctx context.Context, id string, notifyTime time.Time) error
 
 	// GetAlertByID 根据ID获取告警记录
 	GetAlertByID(ctx context.Context, id string) (*model.AuditAlert, error)

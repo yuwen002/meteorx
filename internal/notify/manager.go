@@ -119,21 +119,31 @@ func (m *Manager) NotifyCancelRequestStatus(ctx context.Context, tenantName stri
 	return results
 }
 
-// NotifyAlert 告警通知
-// 发送给告警规则配置的通知目标
-func (m *Manager) NotifyAlert(ctx context.Context, ruleName, alertContent string, priority Priority, targets []string) []SendResult {
-	msg := &Message{
-		Title:      "[告警] " + ruleName,
-		Content:    alertContent,
-		Priority:   priority,
-		Recipients: targets,
-		Extra: map[string]interface{}{
-			"type": "alert",
-		},
-	}
+// NotifyAlert 告警通知。
+// emails 为邮件收件人（已由调用方按类型拆分，只装邮箱），为空时不跑邮件渠道。
+// Webhook 渠道的收件人由渠道自身绑定、不收 msg.Recipients；WS 不再参与——
+// 旧写法把规则里的混合 targets（邮箱 + http URL）直喂 SendToAll：邮件对 URL 发信失败、
+// WS 拿邮箱永远 miss，而 targets 为空时（wiki 运维告警）空收件人还会把含用户行为
+// 明细的告警广播给全体在线用户。返回各渠道 SendResult 供调用方判定是否送达。
+func (m *Manager) NotifyAlert(ctx context.Context, ruleName, alertContent string, priority Priority, emails []string) []SendResult {
+	title := "[告警] " + ruleName
+	extra := map[string]interface{}{"type": "alert"}
 
-	// 告警通知发送到所有可用渠道
-	return m.composite.SendToAll(ctx, msg)
+	var results []SendResult
+	// 每渠道各构造一份 Message：渠道可能持有对象引用，复用会被后续渠道覆盖
+	if len(emails) > 0 && m.composite.HasChannel(ChannelEmail) {
+		results = append(results, m.composite.Send(ctx, &Message{
+			Title: title, Content: alertContent, Priority: priority,
+			Channel: ChannelEmail, Recipients: emails, Extra: extra,
+		})...)
+	}
+	if m.composite.HasChannel(ChannelWebhook) {
+		results = append(results, m.composite.Send(ctx, &Message{
+			Title: title, Content: alertContent, Priority: priority,
+			Channel: ChannelWebhook, Extra: extra,
+		})...)
+	}
+	return results
 }
 
 // NotifySubscriptionExpiry 订阅到期通知

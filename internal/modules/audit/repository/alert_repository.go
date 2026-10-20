@@ -124,6 +124,14 @@ func (r *alertRuleRepository) CreateAlert(ctx context.Context, alert *model.Audi
 	return r.db.WithContext(ctx).Create(po).Error
 }
 
+// MarkAlertNotified 送达回写：以 UPDATE 置 notified/notify_time。旧写法用同一 ID 再
+// 次 CreateAlert（INSERT）必然主键冲突，错误又被调用方 `_ =` 丢弃，导致真实库上
+// notified 从未落库、看板「已通知数」恒为 0。
+func (r *alertRuleRepository) MarkAlertNotified(ctx context.Context, id string, notifyTime time.Time) error {
+	return r.db.WithContext(ctx).Model(&AuditAlertPO{}).Where("id = ?", id).
+		Updates(map[string]interface{}{"notified": true, "notify_time": notifyTime}).Error
+}
+
 // GetAlertByID 按主键查询单条审计告警。
 func (r *alertRuleRepository) GetAlertByID(ctx context.Context, id string) (*model.AuditAlert, error) {
 	var po AuditAlertPO
