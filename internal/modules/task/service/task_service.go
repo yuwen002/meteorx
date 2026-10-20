@@ -243,18 +243,23 @@ func (s *TaskService) Update(ctx context.Context, tenantID, userID, id string, r
 		if err != nil {
 			return nil, err
 		}
+		// 截止日实质变化时才重置提醒标记，使新截止日可再次触发到期提醒；
+		// 原值回传不能重置，否则前端整体保存会抹掉冷却基准导致重复骚扰。
+		if !sameDue(task.DueDate, dueDate) {
+			task.ReminderSentAt = nil
+		}
 		task.DueDate = dueDate
-		// 截止日变化后重置提醒标记，使新截止日可再次触发到期提醒
-		task.ReminderSentAt = nil
 	}
 	if req.RemindBefore != nil {
 		remindBefore, err := parseRemindLead(*req.RemindBefore)
 		if err != nil {
 			return nil, err
 		}
+		// 同理：仅当提前量实质变化时才重置，使新提醒窗口可重新评估。
+		if !sameLead(task.RemindBefore, remindBefore) {
+			task.ReminderSentAt = nil
+		}
 		task.RemindBefore = remindBefore
-		// 提前量变化后重置提醒标记，使新提醒窗口可重新评估
-		task.ReminderSentAt = nil
 	}
 	if req.Status != nil && *req.Status != "" {
 		applyStatusChange(task, *req.Status, time.Now())
@@ -706,6 +711,25 @@ func parseRemindLead(s string) (*time.Duration, error) {
 		return nil, ErrInvalidRemindLead
 	}
 	return &d, nil
+}
+
+// sameDue 判断两个截止时间是否等价（均为空视为相等）。
+// 按秒比较：接口层 ToResp 以秒级精度输出 due_date，前端原样回传时只会携带秒，
+// 若按纳秒比较会把“未变更的回传”误判为改期，从而误重置提醒冷却基准。
+func sameDue(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.Truncate(time.Second).Equal(b.Truncate(time.Second))
+}
+
+// sameLead 判断两个提醒提前量是否等价（均为空视为相等）。
+// 同样用于避免原值回传被误判为变更而重置提醒冷却。
+func sameLead(a, b *time.Duration) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 // normalizeTags 去除空白标签并返回，空切片归一化为 nil。

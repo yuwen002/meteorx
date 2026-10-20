@@ -732,6 +732,84 @@ func TestSendDueReminders_ConfigurableCooldown(t *testing.T) {
 	assert.ElementsMatch(t, []string{"overdue"}, repo.marked)
 }
 
+// TestUpdate_DueDateChangeResetsReminder_EndToEnd 改期后应重置提醒标记：首次提醒已发出的任务若被
+// 推延到新截止日，不重置则 reminder_sent_at 非空使新截止日永远发不出首提醒（只有再次逾期过冷却才会提醒）。
+// 重置语义与修改 remind_before 时保持对称。基础重置行为另见 TestUpdate_DueDateChangeResetsReminder。
+func TestUpdate_DueDateChangeResetsReminder_EndToEnd(t *testing.T) {
+	svc, repo := newService()
+	now := time.Now()
+	oldDue := now.Add(24 * time.Hour)
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1", AssigneeID: "u2",
+		Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusPending,
+		DueDate: &oldDue, ReminderSentAt: ptr(now.Add(-time.Minute))}
+
+	newDue := now.Add(72 * time.Hour)
+	task, err := svc.Update(context.Background(), "t1", "u1", "a",
+		dto.UpdateTaskReq{DueDate: ptr(newDue.Format("2006-01-02 15:04:05"))})
+	require.NoError(t, err)
+
+	assert.Nil(t, task.ReminderSentAt)
+	// 端到端：下一个扫描周期应能向新截止日发出首提醒
+	n, err := svc.SendDueReminders(context.Background(), now.Add(168*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, 1, n, "改期后的新截止日应重新进入提醒范围")
+	assert.ElementsMatch(t, []string{"a"}, repo.marked)
+}
+
+// TestUpdate_UnchangedDueDateKeepsReminderCooldown 冷却不被整体提交绕过：
+// 前端保存往往原样回传 dueDate，若因此抹掉 reminder_sent_at，下一轮扫描会立即重发提醒，
+// 冷却形同虚设（反复保存 = 反复骚扰）。
+func TestUpdate_UnchangedDueDateKeepsReminderCooldown(t *testing.T) {
+	svc, repo := newService()
+	now := time.Now()
+	// 截止日带毫秒精度，而接口回传会被截断到秒（ToResp 使用秒级格式）
+	due := now.Add(24 * time.Hour).Truncate(time.Millisecond)
+	remindedAt := now.Add(-time.Minute)
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1", AssigneeID: "u2",
+		Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusPending,
+		DueDate: &due, ReminderSentAt: &remindedAt}
+
+	// 原样回传同一截止日（秒精度）+ 只改标题
+	task, err := svc.Update(context.Background(), "t1", "u1", "a",
+		dto.UpdateTaskReq{Title: ptr("只改了标题"), DueDate: ptr(due.Format("2006-01-02 15:04:05"))})
+	require.NoError(t, err)
+
+	require.NotNil(t, task.ReminderSentAt, "截止日未实质变化时不得重置已提醒标记")
+	assert.True(t, task.ReminderSentAt.Equal(remindedAt))
+
+	// 关键用户可见后果：冷却内不得重复发出提醒
+	n, err := svc.SendDueReminders(context.Background(), now.Add(168*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, 0, n, "原样回传 dueDate 不得导致冷却被绕过而重复提醒")
+}
+
+// TestUpdate_UnchangedRemindBeforeKeepsReminderCooldown 同理：remind_before 原值回传也不得重置冷却。
+func TestUpdate_UnchangedRemindBeforeKeepsReminderCooldown(t *testing.T) {
+	svc, repo := newService()
+	now := time.Now()
+	due := now.Add(24 * time.Hour)
+	lead := 30 * time.Minute
+	remindedAt := now.Add(-time.Minute)
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1", AssigneeID: "u2",
+		Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusPending,
+		DueDate: &due, RemindBefore: &lead, ReminderSentAt: &remindedAt}
+
+	task, err := svc.Update(context.Background(), "t1", "u1", "a",
+		dto.UpdateTaskReq{RemindBefore: ptr("30m")})
+	require.NoError(t, err)
+
+	require.NotNil(t, task.ReminderSentAt, "提前量未实质变化时不得重置已提醒标记")
+	n, err := svc.SendDueReminders(context.Background(), now.Add(168*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, 0, n, "原样回传 remind_before 不得重复提醒")
+
+	// 对照：真的修改提前量时仍应重置（保持原有语义）
+	task2, err := svc.Update(context.Background(), "t1", "u1", "a",
+		dto.UpdateTaskReq{RemindBefore: ptr("2h")})
+	require.NoError(t, err)
+	assert.Nil(t, task2.ReminderSentAt, "提前量实质变化时应重置提醒标记")
+}
+
 // ---- 任务级提醒提前量 remind_before ----
 
 func TestParseRemindLead(t *testing.T) {
