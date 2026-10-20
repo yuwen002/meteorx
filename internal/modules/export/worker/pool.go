@@ -25,6 +25,15 @@ const pollInterval = 2 * time.Second
 // pollBatchSize 单轮最多拉取的 pending 任务数
 const pollBatchSize = 100
 
+// terminalWriteTimeout 终态回写（completed/failed）所用独立上下文的超时。
+// 该超时与入参 ctx 解耦：优雅关闭时 ctx 已被取消，若沿用则回写 SQL 直接失败，任务永久停在 running。
+const terminalWriteTimeout = 5 * time.Second
+
+// detachedWriteCtx 派生一个不随父 ctx 取消、但带超时的上下文，用于抢占后的终态回写。
+func detachedWriteCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), terminalWriteTimeout)
+}
+
 // Pool 导出任务工作池
 type Pool struct {
 	repo     repository.ExportRepository
@@ -138,10 +147,13 @@ func (p *Pool) processJob(ctx context.Context, id string) {
 	if err != nil {
 		_ = os.Remove(filePath) // 清理半成品文件
 		// 完整错误只进服务端日志，落库的 error_msg 截断后回显，避免内部细节原样泄给前端
-		p.markFailed(ctx, id, truncateErrMsg(err.Error()))
+		p.markFailed(ctx, id, userSafeExportError(err))
 		return
 	}
-	if err := p.repo.MarkCompleted(ctx, id, filePath, rows, time.Now()); err != nil {
+	// 终态回写用独立上下文：此时 ctx 可能因优雅关闭已取消，若失败会使任务永久停在 running
+	wctx, wcancel := detachedWriteCtx(ctx)
+	defer wcancel()
+	if err := p.repo.MarkCompleted(wctx, id, filePath, rows, time.Now()); err != nil {
 		logger.Errorf("[Export] 回写任务 %s 完成状态失败: %v", id, err)
 	}
 }
@@ -182,12 +194,25 @@ func (p *Pool) runExport(ctx context.Context, exp exporter.Exporter, job *model.
 	return rows, nil
 }
 
-// markFailed 回写失败状态并记录日志
+// markFailed 回写失败状态并记录日志。
+// 使用脱离取消的独立上下文：调用时常发生在 ctx 已被取消的异常路径上（如优雅关闭），
+// 若沿用原 ctx 会使回写失败，任务永久停在 running 并持续占用租户队列额度。
 func (p *Pool) markFailed(ctx context.Context, id, msg string) {
-	if err := p.repo.MarkFailed(ctx, id, msg, time.Now()); err != nil {
+	wctx, wcancel := detachedWriteCtx(ctx)
+	defer wcancel()
+	if err := p.repo.MarkFailed(wctx, id, msg, time.Now()); err != nil {
 		logger.Errorf("[Export] 回写任务 %s 失败状态出错: %v", id, err)
 	}
 	logger.Warnf("[Export] 任务 %s 导出失败: %s", id, msg)
+}
+
+// userSafeExportError 将中断类错误映为用户可读文案，其余仍走截断。
+// 服务重启导致的 context.Canceled/DeadlineExceeded 若直接回显，给用户看到的是“context canceled”这类无意义内部错误。
+func userSafeExportError(err error) string {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return "导出被中断（服务重启或超时），请重新发起"
+	}
+	return truncateErrMsg(err.Error())
 }
 
 // maxErrMsgLen error_msg 落库/回显的最大长度，防止将驱动层长错误（含路径/堆砌信息）原样展示。
