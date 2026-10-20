@@ -17,6 +17,7 @@ import (
 	"meteorx/internal/modules/export/service"
 	"meteorx/internal/modules/export/service/exporter"
 	"meteorx/pkg/logger"
+	"meteorx/pkg/uuid"
 )
 
 // pollInterval poller 扫描 pending 任务的间隔
@@ -29,6 +30,20 @@ const pollBatchSize = 100
 // 该超时与入参 ctx 解耦：优雅关闭时 ctx 已被取消，若沿用则回写 SQL 直接失败，任务永久停在 running。
 const terminalWriteTimeout = 5 * time.Second
 
+const (
+	// exportLeaseTTL 执行租约时长。优雅关闭已由 detachedWriteCtx 保证回写终态，本租约防的是
+	// kill -9 / OOM / 容器驱逐这类无任何收尾机会的死法：当时无人写终态，任务会永久停在
+	// running（poll 只拉 pending 不会重驱，还长期占用租户队列额度），租约到期后由回收扫描重驱。
+	exportLeaseTTL = 60 * time.Second
+	// heartbeatInterval 续租间隔，取 TTL/3：留出两次失败容错（GC 停顿、DB 抖动）而不被误判为死。
+	heartbeatInterval = exportLeaseTTL / 3
+	// maxExportAttempts 单个任务最多被执行次数：若某导出本身就会把进程撞死（如数据量导致 OOM），
+	// 无限重驱会形成崩溃循环、反复拖垮整个服务，达上限后直接置失败。
+	maxExportAttempts = 3
+	// leaseWriteTimeout 单次续租写库超时，避免 DB 无响应时 goroutine 久留。
+	leaseWriteTimeout = 5 * time.Second
+)
+
 // detachedWriteCtx 派生一个不随父 ctx 取消、但带超时的上下文，用于抢占后的终态回写。
 func detachedWriteCtx(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), terminalWriteTimeout)
@@ -40,6 +55,12 @@ type Pool struct {
 	registry *exporter.Registry
 	cfg      service.Config
 	queue    chan string
+
+	// 以下三个时长/次数参数默认取常量，列为字段便于测试缩短（否则需真等 60s 租约）
+	pollEvery     time.Duration
+	leaseTTL      time.Duration
+	heartbeatRate time.Duration
+	maxAttempts   int
 }
 
 // NewPool 创建工作池
@@ -49,6 +70,11 @@ func NewPool(repo repository.ExportRepository, registry *exporter.Registry, cfg 
 		registry: registry,
 		cfg:      cfg,
 		queue:    make(chan string, 64),
+
+		pollEvery:     pollInterval,
+		leaseTTL:      exportLeaseTTL,
+		heartbeatRate: heartbeatInterval,
+		maxAttempts:   maxExportAttempts,
 	}
 }
 
@@ -62,16 +88,31 @@ func (p *Pool) Start(ctx context.Context) {
 	if workers <= 0 {
 		workers = 3
 	}
+	// 启动即回收一次：上一副本被强杀时残留的 running 任务不必等首个 ticker 周期
+	p.reclaim(ctx)
 	for i := 0; i < workers; i++ {
 		go p.worker(ctx)
 	}
-	logger.Infof("[Export] worker 池启动，worker 数=%d, 目录=%s", workers, p.cfg.Dir)
+	logger.Infof("[Export] worker 池启动，worker 数=%d, 目录=%s, 租约=%s", workers, p.cfg.Dir, p.leaseTTL)
 	p.poll(ctx)
+}
+
+// reclaim 回收租约过期的 running 任务（执行进程被强杀/OOM，没有任何收尾机会）。
+// 多副本安全：只动租约已过期的行，持有效租约的是其他存活 worker 正在跑的任务。
+func (p *Pool) reclaim(ctx context.Context) {
+	requeued, aborted, err := p.repo.ReclaimExpiredLeases(ctx, time.Now(), p.leaseTTL, p.maxAttempts)
+	if err != nil {
+		logger.Errorf("[Export] 回收失联导出任务失败: %v", err)
+		return
+	}
+	if requeued > 0 || aborted > 0 {
+		logger.Warnf("[Export] 回收失联导出任务：重新排队 %d 个，超执行次数上限置失败 %d 个", requeued, aborted)
+	}
 }
 
 // poll 周期性拉取 pending 任务并入队，ctx 取消时返回。
 func (p *Pool) poll(ctx context.Context) {
-	ticker := time.NewTicker(pollInterval)
+	ticker := time.NewTicker(p.pollEvery)
 	defer ticker.Stop()
 	for {
 		select {
@@ -79,6 +120,8 @@ func (p *Pool) poll(ctx context.Context) {
 			logger.Info("[Export] worker 池已停止")
 			return
 		case <-ticker.C:
+			// 先回收再拉取：回队的任务本轮就能重新被调度，不必额外等一个周期
+			p.reclaim(ctx)
 			jobs, err := p.repo.ListPending(ctx, pollBatchSize)
 			if err != nil {
 				logger.Errorf("[Export] 拉取待处理任务失败: %v", err)
@@ -118,8 +161,15 @@ func (p *Pool) processJob(ctx context.Context, id string) {
 		}
 		return
 	}
-	// 条件抢占：仅 pending→running 成功者继续，避免多 worker/多副本重复执行
-	ok, err := p.repo.MarkRunning(ctx, id, time.Now())
+	// 条件抢占：仅 pending→running 成功者继续，避免多 worker/多副本重复执行；
+	// 同时写入执行租约与归属令牌，使本进程硬死亡时该任务后续可被回收重驱。
+	claimedAt := time.Now()
+	token := uuid.Generate()
+	ok, err := p.repo.MarkRunning(ctx, id, repository.Claim{
+		StartedAt:      claimedAt,
+		LeaseExpiresAt: claimedAt.Add(p.leaseTTL),
+		Token:          token,
+	})
 	if err != nil {
 		logger.Errorf("[Export] 抢占任务 %s 失败: %v", id, err)
 		return
@@ -127,17 +177,21 @@ func (p *Pool) processJob(ctx context.Context, id string) {
 	if !ok {
 		return
 	}
+	// 执行期间持续续租，向其他副本证明“我还活着”；processJob 返回即停止。
+	hbCtx, stopHB := context.WithCancel(ctx)
+	defer stopHB()
+	go p.heartbeat(hbCtx, id, token)
 
 	exp, found := p.registry.Get(job.Resource)
 	if !found {
-		p.markFailed(ctx, id, fmt.Sprintf("未注册的导出资源类型: %s", job.Resource))
+		p.markFailed(ctx, id, token, fmt.Sprintf("未注册的导出资源类型: %s", job.Resource))
 		return
 	}
 
 	var filters map[string]any
 	if job.FiltersJSON != "" {
 		if err := json.Unmarshal([]byte(job.FiltersJSON), &filters); err != nil {
-			p.markFailed(ctx, id, "筛选条件解析失败: "+err.Error())
+			p.markFailed(ctx, id, token, "筛选条件解析失败: "+err.Error())
 			return
 		}
 	}
@@ -147,13 +201,13 @@ func (p *Pool) processJob(ctx context.Context, id string) {
 	if err != nil {
 		_ = os.Remove(filePath) // 清理半成品文件
 		// 完整错误只进服务端日志，落库的 error_msg 截断后回显，避免内部细节原样泄给前端
-		p.markFailed(ctx, id, userSafeExportError(err))
+		p.markFailed(ctx, id, token, userSafeExportError(err))
 		return
 	}
 	// 终态回写用独立上下文：此时 ctx 可能因优雅关闭已取消，若失败会使任务永久停在 running
 	wctx, wcancel := detachedWriteCtx(ctx)
 	defer wcancel()
-	if err := p.repo.MarkCompleted(wctx, id, filePath, rows, time.Now()); err != nil {
+	if err := p.repo.MarkCompleted(wctx, id, token, filePath, rows, time.Now()); err != nil {
 		logger.Errorf("[Export] 回写任务 %s 完成状态失败: %v", id, err)
 	}
 }
@@ -194,13 +248,38 @@ func (p *Pool) runExport(ctx context.Context, exp exporter.Exporter, job *model.
 	return rows, nil
 }
 
+// heartbeat 周期性续租，直到任务结束（stopHB）或上下文取消。
+// 不做续租则长导出会被误判为已死而被其他副本抢去重跑；反之进程真死时心跳自然停，租约到期即触发回收。
+func (p *Pool) heartbeat(ctx context.Context, id, token string) {
+	ticker := time.NewTicker(p.heartbeatRate)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			wctx, cancel := context.WithTimeout(ctx, leaseWriteTimeout)
+			ok, err := p.repo.Heartbeat(wctx, id, token, time.Now().Add(p.leaseTTL))
+			cancel()
+			if err != nil {
+				logger.Warnf("[Export] 任务 %s 续租失败（租约将于 %s 后到期）: %v", id, p.leaseTTL, err)
+				continue
+			}
+			if !ok {
+				// 任务已不在 running 或令牌已换（本执行成僵尸）：继续按旧令牌续租只会空转
+				return
+			}
+		}
+	}
+}
+
 // markFailed 回写失败状态并记录日志。
 // 使用脱离取消的独立上下文：调用时常发生在 ctx 已被取消的异常路径上（如优雅关闭），
 // 若沿用原 ctx 会使回写失败，任务永久停在 running 并持续占用租户队列额度。
-func (p *Pool) markFailed(ctx context.Context, id, msg string) {
+func (p *Pool) markFailed(ctx context.Context, id, token, msg string) {
 	wctx, wcancel := detachedWriteCtx(ctx)
 	defer wcancel()
-	if err := p.repo.MarkFailed(wctx, id, msg, time.Now()); err != nil {
+	if err := p.repo.MarkFailed(wctx, id, token, msg, time.Now()); err != nil {
 		logger.Errorf("[Export] 回写任务 %s 失败状态出错: %v", id, err)
 	}
 	logger.Warnf("[Export] 任务 %s 导出失败: %s", id, msg)

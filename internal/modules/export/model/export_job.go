@@ -92,4 +92,11 @@ type ExportJob struct {
 	StartedAt   *time.Time
 	CompletedAt *time.Time
 	ExpiresAt   time.Time // 文件过期时间，由定时任务清理
+	// LeaseExpiresAt 执行租约到期时间：worker 抢占时写入、执行期间持续续租。
+	// 进程被 kill -9/OOM 时没有任何收尾机会，租约到期即说明持有者已死，任务可被回收重驱。
+	LeaseExpiresAt *time.Time
+	// LeaseToken 本次执行的归属令牌（每次抢占随机生成）：回收重驱后，旧执行的迟到回写
+	// 因令牌不再匹配而自然空转，不会覆写新执行的租约与终态。
+	LeaseToken string
+	Attempts   int // 已被抢占执行的次数，用于限制崩溃重驱上限，避免必然撞死进程的任务无限循环
 }
