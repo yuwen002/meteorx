@@ -13,7 +13,22 @@ import (
 
 // AuditService 审计日志业务服务
 type AuditService struct {
-	repo repository.AuditLogRepository
+	repo      repository.AuditLogRepository
+	alertEval AlertEvaluator
+}
+
+// AlertEvaluator 告警评估链的窄接口：审计日志落库成功后把真实存在的日志行
+// 交给告警规则评估。接入前 EvaluateAndAlert 在生产里没有任何调用方——规则、
+// 告警记录、通知渠道全部就绪，唯独没有触发者，整条告警链是永远不会执行的死代码。
+// 实现方按批处理：整批只查一次启用规则，冷却判定逐条生效。
+type AlertEvaluator interface {
+	EvaluateAuditLogs(ctx context.Context, logs []*model.AuditLog)
+}
+
+// SetAlertEvaluator 注入告警评估链（由 audit.WireAlertEvaluation 在生产装配时调用）；
+// 未注入时写入路径保持原行为，nil 安全。
+func (s *AuditService) SetAlertEvaluator(eval AlertEvaluator) {
+	s.alertEval = eval
 }
 
 // NewAuditService 创建审计日志服务
@@ -55,6 +70,10 @@ func (s *AuditService) CreateLog(ctx context.Context, req dto.CreateAuditLogReq)
 
 	if err := s.repo.Create(ctx, log); err != nil {
 		return nil, err
+	}
+	// 写入成功才评估：日志行不存在时告警会指向查无此记录的 audit_log_id
+	if s.alertEval != nil {
+		s.alertEval.EvaluateAuditLogs(ctx, []*model.AuditLog{log})
 	}
 	return log, nil
 }
@@ -98,7 +117,14 @@ func (s *AuditService) BatchCreateLogs(ctx context.Context, reqs []dto.CreateAud
 		}
 	}
 
-	return s.repo.BatchCreate(ctx, logs)
+	if err := s.repo.BatchCreate(ctx, logs); err != nil {
+		return err
+	}
+	// 整批一次性交给评估链（flush 已在独立协程/独立 ctx 中，不阻塞请求）
+	if s.alertEval != nil {
+		s.alertEval.EvaluateAuditLogs(ctx, logs)
+	}
+	return nil
 }
 
 // GetLog 获取审计日志详情

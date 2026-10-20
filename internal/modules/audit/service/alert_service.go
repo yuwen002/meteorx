@@ -135,13 +135,38 @@ func (s *AlertService) ListAlerts(ctx context.Context, page, pageSize int, ruleI
 	return s.alertRepo.ListAlerts(ctx, page, pageSize, ruleID, userID, riskLevel)
 }
 
-// EvaluateAndAlert 评估审计日志并触发告警
+// EvaluateAndAlert 评估单条审计日志并触发告警（实现 AuditEvaluator 的写入路径钩子）。
 func (s *AlertService) EvaluateAndAlert(ctx context.Context, log *model.AuditLog) error {
 	rules, err := s.alertRepo.GetEnabledRules(ctx)
 	if err != nil {
 		return err
 	}
+	s.evaluateWithRules(ctx, rules, log)
+	return nil
+}
 
+// EvaluateAuditLogs 批量评估：整批只查一次启用规则，逐条匹配与冷却判定。
+// 审计中间件每 5s/每 100 条 flush 一次，逐条查规则会使每轮 flush 多出上百次
+// SELECT；匹配不命中是纯内存比较，冷却仍按每条产出时刻逐条生效。
+func (s *AlertService) EvaluateAuditLogs(ctx context.Context, logs []*model.AuditLog) {
+	if len(logs) == 0 {
+		return
+	}
+	rules, err := s.alertRepo.GetEnabledRules(ctx)
+	if err != nil {
+		logger.Errorf("获取启用告警规则失败（本轮 %d 条日志未评估）: %v", len(logs), err)
+		return
+	}
+	if len(rules) == 0 {
+		return
+	}
+	for _, log := range logs {
+		s.evaluateWithRules(ctx, rules, log)
+	}
+}
+
+// evaluateWithRules 在给定规则集下对单条日志做匹配、冷却判定与告警产出/发送。
+func (s *AlertService) evaluateWithRules(ctx context.Context, rules []*model.AlertRule, log *model.AuditLog) {
 	for _, rule := range rules {
 		if !s.matchRule(rule, log) {
 			continue
@@ -183,8 +208,6 @@ func (s *AlertService) EvaluateAndAlert(ctx context.Context, log *model.AuditLog
 
 		s.sendNotifications(ctx, rule, alert)
 	}
-
-	return nil
 }
 
 func (s *AlertService) matchRule(rule *model.AlertRule, log *model.AuditLog) bool {

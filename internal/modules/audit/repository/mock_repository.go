@@ -10,9 +10,17 @@ import (
 
 // MockAuditLogRepository 审计日志仓库的内存实现（用于测试）
 type MockAuditLogRepository struct {
-	logs  []*model.AuditLog
-	stats *model.AuditLogStats
+	logs           []*model.AuditLog
+	stats          *model.AuditLogStats
+	createErr      error // 注入 Create 失败（仅测试使用）
+	batchCreateErr error // 注入 BatchCreate 失败（仅测试使用）
 }
+
+// SetCreateErr 使 Create 返回指定错误（仅测试使用，用于验证写入失败时不触发后续副作用）。
+func (m *MockAuditLogRepository) SetCreateErr(err error) { m.createErr = err }
+
+// SetBatchCreateErr 使 BatchCreate 返回指定错误（仅测试使用）。
+func (m *MockAuditLogRepository) SetBatchCreateErr(err error) { m.batchCreateErr = err }
 
 // NewMockAuditLogRepository 创建 Mock 仓库
 func NewMockAuditLogRepository() *MockAuditLogRepository {
@@ -29,6 +37,9 @@ func NewMockAuditLogRepository() *MockAuditLogRepository {
 }
 
 func (m *MockAuditLogRepository) Create(ctx context.Context, log *model.AuditLog) error {
+	if m.createErr != nil {
+		return m.createErr
+	}
 	m.logs = append(m.logs, log)
 	m.stats.TotalCount++
 	m.stats.ActionStats[log.Action]++
@@ -38,6 +49,9 @@ func (m *MockAuditLogRepository) Create(ctx context.Context, log *model.AuditLog
 }
 
 func (m *MockAuditLogRepository) BatchCreate(ctx context.Context, logs []*model.AuditLog) error {
+	if m.batchCreateErr != nil {
+		return m.batchCreateErr
+	}
 	for _, log := range logs {
 		m.logs = append(m.logs, log)
 		m.stats.TotalCount++
@@ -286,6 +300,9 @@ type MockAlertRuleRepository struct {
 	// NotifiedIDs 记录每次 MarkAlertNotified 的目标 ID（测试观察点）：
 	// 真库以 UPDATE 落库，mock 只能靠此切片与内存对象断言“送达才回写”与“不二次插入”。
 	NotifiedIDs []string
+	// RuleFetches 累计 GetEnabledRules 调用次数（测试观察点）：
+	// 锁定批量评估整批只查一次规则的 amortize 语义。
+	RuleFetches int
 }
 
 // NewMockAlertRuleRepository 创建 Mock 告警规则仓库
@@ -336,6 +353,7 @@ func (m *MockAlertRuleRepository) List(ctx context.Context) ([]*model.AlertRule,
 }
 
 func (m *MockAlertRuleRepository) GetEnabledRules(ctx context.Context) ([]*model.AlertRule, error) {
+	m.RuleFetches++
 	var result []*model.AlertRule
 	for _, r := range m.rules {
 		if r.Enabled {

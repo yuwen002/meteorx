@@ -204,6 +204,13 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			ipLocator := initIPLocator(cfg)
 			auditService := auditSvc.NewAuditService(repo)
 
+			// 邮件配置提前构造：告警评估链接线与审计管理接口（下方 admin 分组）共用
+			emailCfg := emailer.NewEmailer(cfg.Email.Host, cfg.Email.Port, cfg.Email.Username, cfg.Email.Password, cfg.Email.From, cfg.Email.FromName)
+
+			// 告警评估链接入审计写入路径：日志落库成功即评估启用规则、命中产出告警
+			// 并按渠道类型送达——接入前整条告警链在生产里无触发者（死代码）
+			audit.WireAlertEvaluation(auditService, db, emailCfg)
+
 			// 初始化批量处理器（性能优化，使用传入的context支持优雅取消）
 			middleware.InitAuditBatchProcessor(ctx, auditService, ipLocator)
 
@@ -279,7 +286,6 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 				rbac.InitModule(r, db, rdb, repo)
 
 				// 8. 审计日志管理接口（仅后台管理员可操作）
-				emailCfg := emailer.NewEmailer(cfg.Email.Host, cfg.Email.Port, cfg.Email.Username, cfg.Email.Password, cfg.Email.From, cfg.Email.FromName)
 				audit.InitModule(r, db, emailCfg)
 
 				// 9. 套餐管理接口（仅平台超级管理员可操作）
