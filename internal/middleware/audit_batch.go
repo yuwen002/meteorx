@@ -25,6 +25,9 @@ type AuditBatchProcessor struct {
 	ctx           context.Context
 }
 
+// auditFlushTimeout 单次批量落库写入的最大时长，防止数据库无响应时阻塞关闭流程。
+const auditFlushTimeout = 10 * time.Second
+
 // NewAuditBatchProcessor 创建批量处理器
 func NewAuditBatchProcessor(ctx context.Context, svc *service.AuditService, bufferSize int, flushInterval time.Duration) *AuditBatchProcessor {
 	if bufferSize <= 0 {
@@ -104,8 +107,13 @@ func (p *AuditBatchProcessor) flush() {
 		reqs[i] = *log
 	}
 
-	// 使用处理器持有的 context（支持优雅取消）
-	if err := p.svc.BatchCreateLogs(p.ctx, reqs); err != nil {
+	// 使用脱离取消的独立上下文 + 超时：bootstrap 的关闭顺序是先 cancel() 再
+	// StopAuditBatchProcessor()，若沿用已被取消的 app ctx，收尾刷新会整批写入失败，
+	// 缓冲区中最多 bufferSize 条审计日志会被静默丢弃；超时则避免极端下阻塞关闭流程。
+	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(p.ctx), auditFlushTimeout)
+	defer cancel()
+
+	if err := p.svc.BatchCreateLogs(writeCtx, reqs); err != nil {
 		// 记录错误但不阻塞
 		log.Printf("[audit] batch create logs failed: %v", err)
 	}
