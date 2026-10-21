@@ -7,6 +7,16 @@ $ErrorActionPreference = "Stop"
 
 Push-Location (Join-Path $PSScriptRoot "..")
 try {
+    # GOTOOLCHAIN=auto may switch to a downloaded toolchain (per go.mod's go
+    # directive). Nested `go tool` calls spawned during coverage builds resolve
+    # `go` from PATH; if PATH still has an older install, Windows fails with
+    # "compile: version X does not match go tool version Y". Prefer the
+    # toolchain that is actually selected.
+    $goRoot = (go env GOROOT)
+    if ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $goRoot "bin\go.exe"))) {
+        $env:PATH = (Join-Path $goRoot "bin") + ";" + $env:PATH
+    }
+
     # Backend package scope. web-admin (frontend) is isolated from the Go
     # module via its nested go.mod, so it is intentionally not included here.
     $pkgs = @("./cmd/...", "./internal/...", "./pkg/...")

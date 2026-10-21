@@ -28,6 +28,10 @@
 - [配置/启动架构](architecture/config.md)
 - [ID/ULID 统一架构](architecture/idgen.md)
 
+### 开发与测试
+- [测试手册（分层矩阵 / 一键命令 / 故障速查）](development/testing.md) - 改动前后该跑什么、怎么跑、看什么
+- [E2E 运行手册](../e2e/README.md) - Playwright + 真实 MySQL/Redis 的浏览器冒烟
+
 ### 其他文档
 - [项目结构说明](project-structure.md)
 - [本地 MinIO 联调云存储（S3）](minio-local-s3.md)
@@ -68,6 +72,8 @@ docs/
 ├── apifox/                      # Apifox API 配置
 │   ├── MeteorX-backend.apifox.json
 │   └── MeteorX-backend.openapi.json
+├── development/                 # 开发与测试
+│   └── testing.md               # 测试手册
 ├── project-structure.md         # 项目结构说明
 ├── ip2region-download.md        # IP 数据库下载说明
 ├── DESIGN.md                    # 设计文档
