@@ -12,6 +12,7 @@
 
 ### 变更
 - **Redis 连接失败在 release 模式阻断启动**：原启动逻辑对 Redis 连接失败仅记 `Warn` 后降级继续运行，但 Redis 承载 token 黑名单（登出/注销失效）、租户级限流、OAuth state 与刷新令牌等安全能力，生产环境静默降级等同于关闭防线。现按运行模式分级：`isReleaseMode(cfg.Server.Mode)` 为真时连接失败直接 `Fatalf` 拒绝启动（与数据库同等对待），非 release 模式保持可降级以支持本地无 Redis 开发与集成测试（`testkit` 用 miniredis、不走 `StartApp`，不受影响）。为此将原内联的 `strings.EqualFold(conf.Server.Mode, "release")` 抽为 `bootstrap.isReleaseMode`（额外忽略首尾空白，兼容环境变量注入带空格的场景），由弱 JWT 密钥校验与 Redis 检查共用；同步更新 `docs/architecture/config.md` 的「Redis 可用性」与最佳实践口径（原「Redis 视为可选」），补 `release_mode_test.go` 覆盖模式判定与 JWT 分级校验
+- **告警评估延迟的 SLA 口径补入文档**：告警评估依附审计批量写入节奏，此前 `audit-api.md` 7.4.1 只写了「落库成功后评估」，未说明延迟上限——使用者容易把「请求已完成但告警未出现」当作故障排查。现补：延迟上限为一次 flush 间隔（`InitAuditBatchProcessor` 固定 100 条 / 5 秒，缓冲写满 100 条提前 flush），直写路径落库后立即评估；不含邮件 / Webhook 投递耗时；属批量聚合换取数据库压力的最终一致设计取舍，不承诺秒级实时；冷却按告警创建时间判定，与评估延迟无关。同步写入 `audit-api.md` 7.4.1 与 `docs/architecture/audit.md` 的批量处理小节；本轮仅补口径不改变实现（缩短 flush 间隔会成倍放大规则查询与写库压力，维持 5 秒）
 
 ### 修复
 - **同秒重登新 token 被登出黑名单误杀**：`jwt.GenerateTokenEx` 此前不含唯一 `jti`，claims 仅有整秒精度的 `iat`/`exp` 加固定字段，而 HS256 签名是确定性的——同一秒内同一用户/租户/角色的两次登录会生成**完全相同**的 token 字符串。因黑名单以原始 token 串为键（`token:blacklist:<jwt>`），用户登出后再于一秒内重新登录时，新签发的 token 与被拉黑的旧 token 完全相等，访问受保护接口被误判 401。现为每次签发注入随机 UUID 作 `jti`（`pkg/uuid.Generate`），使 token 串必然唯一，同时修正生产语义（登出只拉黑那一次会话，不影响随后重登）；补 `TestGenerateToken_UniquePerSigning` 断言同秒同参签发的 token 与 jti 均不同，并消除集成测试 `TestInteg_AuthLifecycle` 的相关偶发失败
