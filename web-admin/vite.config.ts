@@ -143,6 +143,19 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true
         }
       }
+    },
+    // E2E 用生产构建产物启动（vite preview），需要与 dev server 同样的 /api 代理；
+    // 否则浏览器请求相对路径 /api 会落到 preview 静态服务器上返回 404。
+    preview: {
+      host: '127.0.0.1',
+      port: 4173,
+      strictPort: true,
+      proxy: {
+        '/api': {
+          target: env.VITE_API_BASE_URL || 'http://localhost:8081',
+          changeOrigin: true
+        }
+      }
     }
   }
 })

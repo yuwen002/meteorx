@@ -226,6 +226,96 @@ jobs:
           name: frontend-dist
           path: web-admin/dist/
 
+  e2e:
+    name: E2E (Browser + MySQL + Redis)
+    runs-on: ubuntu-latest
+    needs: [test]
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: meteorx_e2e
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_password
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 3306:3306
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    env:
+      # 与开发库隔离的 E2E 库；后端启动时自动 AutoMigrate + Seed
+      METEORX_DB_HOST: 127.0.0.1
+      METEORX_DB_PORT: 3306
+      METEORX_DB_USER: test_user
+      METEORX_DB_PASSWORD: test_password
+      METEORX_DB_NAME: meteorx_e2e
+      METEORX_REDIS_HOST: 127.0.0.1
+      METEORX_REDIS_PORT: 6379
+      METEORX_REDIS_PASSWORD: ""
+      METEORX_JWT_SECRET: e2e-only-jwt-secret-with-enough-length-32
+      METEORX_APP_MODE: debug
+      # 关闭 OTel stdout 与 SQL 调试日志，避免 CI 日志膨胀
+      OTEL_SDK_DISABLED: "true"
+      METEORX_DB_DEBUG: "false"
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            web-admin/package-lock.json
+            e2e/package-lock.json
+      - name: Build backend
+        run: go build -ldflags="-w -s" -o bin/meteorx ./cmd/server
+      - name: Build frontend (for vite preview)
+        working-directory: web-admin
+        run: |
+          npm ci
+          npm run build
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run E2E
+        working-directory: e2e
+        run: |
+          ../bin/meteorx > /tmp/meteorx-e2e-server.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8081/health > /dev/null; then break; fi
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8081/health
+          npx playwright test
+      - name: Upload E2E report
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+            /tmp/meteorx-e2e-server.log
+          if-no-files-found: ignore
+
   docker:
     name: Docker Build & Push
     runs-on: ubuntu-latest

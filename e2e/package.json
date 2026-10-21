@@ -1,0 +1,16 @@
+{
+  "name": "meteorx-e2e",
+  "private": true,
+  "version": "0.0.0",
+  "description": "MeteorX 浏览器端 E2E（Playwright + 真实 MySQL/Redis/后端）",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
+    "report": "playwright show-report",
+    "fixture": "go run ./fixtures/fixture"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "@types/node": "^20.14.0"
+  }
+}
