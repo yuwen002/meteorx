@@ -13,6 +13,7 @@ import (
 type wsHub interface {
 	SendToUser(userID string, msg *ws.Message)
 	SendToAll(msg *ws.Message)
+	SendToTenant(tenantID string, msg *ws.Message)
 	CountByUser(userID string) int
 }
 
@@ -66,6 +67,13 @@ func (n *WSNotifier) Send(ctx context.Context, msg *Message) error {
 		Type:    ws.MsgTypeAnnouncement,
 		Payload: payload,
 		Time:    msg.CreatedAt.UnixMilli(),
+	}
+
+	// 租户定向优先于收件人列表：定向公告必须按租户过滤后推送，
+	// 不得因收件人为空而回退到 SendToAll（那会把定向公告广播给所有租户）
+	if msg.TenantID != "" {
+		n.hub.SendToTenant(msg.TenantID, wrapped)
+		return nil
 	}
 
 	// 先滤掉空串收件人：全为空串时语义等同未指定，走广播而非「无人在线」

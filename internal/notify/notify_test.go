@@ -475,14 +475,16 @@ func TestNewWSNotifier_NilHub(t *testing.T) {
 
 // stubHub wsHub 的测试桩：只登记在线连接数，并记录实际投递了哪些人。
 type stubHub struct {
-	online map[string]int
-	sent   []string
-	all    int
+	online  map[string]int
+	sent    []string
+	all     int
+	tenants []string
 }
 
-func (s *stubHub) SendToUser(userID string, _ *ws.Message) { s.sent = append(s.sent, userID) }
-func (s *stubHub) SendToAll(_ *ws.Message)                 { s.all++ }
-func (s *stubHub) CountByUser(userID string) int           { return s.online[userID] }
+func (s *stubHub) SendToUser(userID string, _ *ws.Message)  { s.sent = append(s.sent, userID) }
+func (s *stubHub) SendToAll(_ *ws.Message)                  { s.all++ }
+func (s *stubHub) SendToTenant(tenantID string, _ *ws.Message) { s.tenants = append(s.tenants, tenantID) }
+func (s *stubHub) CountByUser(userID string) int            { return s.online[userID] }
 
 func TestWSNotifier_SendBroadcast(t *testing.T) {
 	hub := ws.NewHub() // 不启动 Run，SendToAll 仅入缓冲通道
@@ -616,4 +618,61 @@ func TestManager_NotifyAlert_ChannelMessagesIndependent(t *testing.T) {
 	assert.Equal(t, ChannelEmail, email.lastMsg.Channel, "两渠道消息对象不得相互覆盖")
 	assert.Equal(t, ChannelWebhook, hook.lastMsg.Channel)
 	assert.Equal(t, []string{"a@x.com"}, email.lastMsg.Recipients, "邮件收件人不得被后发渠道清空")
+}
+
+// ---------------------------------------------------------------------------
+// 公告通知：租户定向不得变相广播
+// ---------------------------------------------------------------------------
+
+// TestWSNotifier_TenantScopedRoutesToSendToTenant Message.TenantID 非空时必须
+// 走 SendToTenant，不得回退到空收件人的全量广播。
+func TestWSNotifier_TenantScopedRoutesToSendToTenant(t *testing.T) {
+	hub := &stubHub{}
+	n := &WSNotifier{hub: hub}
+
+	require.NoError(t, n.Send(context.Background(), &Message{
+		Title: "T", Content: "C", TenantID: "t1", CreatedAt: time.Now(),
+	}))
+	assert.Equal(t, []string{"t1"}, hub.tenants, "定向公告必须按租户过滤后推送")
+	assert.Zero(t, hub.all, "定向公告不得走全量广播")
+	assert.Empty(t, hub.sent)
+}
+
+// TestManager_NotifyAnnouncement_AllScopeBroadcasts 全平台公告仍走广播：
+// 不回退为广播前的行为——这条守的是修复后的正确路径未被削过头。
+func TestManager_NotifyAnnouncement_AllScopeBroadcasts(t *testing.T) {
+	email := &fakeNotifier{channel: ChannelEmail, name: "email"}
+	wsC := &fakeNotifier{channel: ChannelWebSocket, name: "ws"}
+	hook := &fakeNotifier{channel: ChannelWebhook, name: "webhook"}
+	m := newTestManager(email, wsC, hook)
+
+	results := m.NotifyAnnouncement(context.Background(), "平台维护", "周六 0 点", "")
+	require.Len(t, results, 2, "WS + Webhook 两条结果")
+	require.NotNil(t, wsC.lastMsg)
+	assert.Empty(t, wsC.lastMsg.TenantID, "全平台公告不带租户限定")
+	assert.Equal(t, "announcement", wsC.lastMsg.Extra["type"])
+	require.NotNil(t, hook.lastMsg)
+	assert.Equal(t, int32(0), email.calls, "公告无邮件收件人概念，不得空跑邮件渠道")
+}
+
+// TestManager_NotifyAnnouncement_TenantScopeTargetsTenant 定向公告只把
+// 目标租户带进 WS 消息，webhook（平台运维通道）照常；不得因空收件人走向广播。
+func TestManager_NotifyAnnouncement_TenantScopeTargetsTenant(t *testing.T) {
+	email := &fakeNotifier{channel: ChannelEmail, name: "email"}
+	wsC := &fakeNotifier{channel: ChannelWebSocket, name: "ws"}
+	hook := &fakeNotifier{channel: ChannelWebhook, name: "webhook"}
+	m := newTestManager(email, wsC, hook)
+
+	m.NotifyAnnouncement(context.Background(), "定向通知", "仅 A 公司可见", "t-a")
+	require.NotNil(t, wsC.lastMsg)
+	assert.Equal(t, "t-a", wsC.lastMsg.TenantID, "定向公告必须把目标租户传给 WS 渠道")
+	assert.Empty(t, wsC.lastMsg.Recipients, "租户定向不靠空收件人广播")
+	require.NotNil(t, hook.lastMsg, "webhook 是平台自己的运维通道，照常推送")
+	assert.Equal(t, int32(0), email.calls)
+}
+
+// TestManager_NotifyAnnouncement_NoChannels 未注册任何渠道时为空操作。
+func TestManager_NotifyAnnouncement_NoChannels(t *testing.T) {
+	m := newTestManager()
+	assert.Empty(t, m.NotifyAnnouncement(context.Background(), "t", "c", ""))
 }

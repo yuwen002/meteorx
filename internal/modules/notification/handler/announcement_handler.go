@@ -3,10 +3,12 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
 	"meteorx/internal/modules/notification/dto"
+	"meteorx/internal/modules/notification/service"
 	"meteorx/pkg/pagination"
 	"net/http"
 	"strconv"
@@ -45,6 +47,10 @@ func (h *AnnouncementHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.svc.Create(r.Context(), contextx.GetUserID(r.Context()), req)
 	if err != nil {
+		if errors.Is(err, service.ErrTenantTargetRequired) {
+			response.BadRequest(w, err.Error())
+			return
+		}
 		response.Fail(w, http.StatusInternalServerError, "创建公告失败")
 		return
 	}
@@ -113,6 +119,10 @@ func (h *AnnouncementHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.svc.Update(r.Context(), id, req)
 	if err != nil {
+		if errors.Is(err, service.ErrTenantTargetRequired) {
+			response.BadRequest(w, err.Error())
+			return
+		}
 		response.Fail(w, http.StatusInternalServerError, "更新公告失败")
 		return
 	}

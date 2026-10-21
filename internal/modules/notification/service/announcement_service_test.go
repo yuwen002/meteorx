@@ -10,8 +10,10 @@ import (
 	"meteorx/internal/modules/notification/model"
 	"meteorx/internal/modules/notification/repository"
 	"meteorx/internal/modules/notification/service"
+	"meteorx/internal/notify"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mockAnnouncementRepo 公告仓库内存实现
@@ -119,10 +121,11 @@ func TestAnnouncementCreate_PublishedAutoFillsPublishTime(t *testing.T) {
 	svc := service.NewAnnouncementService(repo)
 
 	resp, err := svc.Create(context.Background(), "admin-1", dto.CreateAnnouncementReq{
-		Title:   "x",
-		Content: "y",
-		Scope:   model.AnnouncementScopeTenant,
-		Status:  model.AnnouncementStatusPublished,
+		Title:          "x",
+		Content:        "y",
+		Scope:          model.AnnouncementScopeTenant,
+		TargetTenantID: "tenant-1",
+		Status:         model.AnnouncementStatusPublished,
 	})
 	assert.NoError(t, err)
 	assert.NotEmpty(t, resp.PublishAt)
@@ -135,10 +138,11 @@ func TestAnnouncementUpdate_ChangesFieldsAndBackfillsPublishTime(t *testing.T) {
 	svc := service.NewAnnouncementService(repo)
 
 	resp, err := svc.Update(context.Background(), "ann-1", dto.UpdateAnnouncementReq{
-		Title:   "新标题",
-		Content: "新内容",
-		Scope:   model.AnnouncementScopeTenant,
-		Status:  model.AnnouncementStatusPublished,
+		Title:          "新标题",
+		Content:        "新内容",
+		Scope:          model.AnnouncementScopeTenant,
+		TargetTenantID: "tenant-1",
+		Status:         model.AnnouncementStatusPublished,
 	})
 
 	assert.NoError(t, err)
@@ -220,4 +224,117 @@ func TestAnnouncementListForTenant_OnlyPublished(t *testing.T) {
 	assert.Equal(t, "ann-pub", resp.Items[0].ID)
 	assert.Equal(t, 1, repo.lastPage)
 	assert.Equal(t, 20, repo.lastSize)
+}
+
+// ---------------------------------------------------------------------------
+// 租户定向公告：目标校验 / 发布回调（含后台「发布」按钮路径）
+// ---------------------------------------------------------------------------
+
+// TestAnnouncementCreate_TenantScopeRequiresTarget 文档口径「scope=tenant 时
+// target_tenant_id 必填」必须在服务端落实，否则会产出「定向给空租户」的公告
+// （推送无人可收、租户列表也永远看不到）。
+func TestAnnouncementCreate_TenantScopeRequiresTarget(t *testing.T) {
+	repo := newMockAnnouncementRepo()
+	svc := service.NewAnnouncementService(repo)
+
+	_, err := svc.Create(context.Background(), "admin-1", dto.CreateAnnouncementReq{
+		Title: "x", Content: "y", Scope: model.AnnouncementScopeTenant,
+	})
+	assert.ErrorIs(t, err, service.ErrTenantTargetRequired)
+	assert.Zero(t, repo.created, "非法请求不得落库")
+}
+
+// TestAnnouncementUpdate_TenantScopeRequiresTarget 编辑时同样不得把定向公告改成无目标。
+func TestAnnouncementUpdate_TenantScopeRequiresTarget(t *testing.T) {
+	repo := newMockAnnouncementRepo()
+	seedAnnouncement(repo, "ann-1")
+	svc := service.NewAnnouncementService(repo)
+
+	_, err := svc.Update(context.Background(), "ann-1", dto.UpdateAnnouncementReq{
+		Title: "x", Content: "y", Scope: model.AnnouncementScopeTenant,
+	})
+	assert.ErrorIs(t, err, service.ErrTenantTargetRequired)
+	assert.Zero(t, repo.updated)
+}
+
+// TestAnnouncementUpdateStatus_PublishingTriggersCallback 后台行内「发布」按钮
+// 走的就是 UpdateStatus：旧实现不触发 onPublish，草稿转发布一条通知都不发；
+// 下架不得重复推送。
+func TestAnnouncementUpdateStatus_PublishingTriggersCallback(t *testing.T) {
+	repo := newMockAnnouncementRepo()
+	seedAnnouncement(repo, "ann-1") // 草稿，scope=all
+	svc := service.NewAnnouncementService(repo)
+
+	type call struct{ scope, tenant string }
+	var calls []call
+	svc.SetPublishCallback(func(_ context.Context, _, _, scope, tenant string) {
+		calls = append(calls, call{scope, tenant})
+	})
+
+	_, err := svc.UpdateStatus(context.Background(), "ann-1", model.AnnouncementStatusPublished)
+	require.NoError(t, err)
+	require.Len(t, calls, 1, "草稿转发布必须触发通知回调")
+	assert.Equal(t, model.AnnouncementScopeAll, calls[0].scope)
+
+	// 重复发布（已发布→已发布）不得再推一次：后台重复点「发布」不能刷屏
+	_, err = svc.UpdateStatus(context.Background(), "ann-1", model.AnnouncementStatusPublished)
+	require.NoError(t, err)
+	assert.Len(t, calls, 1, "重复发布不得重复推送")
+
+	_, err = svc.UpdateStatus(context.Background(), "ann-1", model.AnnouncementStatusOffline)
+	require.NoError(t, err)
+	assert.Len(t, calls, 1, "下架不得重复推送")
+}
+
+// TestAnnouncementUpdateStatus_PublishingForwardsTenant 定向公告经状态接口发布时
+// 必须把目标租户透传给回调（否则下游只能广播）。
+func TestAnnouncementUpdateStatus_PublishingForwardsTenant(t *testing.T) {
+	repo := newMockAnnouncementRepo()
+	a := seedAnnouncement(repo, "ann-1")
+	a.Scope = model.AnnouncementScopeTenant
+	a.TargetTenantID = "t-a"
+	svc := service.NewAnnouncementService(repo)
+
+	var gotTenant string
+	svc.SetPublishCallback(func(_ context.Context, _, _, _, tenant string) { gotTenant = tenant })
+
+	_, err := svc.UpdateStatus(context.Background(), "ann-1", model.AnnouncementStatusPublished)
+	require.NoError(t, err)
+	assert.Equal(t, "t-a", gotTenant)
+}
+
+// captureNotifier 记录最近一条消息的通道桩（用于验证默认发布回调的投递参数）。
+type captureNotifier struct {
+	channel notify.ChannelType
+	last    *notify.Message
+}
+
+func (c *captureNotifier) Type() notify.ChannelType { return c.channel }
+func (c *captureNotifier) Name() string             { return "capture-" + string(c.channel) }
+func (c *captureNotifier) Send(_ context.Context, msg *notify.Message) error {
+	c.last = msg
+	return nil
+}
+
+// TestDefaultPublishCallback_ForwardsTenantToWS 默认发布回调不得把 scope 信息
+// 丢掉：旧实现写死 nil 收件人 → SendToAll → 定向公告被广播给所有租户在线用户。
+func TestDefaultPublishCallback_ForwardsTenantToWS(t *testing.T) {
+	wsCap := &captureNotifier{channel: notify.ChannelWebSocket}
+	mgr := notify.NewManager(nil, "", "", nil)
+	mgr.AddChannel(wsCap)
+
+	prev := notify.GetGlobalManager()
+	notify.SetGlobalManager(mgr)
+	t.Cleanup(func() { notify.SetGlobalManager(prev) })
+
+	repo := newMockAnnouncementRepo()
+	svc := service.NewAnnouncementService(repo) // 使用默认发布回调
+
+	_, err := svc.Create(context.Background(), "admin-1", dto.CreateAnnouncementReq{
+		Title: "定向升级通知", Content: "仅 A 公司", Scope: model.AnnouncementScopeTenant,
+		TargetTenantID: "t-a", Status: model.AnnouncementStatusPublished,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, wsCap.last, "默认回调必须真正投递到 WS 渠道")
+	assert.Equal(t, "t-a", wsCap.last.TenantID, "定向公告必须携带目标租户，不得广播")
 }

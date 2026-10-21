@@ -146,7 +146,9 @@
 }
 ```
 
-**业务规则：** 若 `scope=tenant` 则必须提供 `target_tenant_id`。
+**业务规则：** 若 `scope=tenant` 则必须提供 `target_tenant_id`，缺失时返回 400（`target_tenant_id` 必填），请求不落库。
+
+**通知：** `status=1`（直接发布）时创建成功后立即推送一次（见第 4 节）；草稿不推送。
 
 ### 3.3 公告详情
 
@@ -160,6 +162,8 @@
 
 **请求体：** UpdateAnnouncementReq
 
+**业务规则：** 与创建一致——`scope=tenant` 时必须提供 `target_tenant_id`，缺失返回 400；更新为已发布状态时触发一次推送。
+
 ### 3.5 发布 / 下架公告
 
 `PUT /api/v1/admin/announcements/{id}/status`
@@ -172,6 +176,8 @@
 ```
 
 **业务规则：** 发布（status=1）与下架（status=2）互斥切换，下架后公告不再对外可见。
+
+**通知时机：** 仅“非已发布 → 已发布”的翻转触发一次推送（后台行内「发布」按钮即走本接口）；重复发布与下架均不推送。
 
 ### 3.6 删除公告
 
@@ -199,7 +205,12 @@
 
 ## 4. 实时推送（WebSocket）
 
-公告模块支持通过 WebSocket 实时推送新公告通知到所有已连接的前端客户端。
+公告模块支持通过 WebSocket 实时推送新公告通知到已连接的前端客户端。
+
+**分发口径：**
+- `scope=all`：广播给所有在线连接；
+- `scope=tenant`：只推给**目标租户**的在线连接（连接建立时从 JWT claims 记录 `tenant_id`，Hub 按租户过滤），其它租户收不到；
+- 公告不进邮件渠道（无邮件收件人概念）；配置了 announcement 事件的 Webhook 照常推送。
 
 ### 4.1 WebSocket 连接
 

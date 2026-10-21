@@ -128,6 +128,30 @@ func (h *Hub) SendToAll(msg *Message) {
 	}
 }
 
+// SendToTenant 向指定租户的所有在线连接发送消息
+// 用于租户定向公告：只投递给 TenantID 匹配的连接，其它租户的连接不得收到。
+func (h *Hub) SendToTenant(tenantID string, msg *Message) {
+	if tenantID == "" {
+		return
+	}
+
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for _, clients := range h.clients {
+		for client := range clients {
+			if client.TenantID != tenantID {
+				continue
+			}
+			select {
+			case client.send <- msg:
+			default:
+				logger.Warnf("[WS] Send buffer full for user=%s, dropping message", client.UserID)
+			}
+		}
+	}
+}
+
 // Count 返回当前连接数
 func (h *Hub) Count() int {
 	h.mu.RLock()

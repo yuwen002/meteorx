@@ -33,23 +33,25 @@ var upgrader = websocket.Upgrader{
 
 // Client WebSocket 客户端连接
 type Client struct {
-	Hub    *Hub
-	UserID string
-	conn   *websocket.Conn
-	send   chan *Message
-	done   chan struct{}
-	mu     sync.Mutex
-	closed bool
+	Hub      *Hub
+	UserID   string
+	TenantID string // 连接所属租户（来自 claims），租户定向推送按此过滤
+	conn     *websocket.Conn
+	send     chan *Message
+	done     chan struct{}
+	mu       sync.Mutex
+	closed   bool
 }
 
 // NewClient 创建客户端连接
-func NewClient(hub *Hub, userID string, conn *websocket.Conn) *Client {
+func NewClient(hub *Hub, userID, tenantID string, conn *websocket.Conn) *Client {
 	return &Client{
-		Hub:    hub,
-		UserID: userID,
-		conn:   conn,
-		send:   make(chan *Message, sendBufferSize),
-		done:   make(chan struct{}),
+		Hub:      hub,
+		UserID:   userID,
+		TenantID: tenantID,
+		conn:     conn,
+		send:     make(chan *Message, sendBufferSize),
+		done:     make(chan struct{}),
 	}
 }
 
@@ -180,14 +182,14 @@ func (c *Client) writeCloseMessage() {
 }
 
 // ServeWS 处理 WebSocket 升级请求
-func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request, userID string) {
+func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request, userID, tenantID string) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		logger.Errorf("[WS] Upgrade failed for user=%s: %v", userID, err)
 		return
 	}
 
-	client := NewClient(hub, userID, conn)
+	client := NewClient(hub, userID, tenantID, conn)
 	hub.register <- client
 
 	go client.WritePump()

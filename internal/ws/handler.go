@@ -63,7 +63,8 @@ func (h *Handler) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ServeWS(h.hub, w, r, userID)
+	// 租户 ID 随连接下传：租户定向公告按此过滤，解析出来却丢掉会让定向推送静默空转
+	ServeWS(h.hub, w, r, userID, claims.TenantID)
 }
 
 // GetHub 获取 Hub 实例

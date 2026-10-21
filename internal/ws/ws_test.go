@@ -1,10 +1,18 @@
 package ws
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"meteorx/internal/common/jwt"
+	"meteorx/internal/config"
+
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewHub(t *testing.T) {
@@ -74,6 +82,74 @@ func TestHubSendToAll(t *testing.T) {
 	}
 
 	hub.SendToAll(msg)
+}
+
+// TestHubSendToTenant_OnlyMatchingTenant 锁住租户定向推送：只发给目标租户的连接，
+// 其它租户的连接一条都不得收到（定向公告不得变相全量广播）。
+func TestHubSendToTenant_OnlyMatchingTenant(t *testing.T) {
+	hub := NewHub()
+	c1 := &Client{UserID: "u1", TenantID: "t1", send: make(chan *Message, 4), done: make(chan struct{})}
+	c2 := &Client{UserID: "u2", TenantID: "t2", send: make(chan *Message, 4), done: make(chan struct{})}
+	c3 := &Client{UserID: "u3", TenantID: "t1", send: make(chan *Message, 4), done: make(chan struct{})}
+
+	hub.mu.Lock()
+	hub.clients["u1"] = map[*Client]bool{c1: true}
+	hub.clients["u2"] = map[*Client]bool{c2: true}
+	hub.clients["u3"] = map[*Client]bool{c3: true}
+	hub.mu.Unlock()
+
+	hub.SendToTenant("t1", &Message{Type: MsgTypeAnnouncement, Payload: "scoped", Time: time.Now().Unix()})
+
+	select {
+	case m := <-c1.send:
+		assert.Equal(t, "scoped", m.Payload)
+	default:
+		t.Fatal("t1 的在线连接未收到定向消息")
+	}
+	select {
+	case <-c3.send:
+	default:
+		t.Fatal("t1 的第二个连接未收到定向消息")
+	}
+	select {
+	case <-c2.send:
+		t.Fatal("t2 的连接收到了不属于自己租户的消息（跨租户泄露）")
+	default:
+	}
+}
+
+// TestServeWS_CarriesTenantIDFromClaims 定向公告依赖连接上记录的租户：
+// handler 已解析出 claims.TenantID，若不随连接下传到 Client，
+// Hub.SendToTenant 永远找不到任何连接，定向公告会静默空转。
+func TestServeWS_CarriesTenantIDFromClaims(t *testing.T) {
+	helper := jwt.NewTokenHelper(config.JWTConfig{Secret: "ws-test-secret", Expiration: "1h", Issuer: "ws-test"})
+	token, err := helper.GenerateToken("u1", "t-1", nil)
+	require.NoError(t, err)
+
+	hub := NewHub()
+	go hub.Run()
+	defer hub.Stop()
+
+	srv := httptest.NewServer(http.HandlerFunc(NewHandler(hub, helper).ServeWS))
+	defer srv.Close()
+
+	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "?token=" + token
+	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	require.Eventually(t, func() bool {
+		hub.mu.RLock()
+		defer hub.mu.RUnlock()
+		for _, clients := range hub.clients {
+			for c := range clients {
+				if c.UserID == "u1" && c.TenantID == "t-1" {
+					return true
+				}
+			}
+		}
+		return false
+	}, 2*time.Second, 10*time.Millisecond, "连接必须携带 claims 中的租户")
 }
 
 func TestHubSendToUser_NoClients(t *testing.T) {

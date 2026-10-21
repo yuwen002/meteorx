@@ -59,18 +59,29 @@ func (m *Manager) Send(ctx context.Context, msg *Message) []SendResult {
 }
 
 // NotifyAnnouncement 发布公告通知
-// 通知所有在线用户（WebSocket）+ 目标用户的邮件
-func (m *Manager) NotifyAnnouncement(ctx context.Context, title, content string, targetUserIDs []string) []SendResult {
-	msg := &Message{
-		Title:      title,
-		Content:    content,
-		Priority:   PriorityLow,
-		Recipients: targetUserIDs,
-		Extra: map[string]interface{}{
-			"type": "announcement",
-		},
+// 公告只走 WebSocket 站内信与平台 Webhook，不进邮件渠道：公告没有「邮件收件人」
+// 概念，空收件人只会让 EmailNotifier 返回 "no recipients" 噪声。targetTenantID
+// 非空表示租户定向公告，WS 渠道据此只推给该租户的在线连接（不得广播）。
+func (m *Manager) NotifyAnnouncement(ctx context.Context, title, content, targetTenantID string) []SendResult {
+	extra := map[string]interface{}{"type": "announcement"}
+	if targetTenantID != "" {
+		extra["tenant_id"] = targetTenantID
 	}
-	return m.composite.SendToAll(ctx, msg)
+
+	var results []SendResult
+	if m.composite.HasChannel(ChannelWebSocket) {
+		results = append(results, m.composite.Send(ctx, &Message{
+			Title: title, Content: content, Priority: PriorityLow,
+			Channel: ChannelWebSocket, TenantID: targetTenantID, Extra: extra,
+		})...)
+	}
+	if m.composite.HasChannel(ChannelWebhook) {
+		results = append(results, m.composite.Send(ctx, &Message{
+			Title: title, Content: content, Priority: PriorityLow,
+			Channel: ChannelWebhook, TenantID: targetTenantID, Extra: extra,
+		})...)
+	}
+	return results
 }
 
 // NotifyCancelRequestStatus 取消申请状态变更通知

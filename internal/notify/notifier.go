@@ -59,6 +59,7 @@ type Message struct {
 	Channel    ChannelType            // 目标渠道
 	Priority   Priority               // 优先级
 	Recipients []string               // 收件人列表（邮箱/用户ID/Webhook URL）
+	TenantID   string                 // 目标租户（非空时 WS 渠道只推给该租户的在线连接）
 	TemplateID string                 // 模板ID（可选）
 	Extra      map[string]interface{} // 扩展参数（渠道特定参数）
 	CreatedAt  time.Time              // 创建时间

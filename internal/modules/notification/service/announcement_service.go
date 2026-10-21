@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"meteorx/internal/modules/notification/dto"
 	"meteorx/internal/modules/notification/model"
 	"meteorx/internal/modules/notification/repository"
@@ -10,6 +11,9 @@ import (
 	"meteorx/pkg/idgen"
 	"time"
 )
+
+// ErrTenantTargetRequired 公告范围指定租户但未给出目标租户，属客户端参数错误
+var ErrTenantTargetRequired = errors.New("公告范围为目标租户时必须指定 target_tenant_id")
 
 // AnnouncementPublishCallback 公告发布回调（多渠道通知）
 type AnnouncementPublishCallback func(ctx context.Context, title, content string, scope string, targetTenantID string)
@@ -42,14 +46,21 @@ func defaultPublishCallback(ctx context.Context, title, content string, scope st
 		return
 	}
 
-	// 通过 WebSocket 推送给所有在线用户
-	_ = mgr.NotifyAnnouncement(ctx, title, content, nil)
+	// 仅租户定向公告带目标租户；全平台公告一律清空，避免携带残留目标造成误定向
+	if scope != model.AnnouncementScopeTenant {
+		targetTenantID = ""
+	}
+	_ = mgr.NotifyAnnouncement(ctx, title, content, targetTenantID)
 
 	// 如果 Webhook 配置了 announcement 事件，也会自动推送
 }
 
 // Create 创建公告
 func (s *AnnouncementService) Create(ctx context.Context, publisherID string, req dto.CreateAnnouncementReq) (*dto.AnnouncementResp, error) {
+	if req.Scope == model.AnnouncementScopeTenant && req.TargetTenantID == "" {
+		return nil, ErrTenantTargetRequired
+	}
+
 	a := &model.Announcement{
 		ID:             idgen.New(),
 		Title:          req.Title,
@@ -83,6 +94,10 @@ func (s *AnnouncementService) Create(ctx context.Context, publisherID string, re
 
 // Update 更新公告
 func (s *AnnouncementService) Update(ctx context.Context, id string, req dto.UpdateAnnouncementReq) (*dto.AnnouncementResp, error) {
+	if req.Scope == model.AnnouncementScopeTenant && req.TargetTenantID == "" {
+		return nil, ErrTenantTargetRequired
+	}
+
 	a, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -121,6 +136,7 @@ func (s *AnnouncementService) UpdateStatus(ctx context.Context, id string, statu
 		return nil, err
 	}
 
+	prevStatus := a.Status
 	a.Status = status
 	a.UpdatedAt = time.Now()
 	if status == model.AnnouncementStatusPublished && a.PublishAt == nil {
@@ -130,6 +146,12 @@ func (s *AnnouncementService) UpdateStatus(ctx context.Context, id string, statu
 
 	if err := s.repo.Update(ctx, a); err != nil {
 		return nil, err
+	}
+
+	// 后台行内「发布」按钮走本方法：只有 非已发布→已发布 的翻转才发通知，
+	// 下架与重复发布都不得重复推送
+	if status == model.AnnouncementStatusPublished && prevStatus != model.AnnouncementStatusPublished && s.onPublish != nil {
+		s.onPublish(ctx, a.Title, a.Content, a.Scope, a.TargetTenantID)
 	}
 	return dto.ToAnnouncementResp(a), nil
 }

@@ -12,6 +12,7 @@ import (
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/modules/notification/dto"
 	"meteorx/internal/modules/notification/handler"
+	"meteorx/internal/modules/notification/service"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -149,6 +150,18 @@ func TestCreate_ServiceError_Returns500(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "创建公告失败")
 }
 
+// TestCreate_TenantTargetMissing_Returns400 服务层判定为客户端参数错误时必须回 400：
+// 一律 500 会让前端把「漏填目标租户」当成服务端故障，无从提示用户改正。
+func TestCreate_TenantTargetMissing_Returns400(t *testing.T) {
+	stub := &stubAnnouncementService{err: service.ErrTenantTargetRequired}
+	router := newTestRouter(stub)
+
+	w := doJSON(t, router, http.MethodPost, "/admin/announcements", `{"title":"t","content":"c","scope":"tenant"}`)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "target_tenant_id")
+}
+
 func TestGet_Success(t *testing.T) {
 	stub := &stubAnnouncementService{resp: defaultResp("ann-1")}
 	router := newTestRouter(stub)
@@ -233,6 +246,18 @@ func TestUpdate_ValidationFailure_Returns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "标题不能为空")
 	assert.Empty(t, stub.updateID)
+}
+
+// TestUpdate_TenantTargetMissing_Returns400 编辑时把范围改为 tenant 却不填目标租户，
+// 同样属于客户端参数错误。
+func TestUpdate_TenantTargetMissing_Returns400(t *testing.T) {
+	stub := &stubAnnouncementService{err: service.ErrTenantTargetRequired}
+	router := newTestRouter(stub)
+
+	w := doJSON(t, router, http.MethodPut, "/admin/announcements/ann-1", `{"title":"t","content":"c","scope":"tenant"}`)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "target_tenant_id")
 }
 
 func TestList_ServiceError_Returns500(t *testing.T) {
