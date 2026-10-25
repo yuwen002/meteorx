@@ -9,9 +9,9 @@ on:
 
 env:
   # 固定到已打补丁的最新修订版：go.mod 目标为 go 1.26.0，而 govulncheck 会将
-  # 被调用的标准库漏洞（net/http、crypto/* 等，修复于 go1.26.1~1.26.9）视为失败。
-  # 使用未打补丁的 go1.26.0 会让 Security Scan 硬阻塞整条流水线，故锁定 1.26.9。
-  GO_VERSION: '1.26.9'
+  # 被调用的标准库漏洞（net/http、crypto/* 等，修复于 go1.26.1~1.26.10）视为失败。
+  # 使用未打补丁的 go1.26.0 会让 Security Scan 硬阻塞整条流水线，故锁定 1.26.10。
+  GO_VERSION: '1.26.10'
   NODE_VERSION: '22'
 
 jobs:
@@ -295,16 +295,25 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
+      # 后端必须从仓库根目录启动：config.yaml 是按相对路径（./internal/config、.）查找的，
+      # 从 e2e/ 起进程会立刻 fatal 退出（"Config File \"config\" Not Found"），表现为健康
+      # 检查空转 120s 后 curl 以 exit 7 失败，而 Playwright 根本没机会跑。
       - name: Run E2E
-        working-directory: e2e
         run: |
-          ../bin/meteorx > /tmp/meteorx-e2e-server.log 2>&1 &
+          ./bin/meteorx > /tmp/meteorx-e2e-server.log 2>&1 &
+          server_pid=$!
+          ready=0
           for i in $(seq 1 60); do
-            if curl -sf http://127.0.0.1:8081/health > /dev/null; then break; fi
+            if curl -sf http://127.0.0.1:8081/health > /dev/null; then ready=1; break; fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
             sleep 2
           done
-          curl -sf http://127.0.0.1:8081/health
-          npx playwright test
+          if [ "$ready" != "1" ]; then
+            echo '::error::后端未能在 8081 就绪（进程可能已退出），服务日志如下'
+            tail -n 80 /tmp/meteorx-e2e-server.log || true
+            exit 1
+          fi
+          cd e2e && npx playwright test
       - name: Upload E2E report
         if: failure()
         uses: actions/upload-artifact@v5
