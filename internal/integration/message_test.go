@@ -55,7 +55,7 @@ func TestInteg_Message_NotificationToInbox(t *testing.T) {
 	require.Len(t, page.Data, 1)
 	msg := page.Data[0]
 	require.Equal(t, "任务即将到期", msg.Title)
-	require.Equal(t, "/task", msg.Link)
+	require.Equal(t, "/task?task_id=tk-1", msg.Link, "链接需带上任务 ID，点开可定位到具体任务")
 	require.Nil(t, msg.ReadAt)
 	msgID := msg.ID
 

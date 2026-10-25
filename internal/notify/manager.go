@@ -301,12 +301,16 @@ func (m *Manager) NotifyTaskReminder(ctx context.Context, recipientID, title, co
 	// 同一任务的同类提醒一天只落一条：渠道重试 / 多副本 / 重启补偿不得重复刷屏；
 	// 跨天仍会各自落库，与逾期提醒的 24h 冷却语义一致。
 	dedupeKey := ""
+	// 链接带上任务 ID：点开直接定位到这条任务，与告警站内信带 alert_id 同一套口径。
+	// 只落任务列表首页的话，用户得自己在一页页里翻出被提醒的是哪一条。
+	link := "/task"
 	if sourceID != "" {
 		dedupeKey = dailyDedupeKey("task", sourceID, reminderType)
+		link = "/task?task_id=" + url.QueryEscape(sourceID)
 	}
 	m.deliverInbox(ctx, &InboxMessage{
 		UserIDs: []string{recipientID}, Type: reminderType,
-		Title: title, Content: content, Link: "/task", Priority: PriorityNormal,
+		Title: title, Content: content, Link: link, Priority: PriorityNormal,
 		SourceType: "task", SourceID: sourceID, DedupeKey: dedupeKey,
 	})
 

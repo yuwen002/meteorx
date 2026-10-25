@@ -48,7 +48,7 @@ func TestInbox_TaskReminderPersistedEvenWithoutWS(t *testing.T) {
 	got := inbox.got[0]
 	require.Equal(t, []string{"u1"}, got.UserIDs)
 	require.Equal(t, "task_due", got.Type)
-	require.Equal(t, "/task", got.Link, "收件箱条目需要可跳转")
+	require.Equal(t, "/task?task_id=tk1", got.Link, "链接需带上任务 ID，点开可定位到具体任务")
 	require.Equal(t, "task", got.SourceType)
 	require.Equal(t, "tk1", got.SourceID)
 	require.Equal(t, "任务即将到期", got.Title)
@@ -140,6 +140,7 @@ func TestInbox_DedupeKeyPerDayAndReminderType(t *testing.T) {
 	require.Equal(t, inbox.got[0].DedupeKey, inbox.got[1].DedupeKey, "同一天同一提醒类型的重试应命中去重")
 	require.NotEqual(t, inbox.got[0].DedupeKey, inbox.got[2].DedupeKey, "不同提醒类型不得互相合并")
 	require.Empty(t, inbox.got[3].DedupeKey, "无法定位任务的事件不参与去重")
+	require.Equal(t, "/task", inbox.got[3].Link, "无 task_id 时不得拼出空 query")
 }
 
 // TestInbox_AlertPersistedForRecipients 告警的收件箱收件人只能是用户 ID：
