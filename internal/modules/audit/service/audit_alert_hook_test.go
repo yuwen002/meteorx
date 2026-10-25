@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// writeFailErr 注入仓储写入失败的哨兵错误。
-var writeFailErr = errors.New("audit write failed")
+// errWriteFail 注入仓储写入失败的哨兵错误。
+var errWriteFail = errors.New("audit write failed")
 
 // stubEvaluator 记录审计写入路径回调进来的日志，用于断言告警评估链的触发时机。
 type stubEvaluator struct {
@@ -68,7 +68,7 @@ func TestAuditService_BatchCreateLogs_TriggersEvaluation(t *testing.T) {
 // 基于它触发的告警会指向一条查无此记录的 audit_log_id。
 func TestAuditService_WriteFailureDoesNotEvaluate(t *testing.T) {
 	repo := repository.NewMockAuditLogRepository()
-	repo.SetBatchCreateErr(writeFailErr)
+	repo.SetBatchCreateErr(errWriteFail)
 	svc := NewAuditService(repo)
 	eval := &stubEvaluator{}
 	svc.SetAlertEvaluator(eval)
@@ -77,7 +77,7 @@ func TestAuditService_WriteFailureDoesNotEvaluate(t *testing.T) {
 	require.Empty(t, eval.batches, "写入失败不得触发评估")
 
 	repo2 := repository.NewMockAuditLogRepository()
-	repo2.SetCreateErr(writeFailErr)
+	repo2.SetCreateErr(errWriteFail)
 	svc2 := NewAuditService(repo2)
 	eval2 := &stubEvaluator{}
 	svc2.SetAlertEvaluator(eval2)

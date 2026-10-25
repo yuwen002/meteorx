@@ -136,7 +136,7 @@ func TestServeWS_CarriesTenantIDFromClaims(t *testing.T) {
 	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "?token=" + token
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 	require.NoError(t, err)
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	require.Eventually(t, func() bool {
 		hub.mu.RLock()

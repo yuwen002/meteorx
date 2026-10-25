@@ -57,7 +57,7 @@ func (c *Client) chatOnce(ctx context.Context, req ChatRequest) (ChatResponse, e
 	if err != nil {
 		return ChatResponse{}, fmt.Errorf("ai: http request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// 限制读取体量，防御异常大的上游响应（上限 2MB）。
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
