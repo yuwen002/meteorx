@@ -16,6 +16,8 @@
 - [邀请 API](api/invitation-api.md) - 成员邀请与接受注册
 - [任务 API](api/task-api.md) - 个人待办与团队协作任务
 - [导出 API](api/export-api.md) - 异步数据导出与下载中心
+- [站内消息 API](api/message-api.md) - 收件箱、未读角标、离线补推、已读与重复投递去重
+- [OAuth 提供商 API](api/oauth-provider-api.md) - 第三方登录提供商配置管理
 
 ### 架构设计文档
 - [多租户隔离架构](architecture/tenant.md)
@@ -24,6 +26,11 @@
 - [数据库/事务架构](architecture/database.md)
 - [审计架构](architecture/audit.md)
 - [Wiki 架构](architecture/wiki.md)
+- [任务管理架构](architecture/task.md) - 访问控制、状态副作用、重复周期与提醒
+- [数据导出架构](architecture/export.md) - 执行租约、多格式输出与过期清理
+- [第三方登录架构](architecture/oauth.md) - 配置下沉 DB、凭据加密与热重载
+- [运营看板架构](architecture/dashboard.md) - 趋势分桶、健康度评分与慢查询
+- [站内消息架构](architecture/message.md) - 按人写行、写放大封顶、已读幂等与按天事件去重
 - [分页/排序/过滤架构](architecture/pagination.md)
 - [配置/启动架构](architecture/config.md)
 - [ID/ULID 统一架构](architecture/idgen.md)
@@ -58,6 +65,8 @@ docs/
 │   ├── invitation-api.md
 │   ├── task-api.md
 │   ├── export-api.md
+│   ├── message-api.md
+│   ├── oauth-provider-api.md
 │   └── announcement-api.md
 ├── architecture/                # 架构设计文档
 │   ├── tenant.md
@@ -66,6 +75,11 @@ docs/
 │   ├── database.md
 │   ├── audit.md
 │   ├── wiki.md
+│   ├── task.md
+│   ├── export.md
+│   ├── oauth.md
+│   ├── dashboard.md
+│   ├── message.md
 │   ├── pagination.md
 │   ├── config.md
 │   └── idgen.md

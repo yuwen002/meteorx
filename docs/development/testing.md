@@ -1,18 +1,18 @@
 # 测试手册（Test Playbook）
 
 > 目标：任何一次改动，都能在 1 分钟内确定「该跑什么、怎么跑、看什么」。
-> 基线数据截至 2026-10-21，结构性变化（新增层级 / 门槛调整）时同步更新本文。
+> 基线数据截至 2026-10-24，结构性变化（新增层级 / 门槛调整）时同步更新本文。
 
 ## 1. 分层矩阵
 
 | 层级 | 覆盖内容 | 入口 | 依赖 | 本机耗时 |
 | --- | --- | --- | --- | --- |
-| Go 单测 | 175 个 `*_test.go`，handler/service/repository/middleware | `scripts/test.ps1` | 无 | 2~5 min |
+| Go 单测 | 181 个 `*_test.go`，handler/service/repository/middleware | `scripts/test.ps1` | 无 | 2~5 min |
 | Go 竞态 | 同上的 `-race` 版本 | CI `test` job | Linux + CGO | 仅 CI |
 | 进程内集成 | `testkit` 全量真实路由（sqlite + miniredis） | `go test ./internal/integration/...` | 无 | 1~2 min |
 | MySQL 方言 | `TIMESTAMPADD`/`JSON_CONTAINS`/`FIELD()` 等真库语义 | `METEORX_MYSQL_DIALECT_TEST=1` | MySQL（库名以 `_test` 结尾） | < 30 s |
 | 迁移 | AutoMigrate + Seed 在空库跑通 | `go run ./cmd/server migrate` 或 CI `migrate` job | MySQL | < 30 s |
-| 前端单测 | 18 个 `*.test.ts`，api/utils/composables 层 | `npm run test:coverage` | Node | 20~40 s |
+| 前端单测 | 20 个 `*.test.ts`，api/stores/utils/composables 层 | `npm run test:coverage` | Node | 20~40 s |
 | 前端静态 | ESLint + `vue-tsc --noEmit` + 生产构建 | `npm run lint` / `npx vue-tsc` / `npm run build` | Node | 1~2 min |
 | 浏览器 E2E | 真实 Chrome → `vite preview` → 后端 → MySQL/Redis | `e2e/`（见 [README](../../e2e/README.md)） | MySQL/Redis/后端/Chrome | 30~60 s |
 | 安全 | govulncheck + Trivy | CI `security` job | 网络 | 仅 CI |
@@ -112,13 +112,16 @@ $env:E2E_CHANNEL='chrome'; npx playwright test
 | PowerShell 脚本乱码/解析失败 | 5.1 把无 BOM UTF-8 当 ANSI | `.ps1` 保持 ASCII-only |
 | 端口被占用 | 残留 go/node 进程 | 检查 `3306/6379/8081/4173` 的监听 PID 后结束 |
 
-## 7. 当前基线（2026-10-21）
+## 7. 当前基线（2026-10-24）
 
-- Go 测试文件：**175**；集成套件：`internal/integration/` 19 个文件
-- 前端测试文件：**18**；覆盖率门槛仅统计 `api/utils/composables`
+- Go 测试文件：**181**（全绿）；集成套件：`internal/integration/` 20 个文件
+- Go 总覆盖率：**50.4%**（`go tool cover "-func=coverage.out"` 实测）
+- 前端测试文件：**20**；覆盖率门槛仅统计 `api/utils/composables`（实测 99.6 / 97.2 / 99.25 / 99.6）
 - 浏览器 E2E：**4 条**冒烟（认证 3 + 套餐 1）
 - CI jobs：**10**（lint / test / security / migrate / build / frontend / e2e / docker / deploy / release）
-- 覆盖率门槛：Go **35%**（基线约 37%）；前端 **85 / 70 / 95 / 85**
+- 覆盖率门槛：Go **35%**（实际已 50.4%）；前端 **85 / 70 / 95 / 85**
+
+已知短板：前端页面组件（`views/`）不在覆盖率统计范围内，改动页面时需靠 E2E 与手工验证兑付。
 
 ## 8. 相关文档
 
