@@ -115,7 +115,13 @@ r.Use(middleware.AuditMiddleware(auditLogger))
 // - 在哪里（client_ip, user_agent）
 // - 何时（duration, created_at）
 // - 结果（status_code, success/failure, error_message）
+// - 标签（tags：模块 / 动作 / 方法 / 结果，以及 upload、batch、download 等特征）
 ```
+
+**批量写操作的审计**：路径含 `batch` 的请求额外打 `batch` 标签（如 `PUT /messages/batch/read`、
+`DELETE /messages/batch/delete`）。批量接口的请求体是 ID 数组，可能因 2000 字符截断而不完整，
+标签是「按类型筛出全部批量写」的唯一可靠依据；风险等级仍按方法归一（批量删除 = delete = critical）。
+业务模块不需要为此单独埋点，避免一次操作落两条审计。
 
 ### 2. 手动审计（服务层）
 

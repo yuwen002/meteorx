@@ -49,7 +49,7 @@
 | category | string | 分类：`system` / `announcement` / `task` / `plan` / `audit` |
 | title | string | 标题 |
 | content | string | 正文（纯文本，前端按纯文本渲染） |
-| link | string | 前端跳转路由（如 `/task`），空表示不可跳转 |
+| link | string | 前端跳转路由（如 `/task`），空表示不可跳转；告警类为 `/system/audit/alert?alert_id={告警ID}` |
 | priority | int | 优先级：`0` low / `1` normal / `2` high / `3` urgent |
 | source_type | string | 来源类型（`task` / `announcement` / `subscription` / `tenant_cancel_request`） |
 | source_id | string | 来源 ID（如任务 ID、剩余天数、审批结果），便于按业务追溯 |
@@ -305,6 +305,10 @@
 才落收件箱，未注册账号的外部邮箱不产生记录；告警正文含用户行为明细，**不按租户或全平台展开**。
 告警的 WebSocket 实时推送走 `ws.SendAlert`（仅推给触发用户），与收件箱是两条独立路径。
 
+**告警消息的跳转闭环**：`link` 为 `/system/audit/alert?alert_id={告警ID}`，`source_id` 与该 ID 相同。
+前端告警页读取 `alert_id` 后调 `GET /audit/alerts/{id}` 直接弹出这条告警的详情，
+而不是只跳到告警列表首页让用户自己去找；告警无记录 ID 时（如定时任务自检）`link` 不带 query。
+
 ### 4.2 错误码映射
 
 | 状态码 | 场景 |
@@ -356,9 +360,14 @@ message:
 | 顶栏铃铛 | `components/MessageBell.vue` | 最近 6 条 + 全部已读 + 查看全部；点击条目按 `link` 跳转并标记已读 |
 | 侧边栏菜单 | `layouts/DefaultLayout.vue` | 「消息中心」菜单项带未读数角标 |
 | 消息中心页 | `views/message/index.vue` | 分类页签（带角标）+ 仅看未读 + 关键字 + 分页 + 标记已读 / 删除 + 全选本页 / 批量已读 / 批量删除 + 「偏好设置」弹窗 |
+| 告警定位 | `views/system/audit/alert.vue` | 读 `?alert_id=` 直接打开该条告警详情；告警记录行也可手动点「详情」 |
 | 状态 | `stores/message.ts` | `total` / `byCategory` / `refreshUnread` / `refreshUnreadSoon` / `receiveUnreadPush` / `setUnreadTotal` / `decrementUnread` / `clearUnread` / `reset` |
 
 退出登录时 `token` watcher 会调用 `messageStore.reset()`，避免下一个账号看到上一个账号的角标。
+
+**列表与已读状态的一致性**：点开带 `link` 的消息会先标记已读再跳转（跳回消息中心时不再显示为未读）；
+在「仅看未读」筛选下把某条标为已读，该条会立即从当前页移除、总数同步减一，整页清空时自动回退一页
+——不靠刷新才能看到筛选生效。批量已读 / 批量删除后统一按响应重拉列表与未读数。
 
 ### 4.7 重复投递去重
 
@@ -411,3 +420,19 @@ message:
 退出登录时 `reset()` 会取消排队中的补拉，避免新账号登录后带着旧会话的意图发请求。
 
 原则不变：**服务端是唯一真相**，本地读数只用来把交互做顺，任何写入动作都以响应或后续补拉覆盖。
+
+### 4.10 写操作的审计口径
+
+收件箱的写接口不额外埋审计点，**由 `AuditMiddleware` 自动记录**（消息路由挂载在受保护分组内，所有请求都经过它）：
+
+| 接口 | module | action | 风险等级 | 备注 |
+|------|--------|--------|----------|------|
+| `PUT /messages/{id}/read` | `messages` | `update` | medium | `resource` 即请求路径 |
+| `PUT /messages/read-all` | `messages` | `update` | medium | 请求体带 `category` |
+| `PUT /messages/batch/read` | `messages` | `update` | medium | `tags` 含 `batch` |
+| `DELETE /messages/{id}` | `messages` | `delete` | critical | |
+| `DELETE /messages/batch/delete` | `messages` | `delete` | critical | `tags` 含 `batch` |
+
+批量接口的请求体是 ID 数组，超过 2000 字符会被审计截断，因此额外打 `batch` 标签：
+按标签即可筛出全部批量写操作，不必依赖请求体是否完整。实际影响条数（`updated` / `deleted`）
+在响应体里返回，但**审计不落响应体**，需要精确条数时应按请求 ID 回查业务数据。
