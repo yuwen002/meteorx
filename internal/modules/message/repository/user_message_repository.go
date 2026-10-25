@@ -261,6 +261,31 @@ func (r *messageRepository) Delete(ctx context.Context, userID, id string) error
 	return nil
 }
 
+// MarkReadBatch 批量标记已读，返回实际更新行数。
+// 已读行不重复更新（WHERE 带 read_at IS NULL，保留首次阅读时间）；
+// 非本人或不存在的 ID 不计入、也不报错：批量操作里混入一条脏 ID 不应让整批失败，
+// 同时同一条 SQL 带 user_id 过滤，无法通过影响行数差异探测他人消息。
+func (r *messageRepository) MarkReadBatch(ctx context.Context, userID string, ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	res := r.db.WithContext(ctx).Model(&UserMessagePO{}).
+		Where("user_id = ? AND id IN ? AND read_at IS NULL", userID, ids).
+		Update("read_at", time.Now())
+	return res.RowsAffected, res.Error
+}
+
+// DeleteBatch 批量删除，返回实际删除行数。
+// 语义同单条删除（物理删除），但缺一条不报错：选中项可能已被其他终端删掉，
+// 重试也应该是幂等的。
+func (r *messageRepository) DeleteBatch(ctx context.Context, userID string, ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	res := r.db.WithContext(ctx).Where("user_id = ? AND id IN ?", userID, ids).Delete(&UserMessagePO{})
+	return res.RowsAffected, res.Error
+}
+
 // DeleteOlderThan 删除创建时间早于 cut 的消息。
 func (r *messageRepository) DeleteOlderThan(ctx context.Context, cut time.Time) (int64, error) {
 	res := r.db.WithContext(ctx).Where("created_at < ?", cut).Delete(&UserMessagePO{})

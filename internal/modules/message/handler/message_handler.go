@@ -26,7 +26,9 @@ type MessageService interface {
 	UpdatePreference(ctx context.Context, userID string, req dto.UpdatePreferenceReq) (*dto.PreferencesResp, error)
 	MarkRead(ctx context.Context, userID, id string) error
 	MarkAllRead(ctx context.Context, userID, category string) (int64, error)
+	MarkReadBatch(ctx context.Context, userID string, ids []string) (int64, error)
 	Delete(ctx context.Context, userID, id string) error
+	DeleteBatch(ctx context.Context, userID string, ids []string) (int64, error)
 }
 
 // MessageHandler 站内消息处理器。
@@ -219,4 +221,51 @@ func (h *MessageHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.Success(w, map[string]string{"id": id})
+}
+
+// MarkReadBatch 批量标记已读。
+// PUT /api/v1/messages/batch/read
+//
+// 与单条接口的差异：个别 ID 不存在 / 不属于本人 / 已读时不报 404，
+// 只把它们从 updated 里扣除——批量操作不应因选中项被别处删掉而整批失败。
+func (h *MessageHandler) MarkReadBatch(w http.ResponseWriter, r *http.Request) {
+	userID := contextx.GetUserID(r.Context())
+	if userID == "" {
+		response.Fail(w, http.StatusUnauthorized, "用户信息缺失")
+		return
+	}
+
+	var req dto.BatchIDsReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	n, err := h.svc.MarkReadBatch(r.Context(), userID, req.IDs)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "批量标记已读失败")
+		return
+	}
+	response.Success(w, map[string]int64{"updated": n})
+}
+
+// DeleteBatch 批量删除。
+// DELETE /api/v1/messages/batch/delete
+func (h *MessageHandler) DeleteBatch(w http.ResponseWriter, r *http.Request) {
+	userID := contextx.GetUserID(r.Context())
+	if userID == "" {
+		response.Fail(w, http.StatusUnauthorized, "用户信息缺失")
+		return
+	}
+
+	var req dto.BatchIDsReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	n, err := h.svc.DeleteBatch(r.Context(), userID, req.IDs)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "批量删除消息失败")
+		return
+	}
+	response.Success(w, map[string]int64{"deleted": n})
 }

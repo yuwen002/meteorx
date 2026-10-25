@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -39,6 +40,12 @@ type stubMessageService struct {
 	prefsErr   error
 	gotPrefReq dto.UpdatePreferenceReq
 	updateErr  error
+	// 批量接口：记录收到的 ID 列表与实际返回的条数
+	batchIDs     []string
+	batchReadN   int64
+	batchReadErr error
+	batchDelN    int64
+	batchDelErr  error
 }
 
 func (s *stubMessageService) List(_ context.Context, f messagerepo.ListFilter) ([]*dto.MessageResp, int64, error) {
@@ -66,6 +73,16 @@ func (s *stubMessageService) Delete(_ context.Context, userID, id string) error 
 	return s.deleteErr
 }
 
+func (s *stubMessageService) MarkReadBatch(_ context.Context, userID string, ids []string) (int64, error) {
+	s.gotUserID, s.batchIDs = userID, ids
+	return s.batchReadN, s.batchReadErr
+}
+
+func (s *stubMessageService) DeleteBatch(_ context.Context, userID string, ids []string) (int64, error) {
+	s.gotUserID, s.batchIDs = userID, ids
+	return s.batchDelN, s.batchDelErr
+}
+
 func (s *stubMessageService) Preferences(_ context.Context, userID string) (*dto.PreferencesResp, error) {
 	s.gotUserID = userID
 	return s.prefs, s.prefsErr
@@ -86,6 +103,8 @@ func newMessageRouter(h *handler.MessageHandler) chi.Router {
 		r.Put("/preferences", h.UpdatePreference)
 		r.Get("/unread-count", h.UnreadCount)
 		r.Put("/read-all", h.MarkAllRead)
+		r.Put("/batch/read", h.MarkReadBatch)
+		r.Delete("/batch/delete", h.DeleteBatch)
 		r.Get("/", h.List)
 		r.Put("/{id}/read", h.MarkRead)
 		r.Delete("/{id}", h.Delete)
@@ -276,6 +295,115 @@ func TestHandler_Delete(t *testing.T) {
 	svc.deleteErr = errBoom
 	w = httptest.NewRecorder()
 	newMessageRouter(h).ServeHTTP(w, newMessageRequest(http.MethodDelete, "/api/v1/messages/m4", "", "u1"))
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHandler_MarkReadBatch(t *testing.T) {
+	svc := &stubMessageService{batchReadN: 2}
+	h := handler.NewMessageHandler(svc)
+
+	w := httptest.NewRecorder()
+	newMessageRouter(h).ServeHTTP(w, newMessageRequest(http.MethodPut, "/api/v1/messages/batch/read",
+		`{"ids":["m1","m2"]}`, "u1"))
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Equal(t, "u1", svc.gotUserID)
+	require.Equal(t, []string{"m1", "m2"}, svc.batchIDs, "ID 应原样交给服务层做去重与过滤")
+
+	var body struct {
+		Data struct {
+			Updated int64 `json:"updated"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Equal(t, int64(2), body.Data.Updated)
+}
+
+// TestHandler_MarkReadBatch_RejectsInvalidIDs 空列表、含空 ID、超过上限的请求
+// 必须在参数校验阶段打回：否则空列表会变成「空 IN 查询」、超长列表会拼出超大 SQL。
+func TestHandler_MarkReadBatch_RejectsInvalidIDs(t *testing.T) {
+	huge := make([]string, 101)
+	for i := range huge {
+		huge[i] = fmt.Sprintf("m%d", i)
+	}
+
+	cases := []struct {
+		name string
+		body string
+	}{
+		{name: "缺少 ids", body: `{}`},
+		{name: "空数组", body: `{"ids":[]}`},
+		{name: "含空 ID", body: `{"ids":["m1",""]}`},
+		{name: "超过单次上限", body: fmt.Sprintf(`{"ids":["%s"]}`, strings.Join(huge, `","`))},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &stubMessageService{}
+			h := handler.NewMessageHandler(svc)
+
+			w := httptest.NewRecorder()
+			newMessageRouter(h).ServeHTTP(w, newMessageRequest(http.MethodPut,
+				"/api/v1/messages/batch/read", tc.body, "u1"))
+
+			require.Equal(t, http.StatusBadRequest, w.Code)
+			require.Empty(t, svc.batchIDs, "校验失败不应触达服务层")
+		})
+	}
+}
+
+func TestHandler_DeleteBatch(t *testing.T) {
+	svc := &stubMessageService{batchDelN: 1}
+	h := handler.NewMessageHandler(svc)
+
+	w := httptest.NewRecorder()
+	newMessageRouter(h).ServeHTTP(w, newMessageRequest(http.MethodDelete, "/api/v1/messages/batch/delete",
+		`{"ids":["m1","m2"]}`, "u1"))
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Equal(t, []string{"m1", "m2"}, svc.batchIDs)
+	require.Empty(t, svc.gotID, "静态段不得被 /{id} 当单条删除")
+
+	var body struct {
+		Data struct {
+			Deleted int64 `json:"deleted"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Equal(t, int64(1), body.Data.Deleted)
+}
+
+// TestHandler_Batch_MissingIdentity 批量接口同样需要登录态，缺失用户 ID 直接 401。
+func TestHandler_Batch_MissingIdentity(t *testing.T) {
+	cases := []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodPut, path: "/api/v1/messages/batch/read"},
+		{method: http.MethodDelete, path: "/api/v1/messages/batch/delete"},
+	}
+	for _, tc := range cases {
+		svc := &stubMessageService{}
+		h := handler.NewMessageHandler(svc)
+		w := httptest.NewRecorder()
+		newMessageRouter(h).ServeHTTP(w, newMessageRequest(tc.method, tc.path, `{"ids":["m1"]}`, ""))
+		require.Equal(t, http.StatusUnauthorized, w.Code)
+		require.Empty(t, svc.batchIDs)
+	}
+}
+
+// TestHandler_Batch_InternalError 存储异常统一 500，不能当成「处理了 0 条」回 200。
+func TestHandler_Batch_InternalError(t *testing.T) {
+	svc := &stubMessageService{batchReadErr: errBoom, batchDelErr: errBoom}
+	h := handler.NewMessageHandler(svc)
+
+	w := httptest.NewRecorder()
+	newMessageRouter(h).ServeHTTP(w, newMessageRequest(http.MethodPut, "/api/v1/messages/batch/read",
+		`{"ids":["m1"]}`, "u1"))
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+
+	w = httptest.NewRecorder()
+	newMessageRouter(h).ServeHTTP(w, newMessageRequest(http.MethodDelete, "/api/v1/messages/batch/delete",
+		`{"ids":["m1"]}`, "u1"))
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 

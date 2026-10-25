@@ -204,6 +204,72 @@ func TestMessageRepo_MarkAllRead(t *testing.T) {
 	require.Equal(t, int64(1), n)
 }
 
+// TestMessageRepo_MarkReadBatch 批量已读只影响本人的未读行：
+// 已读行不重复计数（保留首次阅读时间），他人/不存在的 ID 静默跳过。
+func TestMessageRepo_MarkReadBatch(t *testing.T) {
+	db := newMessageTestDB(t)
+	repo := NewMessageRepository(db)
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Millisecond)
+	require.NoError(t, repo.BatchCreate(ctx, []*metermodel.Message{
+		newMsg("m1", "u1", metermodel.CategoryTask, false, now),
+		newMsg("m2", "u1", metermodel.CategorySystem, false, now),
+		newMsg("m3", "u1", metermodel.CategoryTask, true, now),
+		newMsg("m4", "u2", metermodel.CategoryTask, false, now),
+	}))
+
+	// m3 已读、m4 是他人、missing 不存在：只有 m1 计入
+	n, err := repo.MarkReadBatch(ctx, "u1", []string{"m1", "m3", "m4", "missing"})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), n)
+
+	n, err = repo.CountUnread(ctx, "u1", "")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), n, "只剩 m2 未读，他人消息不应被改动")
+
+	var po UserMessagePO
+	require.NoError(t, db.Where("id = ?", "m4").First(&po).Error)
+	require.Nil(t, po.ReadAt, "他人的消息不能被批量已读")
+
+	// 重复提交幂等：没有新的未读行可更新
+	n, err = repo.MarkReadBatch(ctx, "u1", []string{"m1"})
+	require.NoError(t, err)
+	require.Zero(t, n)
+
+	n, err = repo.MarkReadBatch(ctx, "u1", nil)
+	require.NoError(t, err)
+	require.Zero(t, n, "空列表不应拼出空 IN 查询")
+}
+
+// TestMessageRepo_DeleteBatch 批量删除只删本人的行，重复删除幂等。
+func TestMessageRepo_DeleteBatch(t *testing.T) {
+	db := newMessageTestDB(t)
+	repo := NewMessageRepository(db)
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Millisecond)
+	require.NoError(t, repo.BatchCreate(ctx, []*metermodel.Message{
+		newMsg("m1", "u1", metermodel.CategoryTask, false, now),
+		newMsg("m2", "u1", metermodel.CategorySystem, false, now),
+		newMsg("m3", "u2", metermodel.CategoryTask, false, now),
+	}))
+
+	n, err := repo.DeleteBatch(ctx, "u1", []string{"m1", "m3", "missing"})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), n, "他人消息不计入删除结果")
+
+	var u2 UserMessagePO
+	require.NoError(t, db.Where("id = ?", "m3").First(&u2).Error, "他人消息仍然存在")
+
+	n, err = repo.DeleteBatch(ctx, "u1", []string{"m1"})
+	require.NoError(t, err)
+	require.Zero(t, n, "重复删除幂等")
+
+	items, total, err := repo.ListByUser(ctx, ListFilter{UserID: "u1", Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Equal(t, "m2", items[0].ID)
+}
+
 func TestMessageRepo_Delete(t *testing.T) {
 	db := newMessageTestDB(t)
 	repo := NewMessageRepository(db)

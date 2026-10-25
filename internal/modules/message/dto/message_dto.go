@@ -50,6 +50,14 @@ type MarkAllReadReq struct {
 	Category string `json:"category"`
 }
 
+// BatchIDsReq 批量已读 / 批量删除的请求体。
+// 一次最多 100 个 ID：批量写是一条 SQL，上限用于避免超长 IN 列表，
+// 同时让「误传整个收件箱」这类调用尽早失败而不是拖慢数据库。
+type BatchIDsReq struct {
+	// min=1 必须显式写：validator 对切片的 required 只判非 nil，空数组能绕过
+	IDs []string `json:"ids" validate:"required,min=1,max=100,dive,required" label:"消息ID"`
+}
+
 // PreferenceItem 单个分类的消息偏好。
 type PreferenceItem struct {
 	Category string `json:"category"`

@@ -139,6 +139,89 @@ func TestInteg_Message_MarkAllReadByCategory(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
+// TestInteg_Message_BatchReadAndDelete 端到端锁定批量操作口径：
+// 只影响本人消息、个别脏 ID 不报错、空列表回 400、重复删除幂等。
+func TestInteg_Message_BatchReadAndDelete(t *testing.T) {
+	prev := notify.GetGlobalManager()
+	mgr := notify.NewManager(nil, "", "", nil)
+	notify.SetGlobalManager(mgr)
+	t.Cleanup(func() { notify.SetGlobalManager(prev) })
+
+	app := testkit.NewTestApp(t)
+	auth := app.AuthHeader("u-batch", "t-1", []string{"member"})
+	other := app.AuthHeader("u-other", "t-1", []string{"member"})
+
+	for _, taskID := range []string{"tk-1", "tk-2", "tk-3"} {
+		mgr.NotifyTaskReminder(context.Background(), "u-batch", "任务提醒", "内容", "task_due",
+			map[string]interface{}{"task_id": taskID})
+	}
+
+	w := app.Do(t, http.MethodGet, "/api/v1/messages?page=1&page_size=10", "", auth)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var page messagePage
+	testkit.DecodeData(t, w, &page)
+	require.Equal(t, 3, page.Pagination.Total)
+	ids := make([]string, len(page.Data))
+	for i, m := range page.Data {
+		ids[i] = m.ID
+	}
+
+	// 1) 批量已读：混入不存在的 ID 不影响其他条目
+	w = app.Do(t, http.MethodPut, "/api/v1/messages/batch/read",
+		`{"ids":["`+ids[0]+`","`+ids[1]+`","missing"]}`, auth)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var updated struct {
+		Updated int64 `json:"updated"`
+	}
+	testkit.DecodeData(t, w, &updated)
+	require.Equal(t, int64(2), updated.Updated)
+
+	var unread dto.UnreadCountResp
+	w = app.Do(t, http.MethodGet, "/api/v1/messages/unread-count", "", auth)
+	require.Equal(t, http.StatusOK, w.Code)
+	testkit.DecodeData(t, w, &unread)
+	require.Equal(t, int64(1), unread.Total)
+
+	// 2) 他人批量删除不影响本人数据
+	w = app.Do(t, http.MethodDelete, "/api/v1/messages/batch/delete",
+		`{"ids":["`+ids[0]+`"]}`, other)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var deleted struct {
+		Deleted int64 `json:"deleted"`
+	}
+	testkit.DecodeData(t, w, &deleted)
+	require.Zero(t, deleted.Deleted)
+
+	w = app.Do(t, http.MethodGet, "/api/v1/messages", "", auth)
+	require.Equal(t, http.StatusOK, w.Code)
+	testkit.DecodeData(t, w, &page)
+	require.Equal(t, 3, page.Pagination.Total, "他人批量删除不得删到我的消息")
+
+	// 3) 空列表在参数校验阶段打回
+	w = app.Do(t, http.MethodPut, "/api/v1/messages/batch/read", `{"ids":[]}`, auth)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+
+	// 4) 批量删除本人消息，重复提交幂等
+	w = app.Do(t, http.MethodDelete, "/api/v1/messages/batch/delete",
+		`{"ids":["`+ids[0]+`","`+ids[1]+`"]}`, auth)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	testkit.DecodeData(t, w, &deleted)
+	require.Equal(t, int64(2), deleted.Deleted)
+
+	w = app.Do(t, http.MethodDelete, "/api/v1/messages/batch/delete",
+		`{"ids":["`+ids[0]+`"]}`, auth)
+	require.Equal(t, http.StatusOK, w.Code)
+	testkit.DecodeData(t, w, &deleted)
+	require.Zero(t, deleted.Deleted, "重复删除幂等")
+
+	w = app.Do(t, http.MethodGet, "/api/v1/messages", "", auth)
+	require.Equal(t, http.StatusOK, w.Code)
+	page = messagePage{}
+	testkit.DecodeData(t, w, &page)
+	require.Equal(t, 1, page.Pagination.Total)
+	require.Equal(t, ids[2], page.Data[0].ID)
+}
+
 // TestInteg_Message_DedupeByEvent 同一业务事件的重复投递只落一条：
 // 任务提醒在渠道重试 / 多副本 / 重启补偿下可能被调用多次，收件箱不应重复刷屏；
 // 不同提醒类型（指派 vs 到期）仍是两条独立消息。

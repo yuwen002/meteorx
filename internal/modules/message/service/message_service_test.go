@@ -30,6 +30,13 @@ type stubRepo struct {
 	markAllN     int64
 	deleteErr    error
 	deletedCut   time.Time
+	// 批量接口：记录服务层实际下发的 ID 列表与实际返回条数
+	markBatchIDs   []string
+	markBatchN     int64
+	markBatchErr   error
+	deleteBatchIDs []string
+	deleteBatchN   int64
+	deleteBatchErr error
 }
 
 func (s *stubRepo) BatchCreate(_ context.Context, msgs []*model.Message) error {
@@ -68,6 +75,16 @@ func (s *stubRepo) MarkAllRead(context.Context, string, string) (int64, error) {
 }
 
 func (s *stubRepo) Delete(context.Context, string, string) error { return s.deleteErr }
+
+func (s *stubRepo) MarkReadBatch(_ context.Context, userID string, ids []string) (int64, error) {
+	s.markBatchIDs = ids
+	return s.markBatchN, s.markBatchErr
+}
+
+func (s *stubRepo) DeleteBatch(_ context.Context, userID string, ids []string) (int64, error) {
+	s.deleteBatchIDs = ids
+	return s.deleteBatchN, s.deleteBatchErr
+}
 
 func (s *stubRepo) DeleteOlderThan(_ context.Context, cut time.Time) (int64, error) {
 	s.deletedCut = cut
@@ -457,4 +474,59 @@ func TestUpdatePreference_WithoutPreferenceRepository(t *testing.T) {
 
 	_, err = svc.UpdatePreference(context.Background(), "u1", dto.UpdatePreferenceReq{Category: model.CategoryTask, Muted: true})
 	require.Error(t, err)
+}
+
+// TestMarkReadBatch_NormalizesIDs 批量入参先去空白再去重：
+// 同一 ID 在 IN 列表里重复出现既多占位，也让「实际更新条数」难以对账。
+func TestMarkReadBatch_NormalizesIDs(t *testing.T) {
+	repo := &stubRepo{markBatchN: 2}
+	svc := NewMessageService(repo, &stubDirectory{}, nil, nil)
+
+	n, err := svc.MarkReadBatch(context.Background(), "u1", []string{" m1 ", "", "m2", "m1", "   "})
+	require.NoError(t, err)
+	require.Equal(t, int64(2), n)
+	require.Equal(t, []string{"m1", "m2"}, repo.markBatchIDs)
+}
+
+// TestDeleteBatch_CapsIDs 超过上限时只取前 maxBatchIDs 个，
+// 服务层不能依赖 handler 的校验（内部调用同样可能传入超长列表）。
+func TestDeleteBatch_CapsIDs(t *testing.T) {
+	ids := make([]string, maxBatchIDs+20)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("m%d", i)
+	}
+	repo := &stubRepo{deleteBatchN: int64(maxBatchIDs)}
+	svc := NewMessageService(repo, &stubDirectory{}, nil, nil)
+
+	n, err := svc.DeleteBatch(context.Background(), "u1", ids)
+	require.NoError(t, err)
+	require.Equal(t, int64(maxBatchIDs), n)
+	require.Len(t, repo.deleteBatchIDs, maxBatchIDs)
+	require.Equal(t, "m0", repo.deleteBatchIDs[0])
+}
+
+// TestBatch_PropagatesRepositoryError 仓储失败必须原样上抛，
+// handler 才能回 500 而不是把「0 条」当成功告诉前端。
+func TestBatch_PropagatesRepositoryError(t *testing.T) {
+	errBoom := errors.New("db down")
+	repo := &stubRepo{markBatchErr: errBoom, deleteBatchErr: errBoom}
+	svc := NewMessageService(repo, &stubDirectory{}, nil, nil)
+
+	_, err := svc.MarkReadBatch(context.Background(), "u1", []string{"m1"})
+	require.ErrorIs(t, err, errBoom)
+
+	_, err = svc.DeleteBatch(context.Background(), "u1", []string{"m1"})
+	require.ErrorIs(t, err, errBoom)
+}
+
+// TestBatch_EmptyIDsAfterNormalize 全部是空白字符时视为无操作，
+// 不应把空 IN 列表下发给仓储层。
+func TestBatch_EmptyIDsAfterNormalize(t *testing.T) {
+	repo := &stubRepo{}
+	svc := NewMessageService(repo, &stubDirectory{}, nil, nil)
+
+	n, err := svc.MarkReadBatch(context.Background(), "u1", []string{"", "  "})
+	require.NoError(t, err)
+	require.Zero(t, n)
+	require.Empty(t, repo.markBatchIDs)
 }

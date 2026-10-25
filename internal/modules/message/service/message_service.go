@@ -31,6 +31,10 @@ var (
 // 超过上限直接截断并告警：站内信落库是按人写行，无上限会让一条公告的写放大失控。
 const maxTenantFanout = 500
 
+// maxBatchIDs 单次批量已读 / 删除允许的消息数上限（handler 的校验标签使用同一数值）。
+// 批量化的是「多条独立行」，一条 SQL 即可完成，上限只用于挡住超长 IN 列表。
+const maxBatchIDs = 100
+
 // unreadPusher 未读角标推送的最小依赖面（*ws.Hub 天然满足）。
 type unreadPusher interface {
 	SendToUser(userID string, msg *ws.Message)
@@ -143,9 +147,33 @@ func (s *MessageService) MarkAllRead(ctx context.Context, userID, category strin
 	return s.repo.MarkAllRead(ctx, userID, category)
 }
 
+// MarkReadBatch 批量标记已读，返回实际更新条数。
+// 已经读过的、已被别处删掉的、不属于本人的 ID 都静默跳过：
+// 用户选中的是一批可见消息，其中一条失效不应让整批回滚。
+func (s *MessageService) MarkReadBatch(ctx context.Context, userID string, ids []string) (int64, error) {
+	return s.repo.MarkReadBatch(ctx, userID, normalizeIDs(ids))
+}
+
 // Delete 删除单条消息。
 func (s *MessageService) Delete(ctx context.Context, userID, id string) error {
 	return s.repo.Delete(ctx, userID, id)
+}
+
+// DeleteBatch 批量删除，返回实际删除条数（语义同 MarkReadBatch）。
+func (s *MessageService) DeleteBatch(ctx context.Context, userID string, ids []string) (int64, error) {
+	return s.repo.DeleteBatch(ctx, userID, normalizeIDs(ids))
+}
+
+// normalizeIDs 去空白、去重，并按 maxBatchIDs 截断。
+// 去重复用收件人展开的 dedupeIDs（同一 ID 在 IN 列表里重复既多占位，也让「实际更新条数」难以对账）；
+// 截断是兜底：handler 已经按同一上限校验，但服务层不能依赖调用方守规矩，
+// 否则内部调用仍可能拼出超长 SQL。
+func normalizeIDs(ids []string) []string {
+	out := dedupeIDs(ids)
+	if len(out) > maxBatchIDs {
+		out = out[:maxBatchIDs]
+	}
+	return out
 }
 
 // Deliver 实现 notify.InboxWriter：把一条业务通知落成收件箱消息。

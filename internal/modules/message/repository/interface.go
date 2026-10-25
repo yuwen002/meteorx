@@ -34,8 +34,14 @@ type MessageRepository interface {
 	MarkRead(ctx context.Context, userID, id string) error
 	// MarkAllRead 将收件人的未读消息全部标记已读，返回影响行数。
 	MarkAllRead(ctx context.Context, userID, category string) (int64, error)
+	// MarkReadBatch 将收件人指定的若干条消息标记已读，返回实际更新行数。
+	// 已读、他人、不存在的 ID 静默跳过（批量语义，不因个别脏 ID 整批失败）。
+	MarkReadBatch(ctx context.Context, userID string, ids []string) (int64, error)
 	// Delete 删除收件人的单条消息（物理删除：消息无回收站语义）。
 	Delete(ctx context.Context, userID, id string) error
+	// DeleteBatch 删除收件人指定的若干条消息，返回实际删除行数。
+	// 归属过滤同 Delete：他人的 ID 不计入，也不泄露消息是否存在。
+	DeleteBatch(ctx context.Context, userID string, ids []string) (int64, error)
 	// DeleteOlderThan 删除创建时间早于 cut 的消息，返回删除行数。
 	DeleteOlderThan(ctx context.Context, cut time.Time) (int64, error)
 }
