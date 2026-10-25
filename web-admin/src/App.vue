@@ -12,6 +12,7 @@ import enUs from 'element-plus/es/locale/lang/en'
 import { ElNotification } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useNotificationStore } from '@/stores/notification'
+import { useMessageStore } from '@/stores/message'
 import { useWebSocket, type WSMessage } from '@/composables/useWebSocket'
 import { useI18n } from '@/composables/useI18n'
 import { useTheme } from '@/composables/useTheme'
@@ -27,6 +28,7 @@ applyBrand()
 
 const userStore = useUserStore()
 const notificationStore = useNotificationStore()
+const messageStore = useMessageStore()
 const { connected, connect, disconnect, onMessage } = useWebSocket()
 
 // 用户登录后自动连接 WebSocket，并同步服务端下发的租户品牌（多租户白标）
@@ -34,8 +36,12 @@ watch(() => userStore.token, (newToken) => {
   if (newToken) {
     connect()
     syncBrandFromServer()
+    // 登录/切换账号后立即拉一次站内信未读数，角标不依赖是否已建立 WS
+    messageStore.refreshUnread()
   } else {
     disconnect()
+    // 退出登录清空角标，避免下一个账号看到上一个账号的未读数
+    messageStore.reset()
   }
 })
 
@@ -71,9 +77,12 @@ onMessage((msg: WSMessage) => {
       }
       break
 
-    case 'unread_count':
-      // 未读数量更新
+    case 'unread_count': {
+      // 服务端在站内信落库后推送未读总数，直接覆盖本地角标
+      const count = Number(msg.payload?.count)
+      if (Number.isFinite(count)) messageStore.setUnreadTotal(count)
       break
+    }
 
     case 'pong':
       // 心跳响应，无需处理

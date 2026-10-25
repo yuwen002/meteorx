@@ -32,6 +32,15 @@
             <el-icon><Bell /></el-icon>
             <template #title>{{ t('nav.announcement') }}</template>
           </el-menu-item>
+          <el-menu-item index="/messages">
+            <el-icon><ChatDotRound /></el-icon>
+            <template #title>
+              <span class="menu-title-with-badge">
+                {{ t('nav.messages') }}
+                <el-badge v-if="messageStore.hasUnread" :value="messageStore.total" :max="99" class="menu-badge" />
+              </span>
+            </template>
+          </el-menu-item>
           <el-menu-item index="/task">
             <el-icon><List /></el-icon>
             <template #title>{{ t('nav.task') }}</template>
@@ -192,6 +201,7 @@
             </template>
           </el-dropdown>
           <GlobalNotificationCenter />
+          <MessageBell />
           <el-tooltip
             :content="notificationStore.wsConnected ? t('header.wsConnected') : t('header.wsDisconnected')"
             placement="bottom"
@@ -273,6 +283,7 @@ import {
   Avatar,
   Bell,
   Brush,
+  ChatDotRound,
   CloseBold,
   Connection,
   DataAnalysis,
@@ -306,16 +317,19 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { useNotificationStore } from '@/stores/notification'
+import { useMessageStore } from '@/stores/message'
 import { useTheme } from '@/composables/useTheme'
 import { useI18n } from '@/composables/useI18n'
 import { useBrand } from '@/composables/useBrand'
 import GlobalNotificationCenter from '@/views/wiki/components/GlobalNotificationCenter.vue'
+import MessageBell from '@/components/MessageBell.vue'
 
 const router = useRouter()
 const currentRoute = useRoute()
 const userStore = useUserStore()
 const appStore = useAppStore()
 const notificationStore = useNotificationStore()
+const messageStore = useMessageStore()
 
 const { theme, toggleTheme } = useTheme()
 const { locale, setLocale, t } = useI18n()
@@ -393,6 +407,18 @@ async function handleCommand(cmd: string) {
   border-right: none;
   flex: 1;
   overflow-y: auto;
+}
+
+/* 侧边栏菜单未读角标：静默内联，不撑开菜单行高 */
+.menu-title-with-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.menu-title-with-badge .menu-badge :deep(.el-badge__content) {
+  position: static;
+  transform: none;
+  background-color: #f56c6c;
 }
 
 .sidebar :deep(.el-menu::-webkit-scrollbar) {

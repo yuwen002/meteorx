@@ -141,6 +141,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '平台公告', icon: 'Bell' }
       },
       {
+        path: 'messages',
+        name: 'Messages',
+        component: () => import('@/views/message/index.vue'),
+        meta: { title: '消息中心', icon: 'ChatDotRound' }
+      },
+      {
         path: 'system/user',
         name: 'User',
         component: () => import('@/views/system/user/index.vue'),
