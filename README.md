@@ -31,7 +31,7 @@
 | **运营看板** | 平台总览 + 增长趋势（按业务时区分桶补零）+ 租户健康度评分 + 慢查询看板 |
 | **通知公告** | 平台公告 CRUD + 发布/下架；全平台或指定租户范围定向推送（WS 按租户过滤，不跨租户泄露） |
 | **消息通知** | 多渠道 Manager（邮件 / Webhook / WebSocket）；覆盖公告发布、审计告警、任务指派与到期、订阅到期、注销审批结果 |
-| **站内消息中心** | 收件箱持久化（`user_messages` 按「人 × 消息」写行）+ 离线补推 + 已读/删除；WS `unread_count` 实时角标；同一事件按「业务事件 + 自然日」去重（`dedupe_key` 唯一索引 + `ON CONFLICT DO NOTHING`）；审计告警按规则邮箱反查账号落库（`audit` 分类）；按分类关闭接收（`user_message_preferences`，落库前过滤，安全告警强制接收）；平台级公告不落库、租户广播 500 人封顶；保留期清理（默认 90 天） |
+| **站内消息中心** | 收件箱持久化（`user_messages` 按「人 × 消息」写行）+ 离线补推 + 已读/删除；WS `unread_count` 实时角标；同一事件按「业务事件 + 自然日」去重（`dedupe_key` 唯一索引 + `ON CONFLICT DO NOTHING`）；审计告警按规则邮箱反查账号落库（`audit` 分类）；按分类关闭接收（`user_message_preferences`，落库前过滤，安全告警强制接收）；平台级公告不落库、租户广播 500 人封顶；保留期清理（默认 90 天）；批量已读 / 批量删除（单次 100 条封顶，缺一条不报错） |
 | **注销审批** | 租户注销申请 → 平台审批（通过/驳回）→ 到期自动执行注销的完整闭环 |
 | **邮箱验证** | 用户邮箱验证链接发送（Redis 令牌 24h 有效）；一次性令牌；验证状态标记；防止信息泄露的静默响应 |
 | **成员邀请** | 管理员邀请新成员加入租户；邮件通知含邀请链接；被邀请人自助注册并自动分配角色；状态管理（pending/accepted/cancelled/expired）；7 天有效期；**批量创建（单次上限 50）**；重发/取消/删除 |
@@ -674,11 +674,14 @@ meteorx/
 | `GET` | `/messages/unread-count` | 未读总数与分类明细（顶栏铃铛 + 页签角标） |
 | `PUT` | `/messages/{id}/read` | 标记单条已读（幂等；他人消息返回 404） |
 | `PUT` | `/messages/read-all` | 全部已读，`category` 可选（只清该分类） |
+| `PUT` | `/messages/batch/read` | 批量标记已读（`{"ids": [...]}`，1~100 条，返回 `updated`） |
 | `GET` | `/messages/preferences` | 我的分类接收偏好（全部分类 + `mandatory` 标记） |
 | `PUT` | `/messages/preferences` | 修改单个分类的接收开关（`audit` 不可关闭，返回 400） |
 | `DELETE` | `/messages/{id}` | 删除单条消息 |
+| `DELETE` | `/messages/batch/delete` | 批量删除（`{"ids": [...]}`，1~100 条，返回 `deleted`） |
 
 > 按「收件人」鉴权（不挂 RBAC 权限码），查询与写操作均限定 `user_id = 当前用户`；
+> 批量接口对已读 / 已删除 / 他人的 ID 不报 404，只从 `updated` / `deleted` 中扣除；
 > 在线时额外收到 WS `unread_count` 角标推送，离线用户登录后主动拉取补齐。
 > 偏好是「关闭即不落库」（在 `Deliver` 内批量过滤）而非读时隐藏，因此角标与列表始终一致；`audit` 分类强制接收。
 
@@ -1008,7 +1011,7 @@ METEORX_MYSQL_DIALECT_TEST=1 go test -count=1 ./internal/modules/task/repository
 | [套餐 API](docs/api/plan-api.md) | 套餐管理（CRUD/分配/配额用量） |
 | [任务 API](docs/api/task-api.md) | 任务管理（个人/租户协作/批量/回收站/统计/AI 辅助） |
 | [导出 API](docs/api/export-api.md) | 数据导出（创建/列表/下载/删除） |
-| [站内消息 API](docs/api/message-api.md) | 收件箱（列表/未读数/已读/删除/接收偏好）与离线补推 |
+| [站内消息 API](docs/api/message-api.md) | 收件箱（列表/未读数/已读/删除/批量操作/接收偏好）与离线补推 |
 | [OAuth 提供商 API](docs/api/oauth-provider-api.md) | 三方登录提供商配置管理（含凭据加密） |
 | [审计 API](docs/api/audit-api.md) | 审计日志（查询/导出/仪表盘/告警规则/会话分析） |
 | [Wiki API](docs/api/wiki-api.md) | ⭐ Wiki 知识库（空间/节点/文档/版本/成员/发布流） |
@@ -1064,7 +1067,7 @@ OpenAPI 规范文件位于 `docs/apifox/`：
 | 个人中心 | `/profile` | 修改资料/密码、2FA 开关、API Token、第三方账号绑定 |
 | 任务管理 | `/task` | 个人待办 + 租户协作、批量操作、回收站、统计、AI 解析/扩写/摘要 |
 | 数据导出 | `/export` | 新建导出（资源 × 格式）、任务进度轮询、下载中心 |
-| 消息中心 | `/messages` | 收件箱（分类页签 / 仅看未读 / 关键字 / 分页 / 已读 / 删除 / 偏好设置）；顶栏铃铛与侧边栏角标 |
+| 消息中心 | `/messages` | 收件箱（分类页签 / 仅看未读 / 关键字 / 分页 / 已读 / 删除 / 全选批量已读与删除 / 偏好设置）；顶栏铃铛与侧边栏角标 |
 | 租户设置 | `/tenant-settings` | 租户独立配置（Logo/主题色/语言/时区） |
 | 成员邀请 | `/invitation` | 邀请创建/列表/取消/重发/删除 |
 | 公告（租户侧） | `/announcement` | 当前租户可见的已发布公告 |

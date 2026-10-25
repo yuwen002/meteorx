@@ -25,14 +25,17 @@
 | GET | `/messages/unread-count` | 未读总数 + 分类明细 | 需登录 |
 | PUT | `/messages/{id}/read` | 标记单条已读（幂等） | 需登录 |
 | PUT | `/messages/read-all` | 全部已读（可按分类） | 需登录 |
+| PUT | `/messages/batch/read` | 批量标记已读（≤100 条） | 需登录 |
 | DELETE | `/messages/{id}` | 删除单条消息 | 需登录 |
+| DELETE | `/messages/batch/delete` | 批量删除（≤100 条） | 需登录 |
 | GET | `/messages/preferences` | 查询分类接收偏好 | 需登录 |
 | PUT | `/messages/preferences` | 修改单个分类的接收开关 | 需登录 |
 
 **说明：**
 - 全部接口需登录，但**不挂 RBAC 权限码**：收件箱按「数据归属」鉴权，普通成员也应能看自己的消息。
 - 所有查询与写操作的 `WHERE` 都带 `user_id = 当前用户`，他人的消息既不可见、也不可代为标记已读或删除。
-- 静态段（`/preferences`、`/unread-count`、`/read-all`）先于 `/{id}` 注册，避免被路径参数吞掉。
+- 静态段（`/preferences`、`/unread-count`、`/read-all`、`/batch/*`）先于 `/{id}` 注册，避免被路径参数吞掉。
+- 单条与批量接口的错误语义不同：单条缺一条回 404，批量缺一条静默跳过并只反映在 `updated` / `deleted` 里。
 
 ---
 
@@ -97,6 +100,18 @@
 | muted | bool | 否 | 缺省为 `false`，即恢复接收 |
 
 一次只改一个分类：开关即时生效，不存在「半提交」，也就不需要批量 + 事务。
+
+### 2.7 BatchIDsReq（批量操作请求）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| ids | string[] | 是 | 消息 ID 列表，**1 ~ 100** 条；空数组、含空字符串、超 100 条均返回 400 |
+
+服务端会再去一次首尾空白并去重，超限截断（正常请求不会触发）。
+
+```json
+{ "ids": ["01JB8Z3K7Q9X2V5N4M6T8R1S0P", "01JB8Z3K7Q9X2V5N4M6T8R1S0Q"] }
+```
 
 ---
 
@@ -235,6 +250,40 @@
 - **安全告警（`audit`）不可关闭**：`muted=true` 返回 400 而不是静默忽略——静默会让用户以为关掉了，实际仍会收到；
 - 未知分类返回 400。
 
+### 3.8 批量标记已读
+
+`PUT /api/v1/messages/batch/read`
+
+**请求体：** BatchIDsReq
+
+**成功响应（200）：**
+```json
+{ "data": { "updated": 2 } }
+```
+
+**业务规则：**
+- 只影响 `user_id = 当前用户` 的行，且只改未读行（`read_at IS NULL`），已读行不重复更新；
+- `updated` 是**实际更新条数**：已读的、已被其他终端删除的、不属于本人的、不存在的 ID 都不计入，
+  也不报 404——批量选中的集合来自一次列表渲染，其中一条失效不应让整批回滚；
+- 一条 `UPDATE ... WHERE id IN (...)` 完成，不逐条发请求；
+- 操作后不推 WS，前端按响应重拉一次 `GET /messages/unread-count` 刷新角标。
+
+### 3.9 批量删除
+
+`DELETE /api/v1/messages/batch/delete`
+
+**请求体：** BatchIDsReq（DELETE 也走请求体，与其他模块的 `batch/delete` 一致）
+
+**成功响应（200）：**
+```json
+{ "data": { "deleted": 2 } }
+```
+
+**业务规则：**
+- 物理删除，语义同单条删除；`deleted` 为实际删除条数；
+- 他人 ID 不计入删除结果，也不报错（不泄露消息是否存在）；
+- 重复提交幂等：已删掉的 ID 再次提交返回 `{"deleted": 0}`。
+
 ---
 
 ## 4. 附录
@@ -260,10 +309,10 @@
 
 | 状态码 | 场景 |
 |--------|------|
-| 400 | 非法消息分类（列表筛选 / 全部已读 / 偏好提交）；消息 ID 或分类为空；试图关闭强制接收的安全告警 |
+| 400 | 非法消息分类（列表筛选 / 全部已读 / 偏好提交）；消息 ID 或分类为空；批量 ID 列表为空 / 含空值 / 超 100 条；试图关闭强制接收的安全告警 |
 | 401 | 未登录或 Token 失效（上下文缺失用户 ID） |
-| 404 | 消息不存在，或不属于当前用户（含标记已读 / 删除） |
-| 500 | 列表 / 未读数 / 标记 / 删除 / 偏好的存储异常 |
+| 404 | 消息不存在，或不属于当前用户（仅单条标记已读 / 删除返回；批量接口不返回 404） |
+| 500 | 列表 / 未读数 / 标记 / 删除 / 批量操作 / 偏好的存储异常 |
 
 ### 4.3 配置项（`internal/config/config.yaml`）
 
@@ -306,7 +355,7 @@ message:
 |------|------|------|
 | 顶栏铃铛 | `components/MessageBell.vue` | 最近 6 条 + 全部已读 + 查看全部；点击条目按 `link` 跳转并标记已读 |
 | 侧边栏菜单 | `layouts/DefaultLayout.vue` | 「消息中心」菜单项带未读数角标 |
-| 消息中心页 | `views/message/index.vue` | 分类页签（带角标）+ 仅看未读 + 关键字 + 分页 + 标记已读 / 删除 + 「偏好设置」弹窗 |
+| 消息中心页 | `views/message/index.vue` | 分类页签（带角标）+ 仅看未读 + 关键字 + 分页 + 标记已读 / 删除 + 全选本页 / 批量已读 / 批量删除 + 「偏好设置」弹窗 |
 | 状态 | `stores/message.ts` | `total` / `byCategory` / `refreshUnread` / `refreshUnreadSoon` / `receiveUnreadPush` / `setUnreadTotal` / `decrementUnread` / `clearUnread` / `reset` |
 
 退出登录时 `token` watcher 会调用 `messageStore.reset()`，避免下一个账号看到上一个账号的角标。

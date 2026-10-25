@@ -16,7 +16,7 @@
 - [邀请 API](api/invitation-api.md) - 成员邀请与接受注册
 - [任务 API](api/task-api.md) - 个人待办与团队协作任务
 - [导出 API](api/export-api.md) - 异步数据导出与下载中心
-- [站内消息 API](api/message-api.md) - 收件箱、未读角标、离线补推、已读、重复投递去重与接收偏好
+- [站内消息 API](api/message-api.md) - 收件箱、未读角标、离线补推、已读与批量已读/删除、重复投递去重与接收偏好
 - [OAuth 提供商 API](api/oauth-provider-api.md) - 第三方登录提供商配置管理
 
 ### 架构设计文档

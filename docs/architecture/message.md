@@ -24,13 +24,13 @@
 
 | 层 | 文件 | 职责 |
 | --- | --- | --- |
-| 入口 | `message/module.go` | 装配服务、注册 7 个路由、导出 `Migrate` |
+| 入口 | `message/module.go` | 装配服务、注册 9 个路由、导出 `Migrate` |
 | 模型 | `message/model/message.go` | 领域模型、分类常量、强制接收判定 |
-| 仓储 | `message/repository/user_message_repository.go` | 批量写入、分页查询、未读统计、幂等标记、删除 |
+| 仓储 | `message/repository/user_message_repository.go` | 批量写入、分页查询、未读统计、幂等标记、单条 / 批量删除 |
 | 偏好 | `message/repository/user_preference_repository.go` | 偏好读写与「批量筛出关闭接收者」 |
 | 目录 | `message/repository/user_directory.go` | 窄接口 `ListActiveUserIDs`（租户成员展开） |
 | 服务 | `message/service/message_service.go` | 收件箱读写 + `Deliver` 落库（含偏好过滤）+ 角标推送 |
-| DTO | `message/dto/message_dto.go` | `MessageResp` / `UnreadCountResp` / `MarkAllReadReq` / `PreferencesResp` / `UpdatePreferenceReq` |
+| DTO | `message/dto/message_dto.go` | `MessageResp` / `UnreadCountResp` / `MarkAllReadReq` / `BatchIDsReq` / `PreferencesResp` / `UpdatePreferenceReq` |
 | Handler | `message/handler/message_handler.go` | 参数校验、401/400/404 映射 |
 | 定时 | `message/expiry_job.go` | 按保留期物理删除历史消息 |
 | 通知侧 | `notify/inbox.go` | `InboxMessage` / `InboxWriter` 接口（避免反向依赖） |
@@ -215,13 +215,44 @@
 | 标记已读 | `WHERE id = ? AND user_id = ? AND read_at IS NULL` |
 | 全部已读 | `WHERE user_id = ? [AND category = ?] AND read_at IS NULL` |
 | 删除 | `WHERE id = ? AND user_id = ?` |
+| 批量已读 / 批量删除 | `WHERE user_id = ? AND id IN (...)`（已读另加 `read_at IS NULL`） |
 
 **404 而非 403**：他人消息返回 404「消息不存在」，与真正不存在使用同一文案，
-避免攻击者通过状态码差异探测消息 ID 是否存在。
+避免攻击者通过状态码差异探测消息 ID 是否存在。批量接口是例外（见下节）。
 
 **标记已读的幂等语义**：更新语句带 `read_at IS NULL`，重复标记不会覆写首次阅读时间
 （影响行数为 0 时再按 `id + user_id` 查一次，区分「已读」与「不存在」：
 前者返回成功，后者返回 `ErrMessageNotFound` → 404）。
+
+## 批量操作
+
+收件箱堆积到几十条时，逐条点「标为已读 / 删除」的时间成本会超过阅读本身，因此提供两个批量接口：
+
+| 接口 | 入参 | 响应 |
+| --- | --- | --- |
+| `PUT /messages/batch/read` | `{"ids": [...]}` | `{"updated": n}` |
+| `DELETE /messages/batch/delete` | `{"ids": [...]}` | `{"deleted": n}` |
+
+**批量语义与单条不同：缺一条不报 404，只不计入结果。** 单条接口的 404 是给「点开一条已经不存在」的
+误触兜底；批量选中的集合来自一次列表渲染，其中任一条被其它终端读过或删掉都会变成「脏 ID」，
+若整批回滚，用户重试也不可能成功。代价是调用方必须看 `updated` / `deleted` 而不是假定「传多少改多少」。
+同一口径也让批量接口天然不可能被用来探测他人消息是否存在——影响行数只反映自己的行。
+
+**上限 100 的双重守卫：**
+
+- handler 层：`validate:"required,min=1,max=100,dive,required"`，空列表 / 含空 ID / 超限均 400；
+  `min=1` 必须显式写——validator 对切片的 `required` 只判非 nil，空数组能绕过；
+- 服务层：`normalizeIDs` 复用 `dedupeIDs` 去空白去重后按 `maxBatchIDs` 截断，
+  内部调用绕过 handler 时也不会拼出超长 `IN` 列表。
+
+**一条 SQL 完成，不产生 N+1**：`WHERE user_id = ? AND id IN ?`，已读操作再加 `read_at IS NULL`
+（已读行不重复更新，保留首次阅读时间）。无事务：每行相互独立，不存在「部分成功需要回滚」的业务语义。
+
+**批量操作不推 WS**：角标推送只发生在 `Deliver` 落库后。本人批量操作后由前端按响应重拉一次
+`GET /messages/unread-count`——服务端仍是唯一真相，不为了省一次请求在客户端推算分类明细。
+
+前端（`views/message/index.vue`）用 `el-checkbox-group` 绑定**当前页**的 ID：翻页 / 筛选后 `loadList`
+会清空选中，避免批量操作带上看不见的消息；批量删除只在「整页被删空」时回退一页。
 
 ## 两个已踩过的坑
 
@@ -249,18 +280,21 @@ if p, ok := hub.(*ws.Hub); ok && p == nil {
 { "type": "unread_count", "payload": { "count": 3, "total": 3 }, "time": 1761184800000 }
 ```
 
-前端处理：`App.vue` 的 WS 消息分派中 `case 'unread_count'` → `messageStore.setUnreadTotal(count)`。
+前端处理：`App.vue` 的 WS 消息分派中 `case 'unread_count'` → `messageStore.receiveUnreadPush(count)`。
 `count` 与 `total` 当前同值（单连接场景即该用户总未读），保留双字段以便后续接入「分类未读」增量。
+因为 payload 不含分类明细，store 会先覆盖总数、再合并补拉一次 `/unread-count`。
 
 ## 前端状态同步
 
 | 时机 | 动作 |
 | --- | --- |
 | 登录（token 出现） | `refreshUnread()` 主动拉一次，补齐离线期间消息 |
-| 收到 WS `unread_count` | `setUnreadTotal(count)` 覆盖 |
-| 标记单条已读 | `decrementUnread(category)` 本地扣减（失败时静默，下次刷新纠正） |
-| 全部已读 | `clearUnread(category?)` |
-| 退出登录 | `reset()` 清空角标，避免串号 |
+| 收到 WS `unread_count` | `receiveUnreadPush(count)` 覆盖总数 + 合并补拉分类明细 |
+| 标记单条已读 / 删除未读 | `decrementUnread(category)` 本地扣减，随后 `refreshUnreadSoon()` 对账 |
+| 全部已读 | `clearUnread(category?, updated)` 按服务端条数扣减 + 合并补拉 |
+| 批量已读 / 批量删除 | 直接 `refreshUnread()` 重拉（不推算分类明细） |
+| 页面重新可见 | `visibilitychange` 时 `refreshUnread()`（覆盖其他标签页 / 设备已读） |
+| 退出登录 | `reset()` 清空角标并取消排队中的补拉，避免串号 |
 
 顶栏铃铛（`MessageBell.vue`）、侧边栏菜单角标与 `/messages` 页面共用同一个 Pinia store。
 
@@ -320,3 +354,10 @@ cd web-admin && npx vitest run src/api/modules/message.test.ts src/stores/messag
   连续校正（含与推送混用）合并为一次请求；`clearUnread` 按服务端 `updated` 扣减而非过期的分类明细；
   `reset` 取消排队中的补拉。变异检验：删补拉调用 / 去合并守卫 / 忽略 `updated` / 不 `clearTimeout`
   四项各自只打红对应用例（分别表现为 0 次、4 次调用与 `4 to be 2`）。
+- 批量操作：仓储层锁定「只改本人的行、已读行不重复更新、他人 ID 不计入、空列表不下发空 IN」；
+  服务层锁定去空白去重（`[" m1 ","","m2","m1"]` → `["m1","m2"]`）与按 `maxBatchIDs` 截断、
+  仓储错误原样上抛；handler 层锁定空列表 / 含空 ID / 超 100 条均 400、缺失登录态 401、
+  `/batch/delete` 不被 `/{id}` 当单条删除；集成层锁定「批量已读少算不存在的 ID」「他人批量删除不生效」
+  「重复删除幂等」。变异检验：去掉 `read_at IS NULL` / 去掉 `user_id` 过滤 / 去掉上限截断
+  三项各自只打红对应用例（分别表现为 `1 → 2`、`1 → 2`、`100 → 120`）；
+  另在开发中真实踩到「切片 `required` 不拦空数组」，补 `min=1` 后空数组用例才转绿。
