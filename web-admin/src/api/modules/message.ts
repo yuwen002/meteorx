@@ -71,3 +71,27 @@ export function markAllMessagesRead(category?: string) {
 export function deleteMessage(id: string) {
   return del<{ id: string }>(`/messages/${id}`)
 }
+
+/** 单个分类的消息偏好（与后端 dto.PreferenceItem 对齐） */
+export interface MessagePreferenceItem {
+  category: string
+  /** true 表示关闭接收：该类消息不再落库 */
+  muted: boolean
+  /** true 表示强制接收（安全告警），前端应禁用开关 */
+  mandatory: boolean
+}
+
+/** 消息偏好响应 */
+export interface MessagePreferencesResult {
+  items: MessagePreferenceItem[]
+}
+
+/** 获取当前用户的消息偏好（未设置过的分类按已接收返回） */
+export function getMessagePreferences() {
+  return get<MessagePreferencesResult>('/messages/preferences')
+}
+
+/** 修改单个分类的接收开关，返回修改后的完整偏好列表 */
+export function updateMessagePreference(category: string, muted: boolean) {
+  return put<MessagePreferencesResult>('/messages/preferences', { category, muted })
+}

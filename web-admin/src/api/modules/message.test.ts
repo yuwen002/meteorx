@@ -5,8 +5,11 @@ import {
   markMessageRead,
   markAllMessagesRead,
   deleteMessage,
+  getMessagePreferences,
+  updateMessagePreference,
   type MessageItem,
   type UnreadCountResult,
+  type MessagePreferencesResult,
 } from './message'
 
 vi.mock('@/api/request', () => ({
@@ -78,5 +81,25 @@ describe('Message API', () => {
     vi.mocked(del).mockResolvedValue({ id: 'msg-1' })
     await deleteMessage('msg-1')
     expect(del).toHaveBeenCalledWith('/messages/msg-1')
+  })
+
+  it('getMessagePreferences 应 GET /messages/preferences', async () => {
+    const payload: MessagePreferencesResult = {
+      items: [
+        { category: 'task', muted: true, mandatory: false },
+        { category: 'audit', muted: false, mandatory: true },
+      ],
+    }
+    vi.mocked(get).mockResolvedValue(payload)
+    const res = await getMessagePreferences()
+    expect(get).toHaveBeenCalledWith('/messages/preferences')
+    expect(res.items).toHaveLength(2)
+    expect(res.items[1].mandatory).toBe(true)
+  })
+
+  it('updateMessagePreference 应 PUT 分类与开关值', async () => {
+    vi.mocked(put).mockResolvedValue({ items: [] })
+    await updateMessagePreference('task', true)
+    expect(put).toHaveBeenCalledWith('/messages/preferences', { category: 'task', muted: true })
   })
 })

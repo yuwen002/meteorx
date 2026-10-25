@@ -10,6 +10,7 @@
             </el-tag>
           </div>
           <div class="header-actions">
+            <el-button @click="openPreferences">偏好设置</el-button>
             <el-button :disabled="messageStore.total === 0 && activeCategory === ''" @click="handleMarkAll">
               全部标为已读
             </el-button>
@@ -96,6 +97,28 @@
         />
       </div>
     </el-card>
+
+    <el-dialog v-model="prefVisible" title="消息偏好设置" width="480px">
+      <div v-loading="prefLoading" class="pref-list">
+        <div v-for="item in preferences" :key="item.category" class="pref-row">
+          <div class="pref-text">
+            <span class="pref-label">{{ categoryLabel(item.category) }}</span>
+            <span class="pref-desc">
+              {{ item.mandatory ? '安全告警强制接收，不可关闭' : '关闭后该类新消息不再进入收件箱' }}
+            </span>
+          </div>
+          <el-switch
+            :model-value="!item.muted"
+            :disabled="item.mandatory || prefSaving"
+            @change="handleToggle(item, $event)"
+          />
+        </div>
+        <el-empty v-if="!prefLoading && preferences.length === 0" description="暂无偏好数据" />
+      </div>
+      <template #footer>
+        <el-button @click="prefVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -105,10 +128,13 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   deleteMessage,
+  getMessagePreferences,
   listMessages,
   markAllMessagesRead,
   markMessageRead,
-  type MessageItem
+  updateMessagePreference,
+  type MessageItem,
+  type MessagePreferenceItem
 } from '@/api/modules/message'
 import { useMessageStore } from '@/stores/message'
 import { toPageResult } from '@/types/pagination'
@@ -259,6 +285,47 @@ async function handleDelete(item: MessageItem) {
   }
 }
 
+const prefVisible = ref(false)
+const prefLoading = ref(false)
+const prefSaving = ref(false)
+const preferences = ref<MessagePreferenceItem[]>([])
+
+/** 打开偏好弹窗时拉一次服务端状态：弹窗里的开关必须以服务端为准 */
+async function openPreferences() {
+  prefVisible.value = true
+  prefLoading.value = true
+  try {
+    const res = await getMessagePreferences()
+    preferences.value = res?.items ?? []
+  } catch {
+    // 失败提示由 axios 拦截器统一弹出
+  } finally {
+    prefLoading.value = false
+  }
+}
+
+/**
+ * 切换分类接收开关。
+ * 不做本地乐观切换：关闭接收会让后续消息直接不落库，
+ * 必须等服务端确认；失败时开关保持原状态。
+ */
+async function handleToggle(item: MessagePreferenceItem, value: string | number | boolean) {
+  if (item.mandatory) return
+  const receive = value === true
+  prefSaving.value = true
+  try {
+    const res = await updateMessagePreference(item.category, !receive)
+    preferences.value = res?.items ?? preferences.value
+    const label = categoryLabel(item.category)
+    ElMessage.success(receive ? `已开启「${label}」接收` : `已关闭「${label}」接收`)
+    messageStore.refreshUnread()
+  } catch {
+    // 失败保持原状态（后端拒绝时前端不能显示已生效）
+  } finally {
+    prefSaving.value = false
+  }
+}
+
 onMounted(() => {
   loadList()
   messageStore.refreshUnread()
@@ -374,5 +441,32 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+.pref-list {
+  min-height: 120px;
+}
+.pref-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.pref-row:last-child {
+  border-bottom: none;
+}
+.pref-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pref-label {
+  font-size: 14px;
+  color: #1f2937;
+}
+.pref-desc {
+  font-size: 12px;
+  color: #9ca3af;
 }
 </style>
