@@ -22,6 +22,8 @@ import (
 type MessageService interface {
 	List(ctx context.Context, f messagerepo.ListFilter) ([]*dto.MessageResp, int64, error)
 	UnreadCount(ctx context.Context, userID string) (*dto.UnreadCountResp, error)
+	Preferences(ctx context.Context, userID string) (*dto.PreferencesResp, error)
+	UpdatePreference(ctx context.Context, userID string, req dto.UpdatePreferenceReq) (*dto.PreferencesResp, error)
 	MarkRead(ctx context.Context, userID, id string) error
 	MarkAllRead(ctx context.Context, userID, category string) (int64, error)
 	Delete(ctx context.Context, userID, id string) error
@@ -87,6 +89,52 @@ func (h *MessageHandler) UnreadCount(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.svc.UnreadCount(r.Context(), userID)
 	if err != nil {
 		response.Fail(w, http.StatusInternalServerError, "获取未读数失败")
+		return
+	}
+	response.Success(w, resp)
+}
+
+// Preferences 查询当前用户的消息偏好。
+// GET /api/v1/messages/preferences
+func (h *MessageHandler) Preferences(w http.ResponseWriter, r *http.Request) {
+	userID := contextx.GetUserID(r.Context())
+	if userID == "" {
+		response.Fail(w, http.StatusUnauthorized, "用户信息缺失")
+		return
+	}
+
+	resp, err := h.svc.Preferences(r.Context(), userID)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取消息偏好失败")
+		return
+	}
+	response.Success(w, resp)
+}
+
+// UpdatePreference 修改单个分类的接收开关。
+// PUT /api/v1/messages/preferences
+func (h *MessageHandler) UpdatePreference(w http.ResponseWriter, r *http.Request) {
+	userID := contextx.GetUserID(r.Context())
+	if userID == "" {
+		response.Fail(w, http.StatusUnauthorized, "用户信息缺失")
+		return
+	}
+
+	var req dto.UpdatePreferenceReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	resp, err := h.svc.UpdatePreference(r.Context(), userID, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidCategory):
+			response.BadRequest(w, "非法消息分类")
+		case errors.Is(err, service.ErrMandatoryCategory):
+			response.BadRequest(w, "安全告警为强制接收，不可关闭")
+		default:
+			response.Fail(w, http.StatusInternalServerError, "更新消息偏好失败")
+		}
 		return
 	}
 	response.Success(w, resp)

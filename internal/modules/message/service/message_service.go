@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"meteorx/internal/modules/message/dto"
 	"meteorx/internal/modules/message/model"
 	messagerepo "meteorx/internal/modules/message/repository"
@@ -17,6 +18,15 @@ import (
 // ErrNotFound 消息不存在或不属于当前收件人。
 var ErrNotFound = messagerepo.ErrMessageNotFound
 
+// 偏好写入的拒绝原因。用哨兵错误区分「入参不合法」与「存储失败」，
+// 供 handler 映射成 400 而非 500。
+var (
+	// ErrInvalidCategory 偏好里出现了未知分类
+	ErrInvalidCategory = errors.New("invalid message category")
+	// ErrMandatoryCategory 试图关闭强制接收的分类（安全告警）
+	ErrMandatoryCategory = errors.New("mandatory message category")
+)
+
 // maxTenantFanout 单条租户定向消息最多展开的收件人数。
 // 超过上限直接截断并告警：站内信落库是按人写行，无上限会让一条公告的写放大失控。
 const maxTenantFanout = 500
@@ -30,13 +40,16 @@ type unreadPusher interface {
 type MessageService struct {
 	repo  messagerepo.MessageRepository
 	users messagerepo.UserDirectory
+	prefs messagerepo.PreferenceRepository
 	hub   unreadPusher
 }
 
 // NewMessageService 创建站内消息服务。
+// prefs 决定「谁不收哪类消息」，为 nil 时按全部接收处理（测试桩可省略）；
 // hub 可为 nil（WS 关闭时不推送角标，收件箱仍可正常读写）。
-func NewMessageService(repo messagerepo.MessageRepository, users messagerepo.UserDirectory, hub unreadPusher) *MessageService {
-	svc := &MessageService{repo: repo, users: users}
+func NewMessageService(repo messagerepo.MessageRepository, users messagerepo.UserDirectory,
+	prefs messagerepo.PreferenceRepository, hub unreadPusher) *MessageService {
+	svc := &MessageService{repo: repo, users: users, prefs: prefs}
 	if hub == nil {
 		return svc
 	}
@@ -73,6 +86,51 @@ func (s *MessageService) UnreadCount(ctx context.Context, userID string) (*dto.U
 		total += n
 	}
 	return &dto.UnreadCountResp{Total: total, ByCategory: byCategory}, nil
+}
+
+// Preferences 返回全部分类的接收状态。
+// 未设置过的分类按「接收」返回，前端无需区分「未设置」与「已开启」。
+func (s *MessageService) Preferences(ctx context.Context, userID string) (*dto.PreferencesResp, error) {
+	muted := map[string]bool{}
+	if s.prefs != nil {
+		m, err := s.prefs.MutedCategories(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		muted = m
+	}
+	categories := model.AllCategories()
+	items := make([]dto.PreferenceItem, len(categories))
+	for i, c := range categories {
+		items[i] = dto.PreferenceItem{
+			Category:  c,
+			Muted:     muted[c],
+			Mandatory: model.IsMandatoryCategory(c),
+		}
+	}
+	return &dto.PreferencesResp{Items: items}, nil
+}
+
+// UpdatePreference 覆盖写入单条分类偏好，返回写入后的完整视图。
+// 强制接收的分类拒绝关闭而不是静默忽略：静默会让前端以为已经生效，
+// 用户以为关掉了告警，实际仍会收到。
+func (s *MessageService) UpdatePreference(ctx context.Context, userID string, req dto.UpdatePreferenceReq) (*dto.PreferencesResp, error) {
+	if !model.IsValidCategory(req.Category) {
+		return nil, ErrInvalidCategory
+	}
+	if req.Muted && model.IsMandatoryCategory(req.Category) {
+		return nil, ErrMandatoryCategory
+	}
+	if s.prefs == nil {
+		return nil, errors.New("message preference repository not configured")
+	}
+	if err := s.prefs.Upsert(ctx, userID, []model.CategoryPreference{{
+		Category: req.Category,
+		Muted:    req.Muted,
+	}}); err != nil {
+		return nil, err
+	}
+	return s.Preferences(ctx, userID)
 }
 
 // MarkRead 标记单条消息已读（幂等：重复标记不报错）。
@@ -120,6 +178,29 @@ func (s *MessageService) Deliver(ctx context.Context, in *notify.InboxMessage) e
 	category := in.Category
 	if category == "" {
 		category = CategoryForType(in.Type)
+	}
+
+	// 偏好过滤：关闭了该分类的收件人既不落库也不推角标。
+	// 强制接收的分类（安全告警）无视存量偏好：即使库里被人为写入了 muted 行，
+	// 告警也不能因此被吞掉。
+	if s.prefs != nil && !model.IsMandatoryCategory(category) {
+		muted, err := s.prefs.MutedUserIDs(ctx, category, userIDs)
+		if err != nil {
+			// 查询失败按默认接收投递：宁可多打扰，不可漏消息
+			logger.Warnf("[Message] 消息偏好查询失败，按默认接收投递 type=%s category=%s: %v", in.Type, category, err)
+		} else if len(muted) > 0 {
+			kept := make([]string, 0, len(userIDs)-len(muted))
+			for _, uid := range userIDs {
+				if _, ok := muted[uid]; ok {
+					continue
+				}
+				kept = append(kept, uid)
+			}
+			userIDs = kept
+		}
+	}
+	if len(userIDs) == 0 {
+		return nil
 	}
 
 	// 去重键：优先用调用方按「业务事件 + 时间粒度」构造的键；

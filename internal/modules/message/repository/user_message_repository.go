@@ -102,7 +102,7 @@ func NewMessageRepository(db *gorm.DB) MessageRepository {
 
 // Models 返回本模块全部待迁移模型，作为 AutoMigrate 与脏列巡检的单一来源。
 func Models() []interface{} {
-	return []interface{}{&UserMessagePO{}}
+	return []interface{}{&UserMessagePO{}, &UserMessagePreferencePO{}}
 }
 
 // AutoMigrate 自动迁移表结构。

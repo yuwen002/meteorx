@@ -49,3 +49,26 @@ type MarkAllReadReq struct {
 	// Category 为空表示全部标记已读，否则只处理该分类
 	Category string `json:"category"`
 }
+
+// PreferenceItem 单个分类的消息偏好。
+type PreferenceItem struct {
+	Category string `json:"category"`
+	// Muted 为 true 表示关闭接收（该类消息不再落库）
+	Muted bool `json:"muted"`
+	// Mandatory 为 true 表示强制接收，前端应禁用开关
+	Mandatory bool `json:"mandatory"`
+}
+
+// PreferencesResp 消息偏好响应。
+// 按固定顺序返回全部分类：未设置过的分类也在列表里，前端无需自己补默认值。
+type PreferencesResp struct {
+	Items []PreferenceItem `json:"items"`
+}
+
+// UpdatePreferenceReq 单条偏好变更请求体。
+// 一次只改一个分类：开关是即时生效的，不存在「半提交」问题，
+// 也就不需要列表 + 事务去保证一批开关的原子性。
+type UpdatePreferenceReq struct {
+	Category string `json:"category" validate:"required" label:"分类"`
+	Muted    bool   `json:"muted"`
+}

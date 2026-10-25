@@ -46,3 +46,14 @@ type UserDirectory interface {
 	// ListActiveUserIDs 返回租户内启用状态的用户 ID（上限 limit）。
 	ListActiveUserIDs(ctx context.Context, tenantID string, limit int) ([]string, error)
 }
+
+// PreferenceRepository 用户消息偏好仓储。
+// 偏好按「用户 × 分类」存：没有记录即默认接收，只有关闭接收才建行。
+type PreferenceRepository interface {
+	// MutedCategories 返回收件人关闭接收的分类集合。
+	MutedCategories(ctx context.Context, userID string) (map[string]bool, error)
+	// Upsert 覆盖写入偏好（幂等，同一分类只保留一行）。
+	Upsert(ctx context.Context, userID string, prefs []model.CategoryPreference) error
+	// MutedUserIDs 从给定收件人中筛出关闭了该分类的用户（批量判定，避免 N+1）。
+	MutedUserIDs(ctx context.Context, category string, userIDs []string) (map[string]struct{}, error)
+}

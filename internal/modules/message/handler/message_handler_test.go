@@ -35,6 +35,10 @@ type stubMessageService struct {
 	markAllN   int64
 	markAllErr error
 	deleteErr  error
+	prefs      *dto.PreferencesResp
+	prefsErr   error
+	gotPrefReq dto.UpdatePreferenceReq
+	updateErr  error
 }
 
 func (s *stubMessageService) List(_ context.Context, f messagerepo.ListFilter) ([]*dto.MessageResp, int64, error) {
@@ -62,12 +66,24 @@ func (s *stubMessageService) Delete(_ context.Context, userID, id string) error 
 	return s.deleteErr
 }
 
+func (s *stubMessageService) Preferences(_ context.Context, userID string) (*dto.PreferencesResp, error) {
+	s.gotUserID = userID
+	return s.prefs, s.prefsErr
+}
+
+func (s *stubMessageService) UpdatePreference(_ context.Context, userID string, req dto.UpdatePreferenceReq) (*dto.PreferencesResp, error) {
+	s.gotUserID, s.gotPrefReq = userID, req
+	return s.prefs, s.updateErr
+}
+
 var errBoom = errors.New("boom")
 
 // newMessageRouter 复刻 module.go 的路由形状，保证 {id} URLParam 与静态段优先级真实生效。
 func newMessageRouter(h *handler.MessageHandler) chi.Router {
 	r := chi.NewRouter()
 	r.Route("/api/v1/messages", func(r chi.Router) {
+		r.Get("/preferences", h.Preferences)
+		r.Put("/preferences", h.UpdatePreference)
 		r.Get("/unread-count", h.UnreadCount)
 		r.Put("/read-all", h.MarkAllRead)
 		r.Get("/", h.List)
@@ -276,4 +292,85 @@ func TestHandler_StaticSegmentNotShadowed(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Equal(t, "u1", svc.gotUserID)
 	require.Empty(t, svc.gotID, "静态段不应命中 MarkRead")
+}
+
+// TestHandler_Preferences GET /messages/preferences 不得被 /{id} 路由吞掉。
+func TestHandler_Preferences(t *testing.T) {
+	svc := &stubMessageService{prefs: &dto.PreferencesResp{Items: []dto.PreferenceItem{
+		{Category: model.CategoryAudit, Mandatory: true},
+	}}}
+	h := handler.NewMessageHandler(svc)
+
+	w := httptest.NewRecorder()
+	newMessageRouter(h).ServeHTTP(w, newMessageRequest(http.MethodGet, "/api/v1/messages/preferences", "", "u1"))
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "u1", svc.gotUserID)
+	require.Empty(t, svc.gotID, "静态段不应命中 MarkRead")
+	require.Empty(t, svc.gotFilter.UserID, "静态段不应命中 List")
+
+	var body struct {
+		Data dto.PreferencesResp `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Len(t, body.Data.Items, 1)
+	require.True(t, body.Data.Items[0].Mandatory)
+}
+
+func TestHandler_UpdatePreference_PassesBody(t *testing.T) {
+	svc := &stubMessageService{prefs: &dto.PreferencesResp{}}
+	h := handler.NewMessageHandler(svc)
+
+	w := httptest.NewRecorder()
+	newMessageRouter(h).ServeHTTP(w, newMessageRequest(http.MethodPut, "/api/v1/messages/preferences",
+		`{"category":"task","muted":true}`, "u1"))
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "u1", svc.gotUserID)
+	require.Equal(t, model.CategoryTask, svc.gotPrefReq.Category)
+	require.True(t, svc.gotPrefReq.Muted)
+}
+
+// TestHandler_UpdatePreference_Rejections 业务拒绝统一映射 400，
+// 不能因为走 service 报错就回 500。
+func TestHandler_UpdatePreference_Rejections(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{name: "非法分类", err: service.ErrInvalidCategory},
+		{name: "关闭安全告警", err: service.ErrMandatoryCategory},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &stubMessageService{updateErr: tc.err}
+			h := handler.NewMessageHandler(svc)
+
+			w := httptest.NewRecorder()
+			newMessageRouter(h).ServeHTTP(w, newMessageRequest(http.MethodPut, "/api/v1/messages/preferences",
+				`{"category":"task","muted":true}`, "u1"))
+			require.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	}
+}
+
+// TestHandler_UpdatePreference_MissingCategory 缺分类应被参数校验拦住，不触达服务层。
+func TestHandler_UpdatePreference_MissingCategory(t *testing.T) {
+	svc := &stubMessageService{}
+	h := handler.NewMessageHandler(svc)
+
+	w := httptest.NewRecorder()
+	newMessageRouter(h).ServeHTTP(w, newMessageRequest(http.MethodPut, "/api/v1/messages/preferences",
+		`{"muted":true}`, "u1"))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Empty(t, svc.gotUserID, "校验失败不应触达服务层")
+}
+
+// TestHandler_Preferences_MissingIdentity 未登录访问偏好必须 401。
+func TestHandler_Preferences_MissingIdentity(t *testing.T) {
+	h := handler.NewMessageHandler(&stubMessageService{})
+	w := httptest.NewRecorder()
+	newMessageRouter(h).ServeHTTP(w, newMessageRequest(http.MethodGet, "/api/v1/messages/preferences", "", ""))
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }

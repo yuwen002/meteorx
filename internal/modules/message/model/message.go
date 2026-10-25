@@ -29,6 +29,27 @@ func IsValidCategory(c string) bool {
 	return false
 }
 
+// AllCategories 返回全部分类，顺序即前端偏好设置的展示顺序。
+// 新增分类时必须同时登记到这里与 IsValidCategory：偏好接口按本函数逐项返回，
+// 漏登记会让用户在界面上看不到该分类的开关，等于永久默认接收。
+func AllCategories() []string {
+	return []string{CategorySystem, CategoryAnnouncement, CategoryTask, CategoryPlan, CategoryAudit}
+}
+
+// IsMandatoryCategory 判断分类是否强制接收（不允许关闭）。
+// 安全告警是审计视野的唯一留痕：允许关闭等于允许管理员关掉自己的告警，
+// 事后无从追溯，因此该分类的偏好只能「接收」。
+func IsMandatoryCategory(c string) bool {
+	return c == CategoryAudit
+}
+
+// CategoryPreference 单个分类的接收偏好。
+// 没有记录即默认接收：新分类上线时无需给存量用户补行。
+type CategoryPreference struct {
+	Category string
+	Muted    bool
+}
+
 // Message 单条站内消息。
 // 消息归属于「收件人」而非租户：同一事件会给多个成员各写一行，
 // 因此已读状态天然按人隔离，无需额外的已读关联表。

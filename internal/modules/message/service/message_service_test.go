@@ -93,12 +93,39 @@ func (s *stubPusher) SendToUser(userID string, msg *ws.Message) {
 	s.sent = append(s.sent, msg)
 }
 
+// stubPrefs 偏好仓储桩：mutedByCat 按分类预置「已关闭接收」的收件人。
+type stubPrefs struct {
+	mutedCats  map[string]bool
+	mutedByCat map[string]map[string]struct{}
+	filterErr  error
+	listErr    error
+	upsertErr  error
+	upserted   []model.CategoryPreference
+	gotUserID  string
+	gotCat     string
+}
+
+func (s *stubPrefs) MutedCategories(context.Context, string) (map[string]bool, error) {
+	return s.mutedCats, s.listErr
+}
+
+func (s *stubPrefs) Upsert(_ context.Context, userID string, prefs []model.CategoryPreference) error {
+	s.gotUserID = userID
+	s.upserted = append(s.upserted, prefs...)
+	return s.upsertErr
+}
+
+func (s *stubPrefs) MutedUserIDs(_ context.Context, category string, _ []string) (map[string]struct{}, error) {
+	s.gotCat = category
+	return s.mutedByCat[category], s.filterErr
+}
+
 // ---- 用例 ----
 
 func TestDeliver_PersistsPerRecipientAndPushesBadge(t *testing.T) {
 	repo := &stubRepo{unreadByUser: map[string]int64{"u1": 2, "u2": 5}}
 	pusher := &stubPusher{}
-	svc := NewMessageService(repo, &stubDirectory{}, pusher)
+	svc := NewMessageService(repo, &stubDirectory{}, nil, pusher)
 
 	err := svc.Deliver(context.Background(), &notify.InboxMessage{
 		UserIDs: []string{"u1", "u2", "u1", " "}, // 含重复与空白，均应被去重
@@ -129,7 +156,7 @@ func TestDeliver_PersistsPerRecipientAndPushesBadge(t *testing.T) {
 
 func TestDeliver_ExpandsTenantWhenNoUserIDs(t *testing.T) {
 	repo := &stubRepo{}
-	svc := NewMessageService(repo, &stubDirectory{ids: []string{"a", "b"}}, nil)
+	svc := NewMessageService(repo, &stubDirectory{ids: []string{"a", "b"}}, nil, nil)
 
 	require.NoError(t, svc.Deliver(context.Background(), &notify.InboxMessage{
 		TenantID: "t1",
@@ -143,7 +170,7 @@ func TestDeliver_ExpandsTenantWhenNoUserIDs(t *testing.T) {
 
 func TestDeliver_SkipsWhenNoRecipients(t *testing.T) {
 	repo := &stubRepo{}
-	svc := NewMessageService(repo, &stubDirectory{}, nil)
+	svc := NewMessageService(repo, &stubDirectory{}, nil, nil)
 
 	require.NoError(t, svc.Deliver(context.Background(), nil))
 	require.NoError(t, svc.Deliver(context.Background(), &notify.InboxMessage{Type: "system"}))
@@ -158,7 +185,7 @@ func TestDeliver_CapsTenantFanout(t *testing.T) {
 		ids[i] = fmt.Sprintf("u%d", i)
 	}
 	repo := &stubRepo{}
-	svc := NewMessageService(repo, &stubDirectory{ids: ids}, nil)
+	svc := NewMessageService(repo, &stubDirectory{ids: ids}, nil, nil)
 
 	require.NoError(t, svc.Deliver(context.Background(), &notify.InboxMessage{TenantID: "t1", Type: "announcement"}))
 	require.Len(t, repo.created, maxTenantFanout)
@@ -167,7 +194,7 @@ func TestDeliver_CapsTenantFanout(t *testing.T) {
 func TestDeliver_ReturnsCreateError(t *testing.T) {
 	repo := &stubRepo{createErr: errors.New("db down")}
 	pusher := &stubPusher{}
-	svc := NewMessageService(repo, &stubDirectory{}, pusher)
+	svc := NewMessageService(repo, &stubDirectory{}, nil, pusher)
 
 	err := svc.Deliver(context.Background(), &notify.InboxMessage{UserIDs: []string{"u1"}, Type: "system"})
 	require.Error(t, err)
@@ -177,7 +204,7 @@ func TestDeliver_ReturnsCreateError(t *testing.T) {
 // TestDeliver_CustomCategoryWins 调用方显式指定分类时不再按类型推导。
 func TestDeliver_CustomCategoryWins(t *testing.T) {
 	repo := &stubRepo{}
-	svc := NewMessageService(repo, &stubDirectory{}, nil)
+	svc := NewMessageService(repo, &stubDirectory{}, nil, nil)
 	require.NoError(t, svc.Deliver(context.Background(), &notify.InboxMessage{
 		UserIDs:  []string{"u1"},
 		Type:     "task_due",
@@ -208,7 +235,7 @@ func TestListAndUnreadCount(t *testing.T) {
 		listTotal:   1,
 		unreadByCat: map[string]int64{model.CategoryTask: 2, model.CategorySystem: 3},
 	}
-	svc := NewMessageService(repo, &stubDirectory{}, nil)
+	svc := NewMessageService(repo, &stubDirectory{}, nil, nil)
 
 	items, total, err := svc.List(context.Background(), messagerepo.ListFilter{UserID: "u1", Page: 1, PageSize: 20})
 	require.NoError(t, err)
@@ -226,7 +253,7 @@ func TestListAndUnreadCount(t *testing.T) {
 
 func TestPassthroughErrors(t *testing.T) {
 	repo := &stubRepo{markReadErr: ErrNotFound, deleteErr: ErrNotFound}
-	svc := NewMessageService(repo, &stubDirectory{}, nil)
+	svc := NewMessageService(repo, &stubDirectory{}, nil, nil)
 
 	require.True(t, errors.Is(svc.MarkRead(context.Background(), "u1", "m1"), ErrNotFound))
 	require.True(t, errors.Is(svc.Delete(context.Background(), "u1", "m1"), ErrNotFound))
@@ -237,7 +264,7 @@ func TestPassthroughErrors(t *testing.T) {
 func TestNewMessageService_TypedNilHubIgnored(t *testing.T) {
 	var nilHub *ws.Hub
 	repo := &stubRepo{unreadByUser: map[string]int64{}}
-	svc := NewMessageService(repo, &stubDirectory{}, nilHub)
+	svc := NewMessageService(repo, &stubDirectory{}, nil, nilHub)
 	require.Nil(t, svc.hub, "typed nil hub 应被丢弃")
 
 	require.NotPanics(t, func() {
@@ -273,7 +300,7 @@ func TestDeliver_DedupeKey(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &stubRepo{}
-			svc := NewMessageService(repo, &stubDirectory{}, nil)
+			svc := NewMessageService(repo, &stubDirectory{}, nil, nil)
 			in := tc.in
 			require.NoError(t, svc.Deliver(context.Background(), &in))
 			require.Len(t, repo.created, 1)
@@ -286,7 +313,7 @@ func TestDeliver_DedupeKey(t *testing.T) {
 // 唯一性由 (user_id, dedupe_key) 保证，不能因多人接收而生成不同键。
 func TestDeliver_DedupeKeySharedByRecipients(t *testing.T) {
 	repo := &stubRepo{}
-	svc := NewMessageService(repo, &stubDirectory{ids: []string{"a", "b"}}, nil)
+	svc := NewMessageService(repo, &stubDirectory{ids: []string{"a", "b"}}, nil, nil)
 
 	require.NoError(t, svc.Deliver(context.Background(), &notify.InboxMessage{
 		TenantID: "t1", Type: "announcement", DedupeKey: "announcement:an-1",
@@ -295,4 +322,139 @@ func TestDeliver_DedupeKeySharedByRecipients(t *testing.T) {
 	for _, m := range repo.created {
 		require.Equal(t, "announcement:an-1", m.DedupeKey)
 	}
+}
+
+// TestDeliver_SkipsUsersWhoMutedCategory 关闭接收的收件人既不落库也不推角标，
+// 其余收件人照常投递。
+func TestDeliver_SkipsUsersWhoMutedCategory(t *testing.T) {
+	repo := &stubRepo{unreadByUser: map[string]int64{"u1": 1}}
+	pusher := &stubPusher{}
+	prefs := &stubPrefs{mutedByCat: map[string]map[string]struct{}{
+		model.CategoryTask: {"u2": {}},
+	}}
+	svc := NewMessageService(repo, &stubDirectory{}, prefs, pusher)
+
+	require.NoError(t, svc.Deliver(context.Background(), &notify.InboxMessage{
+		UserIDs: []string{"u1", "u2"}, Type: "task_due", Title: "任务即将到期",
+	}))
+	require.Equal(t, model.CategoryTask, prefs.gotCat, "应按推导出的分类查询偏好")
+	require.Len(t, repo.created, 1)
+	require.Equal(t, "u1", repo.created[0].UserID)
+	require.Len(t, pusher.to, 1)
+	require.Equal(t, "u1", pusher.to[0], "被过滤的收件人不应收到角标")
+}
+
+// TestDeliver_AllRecipientsMutedWritesNothing 全员关闭时不应产生任何行或推送。
+func TestDeliver_AllRecipientsMutedWritesNothing(t *testing.T) {
+	repo := &stubRepo{}
+	pusher := &stubPusher{}
+	prefs := &stubPrefs{mutedByCat: map[string]map[string]struct{}{
+		model.CategoryAnnouncement: {"u1": {}, "u2": {}},
+	}}
+	svc := NewMessageService(repo, &stubDirectory{}, prefs, pusher)
+
+	require.NoError(t, svc.Deliver(context.Background(), &notify.InboxMessage{
+		UserIDs: []string{"u1", "u2"}, Type: "announcement",
+	}))
+	require.Empty(t, repo.created)
+	require.Empty(t, pusher.sent)
+}
+
+// TestDeliver_MandatoryCategoryIgnoresMute 安全告警强制接收：
+// 即使库里存在关闭记录（历史数据/人工修改），也必须投递且不去查偏好。
+func TestDeliver_MandatoryCategoryIgnoresMute(t *testing.T) {
+	repo := &stubRepo{}
+	prefs := &stubPrefs{mutedByCat: map[string]map[string]struct{}{
+		model.CategoryAudit: {"u1": {}},
+	}}
+	svc := NewMessageService(repo, &stubDirectory{}, prefs, nil)
+
+	require.NoError(t, svc.Deliver(context.Background(), &notify.InboxMessage{
+		UserIDs: []string{"u1"}, Type: "alert", Category: model.CategoryAudit, Title: "[告警] x",
+	}))
+	require.Empty(t, prefs.gotCat, "强制接收的分类不应进入偏好过滤")
+	require.Len(t, repo.created, 1)
+}
+
+// TestDeliver_PreferenceQueryErrorFailsOpen 偏好查询失败时按默认接收投递：
+// 宁可多打扰，不可漏消息。
+func TestDeliver_PreferenceQueryErrorFailsOpen(t *testing.T) {
+	repo := &stubRepo{}
+	prefs := &stubPrefs{filterErr: errors.New("db down")}
+	svc := NewMessageService(repo, &stubDirectory{}, prefs, nil)
+
+	require.NoError(t, svc.Deliver(context.Background(), &notify.InboxMessage{
+		UserIDs: []string{"u1", "u2"}, Type: "task_due",
+	}))
+	require.Len(t, repo.created, 2)
+}
+
+// TestPreferences_DefaultsAndMandatory 未设置过的分类按接收返回，
+// 且全部分类都在列表里、顺序固定，安全告警标记为强制接收。
+func TestPreferences_DefaultsAndMandatory(t *testing.T) {
+	prefs := &stubPrefs{mutedCats: map[string]bool{model.CategoryTask: true}}
+	svc := NewMessageService(&stubRepo{}, &stubDirectory{}, prefs, nil)
+
+	resp, err := svc.Preferences(context.Background(), "u1")
+	require.NoError(t, err)
+	require.Len(t, resp.Items, len(model.AllCategories()))
+	for i, c := range model.AllCategories() {
+		require.Equal(t, c, resp.Items[i].Category, "分类顺序应与 AllCategories 一致")
+	}
+	require.True(t, resp.Items[2].Muted, "task 应读取到已关闭")
+	require.False(t, resp.Items[0].Muted, "未设置的分类默认为接收")
+
+	var audit *dto.PreferenceItem
+	for i := range resp.Items {
+		if resp.Items[i].Category == model.CategoryAudit {
+			audit = &resp.Items[i]
+		}
+	}
+	require.NotNil(t, audit)
+	require.True(t, audit.Mandatory, "安全告警必须标记为强制接收")
+}
+
+// TestUpdatePreference_RejectsInvalidAndMandatory 非法分类与关闭安全告警都必须拒绝，
+// 且拒绝时不能落库（否则前端报错但实际已生效）。
+func TestUpdatePreference_RejectsInvalidAndMandatory(t *testing.T) {
+	prefs := &stubPrefs{}
+	svc := NewMessageService(&stubRepo{}, &stubDirectory{}, prefs, nil)
+
+	_, err := svc.UpdatePreference(context.Background(), "u1", dto.UpdatePreferenceReq{Category: "nope"})
+	require.ErrorIs(t, err, ErrInvalidCategory)
+
+	_, err = svc.UpdatePreference(context.Background(), "u1", dto.UpdatePreferenceReq{Category: model.CategoryAudit, Muted: true})
+	require.ErrorIs(t, err, ErrMandatoryCategory)
+
+	require.Empty(t, prefs.upserted, "被拒绝的请求不应写入偏好")
+}
+
+// TestUpdatePreference_UpsertsAndReturnsView 开关写回后返回最新视图，
+// 前端可直接用返回值刷新开关状态。
+func TestUpdatePreference_UpsertsAndReturnsView(t *testing.T) {
+	prefs := &stubPrefs{}
+	svc := NewMessageService(&stubRepo{}, &stubDirectory{}, prefs, nil)
+
+	resp, err := svc.UpdatePreference(context.Background(), "u7", dto.UpdatePreferenceReq{
+		Category: model.CategoryTask, Muted: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "u7", prefs.gotUserID, "偏好必须落在当前登录用户名下")
+	require.Equal(t, []model.CategoryPreference{{Category: model.CategoryTask, Muted: true}}, prefs.upserted)
+
+	// stub 不回写映射，因此这里只校验返回结构完整；开关值由仓储层用例覆盖
+	require.Len(t, resp.Items, len(model.AllCategories()))
+}
+
+// TestUpdatePreference_WithoutPreferenceRepository 未装配偏好仓储时写入必须报错，
+// 不能假装成功（否则前端提示已保存、实际什么都没改）。
+func TestUpdatePreference_WithoutPreferenceRepository(t *testing.T) {
+	svc := NewMessageService(&stubRepo{}, &stubDirectory{}, nil, nil)
+
+	resp, err := svc.Preferences(context.Background(), "u1")
+	require.NoError(t, err, "读偏好不应因未装配而失败：全部按接收返回")
+	require.Len(t, resp.Items, len(model.AllCategories()))
+
+	_, err = svc.UpdatePreference(context.Background(), "u1", dto.UpdatePreferenceReq{Category: model.CategoryTask, Muted: true})
+	require.Error(t, err)
 }

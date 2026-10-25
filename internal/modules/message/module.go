@@ -19,6 +19,7 @@ func NewService(db *gorm.DB, hub *ws.Hub) *service.MessageService {
 	return service.NewMessageService(
 		repository.NewMessageRepository(db),
 		repository.NewUserDirectory(db),
+		repository.NewPreferenceRepository(db),
 		hub,
 	)
 }
@@ -33,9 +34,11 @@ func InitModule(r chi.Router, db *gorm.DB, hub *ws.Hub) *service.MessageService 
 }
 
 // RegisterRoutes 注册收件箱路由（需登录）。
-// 静态段（/unread-count、/read-all）先于 /{id} 注册，避免路径参数吞掉静态段。
+// 静态段（/preferences、/unread-count、/read-all）先于 /{id} 注册，避免路径参数吞掉静态段。
 func RegisterRoutes(r chi.Router, h *handler.MessageHandler) {
 	r.Route("/messages", func(r chi.Router) {
+		r.Get("/preferences", h.Preferences)
+		r.Put("/preferences", h.UpdatePreference)
 		r.Get("/unread-count", h.UnreadCount)
 		r.Put("/read-all", h.MarkAllRead)
 		r.Get("/", h.List)
