@@ -142,7 +142,7 @@ oauth:
   # OAuth 凭据加密主密钥（base64 编码的 32 字节随机值）。
   # 后台「第三方登录管理」保存的 client_secret 以此密钥 AES-256-GCM 加密后落库。
   # 生成：openssl rand -base64 32
-  # 留空则仅告警、secret 以明文存储（不推荐生产使用）。
+  # 留空时后台保存含 client_secret 的配置会被拒绝（HTTP 422），不会以明文落库。
   secret_key: ""
   google:
     enabled: false
@@ -231,6 +231,11 @@ export:
 ws:
   enabled: true
   max_conn_per_user: 10
+
+# 站内消息收件箱配置（留空/删除即回落默认值）
+# 收件箱按「人 × 消息」写行，保留期后由定时任务物理删除；负数表示不清理
+message:
+  retention_days: 90           # 消息保留天数，默认 90；负值关闭清理任务
 
 # 多渠道消息通知配置
 notify:

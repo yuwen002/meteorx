@@ -2,17 +2,22 @@ package notify
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"meteorx/internal/pkg/emailer"
 	"meteorx/internal/ws"
 	"meteorx/pkg/idgen"
+	"meteorx/pkg/logger"
 )
 
 // Manager 通知管理器 - 将所有渠道整合为统一入口
 // 提供业务语义化的通知方法，各模块直接调用
 type Manager struct {
 	composite *CompositeNotifier
+	// inbox 站内信落库能力（可选）：实时推送只解决在线可达，
+	// 落库后离线用户重新登录才能看到漏掉的消息
+	inbox InboxWriter
 }
 
 // NewManager 创建通知管理器
@@ -40,6 +45,25 @@ func NewManager(e *emailer.Emailer, from, fromName string, hub *ws.Hub) *Manager
 // AddWebhook 动态注册 Webhook 渠道
 func (m *Manager) AddWebhook(name string, opt WebhookOption) {
 	m.composite.AddChannel(NewWebhookNotifier(opt))
+}
+
+// SetInbox 装配站内信落库能力（由 bootstrap 在消息模块创建后调用）。
+// 未装配时站内信落库整体跳过，其余渠道行为不变。
+func (m *Manager) SetInbox(w InboxWriter) {
+	m.inbox = w
+}
+
+// deliverInbox 落库站内信，失败仅告警。
+// 刻意不并入 SendResult 参与「送达销账」判定：站内信是补推兜底，
+// 把它算作送达会让邮件/WS 的失败被一条本地写库掩盖。
+func (m *Manager) deliverInbox(ctx context.Context, msg *InboxMessage) {
+	if m.inbox == nil {
+		return
+	}
+	if err := m.inbox.Deliver(ctx, msg); err != nil {
+		logger.Warnf("[Notify] 站内信落库失败 type=%s tenant=%s recipients=%d: %v",
+			msg.Type, msg.TenantID, len(msg.UserIDs), err)
+	}
 }
 
 // AddChannel 注册自定义渠道
@@ -80,6 +104,16 @@ func (m *Manager) NotifyAnnouncement(ctx context.Context, title, content, target
 			Title: title, Content: content, Priority: PriorityLow,
 			Channel: ChannelWebhook, TenantID: targetTenantID, Extra: extra,
 		})...)
+	}
+	// 只有租户定向公告才落收件箱：平台级公告需要向全平台用户逐人写行，
+	// 开销随用户量线性增长，而公告本身在「公告列表」常驻可查。
+	// 不设 DedupeKey：每次发布都是独立事件，同标题公告也应各自可见。
+	if targetTenantID != "" {
+		m.deliverInbox(ctx, &InboxMessage{
+			TenantID: targetTenantID, Type: "announcement",
+			Title: title, Content: content, Priority: PriorityLow,
+			SourceType: "announcement",
+		})
 	}
 	return results
 }
@@ -125,6 +159,15 @@ func (m *Manager) NotifyCancelRequestStatus(ctx context.Context, tenantName stri
 			Title: title, Content: content, Priority: PriorityHigh,
 			Channel: ChannelWebSocket, Recipients: memberUserIDs, Extra: extra,
 		})...)
+	}
+	if len(memberUserIDs) > 0 {
+		m.deliverInbox(ctx, &InboxMessage{
+			UserIDs: memberUserIDs, Type: "cancel_request",
+			Title: title, Content: content, Priority: PriorityHigh,
+			SourceType: "tenant_cancel_request", SourceID: status,
+			// 同一租户同一天的同一种审批结果只落一条（审批重试 / 多副本安全）
+			DedupeKey: dailyDedupeKey("cancel_request", tenantName, status),
+		})
 	}
 
 	return results
@@ -186,6 +229,15 @@ func (m *Manager) NotifySubscriptionExpiry(ctx context.Context, tenantName strin
 			Channel: ChannelWebSocket, Recipients: memberUserIDs, Extra: extra,
 		})...)
 	}
+	if len(memberUserIDs) > 0 {
+		m.deliverInbox(ctx, &InboxMessage{
+			UserIDs: memberUserIDs, Type: "subscription_expiry",
+			Title: title, Content: content, Link: "/system/plan", Priority: PriorityNormal,
+			SourceType: "subscription", SourceID: itoa(daysLeft),
+			// 同一租户同一剩余天数一天只落一条；到期日后移会得到新键
+			DedupeKey: dailyDedupeKey("subscription", tenantName, itoa(daysLeft)),
+		})
+	}
 
 	return results
 }
@@ -195,7 +247,30 @@ func (m *Manager) NotifySubscriptionExpiry(ctx context.Context, tenantName strin
 // reminderType 取值如 task_assigned / task_due，供前端区分展示。
 // 未注册 WebSocket 渠道或接收人为空时静默跳过。
 func (m *Manager) NotifyTaskReminder(ctx context.Context, recipientID, title, content, reminderType string, extra map[string]interface{}) []SendResult {
-	if recipientID == "" || !m.composite.HasChannel(ChannelWebSocket) {
+	if recipientID == "" {
+		return nil
+	}
+
+	// 站内信落库不依赖 WS 渠道：用户当前离线时依然要能在收件箱里看到这条提醒
+	sourceID := ""
+	if extra != nil {
+		if v, ok := extra["task_id"].(string); ok {
+			sourceID = v
+		}
+	}
+	// 同一任务的同类提醒一天只落一条：渠道重试 / 多副本 / 重启补偿不得重复刷屏；
+	// 跨天仍会各自落库，与逾期提醒的 24h 冷却语义一致。
+	dedupeKey := ""
+	if sourceID != "" {
+		dedupeKey = dailyDedupeKey("task", sourceID, reminderType)
+	}
+	m.deliverInbox(ctx, &InboxMessage{
+		UserIDs: []string{recipientID}, Type: reminderType,
+		Title: title, Content: content, Link: "/task", Priority: PriorityNormal,
+		SourceType: "task", SourceID: sourceID, DedupeKey: dedupeKey,
+	})
+
+	if !m.composite.HasChannel(ChannelWebSocket) {
 		return nil
 	}
 
@@ -213,6 +288,22 @@ func (m *Manager) NotifyTaskReminder(ctx context.Context, recipientID, title, co
 		Extra:      payloadExtra,
 	}
 	return m.composite.Send(ctx, msg)
+}
+
+// dailyDedupeKey 构造收件箱去重键：业务定位键 + 自然日。
+// 时间粒度取「天」而非「次」：同一天的重复投递（渠道重试、多副本、重启后的补偿）
+// 只应留下一条，而跨天的重复提醒（逾期任务每日提醒、订阅每日临期提醒）仍各自落库。
+// 长度上限与 user_messages.dedupe_key 列宽一致，超长按字符截断。
+func dailyDedupeKey(parts ...string) string {
+	segs := make([]string, 0, len(parts)+1)
+	segs = append(segs, parts...)
+	segs = append(segs, time.Now().Format("20060102"))
+	key := strings.Join(segs, ":")
+	const maxLen = 191
+	if r := []rune(key); len(r) > maxLen {
+		key = string(r[:maxLen])
+	}
+	return key
 }
 
 // itoa 简单的整数转字符串

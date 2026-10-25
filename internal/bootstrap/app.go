@@ -115,6 +115,9 @@ func StartApp() {
 	// 10.7 启动导出文件过期清理定时任务（删除超过保留期的导出文件与记录）
 	StartExportExpiryJob(ctx, db, cfg)
 
+	// 10.8 启动站内消息过期清理定时任务（删除超过 message.retention_days 的收件箱消息）
+	StartMessageExpiryJob(ctx, db, cfg)
+
 	// 11. 构造 http.Server 以支持优雅关闭
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	srv := &http.Server{

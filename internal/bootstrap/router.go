@@ -28,6 +28,7 @@ import (
 	authSvc "meteorx/internal/modules/auth/service"
 	"meteorx/internal/modules/file"
 	"meteorx/internal/modules/invitation"
+	"meteorx/internal/modules/message"
 	"meteorx/internal/modules/oauth"
 	"meteorx/internal/modules/plan"
 	planRepo "meteorx/internal/modules/plan/repository"
@@ -42,6 +43,7 @@ import (
 	"meteorx/internal/modules/wiki"
 	wikiSvc "meteorx/internal/modules/wiki/service"
 	dbpkg "meteorx/internal/pkg/db"
+	"meteorx/internal/notify"
 	"meteorx/internal/ws"
 	"meteorx/pkg/logger"
 	"meteorx/pkg/security"
@@ -269,6 +271,18 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 4.10 数据导出接口（下载中心，异步 CSV 导出）
 			export.InitModule(r, db, *cfg)
 
+			// 4.11 站内消息收件箱（按收件人隔离，访问控制以数据归属为准，不挂 RBAC 权限码）。
+			// 同时作为 notify 的 InboxWriter：实时推送只解决在线可达，落库才能让离线用户
+			// 重新登录后补看到漏掉的消息（公告/注销审批/订阅到期/任务提醒）。
+			var msgHub *ws.Hub
+			if cfg.WS.Enabled {
+				msgHub = ws.GetHub()
+			}
+			msgSvc := message.InitModule(r, db, msgHub)
+			if m := notify.GetGlobalManager(); m != nil {
+				m.SetInbox(msgSvc)
+			}
+
 			// ========================================================
 			// 🔥 新增分组三：MaaS 平台运营后台特权接口 (Platform Admin Only)
 			// ========================================================
@@ -368,6 +382,13 @@ func StartExportWorkerJob(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 func StartExportExpiryJob(ctx context.Context, db *gorm.DB, cfg *config.Config) {
 	job := export.NewExportExpiryJob(db, *cfg)
 	job.Start(ctx, 6*time.Hour)
+}
+
+// StartMessageExpiryJob 启动站内消息过期清理定时任务
+// 周期性物理删除超过 message.retention_days 的收件箱消息（负值表示不清理）
+func StartMessageExpiryJob(ctx context.Context, db *gorm.DB, cfg *config.Config) {
+	job := message.NewMessageExpiryJob(db, *cfg)
+	job.Start(ctx, time.Hour)
 }
 
 // initIPLocator 根据配置初始化 IP 地理位置解析器

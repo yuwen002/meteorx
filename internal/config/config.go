@@ -26,6 +26,7 @@ type Config struct {
 	Search       SearchConfig       `mapstructure:"search"`
 	TaskReminder TaskReminderConfig `mapstructure:"task_reminder"`
 	Export       ExportConfig       `mapstructure:"export"`
+	Message      MessageConfig      `mapstructure:"message"`
 	AI           AIConfig           `mapstructure:"ai"`
 }
 
@@ -37,6 +38,20 @@ type ExportConfig struct {
 	WorkerCount   int    `mapstructure:"worker_count"`    // worker 池大小，默认 3
 	BatchSize     int    `mapstructure:"batch_size"`      // CSV flush 阈值，默认 1000
 	MaxActiveJobs int    `mapstructure:"max_active_jobs"` // 单租户未完结导出任务上限，默认 10，达到上限后新建返回 429
+}
+
+// MessageConfig 站内消息（收件箱）配置。
+type MessageConfig struct {
+	// RetentionDays 消息保留天数：超过该天数的消息由清理任务删除，默认 90；负值关闭清理
+	RetentionDays int `mapstructure:"retention_days"`
+}
+
+// GetRetentionDays 返回消息保留天数；未配置（0）时默认 90 天，负值表示不清理。
+func (c MessageConfig) GetRetentionDays() int {
+	if c.RetentionDays == 0 {
+		return 90
+	}
+	return c.RetentionDays
 }
 
 // TaskReminderConfig 任务到期提醒定时任务配置。
@@ -199,7 +214,7 @@ type OAuthConfig struct {
 }
 
 // HasSecretKey 是否配置了 OAuth 凭据加密主密钥。
-// 未配置时 DB 运行时配置仍可读写，但 client_secret 将以明文存储（启动时告警）。
+// 未配置时平台超管保存含 client_secret 的 provider 配置会被拒绝（422），不会以明文落库。
 func (c OAuthConfig) HasSecretKey() bool {
 	return strings.TrimSpace(c.SecretKey) != ""
 }
