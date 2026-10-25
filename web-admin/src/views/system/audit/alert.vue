@@ -326,7 +326,17 @@
           </el-descriptions-item>
           <el-descriptions-item label="通知时间">{{ alertDetail.notify_time || '-' }}</el-descriptions-item>
           <el-descriptions-item label="触发时间">{{ alertDetail.created_at }}</el-descriptions-item>
-          <el-descriptions-item label="审计日志 ID">{{ alertDetail.audit_log_id || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="审计日志 ID">
+            <el-button
+              v-if="alertDetail.audit_log_id"
+              link
+              type="primary"
+              @click="openAuditLog(alertDetail.audit_log_id)"
+            >
+              {{ alertDetail.audit_log_id }}
+            </el-button>
+            <span v-else>-</span>
+          </el-descriptions-item>
         </el-descriptions>
         <el-empty
           v-if="!alertDetailLoading && !alertDetail"
@@ -343,7 +353,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Bell, CircleCheck, Warning, Message, Plus, Search, Refresh } from '@element-plus/icons-vue'
@@ -384,6 +394,7 @@ interface AlertRecord {
 
 const rules = ref<AlertRule[]>([])
 const route = useRoute()
+const router = useRouter()
 
 const {
   list,
@@ -528,6 +539,17 @@ watch(
   },
   { immediate: true }
 )
+
+/**
+ * 跳到审计日志并直接打开这条详情。
+ * 告警只存日志 ID，正文与请求参数都在审计日志里：留一个不可点的 ID 等于让用户
+ * 退出告警页、自己按时间在审计列表里翻。
+ */
+function openAuditLog(id: string) {
+  if (!id) return
+  alertDetailVisible.value = false
+  router.push({ path: '/system/audit', query: { log_id: id } })
+}
 
 function resetAlertSearch() {
   reset()

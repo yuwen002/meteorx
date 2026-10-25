@@ -352,7 +352,7 @@
     </el-card>
 
     <!-- 详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="日志详情" width="900px" destroy-on-close>
+    <el-dialog v-model="detailVisible" v-loading="detailLoading" title="日志详情" width="900px" destroy-on-close>
       <el-descriptions v-if="currentLog" :column="2" border>
         <el-descriptions-item label="日志ID">{{ currentLog.id }}</el-descriptions-item>
         <el-descriptions-item label="请求ID">{{ currentLog.request_id || '-' }}</el-descriptions-item>
@@ -397,6 +397,11 @@
           <pre class="json-pre">{{ formatJson(currentLog.response_body) }}</pre>
         </el-descriptions-item>
       </el-descriptions>
+      <el-empty
+        v-if="!detailLoading && !currentLog"
+        description="日志不存在或已被清理"
+        :image-size="60"
+      />
     </el-dialog>
 
     <!-- 清理弹窗 -->
@@ -418,11 +423,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Document, Calendar, CircleCheck, CircleClose, Search, Delete, Download, User, SwitchButton } from '@element-plus/icons-vue'
-import { getAuditLogList, getAuditDashboard, cleanupAuditLogs, exportAuditLogs } from '@/api/modules/audit'
+import { getAuditLogList, getAuditDashboard, getAuditLogDetail, cleanupAuditLogs, exportAuditLogs } from '@/api/modules/audit'
 import type { AuditLogItem, AuditDashboardData } from '@/api/modules/audit'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
@@ -479,9 +485,11 @@ const dashboard = ref<AuditDashboardData>({
 })
 
 const detailVisible = ref(false)
+const detailLoading = ref(false)
 const currentLog = ref<AuditLogItem | null>(null)
 const cleanupVisible = ref(false)
 const cleanupForm = reactive({ days: 30 })
+const route = useRoute()
 
 const pieColors = ['#667eea', '#52c41a', '#faad14', '#f56c6c', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16']
 
@@ -567,6 +575,32 @@ function openDetail(row: AuditLogItem) {
   currentLog.value = row
   detailVisible.value = true
 }
+
+/**
+ * 按 ID 打开日志详情（从告警详情里的「审计日志 ID」或外部链接带 log_id 进来）。
+ * 不先在列表里找：目标日志可能已被筛选条件/分页摘掉，甚至早就不在当前页。
+ */
+async function openLogById(id: string) {
+  detailVisible.value = true
+  detailLoading.value = true
+  currentLog.value = null
+  try {
+    currentLog.value = await getAuditLogDetail(id)
+  } catch {
+    // 失败提示由拦截器统一弹出；日志可能已被清理任务删除
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+// 已在审计页时再点另一条告警的日志，只有 query 变化（不会重新 mount），因此 watch
+watch(
+  () => route.query.log_id,
+  id => {
+    if (typeof id === 'string' && id) openLogById(id)
+  },
+  { immediate: true }
+)
 
 function handleCleanup() {
   cleanupForm.days = 30
