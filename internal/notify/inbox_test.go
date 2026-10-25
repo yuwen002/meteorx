@@ -164,7 +164,7 @@ func TestInbox_AlertPersistedForRecipients(t *testing.T) {
 	require.Equal(t, "audit", got.Category)
 	require.Equal(t, "audit_alert", got.SourceType)
 	require.Equal(t, "al-1", got.SourceID)
-	require.Equal(t, "/system/audit/alert", got.Link)
+	require.Equal(t, "/system/audit/alert?alert_id=al-1", got.Link, "链接需带上告警 ID，点开可定位到具体记录")
 	require.Empty(t, got.TenantID, "平台级告警不归属任何租户")
 	require.Equal(t, "alert:al-1", got.DedupeKey)
 	require.Equal(t, got.DedupeKey, inbox.got[1].DedupeKey, "同一告警的重复投递共享去重键")
@@ -173,6 +173,21 @@ func TestInbox_AlertPersistedForRecipients(t *testing.T) {
 	inbox.got = nil
 	m.NotifyAlert(context.Background(), AlertNotice{RuleName: "清理失败", Content: "c", Priority: PriorityHigh})
 	require.Empty(t, inbox.got)
+}
+
+// TestInbox_AlertLinkWithoutID 无告警记录 ID 的通知（如定时任务自检）不拼 query：
+// 带一个空 alert_id 会让前端把详情弹窗打开成空壳。
+func TestInbox_AlertLinkWithoutID(t *testing.T) {
+	inbox := &recordingInbox{}
+	m := NewManager(nil, "", "", nil)
+	m.SetInbox(inbox)
+
+	m.NotifyAlert(context.Background(), AlertNotice{
+		RuleName: "清理失败", Content: "c", Priority: PriorityHigh, UserIDs: []string{"u-ops"},
+	})
+
+	require.Len(t, inbox.got, 1)
+	require.Equal(t, "/system/audit/alert", inbox.got[0].Link, "无 ID 时不得拼出空 alert_id")
 }
 
 // TestInbox_DedupeKeyTenantScoped 订阅临期与注销审批的去重键含租户与状态，

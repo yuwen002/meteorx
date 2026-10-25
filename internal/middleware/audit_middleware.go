@@ -391,6 +391,11 @@ func buildTags(module, action, result, method, path string) string {
 	if strings.Contains(path, "upload") {
 		tags = append(tags, "upload")
 	}
+	// 批量写（如消息批量已读 / 批量删除）：请求体中的 ID 列表可能因长度被截断，
+	// 打上 batch 标签后审计仍能按标签整类筛出来，不必依赖 body 内容。
+	if strings.Contains(path, "batch") {
+		tags = append(tags, "batch")
+	}
 	if strings.Contains(path, "download") || strings.Contains(path, "export") {
 		tags = append(tags, "download")
 	}

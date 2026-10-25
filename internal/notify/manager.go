@@ -2,6 +2,7 @@ package notify
 
 import (
 	"context"
+	"net/url"
 	"strings"
 	"time"
 
@@ -220,14 +221,18 @@ func (m *Manager) NotifyAlert(ctx context.Context, n AlertNotice) []SendResult {
 		// 告警属安全审计类，不依赖类型映射的默认分支，避免未来改动后
 		// 被并入「系统消息」而漏看。
 		dedupeKey := ""
+		// 链接带上告警记录 ID：点开直接定位到触发这条消息的那条告警。
+		// 只落列表首页的话，同类告警堆到几十上百条时用户无从对应到具体事件。
+		link := "/system/audit/alert"
 		if n.ID != "" {
 			// 一条告警是一次独立事件：按 ID 永久去重，渠道重试 / 多副本只落一条。
 			// 不用自然日粒度——重复的告警本身没有「第二天再提醒一次」的语义。
 			dedupeKey = "alert:" + n.ID
+			link += "?alert_id=" + url.QueryEscape(n.ID)
 		}
 		m.deliverInbox(ctx, &InboxMessage{
 			UserIDs: n.UserIDs, Type: "alert", Category: "audit",
-			Title: title, Content: n.Content, Link: "/system/audit/alert",
+			Title: title, Content: n.Content, Link: link,
 			Priority: n.Priority, SourceType: "audit_alert", SourceID: n.ID,
 			DedupeKey: dedupeKey,
 		})
