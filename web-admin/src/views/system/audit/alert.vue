@@ -221,6 +221,11 @@
         </el-table-column>
         <el-table-column prop="notify_time" label="通知时间" width="180" />
         <el-table-column prop="created_at" label="触发时间" width="180" />
+        <el-table-column label="操作" width="90" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openAlertDetail(row.id)">详情</el-button>
+          </template>
+        </el-table-column>
       </el-table>
 
       <div class="pagination">
@@ -296,11 +301,49 @@
         <el-button type="primary" @click="confirmRule">确定</el-button>
       </template>
     </el-dialog>
+    <!-- 告警详情：从收件箱的告警站内信跳转时带 alert_id，进入页面直接打开这一条 -->
+    <el-dialog v-model="alertDetailVisible" title="告警详情" width="640px">
+      <div v-loading="alertDetailLoading" class="alert-detail">
+        <el-descriptions v-if="alertDetail" :column="2" border>
+          <el-descriptions-item label="规则名称">{{ alertDetail.rule_name }}</el-descriptions-item>
+          <el-descriptions-item label="风险等级">
+            <el-tag size="small" :type="getRiskLevelType(alertDetail.risk_level)">
+              {{ getRiskLevelLabel(alertDetail.risk_level) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="触发用户">
+            {{ alertDetail.username || '-' }}
+            <span v-if="alertDetail.user_id" class="detail-muted">（{{ alertDetail.user_id }}）</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="操作类型">
+            <el-tag size="small">{{ alertDetail.action }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="告警消息" :span="2">{{ alertDetail.message }}</el-descriptions-item>
+          <el-descriptions-item label="通知状态">
+            <el-tag size="small" :type="alertDetail.notified ? 'success' : 'warning'">
+              {{ alertDetail.notified ? '已通知' : '未通知' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="通知时间">{{ alertDetail.notify_time || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="触发时间">{{ alertDetail.created_at }}</el-descriptions-item>
+          <el-descriptions-item label="审计日志 ID">{{ alertDetail.audit_log_id || '-' }}</el-descriptions-item>
+        </el-descriptions>
+        <el-empty
+          v-if="!alertDetailLoading && !alertDetail"
+          description="告警记录不存在或已过期"
+          :image-size="60"
+        />
+      </div>
+      <template #footer>
+        <el-button @click="alertDetailVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Bell, CircleCheck, Warning, Message, Plus, Search, Refresh } from '@element-plus/icons-vue'
@@ -340,6 +383,7 @@ interface AlertRecord {
 }
 
 const rules = ref<AlertRule[]>([])
+const route = useRoute()
 
 const {
   list,
@@ -444,12 +488,46 @@ onMounted(() => {
 
 async function loadRules() {
   try {
-    const res = await get<{ data: AlertRule[] }>('/audit/alert-rules')
-    rules.value = res.data || []
+    // 拦截器已拆出 data 层：这里拿到的就是规则数组，再取 .data 会恒为空
+    const res = await get<AlertRule[]>('/audit/alert-rules')
+    rules.value = Array.isArray(res) ? res : []
   } catch (error) {
     console.error('加载告警规则失败', error)
   }
 }
+
+const alertDetailVisible = ref(false)
+const alertDetailLoading = ref(false)
+const alertDetail = ref<AlertRecord | null>(null)
+
+/**
+ * 打开告警详情。
+ * 收件箱里的告警站内信链接形如 /system/audit/alert?alert_id=xxx，
+ * 进入页面后据此直接定位到触发这条消息的那条告警，而不是让用户回到列表首页自己找。
+ */
+async function openAlertDetail(id: string) {
+  if (!id) return
+  alertDetailVisible.value = true
+  alertDetailLoading.value = true
+  alertDetail.value = null
+  try {
+    const res = await get<AlertRecord>(`/audit/alerts/${id}`)
+    alertDetail.value = res ?? null
+  } catch {
+    // 失败提示由拦截器统一弹出
+  } finally {
+    alertDetailLoading.value = false
+  }
+}
+
+// 已在告警页时再点另一条告警消息，只有 query 变化（不会重新 mount），因此 watch 而非 onMounted 读一次
+watch(
+  () => route.query.alert_id,
+  id => {
+    if (typeof id === 'string' && id) openAlertDetail(id)
+  },
+  { immediate: true }
+)
 
 function resetAlertSearch() {
   reset()
@@ -691,6 +769,15 @@ function getRiskLevelLabel(level: string): string {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+.alert-detail {
+  min-height: 80px;
+
+  .detail-muted {
+    color: #8c8c8c;
+    font-size: 12px;
+  }
 }
 
 .charts-row {

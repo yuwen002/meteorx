@@ -284,6 +284,8 @@ function handleCategoryChange() {
 
 function openLink(item: MessageItem) {
   if (!item.link) return
+  // 点开即视为已读：跳走再回来时这条不应还挂在未读里
+  if (!item.read_at) handleRead(item)
   router.push(item.link)
 }
 
@@ -294,6 +296,16 @@ async function handleRead(item: MessageItem) {
     messageStore.decrementUnread(item.category)
     // 别处可能已标记过同一条（另一标签页/设备），合并拉一次服务端读数对账
     messageStore.refreshUnreadSoon()
+    // 「仅看未读」下列表只收未读：标记后必须立刻从当前页移除，
+    // 否则筛选条件与展示自相矛盾，看起来像没生效
+    if (unreadOnly.value) {
+      list.value = list.value.filter(m => m.id !== item.id)
+      total.value = Math.max(total.value - 1, 0)
+      if (list.value.length === 0 && page.value > 1) {
+        page.value -= 1
+        loadList()
+      }
+    }
   } catch {
     // 失败提示由拦截器统一处理
   }
