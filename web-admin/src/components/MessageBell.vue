@@ -52,6 +52,7 @@ import { Message } from '@element-plus/icons-vue'
 import { listMessages, markAllMessagesRead, markMessageRead, type MessageItem } from '@/api/modules/message'
 import { useMessageStore } from '@/stores/message'
 import { toPageResult } from '@/types/pagination'
+import { clearMessageCategory } from '@/utils/messageCategory'
 
 const router = useRouter()
 const messageStore = useMessageStore()
@@ -132,6 +133,8 @@ async function handleMarkAll() {
 
 function goToInbox() {
   visible.value = false
+  // 收件箱会记住上次的分类页签；「查看全部消息」如果不先清掉，落地页仍是被筛过的列表
+  clearMessageCategory()
   router.push('/messages')
 }
 

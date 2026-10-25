@@ -161,6 +161,7 @@ import {
 } from '@/api/modules/message'
 import { useMessageStore } from '@/stores/message'
 import { toPageResult } from '@/types/pagination'
+import { readMessageCategory, saveMessageCategory } from '@/utils/messageCategory'
 
 const router = useRouter()
 const messageStore = useMessageStore()
@@ -219,7 +220,12 @@ const list = ref<MessageItem[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
-const activeCategory = ref<string>('')
+
+/**
+ * 分类页签跨会话记住：用户常按「任务」「告警」定点看消息，刷新一次就回到「全部」等于每次重选。
+ * 只存页签值，关键词与「仅看未读」属于一次性筛选，不跨会话保留。
+ */
+const activeCategory = ref<string>(readMessageCategory(categoryTabs.map(tab => tab.value)))
 const unreadOnly = ref(false)
 const keyword = ref('')
 
@@ -279,6 +285,7 @@ function handleSearch() {
 
 function handleCategoryChange() {
   page.value = 1
+  saveMessageCategory(activeCategory.value)
   loadList()
 }
 
