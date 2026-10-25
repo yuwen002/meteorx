@@ -104,7 +104,7 @@
 
 | 入口 | 收件人来源 | 分类 | link |
 | --- | --- | --- | --- |
-| `NotifyTaskReminder` | 单个 `recipientID` | `task` | `/task` |
+| `NotifyTaskReminder` | 单个 `recipientID` | `task` | `/task?task_id={任务ID}`（无任务 ID 时 `/task`） |
 | `NotifySubscriptionExpiry` | 租户启用成员用户 ID | `plan` | `/system/plan` |
 | `NotifyCancelRequestStatus` | 租户启用成员用户 ID | `system` | 空 |
 | `NotifyAlert` | 规则邮箱经 user 仓储反查出的账号 | `audit` | `/system/audit/alert?alert_id={告警ID}` |
@@ -125,6 +125,13 @@
 读 `route.query.alert_id` 后调 `GET /audit/alerts/{id}` 直接弹出该条详情；不在页内重新 mount
 （只改 query）时靠 `watch` 重读，因此连点多条告警消息都能生效。无记录 ID 的通知（定时任务自检）
 不拼 query，避免打开一个空壳弹窗。
+
+**任务提醒带 `task_id` 的同一套闭环**：`NotifyTaskReminder` 的 `link` 拼上 `extra["task_id"]`，
+前端 `views/task/index.vue` 读 `route.query.task_id` 后调 `GET /tasks/{id}` 直接打开该任务；
+**不在列表里找**——当前筛选、分页甚至列表刷新都可能把任务挡在外面。拿不到任务 ID 时 `link` 仍是 `/task`。
+告警再往下钻一层也是同一口径：告警详情里的「审计日志 ID」可点，`views/system/audit/index.vue`
+读 `route.query.log_id` 后调 `GET /audit/logs/{id}` 弹出日志详情（日志已被清理时显空态）。
+三处的共同点：**业务 ID 进 query，页面自己拉详情**，不把“从长篇列表里找出哪一条”的成本转给用户。
 
 ## 角标一致性
 
@@ -259,12 +266,14 @@
 前端（`views/message/index.vue`）用 `el-checkbox-group` 绑定**当前页**的 ID：翻页 / 筛选后 `loadList`
 会清空选中，避免批量操作带上看不见的消息；批量删除只在「整页被删空」时回退一页。
 
-**交互上的两个一致性约束：**
+**交互上的三个一致性约束：**
 
 - 点开带 `link` 的消息先 `markRead` 再跳转：否则从告警页 / 任务页返回时这条仍显示未读，
   用户会重复处理同一条消息；
 - 「仅看未读」筛选下把某条标为已读后立即从当前列表移除（`total` 同步减一，整页清空则回退一页）。
   不这么做的话筛选条件与展示自相矛盾——列表里摆着已读消息，看起来像标记没生效。
+- 「全部已读」的范围跟随当前页签（`read-all` 带 `category`），禁用条件取**该分类**的未读数而不是全局总数；
+  已读不可撤回，执行前弹确认写明范围与条数，成功提示用响应里的 `updated`。
 
 **审计口径**：批量（及单条）写操作**不额外埋点**，由挂在受保护分组的 `AuditMiddleware` 自动记录，
 `module=messages`、`action` 按方法归一（`PUT` → `update`、`DELETE` → `delete`），
@@ -309,7 +318,7 @@ if p, ok := hub.(*ws.Hub); ok && p == nil {
 | 收到 WS `unread_count` | `receiveUnreadPush(count)` 覆盖总数 + 合并补拉分类明细 |
 | 标记单条已读 / 删除未读 | `decrementUnread(category)` 本地扣减，随后 `refreshUnreadSoon()` 对账 |
 | 点开带 `link` 的消息 | 先 `markRead`（未读时）再路由跳转，返回后不再显示未读 |
-| 全部已读 | `clearUnread(category?, updated)` 按服务端条数扣减 + 合并补拉 |
+| 全部已读 | `clearUnread(category?, updated)` 按服务端条数扣减 + 合并补拉；入口跟随当前页签 |
 | 批量已读 / 批量删除 | 直接 `refreshUnread()` 重拉（不推算分类明细） |
 | 页面重新可见 | `visibilitychange` 时 `refreshUnread()`（覆盖其他标签页 / 设备已读） |
 | 退出登录 | `reset()` 清空角标并取消排队中的补拉，避免串号 |
@@ -355,12 +364,13 @@ cd web-admin && npx vitest run src/api/modules/message.test.ts src/stores/messag
 - 仓储：幂等标记（两次标记时间相等）、按分类统计、非本人操作返回 not found、非法分页回落；
 - 服务：收件人展开与截断（550 → 500）、空收件人不产生行、typed-nil hub 不崩溃；
 - 集成：`NotifyTaskReminder` → 落库 → 未读数 / 列表 / 他人 404 / 重复标记幂等 / 删除，
-  以及按分类全部已读只清目标分类；
+  以及按分类全部已读只清目标分类（列表里断言 `link` 为 `/task?task_id=tk-1`）；
 - 清理任务：默认 90 天、负值关闭、只删过期行；
 - 去重：同一 `(user_id, dedupe_key)` 只落一条、不同用户各自一条、空键多条共存；
   变异检验移除 `OnConflict` 后用例以 `UNIQUE constraint failed` 失败；
 - 告警落库：`notify` 层锁定收件人只含用户 ID、分类 `audit`、去重键 `alert:{id}`、
   链接带 `?alert_id=`（无 ID 时不带 query）、无账号收件人时不写行；
+  任务提醒同层锁定链接带 `?task_id=`（无任务 ID 时不带 query）；
   `audit/service` 层锁定「规则邮箱反查成账号才写」与未装配解析能力时不写（nil 安全）；
   集成层经真实路由与 `WireAlertEvaluation` 验证邮箱→账号的装配行（删掉装配时只有集成用例变红）。
 - 偏好：仓储层覆盖写幂等（重复提交不堆行）/ 只认 `muted=true` / 按分类批量筛人 / 用户隔离；

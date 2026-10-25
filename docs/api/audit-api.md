@@ -376,6 +376,15 @@
 
 `GET /api/v1/audit/logs/{id}`
 
+**权限码：** `audit:log:read`
+
+**成功响应（200）：** AuditLogResp（见 2.1）。
+
+**前端定位（`?log_id=`）：** 审计日志页 `views/system/audit/index.vue` 读 `route.query.log_id`
+后调本接口直接弹出该条详情，不要求这条日志已在当前筛选 / 分页里；日志已被保留期清理时接口返回 404，
+页面展示“日志不存在或已被清理”的空态。入口来自告警详情里的「审计日志 ID」（告警只存 ID，
+正文与请求参数都在审计日志里）。
+
 ### 3.9 创建审计日志
 
 `POST /api/v1/audit/logs`
@@ -504,6 +513,21 @@
 
 `GET /api/v1/audit/alerts/{id}`
 
+**权限码：** `audit:alert:read`
+
+**关键字段：** `audit_log_id`（触发这条告警的审计日志 ID）、`rule_name`、`risk_level`、`action`、
+`username` / `user_id`、`message`、`notified` / `notify_time`、`created_at`。
+
+**两段跳转闭环（页面间不靠用户自己找）：**
+
+1. 站内信 → 告警：收件箱里告警消息的 `link` 为 `/system/audit/alert?alert_id={告警ID}`，
+   告警页 `views/system/audit/alert.vue` 读 `alert_id` 后调本接口直接弹出详情；
+2. 告警 → 审计日志：详情里的 `audit_log_id` 可点，跳 `/system/audit?log_id={日志ID}`，
+   审计日志页据此调 3.8 拉详情（见 3.8 的前端定位）。
+
+两处都用 `watch` 监听 query 而不是只在 `onMounted` 读一次：已在目标页时再点另一条只会改 query，
+不重新 mount，只读一次会“没反应”。
+
 ---
 
 ## 6. 会话分析接口详细说明
@@ -616,8 +640,8 @@
 冷却判定基于告警创建时间，与 notified 无关（未送达不会自动重发）。
 
 **收件箱补推**：`notify_targets` 里的邮箱若对应某个平台账号，该账号还会收到一条 `audit` 分类的站内信
-（标题 `[告警] {规则名}`，跳转 `/system/audit/alert`），使收件人在邮件没看到 / 当时离线的情况下
-重新登录仍能看到同一条告警。收件箱收件人**只来自「邮箱反查得到的账号」**：未注册账号的外部值班邮箱
+（标题 `[告警] {规则名}`，跳转 `/system/audit/alert?alert_id={告警ID}`），使收件人在邮件没看到 / 当时离线的情况下
+重新登录仍能看到同一条告警，并可直接定位到该条记录（无记录 ID 时链接不带 query）。收件箱收件人**只来自「邮箱反查得到的账号」**：未注册账号的外部值班邮箱
 不会产生收件箱记录，也不会因此按租户或全平台展开——告警正文含用户行为明细，广播等于泄露审计信息。
 站内信落库不参与 `notified` 回写判定（与其它通知同一口径：写库成功不等于送达）；
 同一条告警按告警 ID 去重，渠道重试 / 多副本只落一条。

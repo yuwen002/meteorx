@@ -49,7 +49,7 @@
 | category | string | 分类：`system` / `announcement` / `task` / `plan` / `audit` |
 | title | string | 标题 |
 | content | string | 正文（纯文本，前端按纯文本渲染） |
-| link | string | 前端跳转路由（如 `/task`），空表示不可跳转；告警类为 `/system/audit/alert?alert_id={告警ID}` |
+| link | string | 前端跳转路由，空表示不可跳转；任务提醒为 `/task?task_id={任务ID}`，告警为 `/system/audit/alert?alert_id={告警ID}`，订阅临期为 `/system/plan` |
 | priority | int | 优先级：`0` low / `1` normal / `2` high / `3` urgent |
 | source_type | string | 来源类型（`task` / `announcement` / `subscription` / `tenant_cancel_request`） |
 | source_id | string | 来源 ID（如任务 ID、剩余天数、审批结果），便于按业务追溯 |
@@ -141,7 +141,7 @@
       "category": "task",
       "title": "任务即将到期",
       "content": "任务「季度复盘」将在 2 小时后到期",
-      "link": "/task",
+      "link": "/task?task_id=01JB8Y...",
       "priority": 1,
       "source_type": "task",
       "source_id": "01JB8Y...",
@@ -309,6 +309,11 @@
 前端告警页读取 `alert_id` 后调 `GET /audit/alerts/{id}` 直接弹出这条告警的详情，
 而不是只跳到告警列表首页让用户自己去找；告警无记录 ID 时（如定时任务自检）`link` 不带 query。
 
+**任务提醒的跳转闭环**：`link` 为 `/task?task_id={任务ID}`，`source_id` 即任务 ID。
+前端任务页读取 `task_id` 后调 `GET /tasks/{id}` 直接打开这条任务（不依赖它是否在当前筛选 / 分页里）；
+提醒无法定位任务时（如手工触发、无任务 ID）`link` 为 `/task`，不带 query。
+两类消息同一套口径：**业务 ID 进 query，页面自己去拉详情，不把定位成本转给用户**。
+
 ### 4.2 错误码映射
 
 | 状态码 | 场景 |
@@ -359,8 +364,10 @@ message:
 |------|------|------|
 | 顶栏铃铛 | `components/MessageBell.vue` | 最近 6 条 + 全部已读 + 查看全部；点击条目按 `link` 跳转并标记已读 |
 | 侧边栏菜单 | `layouts/DefaultLayout.vue` | 「消息中心」菜单项带未读数角标 |
-| 消息中心页 | `views/message/index.vue` | 分类页签（带角标）+ 仅看未读 + 关键字 + 分页 + 标记已读 / 删除 + 全选本页 / 批量已读 / 批量删除 + 「偏好设置」弹窗 |
-| 告警定位 | `views/system/audit/alert.vue` | 读 `?alert_id=` 直接打开该条告警详情；告警记录行也可手动点「详情」 |
+| 消息中心页 | `views/message/index.vue` | 分类页签（带角标）+ 仅看未读 + 关键字 + 分页 + 标记已读 / 删除 + 全选本页 / 批量已读 / 批量删除 + 「本分类全部已读」 + 「偏好设置」弹窗 |
+| 告警定位 | `views/system/audit/alert.vue` | 读 `?alert_id=` 直接打开该条告警详情；告警记录行也可手动点「详情」；详情里的「审计日志 ID」可点，跳到审计日志页打开该条日志 |
+| 任务定位 | `views/task/index.vue` | 读 `?task_id=` 调 `GET /tasks/{id}` 直接打开该任务（编辑弹窗），不要求它已在当前页 |
+| 审计日志定位 | `views/system/audit/index.vue` | 读 `?log_id=` 调 `GET /audit/logs/{id}` 直接弹出该条日志详情；日志已被清理时提示空态 |
 | 状态 | `stores/message.ts` | `total` / `byCategory` / `refreshUnread` / `refreshUnreadSoon` / `receiveUnreadPush` / `setUnreadTotal` / `decrementUnread` / `clearUnread` / `reset` |
 
 退出登录时 `token` watcher 会调用 `messageStore.reset()`，避免下一个账号看到上一个账号的角标。
@@ -368,6 +375,10 @@ message:
 **列表与已读状态的一致性**：点开带 `link` 的消息会先标记已读再跳转（跳回消息中心时不再显示为未读）；
 在「仅看未读」筛选下把某条标为已读，该条会立即从当前页移除、总数同步减一，整页清空时自动回退一页
 ——不靠刷新才能看到筛选生效。批量已读 / 批量删除后统一按响应重拉列表与未读数。
+
+**「全部已读」的范围跟随页签**：按钮文案与请求体都取当前分类（“全部标为已读” / “本分类全部已读”），
+禁用条件是**该分类**未读数为 0（而不是全局总数）——总数为 0 但切到某分类、或反过来，都不会出现可点却无事发生的按钮。
+已读不可撤回，执行前弹一次确认并写明范围与条数；成功后用响应里的 `updated` 提示实际条数。
 
 ### 4.7 重复投递去重
 
@@ -413,7 +424,7 @@ message:
 |------|----------|----------|
 | 收到 WS `unread_count` | 推送只带总数，分类明细仍是旧值 | 先覆盖总数，再合并补拉一次完整读数 |
 | 本页标记已读 / 删除未读 | 乐观扣减基于本地状态，这条可能已被别处读过 | 乐观扣减后合并补拉对账 |
-| 全部已读 | 分类明细可能过期，按它扣减会残留 | 用响应里的 `updated` 扣减（`clearUnread(category, updated)`） |
+| 全部已读 | 分类明细可能过期，按它扣减会残留 | 用响应里的 `updated` 扣减（`clearUnread(category, updated)`）；带分类时只清该分类 |
 | 其他标签页 / 设备已读 | 已读不产生任何推送 | 页面重新可见（`visibilitychange`）时拉一次 |
 
 补拉在 300ms 窗口内合并：连续点几条已读、或一次广播带来多条推送，只产生一次 `GET /messages/unread-count`。
