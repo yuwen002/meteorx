@@ -42,7 +42,7 @@
 | **优雅关闭** | HTTP Server 信号处理；Redis/DB/后台任务资源清理；30s 超时优雅关闭；导出/审计在关闭路径仍能落终态 |
 | **工程化** | Viper 配置 + `.env` 覆盖；Chi 路由；GORM 自动迁移 + 脏列只读巡检；ULID 主键；配置启动校验 |
 | **前端管理后台** | Vue 3 + TypeScript + Element Plus；RBAC 动态菜单/按钮权限；暗色主题；中英双语；白标品牌 |
-| **测试与 CI** | 183 个 Go 测试文件（含进程内集成 + MySQL 方言）+ 21 个前端测试文件 + 8 条浏览器 E2E；10 个 CI job；覆盖率门禁 |
+| **测试与 CI** | 183 个 Go 测试文件（含进程内集成 + MySQL 方言）+ 21 个前端测试文件 + 9 条浏览器 E2E；10 个 CI job；覆盖率门禁 |
 
 ---
 
@@ -951,7 +951,7 @@ powershell -File scripts/test-all.ps1 -WithE2E
 | 后端 | `scripts/test.sh` | Linux/macOS 与 CI 入口（CI 额外加 `-race`） |
 | 前端 | `cd web-admin && npm run test:coverage` | Vitest（21 个测试文件） |
 | 前端 | `cd web-admin && npm run lint && npx vue-tsc --noEmit` | ESLint + 类型检查 |
-| E2E | `cd e2e && npx playwright test` | 真实 Chrome + 真实 MySQL/Redis（8 条冒烟） |
+| E2E | `cd e2e && npx playwright test` | 真实 Chrome + 真实 MySQL/Redis（9 条冒烟） |
 
 ### 分层执行
 
@@ -988,7 +988,7 @@ METEORX_MYSQL_DIALECT_TEST=1 go test -count=1 ./internal/modules/task/repository
 | Go 测试文件 | 183 个（全绿） |
 | Go 总覆盖率 | **50.9%**（CI 门禁 35%） |
 | 前端测试文件 | 21 个（api / utils / composables 覆盖 99.63% / 97.44% / 99.31% / 99.63%） |
-| 浏览器 E2E | 8 条（登录、套餐、消息分类持久化、站内信深链） |
+| 浏览器 E2E | 9 条（登录、套餐、消息分类持久化、站内信深链、告警详情入口） |
 
 > 单元测试策略：Service 层通过仓库层提供的内存 Mock（如 `task/repository` 接口、`wiki/repository/mock_repository.go`）隔离 DB；
 > 仓储层用 `sqlmock` 验证 SQL 形状与事务边界（Begin/Commit）；内存库统一用同名 shared-cache DSN

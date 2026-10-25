@@ -89,7 +89,7 @@ $env:E2E_CHANNEL='chrome'; npx playwright test
 
 - [ ] `scripts/test.ps1` 通过（CI 等价物带 `-race`）
 - [ ] 前端 lint / type-check / coverage / build 全部通过
-- [ ] 涉及 UI 或接口契约：E2E 冒烟通过（8 条）
+- [ ] 涉及 UI 或接口契约：E2E 冒烟通过（9 条）
 - [ ] 涉及模型：`migrate` job 通过
 - [ ] Go 覆盖率 ≥ 35%，前端覆盖率不低于 85/70/95/85（lines/functions/branches/statements）
 - [ ] `CHANGELOG.md` 已记录
@@ -117,7 +117,7 @@ $env:E2E_CHANNEL='chrome'; npx playwright test
 - Go 测试文件：**183**（全绿）；集成套件：`internal/integration/` 21 个文件
 - Go 总覆盖率：**50.9%**（`go tool cover "-func=coverage.out"` 实测）
 - 前端测试文件：**21**；覆盖率门槛仅统计 `api/utils/composables`（实测 99.63 / 97.44 / 99.31 / 99.63）
-- 浏览器 E2E：**8 条**冒烟（认证 3 + 套餐 1 + 消息中心 2 + 站内信深链 2）
+- 浏览器 E2E：**9 条**冒烟（认证 3 + 套餐 1 + 消息中心 2 + 站内信深链 3）
 - CI jobs：**10**（lint / test / security / migrate / build / frontend / e2e / docker / deploy / release）
 - 覆盖率门槛：Go **35%**（实际已 50.9%）；前端 **85 / 70 / 95 / 85**
 
