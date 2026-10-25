@@ -59,3 +59,13 @@ export function verifyPlan(code: string): E2EPlanRow {
 export function deletePlan(code: string): void {
   runFixture(['delete-plan', code])
 }
+
+export interface E2ETenantRef {
+  id: string
+  name: string
+}
+
+/** 取一个未删除的租户：站内信 ?tenant_id= 深链用例只验证「按 ID 定位」，不关心是哪一家。 */
+export function firstTenant(): E2ETenantRef {
+  return JSON.parse(runFixture(['list-tenants'])) as E2ETenantRef
+}

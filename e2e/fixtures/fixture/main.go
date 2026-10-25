@@ -5,6 +5,7 @@
 //   delete-admin <用户名> 删除临时超管
 //   verify-plan <code>  直接查 MySQL 验证套餐真实落库
 //   delete-plan <code>  物理删除测试套餐
+//   list-tenants        取一个可用租户的 ID/名称（站内信 ?tenant_id= 深链用例需要）
 //
 // 约定：结果以单行 `E2E_JSON:<json>` 输出，便于测试侧在 GORM 日志中稳定解析。
 package main
@@ -48,9 +49,14 @@ type deleteResult struct {
 	Deleted int64 `json:"deleted"`
 }
 
+type tenantRef struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 func main() {
 	if len(os.Args) < 2 {
-		fatal("usage: fixture create-admin|delete-admin <username>|verify-plan <code>|delete-plan <code>")
+		fatal("usage: fixture create-admin|delete-admin <username>|verify-plan <code>|delete-plan <code>|list-tenants")
 	}
 
 	cfg, err := bootstrap.LoadConfig()
@@ -120,6 +126,20 @@ func main() {
 			fatal("delete plan: %v", res.Error)
 		}
 		emit(deleteResult{Deleted: res.RowsAffected})
+
+	case "list-tenants":
+		var row struct {
+			ID   string
+			Name string
+		}
+		// 取一个未删除的租户：深链用例只验证「按 ID 定位」，不关心是哪一家
+		err := db.Raw(
+			"SELECT id, name FROM tenants WHERE deleted_at IS NULL ORDER BY created_at ASC LIMIT 1",
+		).Scan(&row).Error
+		if err != nil {
+			fatal("list tenants: %v", err)
+		}
+		emit(tenantRef{ID: row.ID, Name: row.Name})
 
 	default:
 		fatal("unknown action: %s", os.Args[1])

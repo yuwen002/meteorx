@@ -3,7 +3,7 @@
 真实浏览器（Playwright）→ 前端生产构建（`vite preview`）→ 真实后端 → 真实 MySQL / Redis。
 与 `internal/integration`（sqlite + miniredis 的进程内集成）互补：这里验证的是**部署形态**。
 
-## 覆盖范围（首批冒烟）
+## 覆盖范围（8 条冒烟）
 
 | 用例 | 断言 |
 | --- | --- |
@@ -11,6 +11,10 @@
 | 密码错误 | 页面给出错误提示且停留在登录页 |
 | 临时超管登录 | 跳转工作台、侧边栏可见 |
 | 新增套餐 | 接口 200、列表可见、**直查 MySQL** 校验字段、用例结束自动物理删除 |
+| 消息中心分类页签 | 切到「任务」→ 刷新仍停在该分类，且请求带 `category=task` |
+| 分类记忆清除 | 清键后回到「全部」，与铃铛「查看全部消息」同一口径 |
+| 时间线深链（`?user_id=`） | 用非登录用户验证 query 被真正消费，并回填查询框；无 query 时回退登录用户 |
+| 租户套餐深链（`?tenant_id=`） | 按 ID 取详情后直接开「套餐配置」弹窗，不要求该行在当前页 |
 
 ## 前置条件
 
@@ -54,6 +58,7 @@ CI 不设置 `E2E_CHANNEL`，使用 `npx playwright install --with-deps chromium
 ## 数据隔离与清理
 
 - `globalSetup` 直接向 `users` 表插入**临时超管**（`is_master=true`），不改动任何既有账号、不依赖 admin 密码；
+- 深链用例通过夹具 `list-tenants` 取一个未删除的租户 ID（只读，不新建也不修改租户）；
 - 用例数据带 `Date.now()` 唯一后缀，`finally` 中通过夹具物理删除；
 - `globalTeardown` 删除临时超管并清空 `.auth/`，即使测试失败也会执行；
 - `.auth/`、`node_modules/`、`test-results/`、`playwright-report/` 均已 gitignore。
