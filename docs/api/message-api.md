@@ -293,8 +293,12 @@ message:
 }
 ```
 
-前端在 `App.vue` 收到该消息后调用 `messageStore.setUnreadTotal(count)` 覆盖角标。
+前端在 `App.vue` 收到该消息后调用 `messageStore.receiveUnreadPush(count)` 覆盖角标。
 离线用户没有推送，靠 3.2 的主动拉取补齐。
+
+> `payload` 只带未读总数，**不含 `by_category`**：store 会先覆盖总数保证即时，
+> 再合并补拉一次 `GET /messages/unread-count` 补齐分类明细，
+> 否则会出现「顶栏总数已涨、页签角标不动」的不一致（见 4.9）。
 
 ### 4.6 前端入口
 
@@ -303,7 +307,7 @@ message:
 | 顶栏铃铛 | `components/MessageBell.vue` | 最近 6 条 + 全部已读 + 查看全部；点击条目按 `link` 跳转并标记已读 |
 | 侧边栏菜单 | `layouts/DefaultLayout.vue` | 「消息中心」菜单项带未读数角标 |
 | 消息中心页 | `views/message/index.vue` | 分类页签（带角标）+ 仅看未读 + 关键字 + 分页 + 标记已读 / 删除 + 「偏好设置」弹窗 |
-| 状态 | `stores/message.ts` | `total` / `byCategory` / `refreshUnread` / `setUnreadTotal` / `decrementUnread` / `clearUnread` / `reset` |
+| 状态 | `stores/message.ts` | `total` / `byCategory` / `refreshUnread` / `refreshUnreadSoon` / `receiveUnreadPush` / `setUnreadTotal` / `decrementUnread` / `clearUnread` / `reset` |
 
 退出登录时 `token` watcher 会调用 `messageStore.reset()`，避免下一个账号看到上一个账号的角标。
 
@@ -342,3 +346,19 @@ message:
 
 **为什么只在落库前过滤：** 实时推送（`ws.SendAlert` / 任务提醒的 WS 通道）与收件箱是两条独立链路，
 偏好只作用于「持久化」这一层；它解决的是「不想在收件箱里看到这类消息」，不是「拦截告警本身」。
+
+### 4.9 未读角标的一致性
+
+角标是三个位置（顶栏铃铛 / 侧边栏菜单 / 页签）共用的同一个读数，凡是会让它与服务端产生偏差的路径都已收口：
+
+| 场景 | 偏差来源 | 前端处理 |
+|------|----------|----------|
+| 收到 WS `unread_count` | 推送只带总数，分类明细仍是旧值 | 先覆盖总数，再合并补拉一次完整读数 |
+| 本页标记已读 / 删除未读 | 乐观扣减基于本地状态，这条可能已被别处读过 | 乐观扣减后合并补拉对账 |
+| 全部已读 | 分类明细可能过期，按它扣减会残留 | 用响应里的 `updated` 扣减（`clearUnread(category, updated)`） |
+| 其他标签页 / 设备已读 | 已读不产生任何推送 | 页面重新可见（`visibilitychange`）时拉一次 |
+
+补拉在 300ms 窗口内合并：连续点几条已读、或一次广播带来多条推送，只产生一次 `GET /messages/unread-count`。
+退出登录时 `reset()` 会取消排队中的补拉，避免新账号登录后带着旧会话的意图发请求。
+
+原则不变：**服务端是唯一真相**，本地读数只用来把交互做顺，任何写入动作都以响应或后续补拉覆盖。
