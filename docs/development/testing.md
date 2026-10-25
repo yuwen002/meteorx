@@ -27,7 +27,7 @@
 | 数据库模型 / 迁移 | `scripts/test.ps1` + 本地 `go run ./cmd/server migrate` |
 | 前端视图 / 组件 / store | `npm run lint` + `npx vue-tsc --noEmit` + `npm run test:coverage` + `npm run build` |
 | 前端 api/utils/composables | 同上（覆盖率门槛会拦截） |
-| 登录 / 套餐 / 租户等关键 UI 流程 | 上述前端四项 + `npx playwright test` |
+| 登录 / 套餐 / 租户等关键 UI 流程 | 上述前端四项 + `npx playwright test`（站内信深链 `?user_id=` / `?tenant_id=` 已覆盖） |
 | 配置 / 启动 / 依赖注入 | `scripts/test.ps1` + 本地启动冒烟（`/health` 200） |
 | CI workflow / 脚本 | 本地执行等价命令 + YAML 结构解析 |
 | 纯文档 / 注释 | 不需要跑测试 |
@@ -89,7 +89,7 @@ $env:E2E_CHANNEL='chrome'; npx playwright test
 
 - [ ] `scripts/test.ps1` 通过（CI 等价物带 `-race`）
 - [ ] 前端 lint / type-check / coverage / build 全部通过
-- [ ] 涉及 UI 或接口契约：E2E 冒烟通过（4 条）
+- [ ] 涉及 UI 或接口契约：E2E 冒烟通过（8 条）
 - [ ] 涉及模型：`migrate` job 通过
 - [ ] Go 覆盖率 ≥ 35%，前端覆盖率不低于 85/70/95/85（lines/functions/branches/statements）
 - [ ] `CHANGELOG.md` 已记录
@@ -115,13 +115,13 @@ $env:E2E_CHANNEL='chrome'; npx playwright test
 ## 7. 当前基线（2026-10-25）
 
 - Go 测试文件：**183**（全绿）；集成套件：`internal/integration/` 21 个文件
-- Go 总覆盖率：**50.6%**（`go tool cover "-func=coverage.out"` 实测）
-- 前端测试文件：**21**；覆盖率门槛仅统计 `api/utils/composables`（实测 99.6 / 97.2 / 99.25 / 99.6）
-- 浏览器 E2E：**4 条**冒烟（认证 3 + 套餐 1）
+- Go 总覆盖率：**50.9%**（`go tool cover "-func=coverage.out"` 实测）
+- 前端测试文件：**21**；覆盖率门槛仅统计 `api/utils/composables`（实测 99.63 / 97.44 / 99.31 / 99.63）
+- 浏览器 E2E：**8 条**冒烟（认证 3 + 套餐 1 + 消息中心 2 + 站内信深链 2）
 - CI jobs：**10**（lint / test / security / migrate / build / frontend / e2e / docker / deploy / release）
-- 覆盖率门槛：Go **35%**（实际已 50.6%）；前端 **85 / 70 / 95 / 85**
+- 覆盖率门槛：Go **35%**（实际已 50.9%）；前端 **85 / 70 / 95 / 85**
 
-已知短板：前端页面组件（`views/`）不在覆盖率统计范围内，改动页面时需靠 E2E 与手工验证兑付。
+已知短板：前端页面组件（`views/`）不在覆盖率统计范围内，改动页面时需靠 E2E 与手工验证兑付；站内信深链（`?user_id=` / `?tenant_id=`）与消息分类持久化已有 E2E 覆盖，新增页面交互时优先补同类用例。
 
 ## 8. 相关文档
 
