@@ -4,7 +4,7 @@
  * 提供当前登录用户的收件箱读写：
  * - 分页查询消息列表（可按分类/未读/关键字过滤）
  * - 查询未读总数与分类明细（顶栏铃铛角标）
- * - 标记单条 / 全部已读，删除单条消息
+ * - 标记单条 / 全部 / 批量已读，删除单条 / 批量删除
  *
  * 消息按「收件人」隔离，接口不挂 RBAC 权限码，任何登录用户只能看到自己的消息。
  */
@@ -70,6 +70,19 @@ export function markAllMessagesRead(category?: string) {
 /** 删除单条消息 */
 export function deleteMessage(id: string) {
   return del<{ id: string }>(`/messages/${id}`)
+}
+
+/**
+ * 批量标记已读，返回实际更新条数。
+ * 已读、已被别处删除、不属于本人的 ID 不计入 `updated`，也不会让整批失败。
+ */
+export function markMessagesRead(ids: string[]) {
+  return put<{ updated: number }>('/messages/batch/read', { ids })
+}
+
+/** 批量删除，返回实际删除条数（个别 ID 已不存在时不计入） */
+export function deleteMessages(ids: string[]) {
+  return del<{ deleted: number }>('/messages/batch/delete', { data: { ids } })
 }
 
 /** 单个分类的消息偏好（与后端 dto.PreferenceItem 对齐） */

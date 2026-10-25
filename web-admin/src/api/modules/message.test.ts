@@ -5,6 +5,8 @@ import {
   markMessageRead,
   markAllMessagesRead,
   deleteMessage,
+  markMessagesRead,
+  deleteMessages,
   getMessagePreferences,
   updateMessagePreference,
   type MessageItem,
@@ -81,6 +83,20 @@ describe('Message API', () => {
     vi.mocked(del).mockResolvedValue({ id: 'msg-1' })
     await deleteMessage('msg-1')
     expect(del).toHaveBeenCalledWith('/messages/msg-1')
+  })
+
+  it('markMessagesRead 应 PUT 批量 ID 列表', async () => {
+    vi.mocked(put).mockResolvedValue({ updated: 2 })
+    const res = await markMessagesRead(['msg-1', 'msg-2'])
+    expect(put).toHaveBeenCalledWith('/messages/batch/read', { ids: ['msg-1', 'msg-2'] })
+    expect(res.updated).toBe(2)
+  })
+
+  it('deleteMessages 应把批量 ID 放在 DELETE 的 body 里', async () => {
+    vi.mocked(del).mockResolvedValue({ deleted: 2 })
+    const res = await deleteMessages(['msg-1', 'msg-2'])
+    expect(del).toHaveBeenCalledWith('/messages/batch/delete', { data: { ids: ['msg-1', 'msg-2'] } })
+    expect(res.deleted).toBe(2)
   })
 
   it('getMessagePreferences 应 GET /messages/preferences', async () => {

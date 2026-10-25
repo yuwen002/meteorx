@@ -45,39 +45,60 @@
           @clear="handleSearch"
         />
         <el-checkbox v-model="unreadOnly" style="margin-right: 12px;" @change="handleSearch">仅看未读</el-checkbox>
+        <el-checkbox
+          :model-value="allSelected"
+          :indeterminate="someSelected"
+          :disabled="list.length === 0"
+          style="margin-right: 12px;"
+          @change="toggleSelectAll"
+        >
+          全选本页
+        </el-checkbox>
         <el-button type="primary" @click="handleSearch">查询</el-button>
       </div>
 
       <div v-loading="loading" class="message-list">
-        <div
-          v-for="item in list"
-          :key="item.id"
-          class="message-item"
-          :class="{ unread: !item.read_at }"
-        >
-          <span class="category-dot" :style="{ backgroundColor: categoryColor(item.category) }" />
-          <div class="item-main">
-            <div class="item-head">
-              <span class="item-title" :class="{ clickable: !!item.link }" @click="openLink(item)">
-                {{ item.title }}
-              </span>
-              <el-tag size="small" :type="priorityTagType(item.priority)" effect="plain">
-                {{ categoryLabel(item.category) }}
-              </el-tag>
-            </div>
-            <div class="item-content">{{ item.content }}</div>
-            <div class="item-meta">
-              <span>{{ formatTime(item.created_at) }}</span>
-              <span v-if="item.link" class="item-link" @click="openLink(item)">查看详情</span>
-            </div>
-          </div>
-          <div class="item-actions">
-            <el-button v-if="!item.read_at" link type="primary" size="small" @click="handleRead(item)">
-              标为已读
-            </el-button>
-            <el-button link type="danger" size="small" @click="handleDelete(item)">删除</el-button>
-          </div>
+        <div v-if="selected.length > 0" class="batch-bar">
+          <span class="batch-count">已选 {{ selected.length }} 条</span>
+          <el-button size="small" :loading="batchLoading" @click="handleBatchRead">批量已读</el-button>
+          <el-button size="small" type="danger" plain :loading="batchLoading" @click="handleBatchDelete">
+            批量删除
+          </el-button>
+          <el-button size="small" link @click="clearSelection">取消选择</el-button>
         </div>
+
+        <el-checkbox-group v-model="selected">
+          <div
+            v-for="item in list"
+            :key="item.id"
+            class="message-item"
+            :class="{ unread: !item.read_at }"
+          >
+            <el-checkbox :value="item.id" class="item-check" :disabled="batchLoading" />
+            <span class="category-dot" :style="{ backgroundColor: categoryColor(item.category) }" />
+            <div class="item-main">
+              <div class="item-head">
+                <span class="item-title" :class="{ clickable: !!item.link }" @click="openLink(item)">
+                  {{ item.title }}
+                </span>
+                <el-tag size="small" :type="priorityTagType(item.priority)" effect="plain">
+                  {{ categoryLabel(item.category) }}
+                </el-tag>
+              </div>
+              <div class="item-content">{{ item.content }}</div>
+              <div class="item-meta">
+                <span>{{ formatTime(item.created_at) }}</span>
+                <span v-if="item.link" class="item-link" @click="openLink(item)">查看详情</span>
+              </div>
+            </div>
+            <div class="item-actions">
+              <el-button v-if="!item.read_at" link type="primary" size="small" @click="handleRead(item)">
+                标为已读
+              </el-button>
+              <el-button link type="danger" size="small" @click="handleDelete(item)">删除</el-button>
+            </div>
+          </div>
+        </el-checkbox-group>
 
         <el-empty
           v-if="!loading && list.length === 0"
@@ -123,15 +144,17 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   deleteMessage,
+  deleteMessages,
   getMessagePreferences,
   listMessages,
   markAllMessagesRead,
   markMessageRead,
+  markMessagesRead,
   updateMessagePreference,
   type MessageItem,
   type MessagePreferenceItem
@@ -200,6 +223,23 @@ const activeCategory = ref<string>('')
 const unreadOnly = ref(false)
 const keyword = ref('')
 
+/** 批量操作：只保存当前页选中的 ID，切换分页/筛选时清空 */
+const selected = ref<string[]>([])
+const batchLoading = ref(false)
+
+const allSelected = computed(() => list.value.length > 0 && selected.value.length === list.value.length)
+const someSelected = computed(
+  () => selected.value.length > 0 && selected.value.length < list.value.length
+)
+
+function toggleSelectAll(checked: boolean | string | number) {
+  selected.value = checked === true ? list.value.map(item => item.id) : []
+}
+
+function clearSelection() {
+  selected.value = []
+}
+
 function unreadOf(category: string): number {
   return category === '' ? messageStore.total : messageStore.categoryUnread(category)
 }
@@ -217,6 +257,8 @@ async function loadList() {
     const result = toPageResult<MessageItem>(raw)
     list.value = result.list
     total.value = result.total
+    // 列表内容变了，旧选中项可能已不在当前页：留着会让批量操作带上看不见的消息
+    selected.value = []
   } catch {
     // 失败提示由 axios 拦截器统一弹出
   } finally {
@@ -287,6 +329,54 @@ async function handleDelete(item: MessageItem) {
     loadList()
   } catch {
     // 用户取消，或请求失败（提示由拦截器统一弹出）
+  }
+}
+
+/**
+ * 批量标记已读。
+ * 不按本地选中数做乐观扣减：选中项里可能有别的终端已读过的，
+ * 实际清除条数以服务端 `updated` 为准，角标直接重拉一次完整读数。
+ */
+async function handleBatchRead() {
+  const ids = [...selected.value]
+  if (ids.length === 0) return
+  batchLoading.value = true
+  try {
+    const res = await markMessagesRead(ids)
+    messageStore.refreshUnread()
+    ElMessage.success(res?.updated ? `已标记 ${res.updated} 条为已读` : '选中消息已是已读状态')
+    loadList()
+  } catch {
+    // 失败提示由拦截器统一处理
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+async function handleBatchDelete() {
+  const ids = [...selected.value]
+  if (ids.length === 0) return
+  try {
+    await ElMessageBox.confirm(`确定删除选中的 ${ids.length} 条消息？`, '批量删除确认', { type: 'warning' })
+  } catch {
+    return // 用户取消
+  }
+
+  batchLoading.value = true
+  try {
+    const res = await deleteMessages(ids)
+    // 删掉的可能包含未读，条数与分类都无法从前端推算，直接以服务端读数为准
+    messageStore.refreshUnread()
+    ElMessage.success(res?.deleted ? `已删除 ${res.deleted} 条` : '选中消息已不存在')
+    // 整页被删空时回退一页，避免停在空列表
+    if (list.value.length === ids.length && page.value > 1) {
+      page.value -= 1
+    }
+    loadList()
+  } catch {
+    // 失败提示由拦截器统一处理
+  } finally {
+    batchLoading.value = false
   }
 }
 
@@ -374,6 +464,19 @@ onMounted(() => {
 .message-list {
   min-height: 160px;
 }
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+.batch-count {
+  font-size: 13px;
+  color: #606266;
+}
 .message-item {
   display: flex;
   align-items: flex-start;
@@ -381,6 +484,10 @@ onMounted(() => {
   padding: 14px 12px;
   border-bottom: 1px solid #f0f0f0;
   transition: background-color 0.2s;
+}
+.item-check {
+  height: auto;
+  margin-top: 3px;
 }
 .message-item:hover {
   background-color: #fafafa;
