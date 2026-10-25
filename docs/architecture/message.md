@@ -24,12 +24,13 @@
 
 | 层 | 文件 | 职责 |
 | --- | --- | --- |
-| 入口 | `message/module.go` | 装配服务、注册 5 个路由、导出 `Migrate` |
-| 模型 | `message/model/message.go` | 领域模型、分类常量与合法性判定 |
+| 入口 | `message/module.go` | 装配服务、注册 7 个路由、导出 `Migrate` |
+| 模型 | `message/model/message.go` | 领域模型、分类常量、强制接收判定 |
 | 仓储 | `message/repository/user_message_repository.go` | 批量写入、分页查询、未读统计、幂等标记、删除 |
+| 偏好 | `message/repository/user_preference_repository.go` | 偏好读写与「批量筛出关闭接收者」 |
 | 目录 | `message/repository/user_directory.go` | 窄接口 `ListActiveUserIDs`（租户成员展开） |
-| 服务 | `message/service/message_service.go` | 收件箱读写 + `Deliver` 落库 + 角标推送 |
-| DTO | `message/dto/message_dto.go` | `MessageResp` / `UnreadCountResp` / `MarkAllReadReq` |
+| 服务 | `message/service/message_service.go` | 收件箱读写 + `Deliver` 落库（含偏好过滤）+ 角标推送 |
+| DTO | `message/dto/message_dto.go` | `MessageResp` / `UnreadCountResp` / `MarkAllReadReq` / `PreferencesResp` / `UpdatePreferenceReq` |
 | Handler | `message/handler/message_handler.go` | 参数校验、401/400/404 映射 |
 | 定时 | `message/expiry_job.go` | 按保留期物理删除历史消息 |
 | 通知侧 | `notify/inbox.go` | `InboxMessage` / `InboxWriter` 接口（避免反向依赖） |
@@ -68,6 +69,22 @@
 - 删除是收件人自己的动作，独立行避免「一人删除影响他人」；
 - 代价是写放大（见下节），用硬上限与「平台级公告不落库」抵消。
 
+偏好表 `user_message_preferences`：
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | varchar(26) PK | ULID |
+| `user_id` | varchar(26) | 偏好归属用户 |
+| `category` | varchar(32) | 分类 |
+| `muted` | bool | `true` 表示关闭接收 |
+| `created_at` / `updated_at` | datetime | 审计与排障用 |
+
+索引：`idx_user_message_prefs` 唯一（`user_id` → `category`），既是覆盖写的定位键，也防止同一分类堆行。
+
+**只有关闭接收才需要一行**：缺行即默认接收，因此新分类上线不必给存量用户补行，
+也不会出现「无偏好」和「已接收」两种语义并存。`muted=false` 的行是显式覆盖（恢复接收），
+读取时只认 `muted=true`。
+
 ## 通知链路
 
 ```
@@ -78,6 +95,7 @@
             └─ message.MessageService.Deliver
                  ├─ 收件人为空 + 有 TenantID → ListActiveUserIDs 展开
                  ├─ dedupeIDs 去重剔空 + 二次截断 maxTenantFanout
+                 ├─ MutedUserIDs 剔除关闭该类消息的收件人（强制分类跳过）
                  ├─ BatchCreate(200/批) 写 user_messages
                  └─ pushUnreadCounts → ws.MsgTypeUnreadCount 定向推送角标
 ```
@@ -148,6 +166,27 @@
 **为什么 `dedupe_key` 允许 NULL**：唯一索引对 NULL 不生效（MySQL 与 SQLite 一致），
 因此 AutoMigrate 给历史行补列后不会因「同一用户多行空键」建索引失败，
 而「不参与去重」的消息也不会互相冲突。代码侧用 `nullableKey` 把空串转成 NULL。
+
+## 接收偏好（分类开关）
+
+用户可在消息中心页的「偏好设置」里按分类关闭接收。设计上守三条：
+
+1. **在落库前过滤，不在读时过滤**：关闭后该类消息根本不入库，
+   否则「不走库但读时藏」会出现「未读数与列表不一致」——角标算上了却点不进去。
+2. **安全告警不可关闭**：`audit` 分类由 `model.IsMandatoryCategory` 判定，
+   写入接口返回 400（`ErrMandatoryCategory`）而不是静默忽略；
+   即使库里存在历史 `muted=true` 行（人工改库 / 策略上线前写入），`Deliver` 也直接跳过偏好查询。
+3. **失败一律开口向上**：偏好查询报错时按默认接收投递并 `Warnf`——
+   宁可多打扰，不能因为偏好表的插曲把消息丢掉。
+
+过滤实现是**一次批量 SQL**：`WHERE category = ? AND muted = ? AND user_id IN (...)`，
+返回关闭者集合后在内存里剔除。站内信落库本就是批量写，逐人查询会把写放大成 N+1。
+
+过滤位置在 `Deliver` 内、分类推导之后、`BatchCreate` 之前；被过滤的收件人也不进入角标推送，
+否则会推一个自己点开看不到的未读数。
+
+隐私与边界：偏好按当前登录用户读写（`user_id` 取自 JWT 上下文），
+接口不提供「查别人的偏好」，也不提供跨用户覆盖；不挂 RBAC 权限码，理由与收件箱一致。
 
 ## 访问控制
 
@@ -255,3 +294,9 @@ cd web-admin && npx vitest run src/api/modules/message.test.ts src/stores/messag
 - 告警落库：`notify` 层锁定收件人只含用户 ID、分类 `audit`、去重键 `alert:{id}`、无账号收件人时不写行；
   `audit/service` 层锁定「规则邮箱反查成账号才写」与未装配解析能力时不写（nil 安全）；
   集成层经真实路由与 `WireAlertEvaluation` 验证邮箱→账号的装配行（删掉装配时只有集成用例变红）。
+- 偏好：仓储层覆盖写幂等（重复提交不堆行）/ 只认 `muted=true` / 按分类批量筛人 / 用户隔离；
+  服务层锁定「关闭后不写行、不推角标」「全员关闭零行零推送」「强制分类跳过偏好查询」「查询失败开口向上」；
+  handler 锁定 `/preferences` 作为静态段不被 `/{id}` 吞掉、非法分类与关闭告警均 400；
+  集成层锁定「关闭 → 不落库 → 重开恢复」与「历史关闭行不阻断安全告警」。
+  变异检验：去掉装配行只有集成用例变红；去掉强制分类旁路影响对应服务与集成用例；
+  `MutedUserIDs` 去掉分类条件同时打穿仓储与集成用例（跨分类误伤）。

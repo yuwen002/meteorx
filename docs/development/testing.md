@@ -7,7 +7,7 @@
 
 | 层级 | 覆盖内容 | 入口 | 依赖 | 本机耗时 |
 | --- | --- | --- | --- | --- |
-| Go 单测 | 181 个 `*_test.go`，handler/service/repository/middleware | `scripts/test.ps1` | 无 | 2~5 min |
+| Go 单测 | 183 个 `*_test.go`，handler/service/repository/middleware | `scripts/test.ps1` | 无 | 2~5 min |
 | Go 竞态 | 同上的 `-race` 版本 | CI `test` job | Linux + CGO | 仅 CI |
 | 进程内集成 | `testkit` 全量真实路由（sqlite + miniredis） | `go test ./internal/integration/...` | 无 | 1~2 min |
 | MySQL 方言 | `TIMESTAMPADD`/`JSON_CONTAINS`/`FIELD()` 等真库语义 | `METEORX_MYSQL_DIALECT_TEST=1` | MySQL（库名以 `_test` 结尾） | < 30 s |
@@ -114,12 +114,12 @@ $env:E2E_CHANNEL='chrome'; npx playwright test
 
 ## 7. 当前基线（2026-10-25）
 
-- Go 测试文件：**181**（全绿）；集成套件：`internal/integration/` 20 个文件
-- Go 总覆盖率：**50.5%**（`go tool cover "-func=coverage.out"` 实测）
+- Go 测试文件：**183**（全绿）；集成套件：`internal/integration/` 21 个文件
+- Go 总覆盖率：**50.6%**（`go tool cover "-func=coverage.out"` 实测）
 - 前端测试文件：**20**；覆盖率门槛仅统计 `api/utils/composables`（实测 99.6 / 97.2 / 99.25 / 99.6）
 - 浏览器 E2E：**4 条**冒烟（认证 3 + 套餐 1）
 - CI jobs：**10**（lint / test / security / migrate / build / frontend / e2e / docker / deploy / release）
-- 覆盖率门槛：Go **35%**（实际已 50.5%）；前端 **85 / 70 / 95 / 85**
+- 覆盖率门槛：Go **35%**（实际已 50.6%）；前端 **85 / 70 / 95 / 85**
 
 已知短板：前端页面组件（`views/`）不在覆盖率统计范围内，改动页面时需靠 E2E 与手工验证兑付。
 

@@ -26,11 +26,13 @@
 | PUT | `/messages/{id}/read` | 标记单条已读（幂等） | 需登录 |
 | PUT | `/messages/read-all` | 全部已读（可按分类） | 需登录 |
 | DELETE | `/messages/{id}` | 删除单条消息 | 需登录 |
+| GET | `/messages/preferences` | 查询分类接收偏好 | 需登录 |
+| PUT | `/messages/preferences` | 修改单个分类的接收开关 | 需登录 |
 
 **说明：**
 - 全部接口需登录，但**不挂 RBAC 权限码**：收件箱按「数据归属」鉴权，普通成员也应能看自己的消息。
 - 所有查询与写操作的 `WHERE` 都带 `user_id = 当前用户`，他人的消息既不可见、也不可代为标记已读或删除。
-- 静态段（`/unread-count`、`/read-all`）先于 `/{id}` 注册，避免被路径参数吞掉。
+- 静态段（`/preferences`、`/unread-count`、`/read-all`）先于 `/{id}` 注册，避免被路径参数吞掉。
 
 ---
 
@@ -72,6 +74,29 @@
 | category | string | 否 | 合法分类时只清该分类；为空或省略表示全部已读 |
 
 请求体可为空（`Content-Length: 0` 时按「全部已读」处理）。
+
+### 2.4 PreferenceItem（单个分类的偏好）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| category | string | 分类：`system` / `announcement` / `task` / `plan` / `audit` |
+| muted | bool | `true` 表示关闭接收：该类消息**不再落库**（也不推角标） |
+| mandatory | bool | `true` 表示强制接收（当前仅 `audit`），前端应禁用开关 |
+
+### 2.5 PreferencesResp（偏好响应）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| items | PreferenceItem[] | **全部分类**按固定顺序返回，未设置过的分类也在其中（`muted=false`） |
+
+### 2.6 UpdatePreferenceReq（修改偏好请求）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| category | string | 是 | 合法分类；未知分类返回 400 |
+| muted | bool | 否 | 缺省为 `false`，即恢复接收 |
+
+一次只改一个分类：开关即时生效，不存在「半提交」，也就不需要批量 + 事务。
 
 ---
 
@@ -169,6 +194,47 @@
 - 物理删除（收件箱是投递记录，无回收站语义）；
 - 他人消息返回 404。
 
+### 3.6 查询消息偏好
+
+`GET /api/v1/messages/preferences`
+
+**成功响应（200）：**
+```json
+{
+  "data": {
+    "items": [
+      { "category": "system", "muted": false, "mandatory": false },
+      { "category": "announcement", "muted": true, "mandatory": false },
+      { "category": "task", "muted": false, "mandatory": false },
+      { "category": "plan", "muted": false, "mandatory": false },
+      { "category": "audit", "muted": false, "mandatory": true }
+    ]
+  }
+}
+```
+
+**业务规则：**
+- 只返回当前用户的偏好，无需传用户 ID；
+- **未设置过 = 已接收**：新分类上线不会给存量用户补行，也不会出现「未设置」这种第三态；
+- 分类顺序由后端固定（`model.AllCategories`），前端不必自行排序。
+
+### 3.7 修改消息偏好
+
+`PUT /api/v1/messages/preferences`
+
+**请求体：**
+```json
+{ "category": "task", "muted": true }
+```
+
+**成功响应（200）：** 同 3.6 的完整偏好列表（修改后的最新视图），前端可直接用于刷新开关。
+
+**业务规则：**
+- 覆盖写且幂等：同一 `(user_id, category)` 只保留一行，重复提交不会堆行；
+- `muted=true` 后该类消息**不再落库**，既无收件箱记录也无未读角标；改回 `false` 立即恢复；
+- **安全告警（`audit`）不可关闭**：`muted=true` 返回 400 而不是静默忽略——静默会让用户以为关掉了，实际仍会收到；
+- 未知分类返回 400。
+
 ---
 
 ## 4. 附录
@@ -194,10 +260,10 @@
 
 | 状态码 | 场景 |
 |--------|------|
-| 400 | 非法消息分类（列表筛选 / 全部已读）；消息 ID 为空 |
+| 400 | 非法消息分类（列表筛选 / 全部已读 / 偏好提交）；消息 ID 或分类为空；试图关闭强制接收的安全告警 |
 | 401 | 未登录或 Token 失效（上下文缺失用户 ID） |
 | 404 | 消息不存在，或不属于当前用户（含标记已读 / 删除） |
-| 500 | 列表 / 未读数 / 标记 / 删除的存储异常 |
+| 500 | 列表 / 未读数 / 标记 / 删除 / 偏好的存储异常 |
 
 ### 4.3 配置项（`internal/config/config.yaml`）
 
@@ -236,7 +302,7 @@ message:
 |------|------|------|
 | 顶栏铃铛 | `components/MessageBell.vue` | 最近 6 条 + 全部已读 + 查看全部；点击条目按 `link` 跳转并标记已读 |
 | 侧边栏菜单 | `layouts/DefaultLayout.vue` | 「消息中心」菜单项带未读数角标 |
-| 消息中心页 | `views/message/index.vue` | 分类页签（带角标）+ 仅看未读 + 关键字 + 分页 + 标记已读 / 删除 |
+| 消息中心页 | `views/message/index.vue` | 分类页签（带角标）+ 仅看未读 + 关键字 + 分页 + 标记已读 / 删除 + 「偏好设置」弹窗 |
 | 状态 | `stores/message.ts` | `total` / `byCategory` / `refreshUnread` / `setUnreadTotal` / `decrementUnread` / `clearUnread` / `reset` |
 
 退出登录时 `token` watcher 会调用 `messageStore.reset()`，避免下一个账号看到上一个账号的角标。
@@ -262,3 +328,17 @@ message:
 **为什么审计告警按 ID 而非自然日：** 一条告警本身是一次独立事件，没有「第二天再提醒一次」的语义；
 按 `alert:{告警ID}` 永久去重足以合并渠道重试与多副本的重复落库，又不会把不同告警误合并。
 **对接口的影响：** 被去重的事件不产生新行，列表条数与未读数不增加；落库后的角标推送会按 `CountUnreadByUsers` 重新查库计数，因此也不会虚增。
+
+### 4.8 接收偏好的生效边界
+
+偏好表 `user_message_preferences` 按「用户 × 分类」存，**只有关闭接收才建行**（`muted=false` 也是显式覆盖，等价于恢复接收）：
+
+| 环节 | 行为 |
+|------|------|
+| 落库前（`Deliver`） | 一次 `SELECT user_id ... WHERE category=? AND muted=true AND user_id IN (...)` 批量过滤，被过滤者既不写行也不推角标 |
+| 强制分类（`audit`） | 跳过偏好查询；即使库里存在历史关闭行，告警仍强制落库 |
+| 偏好查询失败 | 按默认接收投递并记告警日志——宁可多打扰，不可漏消息 |
+| 关闭后的存量消息 | 不受影响，直到保留期清理或用户手动删除 |
+
+**为什么只在落库前过滤：** 实时推送（`ws.SendAlert` / 任务提醒的 WS 通道）与收件箱是两条独立链路，
+偏好只作用于「持久化」这一层；它解决的是「不想在收件箱里看到这类消息」，不是「拦截告警本身」。
