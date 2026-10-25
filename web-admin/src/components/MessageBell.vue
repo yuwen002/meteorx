@@ -109,6 +109,8 @@ async function handleOpen(item: MessageItem) {
       await markMessageRead(item.id)
       item.read_at = new Date().toISOString()
       messageStore.decrementUnread(item.category)
+      // 别处可能已标记过同一条（另一标签页/设备），合并拉一次服务端读数对账
+      messageStore.refreshUnreadSoon()
     } catch {
       // 标记失败不阻断跳转：消息本身仍可读
     }
@@ -119,9 +121,10 @@ async function handleOpen(item: MessageItem) {
 
 async function handleMarkAll() {
   try {
-    await markAllMessagesRead()
+    const res = await markAllMessagesRead()
     items.value = items.value.map(i => ({ ...i, read_at: i.read_at || new Date().toISOString() }))
-    messageStore.clearUnread()
+    messageStore.clearUnread(undefined, res?.updated)
+    messageStore.refreshUnreadSoon()
   } catch {
     // 失败提示由拦截器统一处理
   }

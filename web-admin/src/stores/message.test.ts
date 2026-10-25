@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 // 隔离网络层：store 只依赖未读数接口
@@ -11,6 +11,11 @@ describe('message store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    // 用例里可能开了假时钟，结束必须复位，否则后续用例的定时器全部卡住
+    vi.useRealTimers()
   })
 
   it('refreshUnread 以服务端未读数覆盖本地状态', async () => {
@@ -76,11 +81,75 @@ describe('message store', () => {
     expect(s.byCategory).toEqual({})
   })
 
+  it('clearUnread 传服务端 updated 时按它扣减，覆盖过期的分类明细', () => {
+    const s = useMessageStore()
+    // WS 只推总数，分类明细停留旧值：task 实际已涨到 3 条仍未同步
+    s.byCategory = { task: 1, plan: 1 }
+    s.setUnreadTotal(5)
+
+    s.clearUnread('task', 3)
+    expect(s.total).toBe(2)
+    expect(s.categoryUnread('task')).toBe(0)
+    expect(s.categoryUnread('plan')).toBe(1)
+  })
+
+  it('receiveUnreadPush 先覆盖总数，随后补拉分类明细', async () => {
+    vi.useFakeTimers()
+    vi.mocked(getUnreadCount).mockResolvedValue({ total: 5, by_category: { task: 5 } })
+    const s = useMessageStore()
+
+    s.receiveUnreadPush(5)
+    expect(s.total).toBe(5)
+    expect(s.categoryUnread('task')).toBe(0)
+    expect(getUnreadCount).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(300)
+    expect(getUnreadCount).toHaveBeenCalledTimes(1)
+    expect(s.categoryUnread('task')).toBe(5)
+  })
+
+  it('receiveUnreadPush 忽略非法值，不触发补拉', async () => {
+    vi.useFakeTimers()
+    const s = useMessageStore()
+
+    s.receiveUnreadPush(Number.NaN)
+    await vi.advanceTimersByTimeAsync(300)
+    expect(s.total).toBe(0)
+    expect(getUnreadCount).not.toHaveBeenCalled()
+  })
+
+  it('refreshUnreadSoon 把短时间内的多次校正合并为一次请求', async () => {
+    vi.useFakeTimers()
+    vi.mocked(getUnreadCount).mockResolvedValue({ total: 0, by_category: {} })
+    const s = useMessageStore()
+
+    s.refreshUnreadSoon()
+    s.refreshUnreadSoon()
+    s.receiveUnreadPush(2)
+    s.refreshUnreadSoon()
+
+    await vi.advanceTimersByTimeAsync(300)
+    expect(getUnreadCount).toHaveBeenCalledTimes(1)
+  })
+
+  it('reset 取消排队中的校正请求', async () => {
+    vi.useFakeTimers()
+    const s = useMessageStore()
+
+    s.refreshUnreadSoon()
+    s.reset()
+
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(getUnreadCount).not.toHaveBeenCalled()
+  })
+
   it('reset 清空退出登录后的残留角标', () => {
     const s = useMessageStore()
     s.setUnreadTotal(9)
+    s.byCategory = { task: 9 }
     s.reset()
     expect(s.total).toBe(0)
+    expect(s.byCategory).toEqual({})
     expect(s.hasUnread).toBe(false)
   })
 })

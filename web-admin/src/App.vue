@@ -78,9 +78,9 @@ onMessage((msg: WSMessage) => {
       break
 
     case 'unread_count': {
-      // 服务端在站内信落库后推送未读总数，直接覆盖本地角标
-      const count = Number(msg.payload?.count)
-      if (Number.isFinite(count)) messageStore.setUnreadTotal(count)
+      // 服务端在站内信落库后推送未读总数；payload 不含分类明细，
+      // store 内会合并补拉一次完整读数，避免页签角标与总数不一致
+      messageStore.receiveUnreadPush(Number(msg.payload?.count))
       break
     }
 
@@ -95,7 +95,13 @@ watch(connected, (val) => {
   notificationStore.setWSConnected(val)
 })
 
+// 多标签页 / 多设备：别处已读不会推 WS，页面重新可见时以服务端读数校正
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') messageStore.refreshUnread()
+}
+
 onMounted(() => {
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   // 如果已登录，自动连接 WebSocket 并应用服务端品牌配置
   if (userStore.isLoggedIn) {
     connect()
@@ -104,6 +110,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
   disconnect()
 })
 </script>

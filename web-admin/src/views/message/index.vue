@@ -250,6 +250,8 @@ async function handleRead(item: MessageItem) {
     await markMessageRead(item.id)
     item.read_at = new Date().toISOString()
     messageStore.decrementUnread(item.category)
+    // 别处可能已标记过同一条（另一标签页/设备），合并拉一次服务端读数对账
+    messageStore.refreshUnreadSoon()
   } catch {
     // 失败提示由拦截器统一处理
   }
@@ -258,8 +260,10 @@ async function handleRead(item: MessageItem) {
 async function handleMarkAll() {
   const category = activeCategory.value || undefined
   try {
-    await markAllMessagesRead(category)
-    messageStore.clearUnread(category)
+    const res = await markAllMessagesRead(category)
+    // 按服务端返回的 updated 扣减：分类明细可能已被 WS 总数覆盖而过期
+    messageStore.clearUnread(category, res?.updated)
+    messageStore.refreshUnreadSoon()
     ElMessage.success('已全部标为已读')
     loadList()
   } catch {
@@ -273,6 +277,7 @@ async function handleDelete(item: MessageItem) {
     await deleteMessage(item.id)
     if (!item.read_at) {
       messageStore.decrementUnread(item.category)
+      messageStore.refreshUnreadSoon()
     }
     ElMessage.success('已删除')
     // 删除后当前页可能已空，回退一页避免看到空列表

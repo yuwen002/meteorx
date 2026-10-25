@@ -13,6 +13,9 @@ export const useMessageStore = defineStore('message', () => {
   const byCategory = ref<Record<string, number>>({})
   const loading = ref(false)
 
+  /** 排队中的合并校正定时器；null 表示当前无待执行请求 */
+  let reconcileTimer: ReturnType<typeof setTimeout> | null = null
+
   const hasUnread = computed(() => total.value > 0)
 
   /** 取某个分类的未读数，未出现过的分类为 0 */
@@ -40,6 +43,25 @@ export const useMessageStore = defineStore('message', () => {
     total.value = Math.max(0, count)
   }
 
+  /**
+   * 稍后校正未读数，窗口内多次调用合并为一次请求。
+   * 两类场景：本地乐观更新后与服务端对账；WS 只推总数时补齐分类明细。
+   */
+  function refreshUnreadSoon(delay = 300) {
+    if (reconcileTimer !== null) return
+    reconcileTimer = setTimeout(() => {
+      reconcileTimer = null
+      void refreshUnread()
+    }, delay)
+  }
+
+  /** 收到 WS 未读数推送：先覆盖总数保证即时，再合并补拉一次分类明细 */
+  function receiveUnreadPush(count: number) {
+    if (!Number.isFinite(count)) return
+    setUnreadTotal(count)
+    refreshUnreadSoon()
+  }
+
   /** 标记单条已读后的乐观扣减 */
   function decrementUnread(category: string) {
     total.value = Math.max(0, total.value - 1)
@@ -48,15 +70,20 @@ export const useMessageStore = defineStore('message', () => {
     }
   }
 
-  /** 标记全部已读后的乐观清空；传分类只清该分类 */
-  function clearUnread(category?: string) {
+  /**
+   * 标记全部已读后的角标更新；传分类只清该分类。
+   *
+   * cleared 传服务端返回的 updated：WS 只推总数，分类明细可能已被留在旧值，
+   * 用服务端的结果扣减比本地 byCategory 更准；剩余偏差由 refreshUnreadSoon 兜底。
+   */
+  function clearUnread(category?: string, cleared?: number) {
     if (!category) {
       total.value = 0
       byCategory.value = {}
       return
     }
-    const cleared = byCategory.value[category] ?? 0
-    total.value = Math.max(0, total.value - cleared)
+    const removed = Math.max(0, cleared ?? byCategory.value[category] ?? 0)
+    total.value = Math.max(0, total.value - removed)
     byCategory.value = { ...byCategory.value, [category]: 0 }
   }
 
@@ -64,6 +91,11 @@ export const useMessageStore = defineStore('message', () => {
   function reset() {
     total.value = 0
     byCategory.value = {}
+    // 退出后不能留下排队中的校正：它会在新账号登录后带着旧会话的意图打请求
+    if (reconcileTimer !== null) {
+      clearTimeout(reconcileTimer)
+      reconcileTimer = null
+    }
   }
 
   return {
@@ -73,6 +105,8 @@ export const useMessageStore = defineStore('message', () => {
     hasUnread,
     categoryUnread,
     refreshUnread,
+    refreshUnreadSoon,
+    receiveUnreadPush,
     setUnreadTotal,
     decrementUnread,
     clearUnread,
