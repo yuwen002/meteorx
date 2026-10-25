@@ -296,12 +296,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Files, MagicStick } from '@element-plus/icons-vue'
 import {
   getTaskList,
+  getTask,
   createTask,
   updateTask,
   completeTask,
@@ -330,6 +332,8 @@ import {
   type TaskSummaryScope,
 } from '@/api/modules/task-ai'
 import { toPageResult } from '@/types/pagination'
+
+const route = useRoute()
 
 const loading = ref(false)
 const list = ref<TaskItem[]>([])
@@ -706,6 +710,27 @@ onMounted(() => {
   loadList()
   loadAICapabilities()
 })
+
+/**
+ * 从收件箱的任务提醒（link 带 task_id）定位任务。
+ * 不依赖当前列表里恰好有它：筛选条件、分页与列表刷新都可能把它挡在外面。
+ */
+async function openTaskById(id: string) {
+  try {
+    openDialog(await getTask(id))
+  } catch {
+    // 失败提示由拦截器统一弹出（任务可能已删除，或已不属于当前用户）
+  }
+}
+
+// 已在任务页时再点另一条提醒只会改 query（不重新 mount），所以用 watch
+watch(
+  () => route.query.task_id,
+  id => {
+    if (typeof id === 'string' && id) openTaskById(id)
+  },
+  { immediate: true }
+)
 </script>
 
 <style scoped>

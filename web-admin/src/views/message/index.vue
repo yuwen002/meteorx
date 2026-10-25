@@ -11,8 +11,8 @@
           </div>
           <div class="header-actions">
             <el-button @click="openPreferences">偏好设置</el-button>
-            <el-button :disabled="messageStore.total === 0 && activeCategory === ''" @click="handleMarkAll">
-              全部标为已读
+            <el-button :disabled="unreadOf(activeCategory) === 0" @click="handleMarkAll">
+              {{ activeCategory ? '本分类全部已读' : '全部标为已读' }}
             </el-button>
             <el-button :loading="loading" @click="reload">刷新</el-button>
           </div>
@@ -313,12 +313,25 @@ async function handleRead(item: MessageItem) {
 
 async function handleMarkAll() {
   const category = activeCategory.value || undefined
+  const unread = unreadOf(activeCategory.value)
+  // 已读不可撤回，一次清空整类前先把范围与条数说清楚
+  const scope = category ? `「${categoryLabel(category)}」分类` : '全部'
+  try {
+    await ElMessageBox.confirm(
+      `确定把${scope}的 ${unread} 条未读消息全部标为已读？`,
+      '标记已读',
+      { type: 'info' }
+    )
+  } catch {
+    return // 用户取消
+  }
+
   try {
     const res = await markAllMessagesRead(category)
     // 按服务端返回的 updated 扣减：分类明细可能已被 WS 总数覆盖而过期
     messageStore.clearUnread(category, res?.updated)
     messageStore.refreshUnreadSoon()
-    ElMessage.success('已全部标为已读')
+    ElMessage.success(res?.updated ? `已标记 ${res.updated} 条为已读` : '当前没有未读消息')
     loadList()
   } catch {
     // 失败提示由拦截器统一处理
