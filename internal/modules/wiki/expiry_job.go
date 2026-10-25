@@ -66,10 +66,13 @@ func (j *WikiTrashExpiryJob) RunOnce(ctx context.Context) (int, error) {
 		j.logger.Printf("[WikiTrashExpiryJob] 过期清理失败 (耗时 %s): %v", dur, err)
 		// 接入真实告警通道：若已初始化全局通知管理器，则推送高优先级运维告警；
 		// 未配置任何渠道（email/webhook/ws）时为 no-op，不影响定时任务主流程。
+		// 不传 UserIDs：运维自检告警没有「应该收到它的账号」，落收件箱无所指向。
 		if gm := notify.GetGlobalManager(); gm != nil {
-			gm.NotifyAlert(ctx, "回收站过期清理失败",
-				fmt.Sprintf("Wiki 回收站过期清理定时任务执行失败（耗时 %s）：%v", dur, err),
-				notify.PriorityHigh, nil)
+			gm.NotifyAlert(ctx, notify.AlertNotice{
+				RuleName: "回收站过期清理失败",
+				Content:  fmt.Sprintf("Wiki 回收站过期清理定时任务执行失败（耗时 %s）：%v", dur, err),
+				Priority: notify.PriorityHigh,
+			})
 		}
 		return n, err
 	}

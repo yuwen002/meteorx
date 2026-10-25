@@ -142,6 +142,39 @@ func TestInbox_DedupeKeyPerDayAndReminderType(t *testing.T) {
 	require.Empty(t, inbox.got[3].DedupeKey, "无法定位任务的事件不参与去重")
 }
 
+// TestInbox_AlertPersistedForRecipients 告警的收件箱收件人只能是用户 ID：
+// 规则配置的邮箱由调用方反查成用户 ID 后传入；告警正文含用户行为明细，
+// 不得在这里展开租户或广播。分类固定 audit，去重键按告警 ID（同一告警只落一条）。
+func TestInbox_AlertPersistedForRecipients(t *testing.T) {
+	inbox := &recordingInbox{}
+	m := NewManager(nil, "", "", nil)
+	m.SetInbox(inbox)
+
+	for i := 0; i < 2; i++ { // 渠道重试 / 多副本会把同一条告警投递多次
+		m.NotifyAlert(context.Background(), AlertNotice{
+			ID: "al-1", RuleName: "高风险操作", Content: "用户 alice 删除了资源",
+			Priority: PriorityUrgent, Emails: []string{"a@x.com"}, UserIDs: []string{"u-admin"},
+		})
+	}
+
+	require.Len(t, inbox.got, 2)
+	got := inbox.got[0]
+	require.Equal(t, []string{"u-admin"}, got.UserIDs, "收件箱只认用户 ID，不得混入邮箱")
+	require.Equal(t, "alert", got.Type)
+	require.Equal(t, "audit", got.Category)
+	require.Equal(t, "audit_alert", got.SourceType)
+	require.Equal(t, "al-1", got.SourceID)
+	require.Equal(t, "/system/audit/alert", got.Link)
+	require.Empty(t, got.TenantID, "平台级告警不归属任何租户")
+	require.Equal(t, "alert:al-1", got.DedupeKey)
+	require.Equal(t, got.DedupeKey, inbox.got[1].DedupeKey, "同一告警的重复投递共享去重键")
+
+	// 无账号收件人（wiki 运维告警）不落库：不得因空收件人触发广播
+	inbox.got = nil
+	m.NotifyAlert(context.Background(), AlertNotice{RuleName: "清理失败", Content: "c", Priority: PriorityHigh})
+	require.Empty(t, inbox.got)
+}
+
 // TestInbox_DedupeKeyTenantScoped 订阅临期与注销审批的去重键含租户与状态，
 // 以便同一租户不同剩余天数 / 不同审批结果各自可见。
 func TestInbox_DedupeKeyTenantScoped(t *testing.T) {

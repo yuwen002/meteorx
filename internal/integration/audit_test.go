@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	userrepo "meteorx/internal/modules/user/repository"
+	"meteorx/internal/notify"
 	"meteorx/internal/testkit"
 
 	"github.com/stretchr/testify/assert"
@@ -100,4 +102,48 @@ func TestInteg_Audit_AlertChainFiresOnProductionWiring(t *testing.T) {
 		return out.Data.Total == 1 && len(out.Data.Items) == 1 &&
 			out.Data.Items[0].RiskLevel == "critical" && out.Data.Items[0].Notified
 	}, 10*time.Second, 200*time.Millisecond, "送达后 notified 必须经 UPDATE 真实落库")
+}
+
+// TestInteg_Audit_AlertReachesInbox 告警的邮件收件人应能在收件箱离线看到：
+// 规则 targets 里的邮箱经 user 仓储反查得到账号，告警以 audit 分类落进该账号的
+// 收件箱。未经真实路由与 WireAlertEvaluation 接线时（邮箱 → 用户 ID 的装配行
+// 被删），收件箱永远为空——audit 包的单测锁的是函数本体，盖不住装配。
+func TestInteg_Audit_AlertReachesInbox(t *testing.T) {
+	// 先接管全局管理器：testkit 的 InitRouter 会把站内消息服务装配进来
+	prev := notify.GetGlobalManager()
+	notify.SetGlobalManager(notify.NewManager(nil, "", "", nil))
+	t.Cleanup(func() { notify.SetGlobalManager(prev) })
+
+	app := testkit.NewTestApp(t)
+	sa := app.SuperadminHeader("sa", "t-1")
+
+	// 告警收件箱的收件人来自规则邮箱反查，先建一个有邮箱的平台管理员账号
+	require.NoError(t, app.DB.Create(&userrepo.UserPO{
+		ID: "u-alert-admin", TenantID: "t-1", Username: "alert-admin", Password: "x",
+		Email: "alert-admin@example.com", Status: 1, IsMaster: true,
+	}).Error)
+
+	body := `{"name":"高风险入库告警","enabled":true,"trigger_type":"risk_level","trigger_value":"critical",` +
+		`"notify_channels":["email"],"notify_targets":["alert-admin@example.com"],"cooldown_minutes":30}`
+	w := app.Do(t, http.MethodPost, "/api/v1/audit/alert-rules", body, sa)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	// DELETE 被判为 critical，触发告警评估（审计中间件异步 flush）
+	app.Do(t, http.MethodDelete, "/api/v1/users/nonexistent", "", sa)
+
+	adminAuth := app.AuthHeader("u-alert-admin", "t-1", []string{"member"})
+	require.Eventually(t, func() bool {
+		w := app.Do(t, http.MethodGet, "/api/v1/messages?category=audit&page=1&page_size=10", "", adminAuth)
+		if w.Code != http.StatusOK {
+			return false
+		}
+		var page messagePage
+		testkit.DecodeData(t, w, &page)
+		for _, m := range page.Data {
+			if m.Category == "audit" && m.Title == "[告警] 高风险入库告警" {
+				return true
+			}
+		}
+		return false
+	}, 15*time.Second, 200*time.Millisecond, "规则邮箱对应的账号应能在收件箱看到告警（audit 分类）")
 }

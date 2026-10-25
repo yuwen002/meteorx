@@ -173,29 +173,64 @@ func (m *Manager) NotifyCancelRequestStatus(ctx context.Context, tenantName stri
 	return results
 }
 
+// AlertNotice 告警通知参数。
+// 收件人按渠道类型分开：Emails 只装邮箱（邮件渠道），UserIDs 只装用户 ID（收件箱）——
+// 收件箱只认用户 ID，传邮箱只会静默 miss（与到期提醒 / 注销通知同一口径）。
+type AlertNotice struct {
+	// ID 告警记录 ID：收件箱据此去重，同一条告警重复投递只落一条；
+	// 为空（如定时任务自检告警）时不参与去重
+	ID       string
+	RuleName string
+	Content  string
+	Priority Priority
+	Emails   []string
+	// UserIDs 收件箱收件人，通常由规则配置的邮箱反查得到。
+	// 告警含用户行为明细，调用方不得在此传入租户展开或全平台广播的结果
+	UserIDs []string
+}
+
 // NotifyAlert 告警通知。
-// emails 为邮件收件人（已由调用方按类型拆分，只装邮箱），为空时不跑邮件渠道。
-// Webhook 渠道的收件人由渠道自身绑定、不收 msg.Recipients；WS 不再参与——
+// Emails 只进邮件渠道（已由调用方按类型拆分），为空时不跑邮件渠道。
+// Webhook 渠道的收件人由渠道自身绑定、不收 msg.Recipients；WS 不参与——
 // 旧写法把规则里的混合 targets（邮箱 + http URL）直喂 SendToAll：邮件对 URL 发信失败、
 // WS 拿邮箱永远 miss，而 targets 为空时（wiki 运维告警）空收件人还会把含用户行为
-// 明细的告警广播给全体在线用户。返回各渠道 SendResult 供调用方判定是否送达。
-func (m *Manager) NotifyAlert(ctx context.Context, ruleName, alertContent string, priority Priority, emails []string) []SendResult {
-	title := "[告警] " + ruleName
+// 明细的告警广播给全体在线用户。
+// UserIDs 非空时额外落一条收件箱消息：邮箱只在能收信时有意义，收件箱让同一批
+// 收件人重新登录后仍能看到同一条告警；落库失败不影响渠道结果与送达销账。
+func (m *Manager) NotifyAlert(ctx context.Context, n AlertNotice) []SendResult {
+	title := "[告警] " + n.RuleName
 	extra := map[string]interface{}{"type": "alert"}
 
 	var results []SendResult
 	// 每渠道各构造一份 Message：渠道可能持有对象引用，复用会被后续渠道覆盖
-	if len(emails) > 0 && m.composite.HasChannel(ChannelEmail) {
+	if len(n.Emails) > 0 && m.composite.HasChannel(ChannelEmail) {
 		results = append(results, m.composite.Send(ctx, &Message{
-			Title: title, Content: alertContent, Priority: priority,
-			Channel: ChannelEmail, Recipients: emails, Extra: extra,
+			Title: title, Content: n.Content, Priority: n.Priority,
+			Channel: ChannelEmail, Recipients: n.Emails, Extra: extra,
 		})...)
 	}
 	if m.composite.HasChannel(ChannelWebhook) {
 		results = append(results, m.composite.Send(ctx, &Message{
-			Title: title, Content: alertContent, Priority: priority,
+			Title: title, Content: n.Content, Priority: n.Priority,
 			Channel: ChannelWebhook, Extra: extra,
 		})...)
+	}
+	if len(n.UserIDs) > 0 {
+		// 分类显式指定为 audit（与 message.CategoryForType("alert") 一致）：
+		// 告警属安全审计类，不依赖类型映射的默认分支，避免未来改动后
+		// 被并入「系统消息」而漏看。
+		dedupeKey := ""
+		if n.ID != "" {
+			// 一条告警是一次独立事件：按 ID 永久去重，渠道重试 / 多副本只落一条。
+			// 不用自然日粒度——重复的告警本身没有「第二天再提醒一次」的语义。
+			dedupeKey = "alert:" + n.ID
+		}
+		m.deliverInbox(ctx, &InboxMessage{
+			UserIDs: n.UserIDs, Type: "alert", Category: "audit",
+			Title: title, Content: n.Content, Link: "/system/audit/alert",
+			Priority: n.Priority, SourceType: "audit_alert", SourceID: n.ID,
+			DedupeKey: dedupeKey,
+		})
 	}
 	return results
 }

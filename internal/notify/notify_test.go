@@ -569,8 +569,9 @@ func TestManager_NotifyAlert_EmailsOnlyReachEmailChannel(t *testing.T) {
 	hook := &fakeNotifier{channel: ChannelWebhook, name: "webhook"}
 	m := newTestManager(email, wsC, hook)
 
-	results := m.NotifyAlert(context.Background(), "高风险操作", "用户 alice 删除了资源",
-		PriorityUrgent, []string{"a@x.com", "b@x.com"})
+	results := m.NotifyAlert(context.Background(), AlertNotice{
+		RuleName: "高风险操作", Content: "用户 alice 删除了资源",
+		Priority: PriorityUrgent, Emails: []string{"a@x.com", "b@x.com"}})
 	require.Len(t, results, 2, "只有 email 与 webhook 两条结果，WS 不得被牵进")
 	assert.Equal(t, int32(0), wsC.calls, "告警不得进 WS：收件人类型不对且广播会泄露用户行为明细")
 
@@ -592,7 +593,8 @@ func TestManager_NotifyAlert_SkipsEmailWithoutAddresses(t *testing.T) {
 	hook := &fakeNotifier{channel: ChannelWebhook, name: "webhook"}
 	m := newTestManager(email, hook)
 
-	results := m.NotifyAlert(context.Background(), "清理失败", "定时任务执行失败", PriorityHigh, nil)
+	results := m.NotifyAlert(context.Background(), AlertNotice{
+		RuleName: "清理失败", Content: "定时任务执行失败", Priority: PriorityHigh})
 	require.Len(t, results, 1, "只剩 webhook 一条结果")
 	assert.Equal(t, int32(0), email.calls)
 	assert.Equal(t, int32(1), hook.calls)
@@ -602,7 +604,8 @@ func TestManager_NotifyAlert_SkipsEmailWithoutAddresses(t *testing.T) {
 // 与 wiki 运维告警调用点的既有契约一致。
 func TestManager_NotifyAlert_NoChannelsNoResults(t *testing.T) {
 	m := newTestManager()
-	assert.Empty(t, m.NotifyAlert(context.Background(), "r", "c", PriorityHigh, []string{"a@x.com"}))
+	assert.Empty(t, m.NotifyAlert(context.Background(), AlertNotice{
+		RuleName: "r", Content: "c", Priority: PriorityHigh, Emails: []string{"a@x.com"}}))
 }
 
 // TestManager_NotifyAlert_ChannelMessagesIndependent 两渠道各构造一份 Message：
@@ -612,7 +615,8 @@ func TestManager_NotifyAlert_ChannelMessagesIndependent(t *testing.T) {
 	hook := &fakeNotifier{channel: ChannelWebhook, name: "webhook"}
 	m := newTestManager(email, hook)
 
-	m.NotifyAlert(context.Background(), "r", "c", PriorityUrgent, []string{"a@x.com"})
+	m.NotifyAlert(context.Background(), AlertNotice{
+		RuleName: "r", Content: "c", Priority: PriorityUrgent, Emails: []string{"a@x.com"}})
 	require.NotNil(t, email.lastMsg)
 	require.NotNil(t, hook.lastMsg)
 	assert.Equal(t, ChannelEmail, email.lastMsg.Channel, "两渠道消息对象不得相互覆盖")

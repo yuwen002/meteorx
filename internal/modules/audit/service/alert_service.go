@@ -24,6 +24,16 @@ import (
 type AlertService struct {
 	alertRepo repository.AlertRuleRepository
 	emailer   *emailer.Emailer
+	// recipients 把规则配置的邮箱解析为用户 ID，使邮件收件人同样能在收件箱
+	// 离线看到告警；未装配时不落收件箱，其余渠道不受影响。
+	recipients AlertRecipientDirectory
+}
+
+// AlertRecipientDirectory 邮箱 → 用户 ID 的窄依赖（与 TenantDisabler /
+// MemberDirectory 同一惯例）：告警只需这一个能力，测试可注入桩，
+// 也不必向 alert service 暴露 user 仓储的胖接口。
+type AlertRecipientDirectory interface {
+	UserIDByEmail(ctx context.Context, email string) (string, error)
 }
 
 // NewAlertService 创建告警规则服务实例。
@@ -32,6 +42,12 @@ func NewAlertService(alertRepo repository.AlertRuleRepository, emailer *emailer.
 		alertRepo: alertRepo,
 		emailer:   emailer,
 	}
+}
+
+// SetRecipientDirectory 装配「邮箱 → 用户 ID」解析能力。
+// 装配后，规则 targets 里的邮箱若属于某个账号，该账号也会收到一条 audit 分类的站内信。
+func (s *AlertService) SetRecipientDirectory(d AlertRecipientDirectory) {
+	s.recipients = d
 }
 
 // CreateRule 创建告警规则
@@ -279,10 +295,19 @@ func (s *AlertService) sendNotifications(ctx context.Context, rule *model.AlertR
 		"time":       alert.CreatedAt.UnixMilli(),
 	})
 
-	// 通过多渠道通知管理器发送告警通知（补充渠道）：只喂邮箱，结果参与送达判定
+	// 通过多渠道通知管理器发送告警通知（补充渠道）：只喂邮箱，结果参与送达判定。
+	// 收件箱收件人由规则邮箱反查用户 ID 得到——邮箱只在能收信时有意义，
+	// 收件箱让同一批人重新登录后仍能看到同一条告警（不参与送达销账）。
 	mgr := notify.GetGlobalManager()
 	if mgr != nil {
-		for _, r := range mgr.NotifyAlert(ctx, rule.Name, alert.Message, notify.PriorityUrgent, emails) {
+		for _, r := range mgr.NotifyAlert(ctx, notify.AlertNotice{
+			ID:       alert.ID,
+			RuleName: rule.Name,
+			Content:  alert.Message,
+			Priority: notify.PriorityUrgent,
+			Emails:   emails,
+			UserIDs:  s.resolveInboxUserIDs(ctx, emails),
+		}) {
 			if r.Success {
 				delivered = true
 				break
@@ -314,6 +339,29 @@ func filterEmails(targets []string) []string {
 		}
 	}
 	return emails
+}
+
+// resolveInboxUserIDs 把规则配置的邮箱解析为收件箱收件人（用户 ID）。
+// 邮箱未必属于任何账号（外部值班邮箱、已删除用户），解析失败的直接跳过：
+// 告警已落库、邮件渠道不受影响，不为「收件箱少一条」阻断主流程或重试。
+func (s *AlertService) resolveInboxUserIDs(ctx context.Context, emails []string) []string {
+	if s.recipients == nil || len(emails) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(emails))
+	ids := make([]string, 0, len(emails))
+	for _, e := range emails {
+		uid, err := s.recipients.UserIDByEmail(ctx, e)
+		if err != nil || uid == "" {
+			continue
+		}
+		if _, ok := seen[uid]; ok {
+			continue
+		}
+		seen[uid] = struct{}{}
+		ids = append(ids, uid)
+	}
+	return ids
 }
 
 func (s *AlertService) sendEmailNotification(targets []string, alert *model.AuditAlert) bool {
