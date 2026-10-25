@@ -204,7 +204,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -276,7 +276,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
