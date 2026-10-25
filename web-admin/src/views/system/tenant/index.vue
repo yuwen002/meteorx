@@ -537,14 +537,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { onMounted, reactive, ref, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Search, Plus, Delete, CopyDocument } from '@element-plus/icons-vue'
 import {
   getTenantList,
+  getTenantDetail,
   createTenant,
   updateTenant,
   updateTenantStatus,
@@ -579,6 +580,7 @@ import { useTableList } from '@/composables/useTableList'
 import { toPageResult, type PageResult } from '@/types/pagination'
 
 const router = useRouter()
+const route = useRoute()
 
 const {
   list,
@@ -745,6 +747,29 @@ async function openPlanDialog(row: TenantItem) {
     planLoading.value = false
   }
 }
+
+/**
+ * 从订阅临期站内信（/system/tenant?tenant_id=xxx）定位该租户的套餐配置。
+ * 订阅挂在租户下而不是套餐定义下：套餐管理页只有套餐本身，看不到「这个租户何时到期」。
+ * 不依赖这一行在当前页：筛选、分页与列表刷新都可能把它挡在外面，所以按 ID 取详情再开弹窗。
+ */
+async function openPlanById(id: string) {
+  try {
+    const tenant = await getTenantDetail(id)
+    if (tenant) await openPlanDialog(tenant)
+  } catch {
+    // 失败提示由拦截器统一弹出（租户可能已注销）
+  }
+}
+
+// 已在本页时再点另一条到期消息只有 query 变化（不会重新挂载），因此 watch 而非 onMounted 读一次
+watch(
+  () => route.query.tenant_id,
+  id => {
+    if (typeof id === 'string' && id) openPlanById(id)
+  },
+  { immediate: true }
+)
 
 // 提交套餐分配
 async function submitPlanAssign() {
