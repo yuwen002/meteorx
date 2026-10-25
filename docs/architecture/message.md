@@ -89,7 +89,15 @@
 | `NotifyTaskReminder` | 单个 `recipientID` | `task` | `/task` |
 | `NotifySubscriptionExpiry` | 租户启用成员用户 ID | `plan` | `/system/plan` |
 | `NotifyCancelRequestStatus` | 租户启用成员用户 ID | `system` | 空 |
+| `NotifyAlert` | 规则邮箱经 user 仓储反查出的账号 | `audit` | `/system/audit/alert` |
 | `NotifyAnnouncement`（**仅租户定向**） | `TenantID` 展开 | `announcement` | 空 |
+
+**告警落库的收件人边界**：`NotifyAlert` 的邮件收件人来自规则 `notify_targets`，但收件箱只认用户 ID，
+所以由 `AlertService` 注入的窄接口 `AlertRecipientDirectory`（邮箱 → 用户 ID）逐条反查：
+解析不到的邮箱（未注册账号的外部值班邮箱）直接跳过，**不展开租户、不广播**——
+告警正文含用户行为明细，广播等于向全体在线用户泄露审计信息。
+告警的 WS 实时推送仍走 `ws.SendAlert(alert.UserID, …)`，只推给触发用户，与收件箱是两条独立路径；
+站内信落库同样不参与 `notified` 回写判定。
 
 装配点在 `bootstrap/router.go`：消息模块的 `InitModule` 创建服务后立即
 `notify.GetGlobalManager().SetInbox(msgSvc)`；未装配时 `deliverInbox` 整体跳过，其余渠道不受影响。
@@ -125,6 +133,7 @@
 | 任务指派 / 到期提醒 | `task:{taskID}:{reminderType}:{YYYYMMDD}` | 同任务同类型当天只一条 |
 | 订阅临期 | `subscription:{租户名}:{剩余天数}:{YYYYMMDD}` | 同租户同剩余天数当天只一条 |
 | 注销审批结果 | `cancel_request:{租户名}:{状态}:{YYYYMMDD}` | 同租户同状态当天只一条 |
+| 审计告警 | `alert:{告警ID}` | 同一条告警只一条（不按天） |
 | 租户定向公告 | 不设键 | 每次发布都是新消息 |
 
 `InboxMessage.DedupeKey` 为空时，`Deliver` 回退为 `{SourceType}:{SourceID}`；
@@ -133,7 +142,8 @@
 **为什么按天而不是按事件永久去重**：逾期任务提醒的语义就是「每天再提醒一次」
 （`task_reminder.overdue_cooldown` 24h）。若把键固化为 `task:{id}`，第二天的提醒会被
 第一天的行挡掉，用户再也收不到新提醒。按自然日切分后，同日重复（重试 / 多副本）被合并，
-跨天提醒照常落库。
+跨天提醒照常落库。审计告警是唯一按 ID 永久去重的一类：一条告警本身是一次独立事件，
+没有「次日再提醒」的语义，按 `alert:{id}` 反而能准确合并重试。
 
 **为什么 `dedupe_key` 允许 NULL**：唯一索引对 NULL 不生效（MySQL 与 SQLite 一致），
 因此 AutoMigrate 给历史行补列后不会因「同一用户多行空键」建索引失败，
@@ -241,4 +251,7 @@ cd web-admin && npx vitest run src/api/modules/message.test.ts src/stores/messag
   以及按分类全部已读只清目标分类；
 - 清理任务：默认 90 天、负值关闭、只删过期行；
 - 去重：同一 `(user_id, dedupe_key)` 只落一条、不同用户各自一条、空键多条共存；
-  变异检验移除 `OnConflict` 后用例以 `UNIQUE constraint failed` 失败。
+  变异检验移除 `OnConflict` 后用例以 `UNIQUE constraint failed` 失败；
+- 告警落库：`notify` 层锁定收件人只含用户 ID、分类 `audit`、去重键 `alert:{id}`、无账号收件人时不写行；
+  `audit/service` 层锁定「规则邮箱反查成账号才写」与未装配解析能力时不写（nil 安全）；
+  集成层经真实路由与 `WireAlertEvaluation` 验证邮箱→账号的装配行（删掉装配时只有集成用例变红）。

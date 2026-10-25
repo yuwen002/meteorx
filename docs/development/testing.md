@@ -112,14 +112,14 @@ $env:E2E_CHANNEL='chrome'; npx playwright test
 | PowerShell 脚本乱码/解析失败 | 5.1 把无 BOM UTF-8 当 ANSI | `.ps1` 保持 ASCII-only |
 | 端口被占用 | 残留 go/node 进程 | 检查 `3306/6379/8081/4173` 的监听 PID 后结束 |
 
-## 7. 当前基线（2026-10-24）
+## 7. 当前基线（2026-10-25）
 
 - Go 测试文件：**181**（全绿）；集成套件：`internal/integration/` 20 个文件
-- Go 总覆盖率：**50.4%**（`go tool cover "-func=coverage.out"` 实测）
+- Go 总覆盖率：**50.5%**（`go tool cover "-func=coverage.out"` 实测）
 - 前端测试文件：**20**；覆盖率门槛仅统计 `api/utils/composables`（实测 99.6 / 97.2 / 99.25 / 99.6）
 - 浏览器 E2E：**4 条**冒烟（认证 3 + 套餐 1）
 - CI jobs：**10**（lint / test / security / migrate / build / frontend / e2e / docker / deploy / release）
-- 覆盖率门槛：Go **35%**（实际已 50.4%）；前端 **85 / 70 / 95 / 85**
+- 覆盖率门槛：Go **35%**（实际已 50.5%）；前端 **85 / 70 / 95 / 85**
 
 已知短板：前端页面组件（`views/`）不在覆盖率统计范围内，改动页面时需靠 E2E 与手工验证兑付。
 

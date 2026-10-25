@@ -183,10 +183,12 @@
 | `announcement` | `announcement` | **租户定向**公告发布（平台级公告不落库） |
 | `subscription_expiry` | `plan` | 套餐/订阅临期提醒 |
 | `cancel_request` | `system` | 租户注销审批通过/驳回 |
-| 其它（含 `alert` 之外的未知类型） | `system` | 兜底：宁可分类不准，也不让消息丢失 |
+| `alert` | `audit` | 审计告警（收件人为规则邮箱反查出的平台账号） |
+| 其它未知类型 | `system` | 兜底：宁可分类不准，也不让消息丢失 |
 
-`audit` 分类已预留（`CategoryForType("alert")` → `audit`），
-但 `NotifyAlert` 当前不落收件箱（告警仍走邮件 / Webhook 与 `ws.SendAlert` 定向推送），故暂无写入路径。
+`audit` 分类由 `NotifyAlert` 写入：规则 `notify_targets` 里的邮箱经 user 仓储反查得到账号后
+才落收件箱，未注册账号的外部邮箱不产生记录；告警正文含用户行为明细，**不按租户或全平台展开**。
+告警的 WebSocket 实时推送走 `ws.SendAlert`（仅推给触发用户），与收件箱是两条独立路径。
 
 ### 4.2 错误码映射
 
@@ -248,6 +250,7 @@ message:
 | 任务指派 / 到期提醒 | `task:{taskID}:{reminderType}:{YYYYMMDD}` | 同任务同提醒类型当天只落一条 |
 | 订阅临期 | `subscription:{租户名}:{剩余天数}:{YYYYMMDD}` | 同租户同剩余天数当天只落一条 |
 | 注销审批结果 | `cancel_request:{租户名}:{状态}:{YYYYMMDD}` | 同租户同状态当天只落一条 |
+| 审计告警 | `alert:{告警ID}` | 同一条告警只落一条（不按天） |
 | 租户定向公告 | 不设去重键 | 每次发布都是一条新消息 |
 
 **实现口径：**
@@ -256,4 +259,6 @@ message:
 - 键允许 `NULL`：唯一索引对 `NULL` 不生效，历史行由 AutoMigrate 补列后不会因「同用户多行空键」建索引失败。
 
 **为什么不按事件永久去重：** 逾期任务提醒的语义就是「每天再提醒一次」（`task_reminder.overdue_cooldown`），键里带自然日才能做到「同日重试合并、跨天照常落库」。
+**为什么审计告警按 ID 而非自然日：** 一条告警本身是一次独立事件，没有「第二天再提醒一次」的语义；
+按 `alert:{告警ID}` 永久去重足以合并渠道重试与多副本的重复落库，又不会把不同告警误合并。
 **对接口的影响：** 被去重的事件不产生新行，列表条数与未读数不增加；落库后的角标推送会按 `CountUnreadByUsers` 重新查库计数，因此也不会虚增。
