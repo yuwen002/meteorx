@@ -243,8 +243,10 @@ func (m *Manager) NotifyAlert(ctx context.Context, n AlertNotice) []SendResult {
 // NotifySubscriptionExpiry 订阅到期通知
 // adminEmail 为邮件收件人（租户联系人），memberUserIDs 为 WebSocket 收件人（租户成员用户 ID）。
 // 两个收件人类型不可互换：hub.clients 以 claims.UserID 为键，传邮箱会静默 miss。
+// tenantID 只用于收件箱链接定位（租户管理页的套餐配置弹窗），不参与 WS 路由：
+// 收件人已按租户筛过，再带 TenantID 会让定向推送退化成整租户广播。
 // 无任何可用渠道时返回空结果，供调用方判定「未送达」而不销账。
-func (m *Manager) NotifySubscriptionExpiry(ctx context.Context, tenantName string, daysLeft int, adminEmail string, memberUserIDs []string) []SendResult {
+func (m *Manager) NotifySubscriptionExpiry(ctx context.Context, tenantID, tenantName string, daysLeft int, adminEmail string, memberUserIDs []string) []SendResult {
 	title := "订阅即将到期"
 	content := "租户 \"" + tenantName + "\" 的订阅将在 " + itoa(daysLeft) + " 天后到期，请及时续费。"
 
@@ -270,9 +272,15 @@ func (m *Manager) NotifySubscriptionExpiry(ctx context.Context, tenantName strin
 		})...)
 	}
 	if len(memberUserIDs) > 0 {
+		// 链接只带租户 ID：到期天数由套餐详情接口实时返回（effective_days），
+		// 写进 query 只会让用户在消息停留几天后看到与服务端不一致的快照。
+		link := "/system/tenant"
+		if tenantID != "" {
+			link = "/system/tenant?tenant_id=" + url.QueryEscape(tenantID)
+		}
 		m.deliverInbox(ctx, &InboxMessage{
 			UserIDs: memberUserIDs, Type: "subscription_expiry",
-			Title: title, Content: content, Link: "/system/plan", Priority: PriorityNormal,
+			Title: title, Content: content, Link: link, Priority: PriorityNormal,
 			SourceType: "subscription", SourceID: itoa(daysLeft),
 			// 同一租户同一剩余天数一天只落一条；到期日后移会得到新键
 			DedupeKey: dailyDedupeKey("subscription", tenantName, itoa(daysLeft)),

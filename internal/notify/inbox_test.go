@@ -29,7 +29,7 @@ func TestInbox_NotSetIsSafe(t *testing.T) {
 	require.NotPanics(t, func() {
 		m.NotifyTaskReminder(context.Background(), "u1", "标题", "内容", "task_due", map[string]interface{}{"task_id": "tk1"})
 		m.NotifyAnnouncement(context.Background(), "公告", "内容", "t1")
-		m.NotifySubscriptionExpiry(context.Background(), "租户A", 3, "", []string{"u1"})
+		m.NotifySubscriptionExpiry(context.Background(), "t1", "租户A", 3, "", []string{"u1"})
 	})
 }
 
@@ -83,16 +83,22 @@ func TestInbox_SubscriptionExpiryPersisted(t *testing.T) {
 	m := NewManager(nil, "", "", nil)
 	m.SetInbox(inbox)
 
-	m.NotifySubscriptionExpiry(context.Background(), "租户A", 5, "", []string{"u1", "u2"})
+	m.NotifySubscriptionExpiry(context.Background(), "t1", "租户A", 5, "", []string{"u1", "u2"})
 	require.Len(t, inbox.got, 1)
 	require.Equal(t, []string{"u1", "u2"}, inbox.got[0].UserIDs)
 	require.Equal(t, "subscription_expiry", inbox.got[0].Type)
-	require.Equal(t, "/system/plan", inbox.got[0].Link)
+	require.Equal(t, "/system/tenant?tenant_id=t1", inbox.got[0].Link, "链接需带租户 ID，点开可定位到该租户的套餐配置")
 	require.Equal(t, "5", inbox.got[0].SourceID)
+
+	// 取不到租户 ID 时不拼出空 query
+	inbox.got = nil
+	m.NotifySubscriptionExpiry(context.Background(), "", "租户A", 5, "", []string{"u1"})
+	require.Len(t, inbox.got, 1)
+	require.Equal(t, "/system/tenant", inbox.got[0].Link, "无 tenant_id 时不得拼出空 query")
 
 	// 无成员时不落库
 	inbox.got = nil
-	m.NotifySubscriptionExpiry(context.Background(), "租户A", 5, "admin@example.com", nil)
+	m.NotifySubscriptionExpiry(context.Background(), "t1", "租户A", 5, "admin@example.com", nil)
 	require.Empty(t, inbox.got)
 }
 
@@ -199,7 +205,7 @@ func TestInbox_DedupeKeyTenantScoped(t *testing.T) {
 	m := NewManager(nil, "", "", nil)
 	m.SetInbox(inbox)
 
-	m.NotifySubscriptionExpiry(context.Background(), "租户A", 3, "", []string{"u1"})
+	m.NotifySubscriptionExpiry(context.Background(), "t1", "租户A", 3, "", []string{"u1"})
 	m.NotifyCancelRequestStatus(context.Background(), "租户A", "approved", "", "", []string{"u1"})
 
 	require.Len(t, inbox.got, 2)

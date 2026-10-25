@@ -263,7 +263,7 @@ func TestManager_NotifySubscriptionExpiry_OnlyEmailWhenNoWS(t *testing.T) {
 	email := &fakeNotifier{channel: ChannelEmail, name: "email"}
 	m := newTestManager(email)
 
-	results := m.NotifySubscriptionExpiry(context.Background(), "ACME", 3, "admin@x.com", nil)
+	results := m.NotifySubscriptionExpiry(context.Background(), "t-acme", "ACME", 3, "admin@x.com", nil)
 	require.Len(t, results, 1)
 	assert.Contains(t, email.lastMsg.Content, "3 天后到期")
 }
@@ -277,12 +277,14 @@ func TestManager_NotifySubscriptionExpiry_WSTargetsUserIDsNotEmail(t *testing.T)
 	wsC := &fakeNotifier{channel: ChannelWebSocket, name: "ws"}
 	m := newTestManager(email, wsC)
 
-	results := m.NotifySubscriptionExpiry(context.Background(), "ACME", 3, "admin@x.com", []string{"u-1", "u-2"})
+	results := m.NotifySubscriptionExpiry(context.Background(), "t-acme", "ACME", 3, "admin@x.com", []string{"u-1", "u-2"})
 	require.Len(t, results, 2)
 
 	require.NotNil(t, wsC.lastMsg)
 	assert.Equal(t, []string{"u-1", "u-2"}, wsC.lastMsg.Recipients, "WS 收件人必须是用户 ID")
 	assert.NotContains(t, wsC.lastMsg.Recipients, "admin@x.com", "邮箱不得混入 WS 收件人")
+	// 租户 ID 仅用于站内信链接：写进 Message.TenantID 会让定向推送变成整租户广播
+	assert.Empty(t, wsC.lastMsg.TenantID, "租户 ID 不得改变 WS 路由")
 
 	require.NotNil(t, email.lastMsg)
 	assert.Equal(t, []string{"admin@x.com"}, email.lastMsg.Recipients, "邮箱仅用于邮件渠道")
@@ -294,7 +296,7 @@ func TestManager_NotifySubscriptionExpiry_SkipsWSWithoutMembers(t *testing.T) {
 	wsC := &fakeNotifier{channel: ChannelWebSocket, name: "ws"}
 	m := newTestManager(wsC)
 
-	results := m.NotifySubscriptionExpiry(context.Background(), "ACME", 3, "admin@x.com", nil)
+	results := m.NotifySubscriptionExpiry(context.Background(), "t-acme", "ACME", 3, "admin@x.com", nil)
 	assert.Empty(t, results)
 	assert.Equal(t, int32(0), wsC.calls)
 }
@@ -304,7 +306,7 @@ func TestManager_NotifySubscriptionExpiry_SkipsWSWithoutMembers(t *testing.T) {
 func TestManager_NotifySubscriptionExpiry_NoChannelReturnsNoResults(t *testing.T) {
 	m := newTestManager()
 
-	results := m.NotifySubscriptionExpiry(context.Background(), "ACME", 3, "admin@x.com", []string{"u-1"})
+	results := m.NotifySubscriptionExpiry(context.Background(), "t-acme", "ACME", 3, "admin@x.com", []string{"u-1"})
 	assert.Empty(t, results)
 }
 

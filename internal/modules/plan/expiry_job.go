@@ -179,7 +179,7 @@ func (j *ExpiryJob) remindExpiringSoon(ctx context.Context) {
 			daysLeft = 0
 		}
 
-		results := m.NotifySubscriptionExpiry(ctx, tenant.Name, daysLeft, tenant.ContactEmail, memberIDs)
+		results := m.NotifySubscriptionExpiry(ctx, sub.TenantID, tenant.Name, daysLeft, tenant.ContactEmail, memberIDs)
 		if !expiryRemindDelivered(results) {
 			// 不回写提醒时间，下一轮（5 分钟后）仍会重试
 			undelivered = append(undelivered, sub.ID)

@@ -67,7 +67,7 @@ func TestInteg_MessagePreference_MutedCategoryNotDelivered(t *testing.T) {
 	require.Zero(t, unread.Total, "关闭接收的分类不应产生未读消息")
 
 	// 4) 分类隔离：套餐提醒照常送达
-	mgr.NotifySubscriptionExpiry(ctx, "租户A", 3, "", []string{"u-pref"})
+	mgr.NotifySubscriptionExpiry(ctx, "t-1", "租户A", 3, "", []string{"u-pref"})
 	unread = dto.UnreadCountResp{}
 	w = app.Do(t, http.MethodGet, "/api/v1/messages/unread-count", "", auth)
 	require.Equal(t, http.StatusOK, w.Code)

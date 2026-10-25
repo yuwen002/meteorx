@@ -105,7 +105,7 @@ func TestInteg_Message_MarkAllReadByCategory(t *testing.T) {
 	auth := app.AuthHeader("u-msg", "t-1", []string{"member"})
 
 	mgr.NotifyTaskReminder(context.Background(), "u-msg", "任务提醒", "内容", "task_due", nil)
-	mgr.NotifySubscriptionExpiry(context.Background(), "租户A", 3, "", []string{"u-msg"})
+	mgr.NotifySubscriptionExpiry(context.Background(), "t-1", "租户A", 3, "", []string{"u-msg"})
 
 	w := app.Do(t, http.MethodGet, "/api/v1/messages/unread-count", "", auth)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
