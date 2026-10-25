@@ -312,8 +312,18 @@
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="触发用户">
-            {{ alertDetail.username || '-' }}
-            <span v-if="alertDetail.user_id" class="detail-muted">（{{ alertDetail.user_id }}）</span>
+            <el-button
+              v-if="alertDetail.username || alertDetail.user_id"
+              link
+              type="primary"
+              @click="openUserTimeline"
+            >
+              {{ alertDetail.username || alertDetail.user_id }}
+            </el-button>
+            <span v-else>-</span>
+            <span v-if="alertDetail.username && alertDetail.user_id" class="detail-muted">
+              （{{ alertDetail.user_id }}）
+            </span>
           </el-descriptions-item>
           <el-descriptions-item label="操作类型">
             <el-tag size="small">{{ alertDetail.action }}</el-tag>
@@ -549,6 +559,19 @@ function openAuditLog(id: string) {
   if (!id) return
   alertDetailVisible.value = false
   router.push({ path: '/system/audit', query: { log_id: id } })
+}
+
+/**
+ * 跳到该用户的操作时间线。
+ * 告警只带用户名与用户 ID，这个人还做过什么全在时间线里：留一段不可点的文本，
+ * 等于让用户退出去、在时间线页把用户名重新敲一遍。
+ * 优先传用户 ID（时间线按 user_id OR username 匹配），没有 ID 时退回用户名。
+ */
+function openUserTimeline() {
+  const userID = alertDetail.value?.user_id || alertDetail.value?.username
+  if (!userID) return
+  alertDetailVisible.value = false
+  router.push({ path: '/system/audit/timeline', query: { user_id: userID } })
 }
 
 function resetAlertSearch() {

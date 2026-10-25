@@ -202,11 +202,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { Search, Document, Calendar, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import { getUserTimeline } from '@/api/modules/audit'
 import type { TimelineItem, AuditLogItem } from '@/api/modules/audit'
 import { useUserStore } from '@/stores/user'
+
+const route = useRoute()
+const userStore = useUserStore()
 
 const searchUserID = ref('')
 const dateRange = ref<string[]>([])
@@ -219,14 +223,22 @@ const loading = ref(false)
 const detailVisible = ref(false)
 const currentLog = ref<AuditLogItem | null>(null)
 
-// 页面加载时自动查询当前登录用户的时间线
-onMounted(() => {
-  const userStore = useUserStore()
-  if (userStore.userInfo?.username) {
-    searchUserID.value = userStore.userInfo.username
+// 从告警详情（/system/audit/timeline?user_id=xxx）进来时查这个人；没有 query 时退回
+// 当前登录用户，保持原默认行为。用 watch 而非 onMounted：已在本页时再点另一个用户的
+// 告警只会改 query、不会重新挂载，onMounted 一辈子只读一次。
+watch(
+  () => route.query.user_id,
+  id => {
+    const userID = typeof id === 'string' && id ? id : userStore.userInfo?.username || ''
+    if (!userID) return
+    searchUserID.value = userID
+    // 换了查询对象，旧的日期筛选与页码会把新对象的时间线裁成空页
+    dateRange.value = []
+    page.value = 1
     loadTimeline()
-  }
-})
+  },
+  { immediate: true }
+)
 
 const totalStats = computed(() => {
   let total = 0, success = 0, failure = 0
