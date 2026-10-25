@@ -49,7 +49,7 @@
 | category | string | 分类：`system` / `announcement` / `task` / `plan` / `audit` |
 | title | string | 标题 |
 | content | string | 正文（纯文本，前端按纯文本渲染） |
-| link | string | 前端跳转路由，空表示不可跳转；任务提醒为 `/task?task_id={任务ID}`，告警为 `/system/audit/alert?alert_id={告警ID}`，订阅临期为 `/system/plan` |
+| link | string | 前端跳转路由，空表示不可跳转；任务提醒为 `/task?task_id={任务ID}`，告警为 `/system/audit/alert?alert_id={告警ID}`，订阅临期为 `/system/tenant?tenant_id={租户ID}` |
 | priority | int | 优先级：`0` low / `1` normal / `2` high / `3` urgent |
 | source_type | string | 来源类型（`task` / `announcement` / `subscription` / `tenant_cancel_request`） |
 | source_id | string | 来源 ID（如任务 ID、剩余天数、审批结果），便于按业务追溯 |
@@ -312,7 +312,14 @@
 **任务提醒的跳转闭环**：`link` 为 `/task?task_id={任务ID}`，`source_id` 即任务 ID。
 前端任务页读取 `task_id` 后调 `GET /tasks/{id}` 直接打开这条任务（不依赖它是否在当前筛选 / 分页里）；
 提醒无法定位任务时（如手工触发、无任务 ID）`link` 为 `/task`，不带 query。
-两类消息同一套口径：**业务 ID 进 query，页面自己去拉详情，不把定位成本转给用户**。
+
+**订阅临期的跳转闭环**：`link` 为 `/system/tenant?tenant_id={租户ID}`，不带空 query 时回落 `/system/tenant`。
+前端租户管理页读取 `tenant_id` 后调 `GET /admin/tenants/{id}/detail` 再打开该租户的「套餐配置」弹窗，
+直接看到当前套餐与到期时间。**没有指向 `/system/plan`**：套餐管理页只有套餐定义（名称/额度/价格），
+「这个租户什么时候到期」只存在于租户侧的订阅记录里，跳过去看不到到期日，等于把定位成本又推回给用户。
+**query 只带租户 ID、不带剩余天数**：天数由 `GET /admin/tenants/{id}/plan` 实时返回（`effective_days`），
+写进 query 的只是一个会在几天后过期的快照。
+以上三类消息同一套口径：**业务 ID 进 query，页面自己去拉详情，不把定位成本转给用户**。
 
 ### 4.2 错误码映射
 
@@ -362,12 +369,14 @@ message:
 
 | 位置 | 文件 | 行为 |
 |------|------|------|
-| 顶栏铃铛 | `components/MessageBell.vue` | 最近 6 条 + 全部已读 + 查看全部；点击条目按 `link` 跳转并标记已读 |
+| 顶栏铃铛 | `components/MessageBell.vue` | 最近 6 条 + 全部已读 + 查看全部；点击条目按 `link` 跳转并标记已读；「查看全部消息」先清掉记住的分类再进收件箱 |
 | 侧边栏菜单 | `layouts/DefaultLayout.vue` | 「消息中心」菜单项带未读数角标 |
-| 消息中心页 | `views/message/index.vue` | 分类页签（带角标）+ 仅看未读 + 关键字 + 分页 + 标记已读 / 删除 + 全选本页 / 批量已读 / 批量删除 + 「本分类全部已读」 + 「偏好设置」弹窗 |
+| 消息中心页 | `views/message/index.vue` | 分类页签（带角标、跨会话记住）+ 仅看未读 + 关键字 + 分页 + 标记已读 / 删除 + 全选本页 / 批量已读 / 批量删除 + 「本分类全部已读」 + 「偏好设置」弹窗 |
 | 告警定位 | `views/system/audit/alert.vue` | 读 `?alert_id=` 直接打开该条告警详情；告警记录行也可手动点「详情」；详情里的「审计日志 ID」可点，跳到审计日志页打开该条日志 |
 | 任务定位 | `views/task/index.vue` | 读 `?task_id=` 调 `GET /tasks/{id}` 直接打开该任务（编辑弹窗），不要求它已在当前页 |
 | 审计日志定位 | `views/system/audit/index.vue` | 读 `?log_id=` 调 `GET /audit/logs/{id}` 直接弹出该条日志详情；日志已被清理时提示空态 |
+| 用户时间线定位 | `views/system/audit/timeline.vue` | 读 `?user_id=` 直接查这个人的操作时间线（无 query 时退回当前登录用户）；告警详情里的「触发用户」即跳到这里 |
+| 订阅临期定位 | `views/system/tenant/index.vue` | 读 `?tenant_id=` 调 `GET /admin/tenants/{id}/detail` 后打开该租户的「套餐配置」弹窗，不要求该租户行在当前页 |
 | 状态 | `stores/message.ts` | `total` / `byCategory` / `refreshUnread` / `refreshUnreadSoon` / `receiveUnreadPush` / `setUnreadTotal` / `decrementUnread` / `clearUnread` / `reset` |
 
 退出登录时 `token` watcher 会调用 `messageStore.reset()`，避免下一个账号看到上一个账号的角标。
@@ -379,6 +388,11 @@ message:
 **「全部已读」的范围跟随页签**：按钮文案与请求体都取当前分类（“全部标为已读” / “本分类全部已读”），
 禁用条件是**该分类**未读数为 0（而不是全局总数）——总数为 0 但切到某分类、或反过来，都不会出现可点却无事发生的按钮。
 已读不可撤回，执行前弹一次确认并写明范围与条数；成功后用响应里的 `updated` 提示实际条数。
+
+**分类页签跨会话记住**：页签值存 `localStorage`（键 `meteorx_message_category`，见 `utils/messageCategory.ts`），
+刷新或重新进入消息中心仍停在用户上次看的分类；只有页签值持久化，关键字与「仅看未读」属于一次性筛选。
+两条边界：存进去的值不在分类枚举里（旧版本残留）时按「全部」处理；
+铃铛里的「查看全部消息」会先清掉这个键——名字叫「全部」却落在被筛过的列表上，是另一种误导。
 
 ### 4.7 重复投递去重
 

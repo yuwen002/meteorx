@@ -12,7 +12,7 @@
 | 进程内集成 | `testkit` 全量真实路由（sqlite + miniredis） | `go test ./internal/integration/...` | 无 | 1~2 min |
 | MySQL 方言 | `TIMESTAMPADD`/`JSON_CONTAINS`/`FIELD()` 等真库语义 | `METEORX_MYSQL_DIALECT_TEST=1` | MySQL（库名以 `_test` 结尾） | < 30 s |
 | 迁移 | AutoMigrate + Seed 在空库跑通 | `go run ./cmd/server migrate` 或 CI `migrate` job | MySQL | < 30 s |
-| 前端单测 | 20 个 `*.test.ts`，api/stores/utils/composables 层 | `npm run test:coverage` | Node | 20~40 s |
+| 前端单测 | 21 个 `*.test.ts`，api/stores/utils/composables 层 | `npm run test:coverage` | Node | 20~40 s |
 | 前端静态 | ESLint + `vue-tsc --noEmit` + 生产构建 | `npm run lint` / `npx vue-tsc` / `npm run build` | Node | 1~2 min |
 | 浏览器 E2E | 真实 Chrome → `vite preview` → 后端 → MySQL/Redis | `e2e/`（见 [README](../../e2e/README.md)） | MySQL/Redis/后端/Chrome | 30~60 s |
 | 安全 | govulncheck + Trivy | CI `security` job | 网络 | 仅 CI |
@@ -116,7 +116,7 @@ $env:E2E_CHANNEL='chrome'; npx playwright test
 
 - Go 测试文件：**183**（全绿）；集成套件：`internal/integration/` 21 个文件
 - Go 总覆盖率：**50.6%**（`go tool cover "-func=coverage.out"` 实测）
-- 前端测试文件：**20**；覆盖率门槛仅统计 `api/utils/composables`（实测 99.6 / 97.2 / 99.25 / 99.6）
+- 前端测试文件：**21**；覆盖率门槛仅统计 `api/utils/composables`（实测 99.6 / 97.2 / 99.25 / 99.6）
 - 浏览器 E2E：**4 条**冒烟（认证 3 + 套餐 1）
 - CI jobs：**10**（lint / test / security / migrate / build / frontend / e2e / docker / deploy / release）
 - 覆盖率门槛：Go **35%**（实际已 50.6%）；前端 **85 / 70 / 95 / 85**

@@ -105,7 +105,7 @@
 | 入口 | 收件人来源 | 分类 | link |
 | --- | --- | --- | --- |
 | `NotifyTaskReminder` | 单个 `recipientID` | `task` | `/task?task_id={任务ID}`（无任务 ID 时 `/task`） |
-| `NotifySubscriptionExpiry` | 租户启用成员用户 ID | `plan` | `/system/plan` |
+| `NotifySubscriptionExpiry` | 租户启用成员用户 ID | `plan` | `/system/tenant?tenant_id={租户ID}`（无 ID 时 `/system/tenant`） |
 | `NotifyCancelRequestStatus` | 租户启用成员用户 ID | `system` | 空 |
 | `NotifyAlert` | 规则邮箱经 user 仓储反查出的账号 | `audit` | `/system/audit/alert?alert_id={告警ID}` |
 | `NotifyAnnouncement`（**仅租户定向**） | `TenantID` 展开 | `announcement` | 空 |
@@ -131,7 +131,21 @@
 **不在列表里找**——当前筛选、分页甚至列表刷新都可能把任务挡在外面。拿不到任务 ID 时 `link` 仍是 `/task`。
 告警再往下钻一层也是同一口径：告警详情里的「审计日志 ID」可点，`views/system/audit/index.vue`
 读 `route.query.log_id` 后调 `GET /audit/logs/{id}` 弹出日志详情（日志已被清理时显空态）。
-三处的共同点：**业务 ID 进 query，页面自己拉详情**，不把“从长篇列表里找出哪一条”的成本转给用户。
+
+**订阅临期指向租户而不是套餐定义**：`NotifySubscriptionExpiry` 的 `link` 带上 `sub.TenantID`，
+前端 `views/system/tenant/index.vue` 读 `route.query.tenant_id` 后调 `GET /admin/tenants/{id}/detail`
+再打开该租户的「套餐配置」弹窗（带 `effective_days`）。此前固定跳 `/system/plan`，而那里只有套餐定义，
+没有任何一个租户的到期时间——点进去等于停在菜单页。**剩余天数不进 query**：它是服务端随请求计算的，
+写进链接只会变成几天后过期的快照。租户 ID 只用于链接，不得写进 `Message.TenantID`：
+收件人已按租户筛过，再带租户会让 `ws.SendToUser` 退化成 `SendToTenant` 全租户广播。
+
+**告警详情的「触发用户」再开一条线**：审计告警只带 `username` / `user_id`，
+用户还做过什么全在时间线里；`views/system/audit/alert.vue` 因此把「触发用户」做成可点的入口，
+跳到 `/system/audit/timeline?user_id=`，由 `timeline.vue` 读 query 后直接查（无 query 时退回当前登录用户）。
+仓储按 `user_id = ? OR username = ?` 匹配，两个值都能定位，优先传 ID。
+四处（告警 / 日志 / 任务 / 订阅）的共同点：**业务 ID 进 query，页面自己拉详情**，
+统一用 `watch(..., { immediate: true })` 而不是 `onMounted`——已在该页时再点另一条只改 query、不重新挂载；
+取不到 ID 时不拼空 query，避免打开一个空壳弹窗。
 
 ## 角标一致性
 
@@ -266,7 +280,7 @@
 前端（`views/message/index.vue`）用 `el-checkbox-group` 绑定**当前页**的 ID：翻页 / 筛选后 `loadList`
 会清空选中，避免批量操作带上看不见的消息；批量删除只在「整页被删空」时回退一页。
 
-**交互上的三个一致性约束：**
+**交互上的四个一致性约束：**
 
 - 点开带 `link` 的消息先 `markRead` 再跳转：否则从告警页 / 任务页返回时这条仍显示未读，
   用户会重复处理同一条消息；
@@ -274,6 +288,8 @@
   不这么做的话筛选条件与展示自相矛盾——列表里摆着已读消息，看起来像标记没生效。
 - 「全部已读」的范围跟随当前页签（`read-all` 带 `category`），禁用条件取**该分类**的未读数而不是全局总数；
   已读不可撤回，执行前弹确认写明范围与条数，成功提示用响应里的 `updated`。
+- 分类页签跨会话记住（`localStorage` 键 `meteorx_message_category`，见 `utils/messageCategory.ts`）：
+  存量值不在枚举内时当「全部」；铃铛的「查看全部消息」显式清掉该键，否则名为「全部」却落在被筛过的列表上。
 
 **审计口径**：批量（及单条）写操作**不额外埋点**，由挂在受保护分组的 `AuditMiddleware` 自动记录，
 `module=messages`、`action` 按方法归一（`PUT` → `update`、`DELETE` → `delete`），
@@ -356,7 +372,7 @@ if p, ok := hub.(*ws.Hub); ok && p == nil {
 go test -count=1 ./internal/modules/message/...
 go test -count=1 ./internal/notify/...
 go test -count=1 ./internal/integration -run Message
-cd web-admin && npx vitest run src/api/modules/message.test.ts src/stores/message.test.ts
+cd web-admin && npx vitest run src/api/modules/message.test.ts src/stores/message.test.ts src/utils/messageCategory.test.ts
 ```
 
 覆盖要点：
@@ -365,6 +381,8 @@ cd web-admin && npx vitest run src/api/modules/message.test.ts src/stores/messag
 - 服务：收件人展开与截断（550 → 500）、空收件人不产生行、typed-nil hub 不崩溃；
 - 集成：`NotifyTaskReminder` → 落库 → 未读数 / 列表 / 他人 404 / 重复标记幂等 / 删除，
   以及按分类全部已读只清目标分类（列表里断言 `link` 为 `/task?task_id=tk-1`）；
+- 订阅临期链接：`notify` 层断言 `link` 为 `/system/tenant?tenant_id=t1`、无租户 ID 时为 `/system/tenant`，
+  并断言 WS 消息的 `TenantID` 仍为空（租户 ID 不得把定向推送扩成整租户广播）；
 - 清理任务：默认 90 天、负值关闭、只删过期行；
 - 去重：同一 `(user_id, dedupe_key)` 只落一条、不同用户各自一条、空键多条共存；
   变异检验移除 `OnConflict` 后用例以 `UNIQUE constraint failed` 失败；
@@ -383,6 +401,8 @@ cd web-admin && npx vitest run src/api/modules/message.test.ts src/stores/messag
   连续校正（含与推送混用）合并为一次请求；`clearUnread` 按服务端 `updated` 扣减而非过期的分类明细；
   `reset` 取消排队中的补拉。变异检验：删补拉调用 / 去合并守卫 / 忽略 `updated` / 不 `clearTimeout`
   四项各自只打红对应用例（分别表现为 0 次、4 次调用与 `4 to be 2`）。
+- 分类页签持久化（`utils/messageCategory.test.ts` 5 条）：存值可读回、「全部」以空串存取、
+  枚举外的存量值回落「全部」、清键后回落「全部」。
 - 批量操作：仓储层锁定「只改本人的行、已读行不重复更新、他人 ID 不计入、空列表不下发空 IN」；
   服务层锁定去空白去重（`[" m1 ","","m2","m1"]` → `["m1","m2"]`）与按 `maxBatchIDs` 截断、
   仓储错误原样上抛；handler 层锁定空列表 / 含空 ID / 超 100 条均 400、缺失登录态 401、

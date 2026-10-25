@@ -138,7 +138,7 @@
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| user_id | string | 是 | 用户 ID |
+| user_id | string | 是 | 用户 ID **或用户名**（仓储按 `user_id = ? OR username = ?` 匹配） |
 | page | int | 否 | 页码，默认 1 |
 | page_size | int | 否 | 每页条数，默认 20 |
 | start_time | string | 否 | 开始时间 |
@@ -250,6 +250,11 @@
 **Query 参数：** 参见 2.7 UserTimelineReq
 
 **说明：** 按天分组展示用户操作记录，每日聚合显示总数、成功数、失败数
+
+**前端定位（`?user_id=`）：** 用户时间线页 `views/system/audit/timeline.vue` 读 `route.query.user_id`
+后直接查这个人的时间线（日期筛选与页码重置，避免旧筛选把结果裁成空页）；无 query 时退回当前登录用户，
+保持「进去就看到自己」的默认行为。入口来自告警详情里的「触发用户」（优先传 `user_id`，
+无 ID 时传 `username`）；监听用 `watch` 而非 `onMounted`，已在本页时再点另一个人的告警才会生效。
 
 **成功响应（200）：**
 ```json
@@ -525,7 +530,11 @@
 2. 告警 → 审计日志：详情里的 `audit_log_id` 可点，跳 `/system/audit?log_id={日志ID}`，
    审计日志页据此调 3.8 拉详情（见 3.8 的前端定位）。
 
-两处都用 `watch` 监听 query 而不是只在 `onMounted` 读一次：已在目标页时再点另一条只会改 query，
+另外详情里的**「触发用户」**也可点：跳 `/system/audit/timeline?user_id={用户ID}`，
+时间线页据此查这个人的全部操作（无 ID 时退回 `username`）。告警只存「谁触发的」，
+这个人还做过什么全在时间线里——留一段不可点的文本等于让用户退出去重新敲一遍用户名。
+
+三处都用 `watch` 监听 query 而不是只在 `onMounted` 读一次：已在目标页时再点另一条只会改 query，
 不重新 mount，只读一次会“没反应”。
 
 ---
