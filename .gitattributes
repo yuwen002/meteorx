@@ -1,0 +1,24 @@
+# 统一按 LF 存储与检出。
+# Windows 上 core.autocrlf=true 会让工作区变成 CRLF：编辑后 git status 报「已修改」
+# 而 git diff 为空（假 M），每次提交还刷一串 "LF will be replaced by CRLF" 告警。
+* text=auto eol=lf
+
+# Windows 脚本保持 CRLF：cmd.exe 与 Windows PowerShell 5.1 对纯 LF 的兼容性更差
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制资源不做换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.exe binary
+*.pdf binary
+*.xlsx binary
+*.zip binary
+*.gz binary
