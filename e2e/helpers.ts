@@ -63,9 +63,34 @@ export function deletePlan(code: string): void {
 export interface E2ETenantRef {
   id: string
   name: string
+  /** true 表示库里原本没有租户、由夹具现建，用例结束要删掉 */
+  created: boolean
 }
 
-/** 取一个未删除的租户：站内信 ?tenant_id= 深链用例只验证「按 ID 定位」，不关心是哪一家。 */
-export function firstTenant(): E2ETenantRef {
-  return JSON.parse(runFixture(['list-tenants'])) as E2ETenantRef
+/**
+ * 取一个可用租户；库里没有时夹具会现建一条。
+ * CI 的 e2e 库由 AutoMigrate + Seed 建表，而 seed.sql 不写 tenants，
+ * 不能假设环境里有存量租户。
+ */
+export function ensureTenant(): E2ETenantRef {
+  return JSON.parse(runFixture(['ensure-tenant'])) as E2ETenantRef
+}
+
+export function deleteTenant(id: string): void {
+  runFixture(['delete-tenant', id])
+}
+
+export interface E2EAlertRef {
+  id: string
+  /** 夹具生成：audit_alerts.user_id 列宽 26，调用方拼出来的长串会被数据库拒绝 */
+  user_id: string
+}
+
+/** 造一条审计告警，供「告警详情 → 触发用户 → 时间线」用例定位。 */
+export function seedAlert(username: string): E2EAlertRef {
+  return JSON.parse(runFixture(['seed-alert', username])) as E2EAlertRef
+}
+
+export function deleteAlert(id: string): void {
+  runFixture(['delete-alert', id])
 }
