@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"meteorx/internal/modules/user/dto"
+	"meteorx/internal/modules/user/importer"
 	"meteorx/internal/modules/user/repository"
 	"meteorx/internal/modules/user/service"
 
@@ -66,6 +67,8 @@ type UserService interface {
 	AdminBatchUpdateTenantUserStatus(ctx context.Context, tenantID string, ids []string, status int) (int64, error)
 	AdminBatchDeleteTenantUsers(ctx context.Context, tenantID string, ids []string) (int64, error)
 	AdminResetTenantUserPassword(ctx context.Context, tenantID, userID, newPassword string) error
+	// 批量导入
+	ImportUsers(ctx context.Context, tenantID string, rows []importer.Row, defaultRoleIDs []string) (*service.ImportResult, []service.ImportRowError, error)
 }
 
 // UserHandler 用户管理处理器
@@ -184,6 +187,13 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	tenantID := contextx.GetTenantID(r.Context())
 	if tenantID == "" {
 		response.Fail(w, http.StatusUnauthorized, "未获取到租户信息")
+		return
+	}
+	// 系统管理员的登录态租户是虚拟租户 SYSTEM_ROOT，不是真实租户：
+	// 走本接口只会把用户建到这个虚拟租户里（列表里看得到、谁也登录不进去），
+	// 跨租户建号必须走 /admin/tenant-users 并显式指定 tenant_id。
+	if tenantID == contextx.SystemTenantID {
+		response.Fail(w, http.StatusBadRequest, "系统管理员请使用跨租户接口为指定租户创建用户")
 		return
 	}
 

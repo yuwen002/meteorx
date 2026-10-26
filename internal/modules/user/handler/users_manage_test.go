@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"meteorx/internal/common/contextx"
 	"meteorx/internal/modules/user/dto"
 	"meteorx/internal/modules/user/service"
 
@@ -196,6 +197,18 @@ func TestCreateUser_Success_ForwardsTenant(t *testing.T) {
 	assert.Equal(t, "tenant-1", stub.GotTenantID)
 	require.NotNil(t, stub.GotCreateReq)
 	assert.Equal(t, []string{"r1", "r2"}, stub.GotCreateReq.RoleIDs)
+}
+
+func TestCreateUser_SystemTenantRejected_Returns400(t *testing.T) {
+	stub := &stubUserService{}
+	router := newUserRouter(stub)
+
+	body := `{"username":"bobby","password":"123456","nickname":"bob","role_ids":["r1"]}`
+	w := doAs(t, router, http.MethodPost, "/users", body, contextx.SystemTenantID)
+
+	// 系统管理员的登录态租户是虚拟租户，走租户接口只会把用户建到一个没人能登录的租户里
+	assertFailCode(t, w, http.StatusBadRequest, "跨租户接口")
+	assert.Empty(t, stub.GotCreateReq, "系统租户下不得落库到本接口")
 }
 
 // ============ 更新 / 删除用户 ============

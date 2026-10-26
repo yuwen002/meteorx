@@ -89,6 +89,22 @@ func do(t *testing.T, router http.Handler, method, path, body string) *httptest.
 	return w
 }
 
+// doAs 发送带指定租户登录态的请求（用于 SYSTEM_ROOT 这类特殊租户分支）
+func doAs(t *testing.T, router http.Handler, method, path, body, tenantID string) *httptest.ResponseRecorder {
+	t.Helper()
+	var req *http.Request
+	if body == "" {
+		req = httptest.NewRequest(method, path, nil)
+	} else {
+		req = httptest.NewRequest(method, path, bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req = req.WithContext(contextx.SetVars(req.Context(), tenantID, "user-1", []string{"superadmin"}))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
 // doAnon 发送匿名请求（无身份上下文，用于 401 分支）
 func doAnon(t *testing.T, router http.Handler, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
