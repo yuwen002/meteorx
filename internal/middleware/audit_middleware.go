@@ -70,12 +70,7 @@ func AuditMiddleware(auditSvc *service.AuditService, ipLocator iplocation.IPLoca
 			w.Header().Set("X-Trace-ID", traceID)
 
 			// 读取请求体
-			var requestBody string
-			if r.Body != nil && r.Body != http.NoBody {
-				bodyBytes, _ := io.ReadAll(r.Body)
-				requestBody = string(bodyBytes)
-				r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-			}
+			requestBody := readRequestBodyForAudit(r)
 
 			// 包装 ResponseWriter 以捕获响应
 			recorder := newResponseRecorder(w)
@@ -95,6 +90,31 @@ func AuditMiddleware(auditSvc *service.AuditService, ipLocator iplocation.IPLoca
 			}()
 		})
 	}
+}
+
+// maxAuditBodyBytes 审计保留的请求体上限。审计只用于事后定位“改了什么”，
+// 超过这个长度的内容既无阅读价值，也会白白占用内存与数据库行宽。
+const maxAuditBodyBytes = 64 << 10
+
+// multipartBodyPlaceholder 用于替代 multipart 正文。
+// 文件上传（导入、附件）的正文是二进制与用户明文数据，既无法阅读也不应落库：
+// 导入 CSV/XLSX 一旦被执行体采集，文件内容（含密码列）会进审计日志。
+const multipartBodyPlaceholder = "[multipart/form-data 请求体不入审计日志]"
+
+// readRequestBodyForAudit 为审计采集请求体副本，并保证后续 handler 仍能读到完整内容。
+// multipart 请求直接跳过：既不缓存也不复制，handler 照常流式解析。
+func readRequestBodyForAudit(r *http.Request) string {
+	if r.Body == nil || r.Body == http.NoBody {
+		return ""
+	}
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
+		return multipartBodyPlaceholder
+	}
+
+	bodyBytes, _ := io.ReadAll(io.LimitReader(r.Body, maxAuditBodyBytes+1))
+	// 未读完的部分用 MultiReader 拼回，handler 读取到的仍是完整请求体
+	r.Body = io.NopCloser(io.MultiReader(bytes.NewReader(bodyBytes), r.Body))
+	return string(bodyBytes)
 }
 
 // recordAuditLog 记录审计日志
@@ -245,11 +265,17 @@ func sanitizeBody(body string) string {
 		return body // 不是 JSON，原样返回
 	}
 
-	// 敏感字段脱敏
-	sensitiveFields := []string{"password", "token", "secret", "authorization", "credit_card", "id_card"}
-	for _, field := range sensitiveFields {
-		if _, exists := data[field]; exists {
-			data[field] = "***"
+	// 敏感字段脱敏。按“字段名包含关键字”匹配，而不是只列全等名：
+	// old_password / new_password / initial_password / refresh_token 这类变体
+	// 只靠全等匹配会全部漏掉。
+	sensitiveKeywords := []string{"password", "token", "secret", "authorization", "credit_card", "id_card"}
+	for key := range data {
+		lower := strings.ToLower(key)
+		for _, kw := range sensitiveKeywords {
+			if strings.Contains(lower, kw) {
+				data[key] = "***"
+				break
+			}
 		}
 	}
 
@@ -390,6 +416,9 @@ func buildTags(module, action, result, method, path string) string {
 	}
 	if strings.Contains(path, "upload") {
 		tags = append(tags, "upload")
+	}
+	if strings.Contains(path, "import") {
+		tags = append(tags, "import")
 	}
 	// 批量写（如消息批量已读 / 批量删除）：请求体中的 ID 列表可能因长度被截断，
 	// 打上 batch 标签后审计仍能按标签整类筛出来，不必依赖 body 内容。

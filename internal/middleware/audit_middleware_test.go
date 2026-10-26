@@ -1,6 +1,12 @@
 package middleware
 
 import (
+	"bytes"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"meteorx/internal/modules/audit/model"
@@ -62,4 +68,79 @@ func TestShouldSkipAudit_BatchMessagesKept(t *testing.T) {
 	require.False(t, shouldSkipAudit("/api/v1/messages/batch/read"))
 	require.True(t, shouldSkipAudit("/health"))
 	require.True(t, shouldSkipAudit("/api/v1/audit/logs"))
+}
+
+// TestReadRequestBodyForAudit_SkipsMultipart 导入/附件上传的正文不采集：
+// 文件内容（含密码列）不能进审计日志，同时 handler 必须仍能拿到完整表单。
+func TestReadRequestBodyForAudit_SkipsMultipart(t *testing.T) {
+	body := &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+	part, err := w.CreateFormFile("file", "users.csv")
+	require.NoError(t, err)
+	_, err = part.Write([]byte("username,password\nalice,S3cret!\n"))
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/users/import", bytes.NewReader(body.Bytes()))
+	r.Header.Set("Content-Type", w.FormDataContentType())
+
+	got := readRequestBodyForAudit(r)
+	require.Equal(t, multipartBodyPlaceholder, got)
+	require.NotContains(t, got, "S3cret!")
+
+	// handler 侧仍要能正常解析出文件与内容
+	require.NoError(t, r.ParseMultipartForm(1<<20))
+	file, header, err := r.FormFile("file")
+	require.NoError(t, err)
+	defer func() { _ = file.Close() }()
+	require.Equal(t, "users.csv", header.Filename)
+	content, err := io.ReadAll(file)
+	require.NoError(t, err)
+	require.Contains(t, string(content), "alice")
+}
+
+// TestReadRequestBodyForAudit_KeepsJSONBody JSON 请求体照旧采集，
+// 且超过上限时只截取前 maxAuditBodyBytes 字节，handler 仍能读到完整内容。
+func TestReadRequestBodyForAudit_KeepsJSONBody(t *testing.T) {
+	payload := `{"username":"alice"}`
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(payload))
+	r.Header.Set("Content-Type", "application/json")
+	require.Equal(t, payload, readRequestBodyForAudit(r))
+
+	rest, err := io.ReadAll(r.Body)
+	require.NoError(t, err)
+	require.Equal(t, payload, string(rest), "handler 应能读到完整请求体")
+}
+
+func TestReadRequestBodyForAudit_TruncatesLargeBody(t *testing.T) {
+	big := strings.Repeat("a", maxAuditBodyBytes+1024)
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(big))
+
+	got := readRequestBodyForAudit(r)
+	require.Len(t, got, maxAuditBodyBytes+1)
+
+	rest, err := io.ReadAll(r.Body)
+	require.NoError(t, err)
+	// handler 从头部开始读，拿到的仍是完整的原始请求体
+	require.Equal(t, len(big), len(rest), "handler 应能读到完整请求体")
+	require.True(t, strings.HasPrefix(string(rest), got))
+	require.Equal(t, big, string(rest))
+}
+
+// TestSanitizeBody_MasksPasswordVariants 密码字段的各种命名变体都要被脱敏。
+func TestSanitizeBody_MasksPasswordVariants(t *testing.T) {
+	body := `{"old_password":"a","NewPassword":"b","initial_password":"c","refresh_token":"d","username":"alice"}`
+	out := sanitizeBody(body)
+
+	require.NotContains(t, out, `"a"`)
+	require.NotContains(t, out, `"b"`)
+	require.NotContains(t, out, `"c"`)
+	require.NotContains(t, out, `"d"`)
+	require.Contains(t, out, "alice")
+}
+
+// TestBuildTags_ImportMarker 批量导入需要 import 标签，便于审计按类型检索。
+func TestBuildTags_ImportMarker(t *testing.T) {
+	tags := buildTags("users", model.ActionTypeCreate, model.ResultSuccess, "POST", "/api/v1/users/import")
+	require.Contains(t, tags, `"import"`)
 }
