@@ -25,6 +25,7 @@ func RegisterRoutes(r chi.Router, h *handler.UserHandler, checker middleware.Per
 		r.Use(middleware.AutoRequirePermission(checker))
 		r.Get("/", h.ListUsers)                            // → 自动需要 user:list
 		r.Post("/", h.CreateUser)                          // → 自动需要 user:create
+		r.Post("/import", h.ImportUsers)                   // → 自动需要 user:create（批量导入与逐个新建同门槛）
 		r.Get("/deleted", h.ListDeletedUsers)              // recycle: list deleted users
 		r.Get("/{id}/detail", h.GetUser)                   // → 自动需要 user:read
 		r.Put("/{id}/update", h.UpdateUser)                // → 自动需要 user:update
@@ -60,6 +61,7 @@ func RegisterAdminRoutes(r chi.Router, h *handler.UserHandler, checker middlewar
 	r.Route("/admin/tenant-users", func(r chi.Router) {
 		r.Use(middleware.AutoRequirePermission(checker))
 		r.Post("/", h.AdminCreateTenantUser)                                         // → admin:tenant_user:create
+		r.Post("/import", h.AdminImportTenantUsers)                                  // → admin:tenant_user:create
 		r.Get("/all", h.AdminListAllTenantUsers)                                     // → admin:tenant_user:list
 		r.Get("/deleted/all", h.AdminListAllDeletedTenantUsers)                      // → admin:tenant_user:list_deleted
 		r.Get("/{tenantID}/list", h.AdminListTenantUsers)                            // → admin:tenant_user:list

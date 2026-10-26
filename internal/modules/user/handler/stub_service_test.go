@@ -4,7 +4,9 @@ import (
 	"context"
 
 	"meteorx/internal/modules/user/dto"
+	"meteorx/internal/modules/user/importer"
 	"meteorx/internal/modules/user/repository"
+	"meteorx/internal/modules/user/service"
 )
 
 // stubUserService 桩实现 handler.UserService：预设返回并捕获最近入参。
@@ -34,6 +36,12 @@ type stubUserService struct {
 	GotUpdateAdmin *dto.UpdateMasterAdminReq
 	GotAdminCreateTenant *dto.AdminCreateTenantUserReq
 	GotFilter            repository.UserListFilter
+
+	// 批量导入
+	ImportResult  *service.ImportResult
+	ImportRowErrs []service.ImportRowError
+	GotImportRows []importer.Row
+	GotRoleIDs    []string
 }
 
 // 租户内用户管理
@@ -228,4 +236,9 @@ func (s *stubUserService) AdminBatchDeleteTenantUsers(_ context.Context, tenantI
 func (s *stubUserService) AdminResetTenantUserPassword(_ context.Context, tenantID, userID, newPassword string) error {
 	s.GotTenantID, s.GotUserID, s.GotNewPass = tenantID, userID, newPassword
 	return s.Err
+}
+
+func (s *stubUserService) ImportUsers(_ context.Context, tenantID string, rows []importer.Row, defaultRoleIDs []string) (*service.ImportResult, []service.ImportRowError, error) {
+	s.GotTenantID, s.GotImportRows, s.GotRoleIDs = tenantID, rows, defaultRoleIDs
+	return s.ImportResult, s.ImportRowErrs, s.Err
 }

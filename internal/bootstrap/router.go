@@ -233,7 +233,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			tenant.RegisterTenantSettingsRoutes(r, tenantSettingsHandler)
 
 			// 4. 用户/业务接口
-			user.InitModule(r, db)
+			user.InitModule(r, db, cfg.Security.PasswordPolicy)
 
 			// 4.1 当前用户个人信息接口
 			user.InitProfileModule(r, db)
@@ -294,7 +294,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 				tenant.InitAdminModule(r, db)
 
 				// 6. 系统管理员管理接口
-				user.InitAdminModule(r, db)
+				user.InitAdminModule(r, db, cfg.Security.PasswordPolicy)
 
 				// 7. RBAC 角色权限管理接口（仅后台管理员可操作）
 				rbac.InitModule(r, db, rdb, repo)

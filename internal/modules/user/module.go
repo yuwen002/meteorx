@@ -2,6 +2,7 @@
 package user
 
 import (
+	"meteorx/internal/config"
 	"meteorx/internal/middleware"
 	plan "meteorx/internal/modules/plan"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
@@ -25,31 +26,34 @@ func newPermissionChecker(db *gorm.DB) middleware.PermissionChecker {
 }
 
 // 提取公共工厂方法，保持与租户模块结构一致
-func initHandler(db *gorm.DB) (*handler.UserHandler, middleware.PermissionChecker) {
+func initHandler(db *gorm.DB, policy config.PasswordPolicyConfig) (*handler.UserHandler, middleware.PermissionChecker) {
 	repo := userRepository.NewUserRepository(db)
 	tenantRepo := repository.NewTenantRepository(db)
 	roleRepo := rbacRepo.NewRoleRepository(db)
 	userRoleRepo := rbacRepo.NewUserRoleRepository(db)
 	svc := service.NewUserService(repo, tenantRepo, roleRepo, userRoleRepo)
 	svc.SetQuotaVerifier(plan.NewQuotaVerifier(db))
+	// 批量导入需要独立的事务型仓储与密码策略（决定生成初始密码的长度）
+	svc.SetImportRepository(userRepository.NewImportRepository(db))
+	svc.SetPasswordPolicy(policy)
 	checker := newPermissionChecker(db)
 	return handler.NewUserHandler(svc), checker
 }
 
 // InitModule 用户模块初始化（普通租户用户管理）
-func InitModule(r chi.Router, db *gorm.DB) {
-	h, checker := initHandler(db)
+func InitModule(r chi.Router, db *gorm.DB, policy config.PasswordPolicyConfig) {
+	h, checker := initHandler(db, policy)
 	RegisterRoutes(r, h, checker)
 }
 
 // InitProfileModule 用户个人信息接口初始化（当前用户操作自己的信息）
 func InitProfileModule(r chi.Router, db *gorm.DB) {
-	h, _ := initHandler(db)
+	h, _ := initHandler(db, config.PasswordPolicyConfig{})
 	RegisterProfileRoutes(r, h)
 }
 
 // InitAdminModule 用户模块的系统管理员接口初始化
-func InitAdminModule(r chi.Router, db *gorm.DB) {
-	h, checker := initHandler(db)
+func InitAdminModule(r chi.Router, db *gorm.DB, policy config.PasswordPolicyConfig) {
+	h, checker := initHandler(db, policy)
 	RegisterAdminRoutes(r, h, checker)
 }

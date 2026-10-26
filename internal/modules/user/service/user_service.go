@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"meteorx/internal/config"
 	planRepo "meteorx/internal/modules/plan/repository"
 	planService "meteorx/internal/modules/plan/service"
 	rbacModel "meteorx/internal/modules/rbac/model"
@@ -51,6 +52,11 @@ type UserService struct {
 	roleRepo      rbacRepo.RoleRepository
 	userRoleRepo  rbacRepo.UserRoleRepository
 	quotaVerifier planRepo.QuotaVerifier
+
+	// 批量导入相关依赖走可选注入：未注入时导入接口返回"未启用"，
+	// 不影响既有的单条 CRUD 调用链与现有单测的构造方式。
+	importRepo     repository.ImportRepository
+	passwordPolicy config.PasswordPolicyConfig
 }
 
 // NewUserService 创建用户服务实例。
