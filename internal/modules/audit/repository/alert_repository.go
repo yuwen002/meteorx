@@ -261,9 +261,13 @@ func serializeJSON(v interface{}) string {
 
 // GetAlertStats 获取告警统计数据
 func (r *alertRuleRepository) GetAlertStats(ctx context.Context, days int) (*model.AlertStats, error) {
+	// 切片显式初始化为空而非 nil：nil 序列化成 JSON null，
+	// 前端拿到 null 再调 .map 会直接抛 TypeError（零数据时必现）
 	stats := &model.AlertStats{
 		RiskLevelStats: make(map[string]int64),
 		RuleStats:      make(map[string]int64),
+		TopRules:       make([]model.RuleCount, 0),
+		Trend:          make([]model.TrendPoint, 0),
 	}
 
 	// 总告警数

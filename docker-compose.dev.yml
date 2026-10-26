@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # 开发应用服务（带热重载）
   app:
