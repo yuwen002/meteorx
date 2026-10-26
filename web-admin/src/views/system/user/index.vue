@@ -55,8 +55,15 @@
         <el-button v-if="userStore.hasPermission('user:create') && !isRecycleBin" type="success" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>新增用户
         </el-button>
+        <el-button
+          v-if="userStore.hasPermission('user:create') && !isRecycleBin"
+          type="primary"
+          plain
+          @click="openImportDialog"
+        >
+          <el-icon><Upload /></el-icon>批量导入
+        </el-button>
       </div>
-
       <!-- 列表 -->
       <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="60" :index="(i: number) => (page - 1) * pageSize + i + 1" />
@@ -170,6 +177,9 @@
       </div>
     </el-card>
 
+    <!-- 批量导入弹窗：租户管理员在当前租户内导入，系统管理员在弹窗内选择目标租户 -->
+    <UserImportDialog v-model="importDialogVisible" :admin-mode="userStore.isAdmin" @imported="onImported" />
+
     <!-- 查看权限弹窗 -->
     <el-dialog
       v-model="permsDialogVisible"
@@ -249,6 +259,18 @@
         :rules="rules"
         label-width="90px"
       >
+        <el-form-item v-if="dialogMode === 'create' && userStore.isAdmin" label="目标租户" required>
+          <el-select
+            v-model="createTenantId"
+            filterable
+            clearable
+            :loading="createTenantLoading"
+            placeholder="选择在哪个租户下创建"
+            style="width: 100%"
+          >
+            <el-option v-for="t in createTenantOptions" :key="t.id" :label="t.name" :value="t.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="用户名" prop="username">
           <el-input v-model="form.username" :disabled="dialogMode === 'edit'" placeholder="请输入用户名" />
         </el-form-item>
@@ -266,6 +288,20 @@
         </el-form-item>
         <el-form-item label="岗位" prop="position">
           <el-input v-model="form.position" placeholder="请输入岗位" maxlength="100" />
+        </el-form-item>
+        <el-form-item v-if="dialogMode === 'create'" label="角色" prop="role_ids">
+          <!-- 后端创建接口的 role_ids 为必填（min=1），不选会直接 400 -->
+          <el-select
+            v-model="createRoleIds"
+            multiple
+            filterable
+            clearable
+            :loading="createRoleLoading"
+            placeholder="至少选择一个角色"
+            style="width: 100%"
+          >
+            <el-option v-for="r in createRoleOptions" :key="r.id" :label="r.name" :value="r.id" />
+          </el-select>
         </el-form-item>
         <el-form-item v-if="dialogMode === 'edit'" label="备注" prop="remark">
           <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="管理员备注" maxlength="255" />
@@ -368,7 +404,7 @@ import { reactive, ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Search, Plus, Delete } from '@element-plus/icons-vue'
+import { Search, Plus, Delete, Upload } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import {
   getUserList,
@@ -376,6 +412,7 @@ import {
   getAllDeletedTenantUsers,
   getDeletedUserList,
   createUser,
+  createTenantUser,
   updateUser,
   updateTenantUser,
   resetUserPassword,
@@ -391,10 +428,12 @@ import {
   type UserListParams
 } from '@/api/modules/user'
 import { getUserRoles, getRolePermissions, type RoleItem, getRoleListForSelect, assignUserRoles, removeAllUserRoles } from '@/api/modules/role'
+import { getTenantList, type TenantItem } from '@/api/modules/tenant'
 import { type PermissionItem } from '@/api/modules/permission'
 import { getAuditLogList, type AuditLogItem } from '@/api/modules/audit'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
+import UserImportDialog from './components/UserImportDialog.vue'
 
 const userStore = useUserStore()
 
@@ -479,6 +518,16 @@ const formRef = ref<FormInstance>()
 const saving = ref(false)
 const editingId = ref<string | null>(null)
 const editingTenantId = ref<string | null>(null)
+// 系统管理员新建用户时必须显式选租户：登录态租户是虚拟的 SYSTEM_ROOT，后端会拒绝
+const createTenantId = ref('')
+const createTenantOptions = ref<TenantItem[]>([])
+const createTenantLoading = ref(false)
+const createTenantLoaded = ref(false)
+// 创建接口要求至少一个角色（role_ids min=1），不选会直接 400
+const createRoleIds = ref<string[]>([])
+const createRoleOptions = ref<RoleItem[]>([])
+const createRoleLoading = ref(false)
+const createRoleLoaded = ref(false)
 const form = reactive<UserCreateParams & UserUpdateParams>({
   username: '',
   password: '',
@@ -545,6 +594,17 @@ const loginLogsPage = ref(1)
 const loginLogsPageSize = ref(10)
 const loginLogsTotal = ref(0)
 
+// 批量导入相关
+const importDialogVisible = ref(false)
+
+function openImportDialog() {
+  importDialogVisible.value = true
+}
+
+function onImported() {
+  loadList()
+}
+
 function toggleRecycleBin() {
   isRecycleBin.value = !isRecycleBin.value
   page.value = 1
@@ -555,10 +615,43 @@ function resetSearch() {
   reset()
 }
 
+async function loadCreateTenantOptions() {
+  if (createTenantLoaded.value) return
+  createTenantLoaded.value = true
+  createTenantLoading.value = true
+  try {
+    const res = await getTenantList({ page: 1, page_size: 200 })
+    // 停用租户下的账号无法登录，不作为新建目标
+    createTenantOptions.value = (res?.data ?? []).filter((t) => t.status === 1)
+  } catch {
+    createTenantLoaded.value = false
+  } finally {
+    createTenantLoading.value = false
+  }
+}
+
+async function loadCreateRoleOptions() {
+  if (createRoleLoaded.value) return
+  createRoleLoading.value = true
+  try {
+    // 租户级角色（含 scope=all 的平台角色）才能分配给租户用户
+    createRoleOptions.value = (await getRoleListForSelect('tenant')) ?? []
+    createRoleLoaded.value = true
+  } catch {
+    // 拉取失败不阻断弹窗：不选角色提交时后端会给出明确提示
+  } finally {
+    createRoleLoading.value = false
+  }
+}
+
 function openCreateDialog() {
   dialogMode.value = 'create'
   editingId.value = null
   editingTenantId.value = null
+  createTenantId.value = ''
+  createRoleIds.value = []
+  if (userStore.isAdmin) loadCreateTenantOptions()
+  loadCreateRoleOptions()
   form.username = ''
   form.password = ''
   form.nickname = ''
@@ -589,17 +682,33 @@ async function submitForm() {
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
     if (!valid) return
+    // 系统管理员不选租户就提交，会落到登录态的虚拟租户里，直接拦住
+    if (dialogMode.value === 'create' && userStore.isAdmin && !createTenantId.value) {
+      ElMessage.warning('请先选择目标租户')
+      return
+    }
+    if (dialogMode.value === 'create' && !createRoleIds.value.length) {
+      ElMessage.warning('请至少选择一个角色')
+      return
+    }
     saving.value = true
     try {
       if (dialogMode.value === 'create') {
-        await createUser({
+        const payload: UserCreateParams = {
           username: form.username.trim(),
           password: form.password,
           nickname: form.nickname,
           email: form.email,
           department: form.department,
-          position: form.position
-        })
+          position: form.position,
+          role_ids: createRoleIds.value
+        }
+        // 系统管理员的登录态租户是虚拟租户 SYSTEM_ROOT，必须走跨租户接口带上目标租户
+        if (userStore.isAdmin) {
+          await createTenantUser(createTenantId.value, payload)
+        } else {
+          await createUser(payload)
+        }
         ElMessage.success('新增成功')
       } else if (editingId.value) {
         const updateData: UserUpdateParams = {

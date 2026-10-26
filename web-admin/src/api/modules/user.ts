@@ -269,6 +269,56 @@ export function batchUpdateTenantUserStatus(tenantId: string, ids: string[], sta
   return put(`/admin/tenant-users/${tenantId}/batch/status`, { ids, status })
 }
 
+// ==================== 批量导入接口 ====================
+
+// 单行导入成功结果（initial_password 为服务端生成的初始密码，仅本次响应可见）
+export interface ImportUserResult {
+  row: number
+  user_id: string
+  username: string
+  nickname?: string
+  email?: string
+  role_codes: string[]
+  initial_password: string
+}
+
+// 单行校验失败明细（row 为文件内物理行号，表头为第 1 行）
+export interface ImportRowError {
+  row: number
+  field: string
+  message: string
+}
+
+export interface ImportUsersResult {
+  total: number
+  created: number
+  users: ImportUserResult[]
+  warnings?: string[]
+}
+
+export interface ImportUsersOptions {
+  file: File
+  roleIds?: string[]
+  // 传入租户ID 时走管理端端点（系统管理员为指定租户导入）
+  tenantId?: string
+}
+
+// 批量导入用户：文件 + 可选默认角色，全量事务语义（任一行不合法则一条都不写）
+export function importUsers({ file, roleIds, tenantId }: ImportUsersOptions) {
+  const form = new FormData()
+  form.append('file', file)
+  if (roleIds?.length) {
+    form.append('role_ids', roleIds.join(','))
+  }
+  if (tenantId) {
+    form.append('tenant_id', tenantId)
+  }
+  return post<ImportUsersResult>(tenantId ? '/admin/tenant-users/import' : '/users/import', form, {
+    // 500 行以内的文件在服务端需要逐个 bcrypt 哈希，放宽超时避免中途断开
+    timeout: 120000
+  })
+}
+
 // ==================== 用户角色管理接口 ====================
 
 // 解除用户角色绑定
