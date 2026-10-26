@@ -119,6 +119,16 @@ export function deleteUser(id: string) {
   return del(`/users/${id}/delete`)
 }
 
+// 批量更新当前租户用户状态
+export function batchUpdateUserStatus(ids: string[], status: number) {
+  return put('/users/batch/status', { ids, status })
+}
+
+// 批量删除当前租户用户（软删除）
+export function batchDeleteUsers(ids: string[]) {
+  return del('/users/batch/delete', { data: { ids } })
+}
+
 // ==================== 个人中心接口 ====================
 
 // 获取当前用户个人信息

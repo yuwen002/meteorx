@@ -64,8 +64,43 @@
           <el-icon><Upload /></el-icon>批量导入
         </el-button>
       </div>
+      <!-- 批量操作栏：勾选后才出现，系统管理员按租户分组提交 -->
+      <div v-if="batchEnabled && selectedRows.length" class="batch-bar">
+        <span class="batch-count">已选 {{ selectedRows.length }} 项</span>
+        <el-button
+          v-if="canBatchStatus"
+          size="small"
+          type="success"
+          :loading="batchLoading"
+          @click="handleBatchStatus(1)"
+        >批量启用</el-button>
+        <el-button
+          v-if="canBatchStatus"
+          size="small"
+          type="warning"
+          :loading="batchLoading"
+          @click="handleBatchStatus(0)"
+        >批量禁用</el-button>
+        <el-button
+          v-if="canBatchDelete"
+          size="small"
+          type="danger"
+          :loading="batchLoading"
+          @click="handleBatchDelete"
+        >批量删除</el-button>
+        <el-button size="small" link @click="clearSelection">取消选择</el-button>
+      </div>
       <!-- 列表 -->
-      <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
+      <el-table
+        ref="tableRef"
+        v-loading="loading"
+        :data="list"
+        border
+        stripe
+        style="width: 100%"
+        @selection-change="onSelectionChange"
+      >
+        <el-table-column v-if="batchEnabled" type="selection" width="48" :selectable="isRowSelectable" />
         <el-table-column type="index" label="#" width="60" :index="(i: number) => (page - 1) * pageSize + i + 1" />
         <el-table-column prop="username" label="用户名" min-width="140" />
         <el-table-column prop="nickname" label="昵称" min-width="120" />
@@ -400,10 +435,10 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
-import type { FormInstance, FormRules } from 'element-plus'
+import type { FormInstance, FormRules, TableInstance } from 'element-plus'
 import { Search, Plus, Delete, Upload } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import {
@@ -418,6 +453,10 @@ import {
   resetUserPassword,
   resetTenantUserPassword,
   deleteUser,
+  batchUpdateUserStatus,
+  batchDeleteUsers,
+  batchUpdateTenantUserStatus,
+  batchDeleteTenantUsers,
   restoreTenantUser,
   permanentDeleteTenantUser,
   restoreUser,
@@ -484,6 +523,110 @@ const {
   initialQuery: { keyword: '', status: undefined, role: undefined, sort: undefined, order: undefined, created_from: undefined, created_to: undefined }
 })
 const loadList = reload
+
+// ---------- 批量操作 ----------
+const tableRef = ref<TableInstance>()
+const selectedRows = ref<UserItem[]>([])
+const batchLoading = ref(false)
+const canBatchStatus = computed(() => userStore.hasPermission('user:batch_status'))
+const canBatchDelete = computed(() => userStore.hasPermission('user:batch_delete'))
+// 回收站里的行不支持批量操作（批量接口只面向在用用户）
+const batchEnabled = computed(() => !isRecycleBin.value && (canBatchStatus.value || canBatchDelete.value))
+
+// 系统管理员的批量接口把租户ID放在路径上，缺租户ID的行无法提交
+function isRowSelectable(row: UserItem) {
+  return !!row.id && (!userStore.isAdmin || !!row.tenant_id)
+}
+
+function onSelectionChange(rows: UserItem[]) {
+  selectedRows.value = rows
+}
+
+function clearSelection() {
+  selectedRows.value = []
+  tableRef.value?.clearSelection()
+}
+
+// 翻页/刷新后列表已换血，残留的勾选会指向旧行
+watch(list, () => clearSelection())
+
+// 把勾选行按 tenant_id 分组，供系统管理员逐个租户提交
+function groupIdsByTenant(rows: UserItem[]): Map<string, string[]> {
+  const grouped = new Map<string, string[]>()
+  for (const row of rows) {
+    if (!row.id || !row.tenant_id) continue
+    const ids = grouped.get(row.tenant_id) ?? []
+    ids.push(row.id)
+    grouped.set(row.tenant_id, ids)
+  }
+  return grouped
+}
+
+async function handleBatchStatus(status: number) {
+  const rows = selectedRows.value.filter((row) => row.id)
+  if (!rows.length) return
+  const action = status === 1 ? '启用' : '禁用'
+  try {
+    await ElMessageBox.confirm(`确定要批量${action}选中的 ${rows.length} 个用户吗？`, '提示', { type: 'warning' })
+  } catch {
+    return
+  }
+  batchLoading.value = true
+  try {
+    if (userStore.isAdmin) {
+      const grouped = groupIdsByTenant(rows)
+      if (!grouped.size) {
+        ElMessage.warning('所选用户缺少租户信息，无法批量操作')
+        return
+      }
+      // 逐个租户提交：某个租户失败会中断后续请求，已提交的租户不会回滚
+      for (const [tenantId, ids] of grouped) {
+        await batchUpdateTenantUserStatus(tenantId, ids, status)
+      }
+    } else {
+      await batchUpdateUserStatus(rows.map((row) => row.id), status)
+    }
+    ElMessage.success(`已批量${action} ${rows.length} 个用户`)
+    clearSelection()
+    reload()
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+async function handleBatchDelete() {
+  const rows = selectedRows.value.filter((row) => row.id)
+  if (!rows.length) return
+  try {
+    await ElMessageBox.confirm(`确定要删除选中的 ${rows.length} 个用户吗？此操作不可恢复`, '危险操作', {
+      type: 'error',
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消'
+    })
+  } catch {
+    return
+  }
+  batchLoading.value = true
+  try {
+    if (userStore.isAdmin) {
+      const grouped = groupIdsByTenant(rows)
+      if (!grouped.size) {
+        ElMessage.warning('所选用户缺少租户信息，无法批量操作')
+        return
+      }
+      for (const [tenantId, ids] of grouped) {
+        await batchDeleteTenantUsers(tenantId, ids)
+      }
+    } else {
+      await batchDeleteUsers(rows.map((row) => row.id))
+    }
+    ElMessage.success(`已删除 ${rows.length} 个用户`)
+    clearSelection()
+    reload()
+  } finally {
+    batchLoading.value = false
+  }
+}
 
 // 注册时间区间：映射到 query.created_from / query.created_to
 const createdRange = computed<[string, string] | null>({
@@ -997,6 +1140,19 @@ async function loadLoginLogs() {
 }
 .flex-1 {
   flex: 1;
+}
+.batch-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+.batch-count {
+  font-size: 13px;
+  color: #606266;
 }
 .pagination {
   display: flex;

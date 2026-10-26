@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { importUsers, type ImportUsersResult } from './user'
+import {
+  batchDeleteTenantUsers,
+  batchDeleteUsers,
+  batchUpdateTenantUserStatus,
+  batchUpdateUserStatus,
+  importUsers,
+  type ImportUsersResult
+} from './user'
 
 vi.mock('@/api/request', () => ({
   get: vi.fn(),
@@ -8,7 +15,7 @@ vi.mock('@/api/request', () => ({
   del: vi.fn()
 }))
 
-import { post } from '@/api/request'
+import { post, put, del } from '@/api/request'
 
 const sampleResult: ImportUsersResult = {
   total: 2,
@@ -74,5 +81,43 @@ describe('User Import API', () => {
     const res = await importUsers({ file: makeFile() })
 
     expect(res.warnings?.[0]).toContain('默认角色')
+  })
+})
+
+describe('User Batch API', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('batchUpdateUserStatus 应把 ids 与 status 提交到当前租户端点', async () => {
+    vi.mocked(put).mockResolvedValue(undefined)
+
+    await batchUpdateUserStatus(['u1', 'u2'], 0)
+
+    expect(put).toHaveBeenCalledWith('/users/batch/status', { ids: ['u1', 'u2'], status: 0 })
+  })
+
+  it('batchDeleteUsers 应把 ids 放在 DELETE 请求体里', async () => {
+    vi.mocked(del).mockResolvedValue(undefined)
+
+    await batchDeleteUsers(['u1'])
+
+    expect(del).toHaveBeenCalledWith('/users/batch/delete', { data: { ids: ['u1'] } })
+  })
+
+  it('batchUpdateTenantUserStatus 应按租户提交（系统管理员跨租户）', async () => {
+    vi.mocked(put).mockResolvedValue(undefined)
+
+    await batchUpdateTenantUserStatus('tn-1', ['u1'], 1)
+
+    expect(put).toHaveBeenCalledWith('/admin/tenant-users/tn-1/batch/status', { ids: ['u1'], status: 1 })
+  })
+
+  it('batchDeleteTenantUsers 应按租户提交删除（系统管理员跨租户）', async () => {
+    vi.mocked(del).mockResolvedValue(undefined)
+
+    await batchDeleteTenantUsers('tn-1', ['u1', 'u2'])
+
+    expect(del).toHaveBeenCalledWith('/admin/tenant-users/tn-1/batch/delete', {
+      data: { ids: ['u1', 'u2'] }
+    })
   })
 })
