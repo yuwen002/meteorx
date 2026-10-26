@@ -237,7 +237,24 @@ export interface AlertStatsResult {
   top_rules: AlertRuleCount[]
 }
 
+/**
+ * 零数据兜底。后端 Go 的 nil 切片会序列化成 null（trend / top_rules 曾因此把告警页整页打崩），
+ * 在 API 边界统一收敛成空数组/空对象，页面里的 .map 就不会再拿到 null。
+ */
+function normalizeAlertStats(raw: Partial<AlertStatsResult> | null | undefined): AlertStatsResult {
+  return {
+    total_alerts: raw?.total_alerts ?? 0,
+    today_alerts: raw?.today_alerts ?? 0,
+    notified_count: raw?.notified_count ?? 0,
+    pending_count: raw?.pending_count ?? 0,
+    risk_level_stats: raw?.risk_level_stats ?? {},
+    rule_stats: raw?.rule_stats ?? {},
+    trend: Array.isArray(raw?.trend) ? raw.trend : [],
+    top_rules: Array.isArray(raw?.top_rules) ? raw.top_rules : []
+  }
+}
+
 // 获取告警统计数据（含风险等级分布和规则命中排名）
 export function getAlertStats(days?: number): Promise<AlertStatsResult> {
-  return get('/audit/alerts/stats', { days: days || 7 })
+  return get<Partial<AlertStatsResult>>('/audit/alerts/stats', { days: days || 7 }).then(normalizeAlertStats)
 }

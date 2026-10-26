@@ -189,3 +189,38 @@ func TestAlertRuleRepo_IsInCooldown_Active(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, inCooldown)
 }
+
+// TestAlertRuleRepo_GetAlertStats_EmptyResultReturnsNonNilSlices 零告警数据时
+// Trend/TopRules 必须是空切片而不是 nil：nil 会序列化成 JSON null，前端对 null
+// 调 .map 直接抛 TypeError。mock_repository 显式初始化了两个切片，把这层差异
+// 掩盖掉了，只有 sqlmock 零行用例能锁住真实仓储的行为。
+func TestAlertRuleRepo_GetAlertStats_EmptyResultReturnsNonNilSlices(t *testing.T) {
+	gormDB, mock := newAlertTestDB(t)
+	repo := NewAlertRuleRepository(gormDB)
+
+	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `audit_alerts`").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `audit_alerts` WHERE created_at >= \\?").
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `audit_alerts` WHERE notified = \\?").
+		WithArgs(true).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `audit_alerts` WHERE notified = \\?").
+		WithArgs(false).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	mock.ExpectQuery("SELECT risk_level, COUNT\\(\\*\\) as count FROM `audit_alerts`").
+		WillReturnRows(sqlmock.NewRows([]string{"risk_level", "count"}))
+	mock.ExpectQuery("SELECT rule_id, rule_name, COUNT\\(\\*\\) as count FROM `audit_alerts`").
+		WillReturnRows(sqlmock.NewRows([]string{"rule_id", "rule_name", "count"}))
+	mock.ExpectQuery("SELECT DATE\\(created_at\\) as date").
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"date", "count", "success", "failure"}))
+
+	stats, err := repo.GetAlertStats(context.Background(), 7)
+	assert.NoError(t, err)
+	assert.NotNil(t, stats.Trend, "trend 为零值 nil 时会被序列化成 null")
+	assert.NotNil(t, stats.TopRules, "top_rules 为零值 nil 时会被序列化成 null")
+	assert.Len(t, stats.Trend, 0)
+	assert.Len(t, stats.TopRules, 0)
+}

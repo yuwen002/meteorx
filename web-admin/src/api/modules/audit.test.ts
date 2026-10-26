@@ -48,6 +48,28 @@ describe('Audit API - Alert Stats', () => {
     await getAlertStats()
     expect(get).toHaveBeenCalledWith('/audit/alerts/stats', { days: 7 })
   })
+
+  // 回归：Go 的 nil 切片序列化成 null，trend 为 null 时页面 trendMax 里的 .map 会抛 TypeError
+  it('getAlertStats should normalize null trend/top_rules to empty arrays', async () => {
+    vi.mocked(get).mockResolvedValue({
+      total_alerts: 0,
+      today_alerts: 0,
+      notified_count: 0,
+      pending_count: 0,
+      risk_level_stats: null,
+      rule_stats: null,
+      trend: null,
+      top_rules: null,
+    } as unknown as AlertStatsResult)
+
+    const result = await getAlertStats(7)
+    expect(result.trend).toEqual([])
+    expect(result.top_rules).toEqual([])
+    expect(result.risk_level_stats).toEqual({})
+    expect(result.rule_stats).toEqual({})
+    // 页面直接对这些字段做 .map / 索引运算，崩不崩取决于这里
+    expect(() => result.trend.map(p => p.count)).not.toThrow()
+  })
 })
 
 describe('Audit API - Detailed Stats', () => {
