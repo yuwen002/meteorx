@@ -1463,3 +1463,41 @@ client:
   - 再点「批量启用」→ 200、`{"updated":2}`，两行恢复「启用」；
   - 点「批量删除」→ `DELETE .../batch/delete` 返回 200、`{"deleted":2}`，列表归零，回收站里能看到这两条。
 - ℹ️ 本地 `tenant_admin` 角色只有 5 个 `user:*` 权限（不含 `user:batch_*`），所以租户端 `/users/batch/*` 路径未做浏览器目视，由 handler/service 单测覆盖；若要目视需先给该角色绑定两个权限码。
+
+## 四十、批量分配角色（RBAC Batch Assign）
+
+### 40.1 起因
+
+`POST /api/v1/rbac/user-roles/batch/assign` 与权限码 `rbac:user_role:batch_assign` 早已在权限体系里注册（`permissions.go` 与
+`auto_permission_middleware_test.go` 均有覆盖），但前端从未调用过，列表只能一行一行点「分配角色」；同时 service 层只校验用户与角色是否存在，
+没有校验目标用户的租户归属和角色的作用域，租户账号理论上可以借这个接口跨租户改角色，或把系统级角色挂到租户用户身上。
+
+### 40.2 后端
+
+- `repository.UserRoleRepository` 新增 `GetUserScope(ctx, userID)`，用一条 `SELECT tenant_id, is_master FROM users WHERE id = ?`
+  返回目标用户归属，避免为校验额外拉整个用户实体。
+- `RBACService` 新增 `validateRoleAssignScope`：`SYSTEM_ROOT` 直接放行（系统管理员跨租户继续可用）；租户操作者要求目标用户同租户且非主管理员，
+  角色必须是 `tenant`/`all` 作用域，且归属 `SYSTEM_ROOT` 或本租户。
+- `AssignUserRoles` 与 `BatchAssignUserRoles` 都在写入前调用该校验；批量接口改成先校验全部用户与角色、再逐个写入，任一条越权即整批不写，
+  不会出现「前几个用户角色已换、后面才报错」的半成品状态。
+- 新增 7 个 service 单测（跨租户、主管理员、系统级角色、他租户角色、系统管理员放行、批量整批拒绝、批量成功），mock 仓库补充 `userScopes`
+  与 `seedUser`；`auth`/`invitation`/`user` 三处测试桩补上 `GetUserScope` 以满足接口。
+
+### 40.3 前端
+
+- `role.ts` 新增 `batchAssignUserRoles(assignments)`，对应 `POST /rbac/user-roles/batch/assign`。
+- 用户列表批量栏新增「分配角色」：按 `rbac:user_role:batch_assign` 或系统管理员身份显隐，回收站视图不展示；弹窗复用单行分配的角色候选
+  （管理员 `scope=all`，租户 `scope=tenant`），带「提交后将覆盖所选用户当前全部角色」的告警，未选角色时前端先拦截（后端 `role_ids` min=1）。
+- 提交时把勾选行映射成 `{ user_id, role_ids }` 数组一次提交（接口按用户维度写入，无需按租户分组），成功后清空勾选并刷新列表。
+
+### 40.4 验证状态
+
+- ✅ `go build ./...`、`go test ./...` 全绿（含 rbac / user / auth / invitation 四个包）。
+- ✅ `npx vitest run` 22 个文件 230 例通过；`npx vue-tsc --noEmit` 通过；`npm run build` 通过。
+- ✅ 真实浏览器目视（系统管理员登录、Playwright 驱动本机 Chrome，用两个临时账号 `uicheck_a1/a2_*`）：勾选两行 → 「分配角色」弹窗列出
+  superadmin / system_admin / tenant_admin / user 等角色 → 选 `user` 提交 → `POST /api/v1/rbac/user-roles/batch/assign` 返回
+  200、`{"assigned":2}`，随后 `/rbac/user-roles/{id}/roles` 两个账号均只剩 `user`；验完清理临时账号，库里无残留。
+- ⚠️ 目视只覆盖系统管理员路径（`SYSTEM_ROOT` 放行）；租户端的越权拒绝由 service 单测覆盖，本地 `tenant_admin` 未绑定
+  `rbac:user_role:batch_assign`，无法在界面上触发。
+- ℹ️ 已知后续项：该校验只限制「租户 + 角色作用域」，未限制「角色权限集合必须属于操作者」，即持有 `rbac:user_role:assign`
+  的普通租户用户仍可给自己授予 `tenant_admin`。
