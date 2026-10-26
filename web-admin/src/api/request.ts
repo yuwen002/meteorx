@@ -80,7 +80,10 @@ export interface ApiResult<T = unknown> {
 }
 
 export function request<T = unknown>(config: AxiosRequestConfig): Promise<T> {
-  return service.request<unknown, T>(config)
+  // axios 1.20 起 request<D, R> 的返回类型改为条件类型 AxiosResponseResult<D, R>，
+  // 泛型未解析时无法归约为 R，直接返回会与这里的 Promise<T> 冲突；
+  // 运行时值已由响应拦截器解包为 data 本体，故按声明收窄
+  return service.request<unknown, T>(config) as Promise<T>
 }
 
 export function get<T = unknown>(url: string, params?: unknown, config?: AxiosRequestConfig): Promise<T> {

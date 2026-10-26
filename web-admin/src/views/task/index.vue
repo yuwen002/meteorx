@@ -98,6 +98,17 @@
 
       <div v-if="selected.length" class="batch-bar">
         <span class="batch-tip">已选择 {{ selected.length }} 项</span>
+        <el-dropdown trigger="click" class="batch-dropdown" @command="handleBatchStatus">
+          <el-button plain size="small">批量改状态<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="pending">待办</el-dropdown-item>
+              <el-dropdown-item command="in_progress">进行中</el-dropdown-item>
+              <el-dropdown-item command="completed">已完成</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <el-button size="small" @click="openBatchAssign">批量指派</el-button>
         <el-button type="success" size="small" @click="handleBatchComplete">批量完成</el-button>
         <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
       </div>
@@ -237,6 +248,19 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="assignVisible" title="批量指派负责人" width="440px" :close-on-click-modal="false">
+      <el-form label-width="90px">
+        <el-form-item label="负责人 ID">
+          <el-input v-model="assignUserId" placeholder="请输入同租户成员的用户 ID" clearable />
+          <div class="form-tip">仅可指派给同租户成员；个人待办任务会被回写为创建人。</div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="assignVisible = false">取消</el-button>
+        <el-button type="primary" :loading="assignLoading" @click="submitBatchAssign">确定</el-button>
+      </template>
+    </el-dialog>
+
     <el-drawer v-model="trashVisible" title="回收站" size="600px">
       <el-table v-loading="trashLoading" :data="trashList" stripe style="width: 100%;">
         <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
@@ -300,7 +324,7 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Plus, Files, MagicStick } from '@element-plus/icons-vue'
+import { Plus, Files, MagicStick, ArrowDown } from '@element-plus/icons-vue'
 import {
   getTaskList,
   getTask,
@@ -315,6 +339,8 @@ import {
   permanentDeleteTask,
   batchCompleteTasks,
   batchDeleteTasks,
+  batchUpdateTaskStatus,
+  batchAssignTasks,
   type TaskItem,
   type TaskStats,
   type TaskStatus,
@@ -541,6 +567,50 @@ async function handleBatchComplete() {
     loadList()
   } catch (e) {
     ElMessage.error((e as Error).message || '批量完成失败')
+  }
+}
+
+// 批量改状态/批量指派：复用后端已有的 /tasks/batch/status 与 /tasks/batch/assign，
+// 两者均逐条做归属校验，只返回实际生效数，失败项不阻断整体。
+const assignVisible = ref(false)
+const assignLoading = ref(false)
+const assignUserId = ref('')
+
+async function handleBatchStatus(status: string) {
+  const ids = selected.value.map((r) => r.id)
+  if (!ids.length) return
+  try {
+    const res = await batchUpdateTaskStatus({ ids, status: status as TaskStatus })
+    ElMessage.success(`已改为${statusLabel(status)} ${res.affected} 项`)
+    loadList()
+  } catch (e) {
+    ElMessage.error((e as Error).message || '批量修改状态失败')
+  }
+}
+
+function openBatchAssign() {
+  assignUserId.value = ''
+  assignVisible.value = true
+}
+
+async function submitBatchAssign() {
+  const ids = selected.value.map((r) => r.id)
+  if (!ids.length) return
+  const assignee = assignUserId.value.trim()
+  if (!assignee) {
+    ElMessage.warning('请输入负责人用户 ID')
+    return
+  }
+  assignLoading.value = true
+  try {
+    const res = await batchAssignTasks({ ids, assignee_id: assignee })
+    ElMessage.success(`已指派 ${res.affected} 项`)
+    assignVisible.value = false
+    loadList()
+  } catch (e) {
+    ElMessage.error((e as Error).message || '批量指派失败')
+  } finally {
+    assignLoading.value = false
   }
 }
 
@@ -791,6 +861,9 @@ watch(
   margin-right: 12px;
   color: #6b7280;
   font-size: 13px;
+}
+.batch-dropdown {
+  margin-right: 12px;
 }
 .pagination-bar {
   display: flex;

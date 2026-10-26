@@ -34,9 +34,11 @@ func TestSetupMiddleware_ClientIPFromXFF(t *testing.T) {
 		},
 		{
 			// 配置可信代理段：右起跳过可信地址，首个不可信条目即真实客户端。
+			// RemoteAddr 必须是可信段内的地址（即真正的 nginx 对端）：chi v5.5 起
+			// 会把 TCP peer 当作最右一跳，peer 不可信时直接忽略整个 XFF。
 			name:       "配置 trusted 代理：右起跳过可信段取首个不可信 IP",
 			trusted:    []string{"198.51.100.0/24"},
-			remoteAddr: "10.0.0.5:9876",
+			remoteAddr: "198.51.100.23:9876",
 			xff:        "203.0.113.9, 198.51.100.23",
 			expectedIP: "203.0.113.9",
 		},
