@@ -24,6 +24,8 @@ func newUserRouter(stub handler.UserService) http.Handler {
 	r.Route("/users", func(r chi.Router) {
 		r.Get("/", h.ListUsers)
 		r.Post("/", h.CreateUser)
+		r.Put("/batch/status", h.BatchUpdateUsersStatus)
+		r.Delete("/batch/delete", h.BatchDeleteUsers)
 		r.Get("/deleted", h.ListDeletedUsers)
 		r.Get("/{id}/detail", h.GetUser)
 		r.Put("/{id}/update", h.UpdateUser)

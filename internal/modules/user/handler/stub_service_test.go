@@ -80,6 +80,16 @@ func (s *stubUserService) Delete(_ context.Context, userID string) error {
 	return s.Err
 }
 
+func (s *stubUserService) BatchUpdateUserStatus(_ context.Context, tenantID string, ids []string, status int) (int64, error) {
+	s.GotTenantID, s.GotIDs, s.GotStatusN = tenantID, ids, status
+	return s.Affected, s.Err
+}
+
+func (s *stubUserService) BatchDeleteUsers(_ context.Context, tenantID string, ids []string) (int64, error) {
+	s.GotTenantID, s.GotIDs = tenantID, ids
+	return s.Affected, s.Err
+}
+
 func (s *stubUserService) CountByTenant(_ context.Context, tenantID string) (int64, error) {
 	s.GotTenantID = tenantID
 	return s.Total, s.Err

@@ -19,6 +19,12 @@ type mockUserRepo struct {
 	users     map[string]*userModel.User
 	byName    map[string]*userModel.User
 	createErr error
+
+	// 租户作用域批量操作入参留痕，便于断言「越权时未触达仓库」
+	batchTenantID string
+	batchIDs      []string
+	batchStatus   int
+	batchErr      error
 }
 
 func newMockUserRepo() *mockUserRepo {
@@ -171,12 +177,37 @@ func (m *mockUserRepo) PermanentDeleteTenantUser(_ context.Context, _ string, _ 
 	return nil
 }
 
-func (m *mockUserRepo) BatchUpdateTenantUserStatus(_ context.Context, _ string, _ []string, _ int) (int64, error) {
-	return 0, nil
+func (m *mockUserRepo) BatchUpdateTenantUserStatus(_ context.Context, tenantID string, ids []string, status int) (int64, error) {
+	m.batchTenantID, m.batchIDs, m.batchStatus = tenantID, ids, status
+	if m.batchErr != nil {
+		return 0, m.batchErr
+	}
+	var affected int64
+	for _, id := range ids {
+		if u, ok := m.users[id]; ok && u.TenantID == tenantID && !u.IsMaster {
+			u.Status = status
+			affected++
+		}
+	}
+	return affected, nil
 }
 
-func (m *mockUserRepo) BatchDeleteTenantUsers(_ context.Context, _ string, _ []string) (int64, error) {
-	return 0, nil
+func (m *mockUserRepo) BatchDeleteTenantUsers(_ context.Context, tenantID string, ids []string) (int64, error) {
+	m.batchTenantID, m.batchIDs = tenantID, ids
+	if m.batchErr != nil {
+		return 0, m.batchErr
+	}
+	var affected int64
+	for _, id := range ids {
+		u, ok := m.users[id]
+		if !ok || u.TenantID != tenantID || u.IsMaster {
+			continue
+		}
+		delete(m.users, id)
+		delete(m.byName, u.Username)
+		affected++
+	}
+	return affected, nil
 }
 
 func (m *mockUserRepo) CountByTenant(_ context.Context, _ string) (int64, error) {

@@ -26,6 +26,8 @@ func RegisterRoutes(r chi.Router, h *handler.UserHandler, checker middleware.Per
 		r.Get("/", h.ListUsers)                            // → 自动需要 user:list
 		r.Post("/", h.CreateUser)                          // → 自动需要 user:create
 		r.Post("/import", h.ImportUsers)                   // → 自动需要 user:create（批量导入与逐个新建同门槛）
+		r.Put("/batch/status", h.BatchUpdateUsersStatus)     // → 自动需要 user:batch_status
+		r.Delete("/batch/delete", h.BatchDeleteUsers)        // → 自动需要 user:batch_delete
 		r.Get("/deleted", h.ListDeletedUsers)              // recycle: list deleted users
 		r.Get("/{id}/detail", h.GetUser)                   // → 自动需要 user:read
 		r.Put("/{id}/update", h.UpdateUser)                // → 自动需要 user:update

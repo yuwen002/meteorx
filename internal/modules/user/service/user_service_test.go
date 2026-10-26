@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -309,5 +310,134 @@ func TestCheckUserQuota_GenericError(t *testing.T) {
 	}))
 	if err := svc.checkUserQuota(context.Background(), "t1"); err != errGenericMock {
 		t.Fatalf("expected generic error propagated, got: %v", err)
+	}
+}
+
+// ---------- 租户端批量启用/禁用 ----------
+
+func TestBatchUpdateUserStatus_Success(t *testing.T) {
+	svc, ur, _, _, _ := newTestUserService()
+	ur.seed(&userModel.User{ID: "u1", TenantID: "t1", Username: "alice", Status: 1})
+	ur.seed(&userModel.User{ID: "u2", TenantID: "t1", Username: "bob", Status: 1})
+
+	affected, err := svc.BatchUpdateUserStatus(context.Background(), "t1", []string{"u1", "u2"}, 0)
+	if err != nil {
+		t.Fatalf("BatchUpdateUserStatus error: %v", err)
+	}
+	if affected != 2 {
+		t.Fatalf("expected 2 affected, got %d", affected)
+	}
+	if ur.batchTenantID != "t1" || ur.batchStatus != 0 || len(ur.batchIDs) != 2 {
+		t.Fatalf("unexpected repo args: tenant=%s status=%d ids=%v", ur.batchTenantID, ur.batchStatus, ur.batchIDs)
+	}
+	for _, id := range []string{"u1", "u2"} {
+		u, _ := ur.GetByID(context.Background(), id)
+		if u.Status != 0 {
+			t.Fatalf("expected user %s disabled, got status %d", id, u.Status)
+		}
+	}
+}
+
+func TestBatchUpdateUserStatus_EmptyIDs(t *testing.T) {
+	svc, ur, _, _, _ := newTestUserService()
+
+	_, err := svc.BatchUpdateUserStatus(context.Background(), "t1", nil, 0)
+	if err == nil || !strings.Contains(err.Error(), "不能为空") {
+		t.Fatalf("expected empty ids error, got: %v", err)
+	}
+	if ur.batchIDs != nil {
+		t.Fatal("expected repo not called for empty ids")
+	}
+}
+
+func TestBatchUpdateUserStatus_CrossTenant(t *testing.T) {
+	svc, ur, _, _, _ := newTestUserService()
+	ur.seed(&userModel.User{ID: "u1", TenantID: "t1", Username: "alice", Status: 1})
+	ur.seed(&userModel.User{ID: "u2", TenantID: "t2", Username: "bob", Status: 1})
+
+	_, err := svc.BatchUpdateUserStatus(context.Background(), "t1", []string{"u1", "u2"}, 0)
+	if !errors.Is(err, ErrUserNotInTenant) {
+		t.Fatalf("expected ErrUserNotInTenant, got: %v", err)
+	}
+	if ur.batchIDs != nil {
+		t.Fatal("expected repo not called when tenant mismatch")
+	}
+	// 整体拒绝：前面命中的 u1 也不应被改动
+	if u, _ := ur.GetByID(context.Background(), "u1"); u.Status != 1 {
+		t.Fatalf("expected u1 status unchanged, got %d", u.Status)
+	}
+}
+
+func TestBatchUpdateUserStatus_UserNotFound(t *testing.T) {
+	svc, _, _, _, _ := newTestUserService()
+
+	_, err := svc.BatchUpdateUserStatus(context.Background(), "t1", []string{"missing"}, 0)
+	if err == nil {
+		t.Fatal("expected error for missing user")
+	}
+	if errors.Is(err, ErrUserNotInTenant) {
+		t.Fatalf("missing user should not be reported as tenant mismatch, got: %v", err)
+	}
+}
+
+// ---------- 租户端批量删除 ----------
+
+func TestBatchDeleteUsers_Success(t *testing.T) {
+	svc, ur, _, _, urr := newTestUserService()
+	ur.seed(&userModel.User{ID: "u1", TenantID: "t1", Username: "alice"})
+	ur.seed(&userModel.User{ID: "u2", TenantID: "t1", Username: "bob"})
+	urr.userRoles["u1"] = []string{"r1"}
+	urr.userRoles["u2"] = []string{"r2"}
+
+	affected, err := svc.BatchDeleteUsers(context.Background(), "t1", []string{"u1", "u2"})
+	if err != nil {
+		t.Fatalf("BatchDeleteUsers error: %v", err)
+	}
+	if affected != 2 {
+		t.Fatalf("expected 2 affected, got %d", affected)
+	}
+	for _, id := range []string{"u1", "u2"} {
+		if _, err := ur.GetByID(context.Background(), id); err == nil {
+			t.Fatalf("expected user %s deleted", id)
+		}
+		if _, ok := urr.userRoles[id]; ok {
+			t.Fatalf("expected roles of %s unbound", id)
+		}
+	}
+}
+
+func TestBatchDeleteUsers_EmptyIDs(t *testing.T) {
+	svc, ur, _, _, _ := newTestUserService()
+
+	_, err := svc.BatchDeleteUsers(context.Background(), "t1", []string{})
+	if err == nil || !strings.Contains(err.Error(), "不能为空") {
+		t.Fatalf("expected empty ids error, got: %v", err)
+	}
+	if ur.batchIDs != nil {
+		t.Fatal("expected repo not called for empty ids")
+	}
+}
+
+func TestBatchDeleteUsers_CrossTenant(t *testing.T) {
+	svc, ur, _, _, urr := newTestUserService()
+	ur.seed(&userModel.User{ID: "u1", TenantID: "t1", Username: "alice"})
+	ur.seed(&userModel.User{ID: "u2", TenantID: "t2", Username: "bob"})
+	urr.userRoles["u1"] = []string{"r1"}
+
+	_, err := svc.BatchDeleteUsers(context.Background(), "t1", []string{"u1", "u2"})
+	if !errors.Is(err, ErrUserNotInTenant) {
+		t.Fatalf("expected ErrUserNotInTenant, got: %v", err)
+	}
+	if ur.batchIDs != nil {
+		t.Fatal("expected repo not called when tenant mismatch")
+	}
+	// 整体拒绝：两个用户与角色绑定都应保持原样
+	for _, id := range []string{"u1", "u2"} {
+		if _, err := ur.GetByID(context.Background(), id); err != nil {
+			t.Fatalf("expected user %s still exists", id)
+		}
+	}
+	if len(urr.userRoles["u1"]) != 1 {
+		t.Fatalf("expected roles of u1 untouched, got %v", urr.userRoles["u1"])
 	}
 }

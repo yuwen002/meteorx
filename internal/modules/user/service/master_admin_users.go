@@ -478,6 +478,62 @@ func (s *UserService) PermanentDeleteUser(ctx context.Context, tenantID, userID 
 	return s.repo.PermanentDeleteTenantUser(ctx, tenantID, userID)
 }
 
+// BatchUpdateUserStatus 批量更新本租户用户的启用状态。
+// 逐条校验归属：只要有一个用户不属于当前租户就整体拒绝，避免出现「部分成功」的模糊结果。
+func (s *UserService) BatchUpdateUserStatus(ctx context.Context, tenantID string, ids []string, status int) (int64, error) {
+	if len(ids) == 0 {
+		return 0, fmt.Errorf("用户ID列表不能为空")
+	}
+	if err := s.ensureUsersInTenant(ctx, tenantID, ids); err != nil {
+		return 0, err
+	}
+	return s.repo.BatchUpdateTenantUserStatus(ctx, tenantID, ids, status)
+}
+
+// BatchDeleteUsers 批量软删除本租户用户，删除前逐个解除角色绑定。
+func (s *UserService) BatchDeleteUsers(ctx context.Context, tenantID string, ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, fmt.Errorf("用户ID列表不能为空")
+	}
+
+	// 先整体校验归属，避免出现「前面的用户角色已解绑、后面的用户越权报错」的半成品状态
+	users, err := s.loadUsersInTenant(ctx, tenantID, ids)
+	if err != nil {
+		return 0, err
+	}
+
+	for i, id := range ids {
+		// 解除用户所有角色绑定
+		if err := s.userRoleRepo.DeleteByUserID(ctx, id); err != nil {
+			return 0, fmt.Errorf("解除用户 [%s] 角色绑定失败: %w", users[i].Username, err)
+		}
+	}
+
+	return s.repo.BatchDeleteTenantUsers(ctx, tenantID, ids)
+}
+
+// ensureUsersInTenant 校验 ids 全部存在且属于 tenantID。
+func (s *UserService) ensureUsersInTenant(ctx context.Context, tenantID string, ids []string) error {
+	_, err := s.loadUsersInTenant(ctx, tenantID, ids)
+	return err
+}
+
+// loadUsersInTenant 逐条加载并校验归属，返回与 ids 顺序一致的实体列表。
+func (s *UserService) loadUsersInTenant(ctx context.Context, tenantID string, ids []string) ([]*model.User, error) {
+	users := make([]*model.User, 0, len(ids))
+	for _, id := range ids {
+		user, err := s.repo.GetByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if user.TenantID != tenantID {
+			return nil, fmt.Errorf("用户 [%s] 不属于当前租户: %w", user.Username, ErrUserNotInTenant)
+		}
+		users = append(users, user)
+	}
+	return users, nil
+}
+
 // AdminUpdateTenantUserStatus 更新指定租户用户的启用状态。
 func (s *UserService) AdminUpdateTenantUserStatus(ctx context.Context, tenantID, userID string, status int) error {
 	user, err := s.repo.GetByID(ctx, userID)

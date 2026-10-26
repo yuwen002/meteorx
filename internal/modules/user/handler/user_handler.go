@@ -34,6 +34,8 @@ type UserService interface {
 	Create(ctx context.Context, tenantID string, req dto.CreateUserReq) (*dto.UserResp, error)
 	Update(ctx context.Context, userID string, req dto.UpdateUserReq) (*dto.UserResp, error)
 	Delete(ctx context.Context, userID string) error
+	BatchUpdateUserStatus(ctx context.Context, tenantID string, ids []string, status int) (int64, error)
+	BatchDeleteUsers(ctx context.Context, tenantID string, ids []string) (int64, error)
 	CountByTenant(ctx context.Context, tenantID string) (int64, error)
 	CountAllUsers(ctx context.Context) (int64, error)
 	ChangePassword(ctx context.Context, userID, oldPassword, newPassword string) error
@@ -281,6 +283,71 @@ func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.Success(w, nil)
+}
+
+// BatchUpdateUsersStatus 批量更新本租户用户状态
+// PUT /api/v1/users/batch/status
+func (h *UserHandler) BatchUpdateUsersStatus(w http.ResponseWriter, r *http.Request) {
+	tenantID := contextx.GetTenantID(r.Context())
+	if tenantID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到租户信息")
+		return
+	}
+	// 与建号/导入同口径：系统管理员的登录态租户是虚拟租户，批量操作必须走跨租户接口
+	if tenantID == contextx.SystemTenantID {
+		response.Fail(w, http.StatusBadRequest, "系统管理员请使用跨租户接口批量操作用户")
+		return
+	}
+
+	var req dto.BatchUpdateUserStatusReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	updated, err := h.svc.BatchUpdateUserStatus(r.Context(), tenantID, req.IDs, req.Status)
+	if err != nil {
+		failBatchUserAction(w, err, "批量更新用户状态失败")
+		return
+	}
+	response.Success(w, map[string]interface{}{"updated": updated})
+}
+
+// BatchDeleteUsers 批量删除本租户用户（软删除）
+// DELETE /api/v1/users/batch/delete
+func (h *UserHandler) BatchDeleteUsers(w http.ResponseWriter, r *http.Request) {
+	tenantID := contextx.GetTenantID(r.Context())
+	if tenantID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到租户信息")
+		return
+	}
+	if tenantID == contextx.SystemTenantID {
+		response.Fail(w, http.StatusBadRequest, "系统管理员请使用跨租户接口批量操作用户")
+		return
+	}
+
+	var req dto.BatchDeleteUsersReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	deleted, err := h.svc.BatchDeleteUsers(r.Context(), tenantID, req.IDs)
+	if err != nil {
+		failBatchUserAction(w, err, "批量删除用户失败")
+		return
+	}
+	response.Success(w, map[string]interface{}{"deleted": deleted})
+}
+
+// failBatchUserAction 统一批量操作的错误映射：越权与不存在归为客户端错误，其余按服务端错误处理。
+func failBatchUserAction(w http.ResponseWriter, err error, fallback string) {
+	switch {
+	case errors.Is(err, service.ErrUserNotInTenant):
+		response.Fail(w, http.StatusBadRequest, "所选用户不属于当前租户")
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		response.Fail(w, http.StatusNotFound, "所选用户不存在")
+	default:
+		response.Fail(w, http.StatusInternalServerError, fallback)
+	}
 }
 
 // GetStats 获取当前租户用户总数

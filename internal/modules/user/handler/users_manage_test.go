@@ -296,6 +296,120 @@ func TestDeleteUser_ServiceError_Returns500(t *testing.T) {
 	assertFailCode(t, w, http.StatusInternalServerError, "删除用户失败")
 }
 
+// ============ 批量启用/禁用与批量删除 ============
+
+func TestBatchUpdateUsersStatus_Success_ForwardsTenantAndIDs(t *testing.T) {
+	stub := &stubUserService{Affected: 2}
+	router := newUserRouter(stub)
+
+	w := do(t, router, http.MethodPut, "/users/batch/status", `{"ids":["u1","u2"],"status":0}`)
+
+	var out struct {
+		Data struct {
+			Updated int64 `json:"updated"`
+		} `json:"data"`
+	}
+	requireOK(t, w, &out)
+	assert.Equal(t, "tenant-1", stub.GotTenantID)
+	assert.Equal(t, []string{"u1", "u2"}, stub.GotIDs)
+	assert.Equal(t, 0, stub.GotStatusN)
+	assert.Equal(t, int64(2), out.Data.Updated)
+}
+
+func TestBatchUpdateUsersStatus_EmptyIDs_Returns400(t *testing.T) {
+	stub := &stubUserService{}
+	router := newUserRouter(stub)
+
+	// ids 为 min=1，空数组不能落到服务层
+	w := do(t, router, http.MethodPut, "/users/batch/status", `{"ids":[],"status":1}`)
+
+	assertFailCode(t, w, http.StatusBadRequest, "ids")
+	assert.Empty(t, stub.GotIDs, "参数非法不应触达服务层")
+}
+
+func TestBatchUpdateUsersStatus_SystemTenantRejected_Returns400(t *testing.T) {
+	stub := &stubUserService{}
+	router := newUserRouter(stub)
+
+	w := doAs(t, router, http.MethodPut, "/users/batch/status", `{"ids":["u1"],"status":0}`, contextx.SystemTenantID)
+
+	assertFailCode(t, w, http.StatusBadRequest, "跨租户接口")
+	assert.Empty(t, stub.GotIDs, "系统租户下不得触达服务层")
+}
+
+func TestBatchUpdateUsersStatus_CrossTenant_Returns400(t *testing.T) {
+	stub := &stubUserService{Err: service.ErrUserNotInTenant}
+	router := newUserRouter(stub)
+
+	w := do(t, router, http.MethodPut, "/users/batch/status", `{"ids":["u-other"],"status":0}`)
+
+	assertFailCode(t, w, http.StatusBadRequest, "不属于当前租户")
+}
+
+func TestBatchUpdateUsersStatus_ServiceError_Returns500(t *testing.T) {
+	stub := &stubUserService{Err: errors.New("tx failed")}
+	router := newUserRouter(stub)
+
+	w := do(t, router, http.MethodPut, "/users/batch/status", `{"ids":["u1"],"status":1}`)
+
+	assertFailCode(t, w, http.StatusInternalServerError, "批量更新用户状态失败")
+}
+
+func TestBatchDeleteUsers_Success_ForwardsTenantAndIDs(t *testing.T) {
+	stub := &stubUserService{Affected: 1}
+	router := newUserRouter(stub)
+
+	w := do(t, router, http.MethodDelete, "/users/batch/delete", `{"ids":["u1"]}`)
+
+	var out struct {
+		Data struct {
+			Deleted int64 `json:"deleted"`
+		} `json:"data"`
+	}
+	requireOK(t, w, &out)
+	assert.Equal(t, "tenant-1", stub.GotTenantID)
+	assert.Equal(t, []string{"u1"}, stub.GotIDs)
+	assert.Equal(t, int64(1), out.Data.Deleted)
+}
+
+func TestBatchDeleteUsers_EmptyIDs_Returns400(t *testing.T) {
+	stub := &stubUserService{}
+	router := newUserRouter(stub)
+
+	w := do(t, router, http.MethodDelete, "/users/batch/delete", `{"ids":[]}`)
+
+	assertFailCode(t, w, http.StatusBadRequest, "ids")
+	assert.Empty(t, stub.GotIDs)
+}
+
+func TestBatchDeleteUsers_SystemTenantRejected_Returns400(t *testing.T) {
+	stub := &stubUserService{}
+	router := newUserRouter(stub)
+
+	w := doAs(t, router, http.MethodDelete, "/users/batch/delete", `{"ids":["u1"]}`, contextx.SystemTenantID)
+
+	assertFailCode(t, w, http.StatusBadRequest, "跨租户接口")
+	assert.Empty(t, stub.GotIDs)
+}
+
+func TestBatchDeleteUsers_NotFound_Returns404(t *testing.T) {
+	stub := &stubUserService{Err: gorm.ErrRecordNotFound}
+	router := newUserRouter(stub)
+
+	w := do(t, router, http.MethodDelete, "/users/batch/delete", `{"ids":["u-gone"]}`)
+
+	assertFailCode(t, w, http.StatusNotFound, "所选用户不存在")
+}
+
+func TestBatchDeleteUsers_ServiceError_Returns500(t *testing.T) {
+	stub := &stubUserService{Err: errors.New("delete failed")}
+	router := newUserRouter(stub)
+
+	w := do(t, router, http.MethodDelete, "/users/batch/delete", `{"ids":["u1"]}`)
+
+	assertFailCode(t, w, http.StatusInternalServerError, "批量删除用户失败")
+}
+
 // ============ 租户管理员重置密码 ============
 
 func TestResetPassword_NoTenantCtx_Returns401(t *testing.T) {
