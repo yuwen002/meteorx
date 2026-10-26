@@ -11272,6 +11272,94 @@
         ]
       }
     },
+    "/api/v1/users/batch/delete": {
+      "delete": {
+        "description": "权限码：`user:batch_delete`；ids 为空的请求不落库",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "ids": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "ids"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccess"
+                }
+              }
+            },
+            "description": "成功"
+          }
+        },
+        "summary": "删除用户（批量，软删除）",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/api/v1/users/batch/status": {
+      "put": {
+        "description": "权限码：`user:batch_status`；任一用户不属于当前租户则整批拒绝",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "ids": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "status": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "ids",
+                  "status"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccess"
+                }
+              }
+            },
+            "description": "成功"
+          }
+        },
+        "summary": "启用/禁用用户（批量）",
+        "tags": [
+          "User"
+        ]
+      }
+    },
     "/api/v1/users/deleted": {
       "get": {
         "parameters": [

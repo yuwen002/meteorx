@@ -33,6 +33,8 @@
 | DELETE | `/users/{id}/delete` | 删除用户（软删除） | `user:delete` |
 | PUT | `/users/{id}/restore` | 恢复已删除用户 | `user:restore` |
 | DELETE | `/users/{id}/permanent` | 永久删除用户 | `user:permanent_delete` |
+| PUT | `/users/batch/status` | 批量启用/禁用用户 | `user:batch_status` |
+| DELETE | `/users/batch/delete` | 批量删除用户（软删除） | `user:batch_delete` |
 
 ### 1.3 系统管理员管理（`/api/v1/admin`）
 
@@ -385,6 +387,38 @@
 | 未选择文件、非 multipart 请求 | 400 | `未找到上传文件` |
 | 写库失败（已回滚） | 500 | `批量写入失败（已整体回滚）` |
 | 系统管理员调用租户端入口 | 400 | `系统管理员请使用跨租户接口为指定租户导入用户` |
+
+### 3.12 批量启用/禁用与批量删除
+
+`PUT /api/v1/users/batch/status`（`user:batch_status`）  
+`DELETE /api/v1/users/batch/delete`（`user:batch_delete`）
+
+**请求体：** BatchUpdateUserStatusReq / BatchDeleteUsersReq（`ids` 为 `required,min=1`）
+
+**成功响应（200）：**
+
+```json
+{ "code": 200, "data": { "updated": 2 } }
+```
+
+批量删除返回 `{"code": 200, "data": {"deleted": 2}}`。
+
+**业务规则：**
+
+1. **租户取自登录态**：两个接口只操作登录租户下的用户，仓库层额外约束 `tenant_id = 登录租户` 与 `is_master = 0`，跨租户 ID 不会生效。
+2. **整批拒绝**：先逐条校验 `ids` 全部存在且属于当前租户，任一不通过即整批拒绝、一条都不改，避免返回「部分成功」的模糊结果。
+3. **批量删除**先解除 `user_roles` 绑定再软删除，可在回收站恢复（角色需重新分配）。
+4. **系统管理员走管理端**：系统管理员的登录态租户是虚拟租户 `SYSTEM_ROOT`，调这两个接口直接返回 400 `系统管理员请使用跨租户接口批量操作用户`，必须改用 `/admin/tenant-users/{tenantID}/batch/status` 与 `/admin/tenant-users/{tenantID}/batch/delete`（租户 ID 在路径上）。
+5. **前端分组提交**：用户列表勾选后批量栏按权限出现；系统管理员模式下列表返回多租户数据，前端按行上的 `tenant_id` 分组，逐租户调用管理端接口，没有 `tenant_id` 的行不可勾选。
+
+**错误响应：**
+
+| 场景 | 状态码 | 说明 |
+|------|--------|------|
+| `ids` 为空 | 400 | 校验失败，不落库 |
+| 含不属于当前租户的用户 | 400 | `所选用户不属于当前租户` |
+| 含不存在的用户 | 404 | `所选用户不存在` |
+| 系统管理员调用租户端接口 | 400 | `系统管理员请使用跨租户接口批量操作用户` |
 
 ---
 

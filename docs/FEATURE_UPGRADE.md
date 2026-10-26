@@ -1432,3 +1432,34 @@ client:
   - 已选租户、未选角色提交 → 提示「请至少选择一个角色」，仍未发出请求；
   - 选租户 + 角色后提交 → `POST /api/v1/admin/tenant-users` 返回 200，响应 `tenant_id=01M52QRSGBV0B243R2ZE6R7RVT`、`role_ids=["role-tenant-admin-001"]`，新账号出现在该租户列表中；
   - 绕过前端直调 `POST /api/v1/users` → 400 `系统管理员请使用跨租户接口为指定租户创建用户`。
+
+## 三十九、用户列表批量操作（Batch Actions）
+
+用户管理页此前只能逐行点「禁用」「删除」。而 `user:batch_status` / `user:batch_delete` 两个权限码早已随权限表注册，`BatchUpdateUserStatusReq` / `BatchDeleteUsersReq` 也已定义，前端 `batchUpdateTenantUserStatus` / `batchDeleteTenantUsers` 还封装了管理端接口——但租户端既没有 handler 也没有路由，前端封装也零调用，属于「权限已发、能力未通」。
+
+### 39.1 后端
+
+- 新增 `PUT /api/v1/users/batch/status` 与 `DELETE /api/v1/users/batch/delete`。权限码由 `middleware.AutoRequirePermission` 按「方法 + 路径」自动推导为 `user:batch_status` / `user:batch_delete`，两个码在 `permissions.go` 里早已定义并随 `SeedPermissions` 幂等注册，因此本次不需要新增权限或迁移。
+- 服务层 `BatchUpdateUserStatus` / `BatchDeleteUsers` 先调 `loadUsersInTenant` 逐条校验「存在且属于当前租户」，任一不通过整批拒绝；`BatchDeleteUsers` 要等整体校验通过后才开始解除 `user_roles` 绑定，否则会出现「前面的用户角色已解绑、后面的用户越权报错」的半成品状态。
+- 写库复用仓库层的租户作用域方法，SQL 自带 `id IN ? AND tenant_id = ? AND is_master = ?`，就算前端把别的租户的 ID 递进来也越不出去。
+- 与三十八节同口径：登录态租户是虚拟租户 `SYSTEM_ROOT` 时直接 400 `系统管理员请使用跨租户接口批量操作用户`，必须改用 `/admin/tenant-users/{tenantID}/batch/...`。
+- 错误映射 `failBatchUserAction`：`service.ErrUserNotInTenant` → 400、`gorm.ErrRecordNotFound` → 404、其余 500。
+- 单测：handler 10 例（成功透传 tenant/ids/status、空 ids、SYSTEM_ROOT 被拒且不触达服务层、跨租户 400、不存在 404、服务端错误 500）；service 7 例（成功、空 ids 不触达仓库、跨租户整批拒绝且状态与角色绑定未变、用户不存在）。为此把 `mockUserRepo` 的两个租户作用域批量方法从 `return 0, nil` 改成「记录入参 + 按 tenantID 与 `!IsMaster` 真实生效」，才断言得出「越权时仓库一次都没被调用」。
+
+### 39.2 前端
+
+- 列表新增多选列（`selectable` 拦住缺 `tenant_id` 的行）与批量栏：按 `user:batch_status` / `user:batch_delete` 分别显示「批量启用」「批量禁用」「批量删除」，回收站视图不显示。
+- 系统管理员模式下列表是跨租户数据，`groupIdsByTenant` 按行上的 `tenant_id` 分桶后逐租户调用管理端接口；租户管理员直接调新增的 `batchUpdateUserStatus` / `batchDeleteUsers`（`PUT /users/batch/status`、`DELETE /users/batch/delete`）。
+- `watch(list)` 在翻页/刷新后清空勾选，避免残留 ID 指向已经翻走的数据。
+
+### 39.3 验证状态
+
+- ✅ `go build ./...`；`go test ./...` 全绿（`/users/batch/*` 的权限码推导由 `auto_permission_middleware_test.go` 守护，`route_check_test` 无新增缺口）。
+- ✅ `npx vue-tsc --noEmit` 通过；`npx vitest run` 22 个文件 229 例通过；`npm run build` 通过。
+- ✅ `go run scripts/openapi_sync.go` 显示 OpenAPI / Apifox 各 263 条路由与代码完全匹配（两个新路由已补上 requestBody：`ids` 与 `status`）。
+- ✅ 真实浏览器目视（系统管理员登录，`vite preview` 产线产物 + Playwright 驱动本机 Chrome，用两个临时账号 `uicheck_b1/b2_*` 跑完整链路，验完先软删、再永久删除，库里无残留）：
+  - 列表出现多选列，勾选两行后批量栏显示「已选 2 项 / 批量启用 / 批量禁用 / 批量删除 / 取消选择」；
+  - 点「批量禁用」→ `PUT /api/v1/admin/tenant-users/01KWMFZNNV7VDNQ4FXD1GJBMKE/batch/status` 返回 200、`{"updated":2}`，两行状态标签变「禁用」；
+  - 再点「批量启用」→ 200、`{"updated":2}`，两行恢复「启用」；
+  - 点「批量删除」→ `DELETE .../batch/delete` 返回 200、`{"deleted":2}`，列表归零，回收站里能看到这两条。
+- ℹ️ 本地 `tenant_admin` 角色只有 5 个 `user:*` 权限（不含 `user:batch_*`），所以租户端 `/users/batch/*` 路径未做浏览器目视，由 handler/service 单测覆盖；若要目视需先给该角色绑定两个权限码。

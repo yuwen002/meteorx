@@ -7051,6 +7051,236 @@
                 "visibility": "INHERITED"
               },
               "name": "批量导入用户（CSV/XLSX）"
+            },
+            {
+              "api": {
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "auth": {},
+                "cases": [
+                  {
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "apiTestDataList": [],
+                    "auth": {},
+                    "categoryId": 0,
+                    "commonParameters": {},
+                    "id": "900000003",
+                    "inheritPostProcessors": {
+                      "defaultEnable": {},
+                      "enable": {}
+                    },
+                    "inheritPreProcessors": {
+                      "defaultEnable": {},
+                      "enable": {}
+                    },
+                    "moduleId": 7675120,
+                    "name": "成功",
+                    "parameters": {
+                      "cookie": [],
+                      "header": [],
+                      "path": [],
+                      "query": []
+                    },
+                    "path": null,
+                    "postProcessors": [],
+                    "preProcessors": [],
+                    "requestBody": {
+                      "data": "",
+                      "generateMode": "normal",
+                      "parameters": [],
+                      "type": "application/json"
+                    },
+                    "requestResult": null,
+                    "responseId": "900000002",
+                    "securityScheme": {},
+                    "tagIds": [],
+                    "type": "DEBUG_CASE",
+                    "visibility": "INHERITED"
+                  }
+                ],
+                "codeSamples": [],
+                "commonParameters": {},
+                "commonResponseStatus": {},
+                "customApiFields": "{}",
+                "description": "权限码: `user:batch_delete`",
+                "id": "900000001",
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {},
+                "method": "delete",
+                "mockScript": {},
+                "mocks": [],
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "operationId": "",
+                "ordering": 100,
+                "parameters": {
+                  "cookie": [],
+                  "header": [],
+                  "path": [],
+                  "query": []
+                },
+                "path": "/api/v1/users/batch/delete",
+                "postProcessors": [],
+                "preProcessors": [],
+                "requestBody": {
+                  "additionalContentTypes": [],
+                  "jsonSchema": {
+                    "properties": {},
+                    "type": "object"
+                  },
+                  "mediaType": "application/json",
+                  "oasExtensions": "",
+                  "parameters": [],
+                  "required": true,
+                  "type": "application/json"
+                },
+                "responseChildren": [],
+                "responseExamples": [],
+                "responses": [
+                  {
+                    "code": "200",
+                    "contentType": "json",
+                    "description": "成功",
+                    "headers": [],
+                    "id": "900000002",
+                    "itemSchema": {},
+                    "jsonSchema": {
+                      "properties": {},
+                      "type": "object"
+                    },
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "securityScheme": {},
+                "serverId": "",
+                "sourceUrl": "",
+                "status": "released",
+                "tags": [
+                  "User"
+                ],
+                "type": "http",
+                "visibility": "INHERITED"
+              },
+              "name": "删除delete"
+            },
+            {
+              "api": {
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "auth": {},
+                "cases": [
+                  {
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "apiTestDataList": [],
+                    "auth": {},
+                    "categoryId": 0,
+                    "commonParameters": {},
+                    "id": "900000006",
+                    "inheritPostProcessors": {
+                      "defaultEnable": {},
+                      "enable": {}
+                    },
+                    "inheritPreProcessors": {
+                      "defaultEnable": {},
+                      "enable": {}
+                    },
+                    "moduleId": 7675120,
+                    "name": "成功",
+                    "parameters": {
+                      "cookie": [],
+                      "header": [],
+                      "path": [],
+                      "query": []
+                    },
+                    "path": null,
+                    "postProcessors": [],
+                    "preProcessors": [],
+                    "requestBody": {
+                      "data": "",
+                      "generateMode": "normal",
+                      "parameters": [],
+                      "type": "application/json"
+                    },
+                    "requestResult": null,
+                    "responseId": "900000005",
+                    "securityScheme": {},
+                    "tagIds": [],
+                    "type": "DEBUG_CASE",
+                    "visibility": "INHERITED"
+                  }
+                ],
+                "codeSamples": [],
+                "commonParameters": {},
+                "commonResponseStatus": {},
+                "customApiFields": "{}",
+                "description": "权限码: `user:batch_status`",
+                "id": "900000004",
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {},
+                "method": "put",
+                "mockScript": {},
+                "mocks": [],
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "operationId": "",
+                "ordering": 100,
+                "parameters": {
+                  "cookie": [],
+                  "header": [],
+                  "path": [],
+                  "query": []
+                },
+                "path": "/api/v1/users/batch/status",
+                "postProcessors": [],
+                "preProcessors": [],
+                "requestBody": {
+                  "additionalContentTypes": [],
+                  "jsonSchema": {
+                    "properties": {},
+                    "type": "object"
+                  },
+                  "mediaType": "application/json",
+                  "oasExtensions": "",
+                  "parameters": [],
+                  "required": true,
+                  "type": "application/json"
+                },
+                "responseChildren": [],
+                "responseExamples": [],
+                "responses": [
+                  {
+                    "code": "200",
+                    "contentType": "json",
+                    "description": "成功",
+                    "headers": [],
+                    "id": "900000005",
+                    "itemSchema": {},
+                    "jsonSchema": {
+                      "properties": {},
+                      "type": "object"
+                    },
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "securityScheme": {},
+                "serverId": "",
+                "sourceUrl": "",
+                "status": "released",
+                "tags": [
+                  "User"
+                ],
+                "type": "http",
+                "visibility": "INHERITED"
+              },
+              "name": "更新status"
             }
           ],
           "moduleId": 7675120,
