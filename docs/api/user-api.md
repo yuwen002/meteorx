@@ -3,7 +3,7 @@
 > Base URL: `/api/v1`  
 > 所属模块：`internal/modules/user`  
 > 路由注册：`internal/modules/user/routes.go`  
-> Handler：`internal/modules/user/handler/user_handler.go`  
+> Handler：`internal/modules/user/handler/user_handler.go`、`handler/user_import.go`（批量导入）  
 > DTO：`internal/modules/user/dto/user_dto.go`
 
 ---
@@ -25,6 +25,7 @@
 |------|------|------|--------|
 | GET | `/users` | 用户列表 | `user:list` |
 | POST | `/users` | 创建用户 | `user:create` |
+| POST | `/users/import` | 批量导入用户（CSV/XLSX） | `user:create` |
 | GET | `/users/deleted` | 已删除用户列表 | `user:list` |
 | GET | `/users/{id}/detail` | 用户详情 | `user:read` |
 | PUT | `/users/{id}/update` | 更新用户信息 | `user:update` |
@@ -55,6 +56,7 @@
 | 方法 | 路径 | 功能 | 权限码 |
 |------|------|------|--------|
 | POST | `/admin/tenant-users` | 为指定租户创建用户 | `admin:tenant_user:create` |
+| POST | `/admin/tenant-users/import` | 为指定租户批量导入用户 | `admin:tenant_user:create` |
 | GET | `/admin/tenant-users/all` | 所有租户用户列表 | `admin:tenant_user:list` |
 | GET | `/admin/tenant-users/deleted/all` | 所有租户已删除用户 | `admin:tenant_user:list` |
 | GET | `/admin/tenant-users/{tenantID}/list` | 指定租户用户列表 | `admin:tenant_user:list` |
@@ -67,6 +69,8 @@
 | DELETE | `/admin/tenant-users/{tenantID}/{userID}/permanent` | 永久删除租户用户 | `admin:tenant_user:permanent_delete` |
 | PUT | `/admin/tenant-users/{tenantID}/batch/status` | 批量更新租户用户状态 | `admin:tenant_user:batch_status` |
 | DELETE | `/admin/tenant-users/{tenantID}/batch/delete` | 批量删除租户用户 | `admin:tenant_user:batch_delete` |
+
+> 创建接口的请求体为 `AdminCreateTenantUserReq`，在 `CreateUserReq` 基础上多一个必填 `tenant_id`；`role_ids` 仍为必填（至少一个），且只能选 `scope` 为 `all` / `tenant` 的角色。系统管理员必须走这组接口——调租户端 `POST /users`、`POST /users/import` 会被拒（见 3.5、3.11）。
 
 ---
 
@@ -166,6 +170,35 @@
 |------|------|------|------|
 | ids | []string | 是 | 用户 ID 列表 |
 
+### 2.10 ImportResult（批量导入结果）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| total | int | 文件中提交的数据行数 |
+| created | int | 实际创建的用户数（全量事务下只有 0 或 total） |
+| users | []ImportUserResult | 逐行创建结果，按文件行序排列 |
+| warnings | []string | 非阻断性提示（未知列被忽略、角色回落到默认角色等） |
+
+**ImportUserResult**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| row | int | 文件内物理行号（表头为第 1 行） |
+| user_id | string | 新用户 ID |
+| username | string | 用户名 |
+| nickname | string | 昵称 |
+| email | string | 邮箱 |
+| role_codes | []string | 实际分配的角色编码 |
+| initial_password | string | 服务端生成的初始密码，仅本次响应可见（不落库、不进审计日志） |
+
+### 2.11 ImportRowError（行级校验错误）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| row | int | 文件内物理行号（表头为第 1 行） |
+| field | string | 出问题的列：`username` / `nickname` / `email` / `department` / `position` / `roles` |
+| message | string | 面向操作者的中文提示 |
+
 ---
 
 ## 3. 接口详细说明
@@ -226,7 +259,9 @@
 
 **请求体：** CreateUserReq
 
-**业务规则：** 用户名在当前租户内唯一
+**业务规则：** 用户名在当前租户内唯一；`role_ids` 必填且至少一个，角色需是启用中且可分配给租户用户的角色（`scope` 为 `all` 或 `tenant`）。前端的「新增用户」弹窗会拦截未选角色的提交（本地提示「请至少选择一个角色」，不发请求）。
+
+**系统管理员请走跨租户接口：** 系统管理员的登录态租户是虚拟租户 `SYSTEM_ROOT`（不可登录），在本接口建号只会把用户落到这个虚拟租户里。此时返回 400 `系统管理员请使用跨租户接口为指定租户创建用户`，请改用 `POST /api/v1/admin/tenant-users` 并在请求体带上 `tenant_id`。前端的新增用户弹窗在系统管理员模式下会自动展示「目标租户」选择器，并改走该接口。
 
 **成功响应（200）：** 创建的 UserResp
 
@@ -261,6 +296,95 @@
 `DELETE /api/v1/users/{id}/permanent`
 
 **说明：** 物理删除，不可恢复
+
+### 3.11 批量导入用户
+
+`POST /api/v1/users/import`（租户管理员，租户取自登录态）  
+`POST /api/v1/admin/tenant-users/import`（系统管理员，租户取自表单 `tenant_id`）  
+`Content-Type: multipart/form-data`
+
+**表单字段：**
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| file | 是 | 导入文件，仅支持 `.csv` / `.xlsx`，大小 ≤ 5MB，数据行 ≤ 500 |
+| role_ids | 否 | 默认角色 ID，多个用逗号分隔；文件 `roles` 列为空时使用。**管理端入口忽略该字段**（角色 ID 不跨租户通用） |
+| tenant_id | 管理端必填 | 目标租户 ID（租户端入口忽略该字段） |
+
+**两端入口差异：**
+
+- 租户端 `/users/import`：租户取自登录态，可用 `role_ids` 指定默认角色。
+- 管理端 `/admin/tenant-users/import`：`tenant_id` 必填；角色 ID 属于具体租户，跨租户复用会把别的租户的角色挂到目标租户用户上，因此该入口**忽略 `role_ids`**，请通过文件 `roles` 列填写角色编码。前端在系统管理员模式下会要求先选择目标租户，并隐藏默认角色选择器。
+
+**文件列（表头，均不区分大小写，支持中英文别名）：**
+
+| 列 | 必填 | 别名 | 说明 |
+|----|------|------|------|
+| username | 是 | 用户名 / 登录名 / 账号 | 字母数字，4-50 位，全局唯一 |
+| nickname | 是 | 昵称 / 姓名 | ≤ 50 字符 |
+| email | 否 | 邮箱 / 电子邮件 | 邮箱格式 |
+| department | 否 | 部门 | ≤ 100 字符 |
+| position | 否 | 职位 / 岗位 | ≤ 100 字符 |
+| roles | 否 | 角色 / 角色编码 | 角色**编码**，可用中英文逗号、分号、竖线分隔多个 |
+
+未知列会被忽略，并在 `warnings` 中提示。
+
+**业务规则：**
+
+1. **全量事务**：先完成整份文件的校验，任一行不通过则一条都不写库；写入阶段用户与 `user_roles` 关联在同一事务内，失败整体回滚。
+2. **用户名唯一**：同时校验整个平台现存用户、文件内重复行，以及**当前租户回收站中的同名账号**（回收站的记录仍占用唯一索引，需先彻底删除）。
+3. **角色解析**：文件填了 `roles` 则按编码查本租户角色，找不到时回落平台级角色（`scope=all`）；禁用或不允许分配给租户用户的角色会报行级错误。
+4. **套餐配额**：整批行数必须能放进剩余名额，否则直接拒绝（不会写入一部分）。
+5. **初始密码**：由服务端随机生成（默认 12 位，密码策略开启时取 `min_length + 2` 与策略上限的较小值），只在本次响应中回显一次，**不落库明文、不写入审计日志**。
+6. **审计**：请求体为 multipart，审计中间件不采集正文（避免文件内的明文信息落库），仅记录路径、操作人、结果与 `import` 标签。
+7. **系统管理员走管理端入口**：系统管理员的登录态租户是虚拟租户 `SYSTEM_ROOT`，调租户端 `/users/import` 直接返回 400 `系统管理员请使用跨租户接口为指定租户导入用户`，必须改用 `/admin/tenant-users/import` 并显式指定 `tenant_id`。
+
+**成功响应（200）：** ImportResult
+
+```json
+{
+  "code": 200,
+  "data": {
+    "total": 2,
+    "created": 2,
+    "users": [
+      {
+        "row": 2,
+        "user_id": "01JBX0000000000000000000A",
+        "username": "alice",
+        "nickname": "Alice",
+        "email": "alice@example.com",
+        "role_codes": ["member"],
+        "initial_password": "Xy12!abcdEFG"
+      }
+    ],
+    "warnings": ["已忽略无法识别的列：手机号"]
+  }
+}
+```
+
+**行级校验失败（400）：** 明细在 `details` 中，前端据此逐行展示
+
+```json
+{
+  "code": "INVALID_PARAM",
+  "message": "导入校验未通过，共 2 处问题，未写入任何用户",
+  "details": [
+    { "row": 3, "field": "username", "message": "用户名已被使用" },
+    { "row": 5, "field": "roles", "message": "角色编码 'ghost' 不存在" }
+  ]
+}
+```
+
+**其他错误：**
+
+| 场景 | 状态码 | 说明 |
+|------|--------|------|
+| 文件为空 / 表头缺列 / 扩展名不符 / 超过 500 行 | 400 | 直接返回面向操作者的文案 |
+| 套餐剩余名额不足 | 400 | 提示当前已用、剩余可导入数 |
+| 未选择文件、非 multipart 请求 | 400 | `未找到上传文件` |
+| 写库失败（已回滚） | 500 | `批量写入失败（已整体回滚）` |
+| 系统管理员调用租户端入口 | 400 | `系统管理员请使用跨租户接口为指定租户导入用户` |
 
 ---
 

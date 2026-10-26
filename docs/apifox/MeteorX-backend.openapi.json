@@ -5478,6 +5478,34 @@
         ]
       }
     },
+    "/api/v1/admin/dashboard/slow-queries": {
+      "get": {
+        "description": "权限码: `admin:dashboard:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "获取slow-queries",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/dashboard/slow-queries/reset": {
+      "post": {
+        "description": "权限码: `admin:dashboard:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "创建reset",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
     "/api/v1/admin/dashboard/tenants-health": {
       "get": {
         "description": "权限码: `admin:dashboard:list`",
@@ -5501,6 +5529,20 @@
           }
         },
         "summary": "获取资源",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/dashboard/trend": {
+      "get": {
+        "description": "权限码: `admin:dashboard:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "获取trend",
         "tags": [
           "Admin"
         ]
@@ -5800,6 +5842,20 @@
         "summary": "所有租户用户列表（回收站）",
         "tags": [
           "跨租户用户管理"
+        ]
+      }
+    },
+    "/api/v1/admin/tenant-users/import": {
+      "post": {
+        "description": "权限码: `admin:tenant_user:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "跨租户批量导入用户（CSV/XLSX）",
+        "tags": [
+          "Admin"
         ]
       }
     },
@@ -8374,6 +8430,34 @@
         "summary": "OAuth2 登录回调",
         "tags": [
           "认证"
+        ]
+      }
+    },
+    "/api/v1/auth/oauth/complete-email": {
+      "post": {
+        "description": "权限码: `auth:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "创建complete-email",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/oauth/providers": {
+      "get": {
+        "description": "权限码: `auth:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "获取providers",
+        "tags": [
+          "Auth"
         ]
       }
     },
@@ -11228,6 +11312,20 @@
         "summary": "用户列表（回收站）",
         "tags": [
           "租户用户管理"
+        ]
+      }
+    },
+    "/api/v1/users/import": {
+      "post": {
+        "description": "权限码: `user:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "批量导入用户（CSV/XLSX）",
+        "tags": [
+          "User"
         ]
       }
     },

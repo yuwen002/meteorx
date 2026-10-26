@@ -90,14 +90,20 @@ meteorx/
 │       │   │   └── user_dto.go   # CreateUserReq/UpdateUserReq/UserResp 等
 │       │   ├── handler/
 │       │   │   ├── user_handler.go   # HTTP Handler（租户用户/个人资料/密码/回收站）
+│       │   │   ├── user_import.go    # 批量导入 Handler（multipart 解析 + 逐行错误 details）
 │       │   │   └── master_admin_users.go # 系统管理员/租户用户管理 Handler
+│       │   ├── importer/           # ⭐ 批量导入文件解析（CSV / XLSX）
+│       │   │   ├── parser.go       # 表头中英文别名 + 行号回溯 + MaxRows/MaxFileSize
+│       │   │   └── parser_test.go
 │       │   ├── model/
 │       │   │   └── user.go       # User 模型（GORM 映射）
 │       │   ├── repository/
 │       │   │   ├── interface.go   # Repository 接口定义
+│       │   │   ├── import_repository.go # 批量查重 + 用户与角色关联单事务写入
 │       │   │   └── user_repository.go # Repository 实现
 │       │   ├── service/
 │       │   │   ├── user_service.go   # 业务逻辑（租户用户 CRUD/角色绑定/校验）
+│       │   │   ├── user_import.go    # 批量导入（全量校验 → 并发哈希 → 单事务）
 │       │   │   ├── master_admin_users.go # 系统管理员/租户用户管理/回收站
 │       │   │   └── password.go       # 修改密码/重置密码
 │       │   ├── module.go          # 模块装配
@@ -265,6 +271,8 @@ meteorx/
 │   ├── security/                 # 安全工具集
 │   │   ├── login_lockout.go      # 登录锁定逻辑
 │   │   ├── login_lockout_test.go
+│   │   ├── password_gen.go       # 随机初始密码生成（必含四类字符）
+│   │   ├── password_gen_test.go
 │   │   ├── password_policy.go    # 密码复杂度策略
 │   │   ├── password_policy_test.go
 │   │   ├── rate_limiter.go       # 限流工具
@@ -296,7 +304,6 @@ meteorx/
 │   │   ├── error.md              # 错误/响应规范
 │   │   ├── database.md           # 数据库/事务架构
 │   │   ├── audit.md              # 审计架构
-│   │   ├── audit-enhanced.md     # 审计增强（IP定位/告警/会话）
 │   │   ├── wiki.md               # Wiki 知识库架构
 │   │   ├── pagination.md         # 分页/排序/过滤架构
 │   │   ├── config.md             # 配置/启动架构
@@ -364,7 +371,9 @@ meteorx/
         │   ├── profile/index.vue
         │   ├── tenant/settings/index.vue   # 租户独立配置页
         │   └── system/
-        │       ├── user/index.vue
+        │       ├── user/
+        │       │   ├── index.vue
+        │       │   └── components/UserImportDialog.vue  # 批量导入用户弹窗
         │       ├── master-admin/
         │       │   ├── index.vue
         │       │   └── recycle.vue
@@ -451,7 +460,7 @@ meteorx/
 | 模块 | 功能 | 状态 |
 |------|------|------|
 | **auth** | 注册、登录、登出、Token 管理、忘记密码、重置密码、邮件找回 | ✅ 已实现 |
-| **user** | 个人中心、租户用户 CRUD、系统管理员 CRUD、跨租户用户管理、回收站、批量操作 | ✅ 已实现 |
+| **user** | 个人中心、租户用户 CRUD、系统管理员 CRUD、跨租户用户管理、回收站、批量操作、CSV/XLSX 批量导入 | ✅ 已实现 |
 | **tenant** | 自助开户、租户信息管理、后台租户 CRUD、租户独立配置（Logo/主题色/语言等）、注销申请→审批→执行闭环 | ✅ 已实现 |
 | **rbac** | 角色 CRUD、权限 CRUD、角色权限绑定、用户角色分配、自动权限推导 | ✅ 已实现 |
 | **file** | 文件上传/下载/重命名、MD5 去重、回收站、永久删除、存储抽象 | ✅ 已实现 |

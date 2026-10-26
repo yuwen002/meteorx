@@ -49,6 +49,17 @@ query := tenantctx.FilterQuery(ctx, db, "tenant_id")
 | 跨租户访问 | `CanAccessTenant()` 返回 `false` |
 | 缺少租户上下文 | `FilterQuery()` 返回 `WHERE 1=0`（防止数据泄露） |
 
+### 虚拟租户 `SYSTEM_ROOT`
+
+系统管理员没有真实租户，登录态里写入的是占位值 `contextx.SystemTenantID`（`SYSTEM_ROOT`），只是为了满足「租户表必须带 `tenant_id`」的约束。它不是可登录的租户：
+
+| 场景 | 行为 |
+|------|------|
+| 在系统租户下新建 / 导入用户 | **拒绝**（400）。账号会落在这个谁也登录不进去的租户里，跨租户建号必须走 `/admin/tenant-users` 系列接口并显式传 `tenant_id` |
+| 列表 / 详情查询 | 不受影响。系统管理员 `IsMaster=true`，本就不按 `tenant_id` 过滤 |
+
+判断口径统一为 `tenantID == contextx.SystemTenantID`，由 `TestCreateUser_SystemTenantRejected_Returns400`（`POST /users`）与 `TestImportUsers_SystemTenantRejected`（`POST /users/import`）锁定。
+
 ## 租户所有模型
 
 | 模型 | 表名 | tenant_id | 说明 |

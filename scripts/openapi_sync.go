@@ -291,6 +291,8 @@ func inferSummary(method, pattern string) string {
 		"GET /api/v1/exports/{id}":                   "导出任务详情",
 		"GET /api/v1/exports/{id}/download":          "下载导出文件",
 		"DELETE /api/v1/exports/{id}":                "删除导出任务",
+		"POST /api/v1/users/import":                  "批量导入用户（CSV/XLSX）",
+		"POST /api/v1/admin/tenant-users/import":     "跨租户批量导入用户（CSV/XLSX）",
 	}
 	key := method + " " + pattern
 	if s, ok := knownSummaries[key]; ok {

@@ -1347,3 +1347,88 @@ client:
 - ✅ `go build ./...`；`go test ./internal/ai/... ./internal/modules/task/...` 全绿（`openai_test.go`：httptest 正常/非 2xx/`!Usable`→`ErrDisabled`；`task_ai_service_test.go`：stub `Provider` 覆盖四类能力与降级、坏 JSON→`ErrAIRuntime`，`now` 作固定入参不随真实时钟翻转）。
 - ✅ 前端 `npm run build`、`npm run lint`、`npm run test`（含 `task-ai.test.ts` 6 例）全绿。
 - 手工：`ai.enabled=false` 时 capabilities 返回 disabled、端点 503、前端按钮禁用；配好 key 后四类调用返回合理结果；上游超时/坏响应返回 502 且不影响手动创建任务。
+
+---
+
+## 三十七、用户批量导入（User Import）
+
+新增「上传 CSV / XLSX 一次性建号」能力，覆盖租户端与平台管理端。核心取舍是**全量事务**：先整份校验、再一次性写入，任一行不通过就零写入，避免"导入到一半失败了，得手工清理"。
+
+### 37.1 解析层 `internal/modules/user/importer`
+- `Row{LineNo,Username,Nickname,Email,Department,Position,RoleCodes}`；`LineNo` 是文件物理行号（表头为第 1 行），用于把错误精确回传到用户看到的行。
+- `Parse(filename, data) ([]Row, []string, error)` 按扩展名分发 `.csv` / `.xlsx`（无扩展名按 CSV 兜底）；CSV 兼容 UTF-8 BOM、CRLF、列数不齐与含引号字段，并用 `csv.Reader.FieldPos` 取真实行号（`encoding/csv` 会静默跳过空行，用记录下标当行号会错位）。
+- `headerAliases` 同时接受英文列名与常见中文列名（`用户名` / `登录名` / `账号`、`邮箱` / `电子邮件`、`部门`、`职位` / `岗位`、`角色` / `角色编码`），大小写不敏感；未知列不报错但进 `warnings`，避免用户误以为该列生效。
+- 上限：`MaxRows = 500`（bcrypt + 单事务写入的成本随行数线性增长）、`MaxFileSize = 5MB`。文件级哨兵错误 `ErrEmptyFile` / `ErrUnsupportedExt` / `ErrTooManyRows` / `ErrMissingHeader`，handler 据此统一回 400。
+
+### 37.2 密码生成 `pkg/security/password_gen.go`
+- `GeneratePassword(length)`：大小写字母 + 数字 + 特殊字符四类字符集，保证每类至少出现一个，再用 `crypto/rand` 洗牌；长度下限校验。初始密码只在导入成功的响应里回显一次。
+
+### 37.3 仓储 `repository/import_repository.go`
+- `CheckUsernames(ctx, tenantID, usernames)` 一次查出「现存同名」与「回收站同名」两个集合。回收站那一步必须 `Unscoped()`：软删除的用户仍占着 `(tenant_id, username)` 唯一索引，不提前拦会把冲突留到事务里变成 500。
+- `CreateUsersWithRoles(ctx, users, roleIDsByUserID)`：用户 `CreateInBatches` 与 `user_roles` 关联写入在**同一个事务**内，任一步失败整体回滚。
+
+### 37.4 服务层 `service/user_import.go`
+- `ImportUsers(ctx, tenantID, rows, defaultRoleIDs)` 三态返回：全部成功 / 行级错误（`[]ImportRowError`，一条未写）/ 整体性错误。顺序固定为：默认角色校验 → **配额整批预检** → 逐行校验（字段规则、文件内重名、角色编码解析）→ 库内与回收站占用 → 有错即返回 → 生成密码并哈希 → 单事务写入 → 组装结果。
+- 配额按整批 `len(rows)` 一次校验，而不是逐行累加：否则会在事务末尾才撞上限，前面几百行的哈希白算。
+- 行内 `roles` 留空时回落到表单选择的默认角色并产生一条 warning；角色编码按租户作用域解析，解析不到该行直接报错。
+- `buildImportUsers` 在 `min(runtime.NumCPU(), 8, n)` 个 worker 里并发生成密码与 bcrypt 哈希，`sync.Mutex` 保护游标与首错，结果下标与文件行序一致。
+- 初始密码长度：默认 12；密码策略启用时取 `MinLength+2`，受 `MaxLength` 与 32 封顶、8 兜底。
+- `importRepo` / `passwordPolicy` 走可选注入（`SetImportRepository` / `SetPasswordPolicy`），未注入时导入返回「批量导入未启用」，既有的单条 CRUD 调用链与单测构造方式完全不变。
+
+### 37.5 路由与权限
+- `POST /api/v1/users/import`（租户端，租户 ID 取自登录态）→ 自动推导权限码 `user:create`；批量导入与逐个新建同门槛，无需新增权限种子。
+- `POST /api/v1/admin/tenant-users/import`（管理端，`tenant_id` 取自表单，缺失即 400）→ `admin:tenant_user:create`。
+- 均为 `multipart/form-data`：`file` + 可选 `role_ids`（逗号分隔）+ 可选 `tenant_id`。handler 用 `http.MaxBytesReader`（5MB + 表单开销）与 `http.LimitReader` 双重限长，超出直接 400。
+- 逐行问题以 `400 {code:"INVALID_PARAM", message:"共 N 处问题…", details:[{row,field,message}]}` 返回，`field` 取 json tag（`username` / `nickname` / …），便于前端映射到表格列。
+
+### 37.6 审计隔离
+- 审计中间件对 `multipart/*` **完全不读正文**，只落占位符 `[multipart/form-data 请求体不入审计日志]`——导入文件可能含密码列，既不可读也不应落库；同时避免 5MB 上传在审计层被整体缓冲两次。非 multipart 的请求仍按 64KB 限读并用 `io.MultiReader` 拼回，handler 读到的仍是完整 body。
+- `sanitizeBody` 改为按**字段名包含关键字**脱敏（`password` / `token` / `secret` / `authorization` / `credit_card` / `id_card`），覆盖 `initial_password` / `new_password` / `refresh_token` 这类变体；路径含 `import` 的请求额外打 `import` 标签。
+
+### 37.7 前端 `web-admin/`
+- `src/api/modules/user.ts` 新增 `importUsers({file, roleIds, tenantId})`：`FormData` 提交，`timeout: 120000`（500 行 + bcrypt 需要时间），传 `tenantId` 时自动走管理端端点。
+- 新增 `views/system/user/components/UserImportDialog.vue`：拖拽上传（限制后缀与 5MB）、默认角色多选（`getRoleListForSelect('tenant')`）、CSV 模板下载（带 UTF-8 BOM 防 Excel 乱码）、结果视图（逐行错误表按字段名映射中文列名 / 成功表含初始密码与「复制全部账号密码」）。
+- 用户列表页工具栏新增「批量导入」按钮（具备 `user:create` 且不在回收站时显示）。系统管理员的用户列表是跨租户视图，因此弹窗在系统管理员模式下额外提供「目标租户」选择器，并隐藏默认角色选择器。
+- 角色 ID 属于具体租户，跨租户复用会把别的租户的角色挂到目标租户用户上：管理端入口因此**忽略表单 `role_ids`**，只认文件里的角色编码（handler 有单测钉住）。
+
+### 37.8 验证状态
+- ✅ `go build ./...`；`go test ./...` 全绿。单测覆盖：解析层表头别名/空行/超限/未知列告警、服务层 17 例（全量事务、回收站占用、配额整批、角色回落、行号保持）、handler 12 例（multipart 表单、租户来源、`details` 结构、告警合并、管理端忽略 `role_ids`）、审计中间件 5 例（multipart 跳过、大 body 截断与拼回、密码变体脱敏、`import` 标签）。
+- ✅ 前端 `npx vue-tsc --noEmit`、`npm run build` 通过；`vitest run` 22 个文件 225 例全部通过。
+- ✅ 真实浏览器目视（Playwright 无头 Chrome + 本地前后端）：系统管理员登录 → 用户管理 → 「批量导入」弹窗可见 → 选目标租户 → 上传 2 行 CSV → 「导入成功，已创建 2 个用户」并回显初始密码；再次导入同名行 + 不存在的角色编码 → 「导入未通过校验，共 2 处问题，未写入任何用户」，逐行表正确显示行号/列名/原因。
+- ✅ `go run scripts/openapi_sync.go` 对比后补齐 OpenAPI 与 Apifox 文档（261/261 路由完全匹配）。
+
+---
+
+## 三十八、系统管理员跨租户建号入口
+
+批量导入上线后目视验收时发现：系统管理员在用户管理页点「新增用户」，账号会落到登录态的虚拟租户 `SYSTEM_ROOT` 里——列表里看得见，但没有任何人能登录进去（见 `docs/architecture/tenant.md` 的「虚拟租户 SYSTEM_ROOT」）。
+
+### 38.1 问题成因
+
+系统管理员没有真实租户，认证中间件为其写入占位值 `contextx.SystemTenantID`。`POST /users` 直接取登录态租户写库，于是账号被建在 `SYSTEM_ROOT` 下；而跨租户建号本该走 `POST /admin/tenant-users` 并显式传 `tenant_id`。前端此前也从未在新增弹窗里提供目标租户选择，等于两条路都走不通。
+
+### 38.2 后端
+
+- `CreateUser` 在取到租户后先判 `tenantID == contextx.SystemTenantID`，命中则 400 `系统管理员请使用跨租户接口为指定租户创建用户`，不进入参数校验与写库。
+- `ImportUsers`（`POST /users/import`）同理：命中虚拟租户返回 400 `系统管理员请使用跨租户接口为指定租户导入用户`。两处口径一致，避免「建号被拒、导入却能写进虚拟租户」的不对称。
+- 单测：`TestCreateUser_SystemTenantRejected_Returns400` 与 `TestImportUsers_SystemTenantRejected` 除断言状态码外，还断言 `GotCreateReq` / `GotImportRows` 为空——锁定「不得落库」而不只是「返回了 400」。
+
+### 38.3 前端
+
+- 新增弹窗在 `userStore.isAdmin` 时多出「目标租户」下拉：打开弹窗时懒加载启用中的租户（`getTenantList({page:1, page_size:200})` 后按 `status === 1` 过滤），未选则本地拦住并提示，不再把请求发出去赌后端报错。
+- 提交分支按身份分流：系统管理员走 `createTenantUser(tenantId, payload)`（`POST /admin/tenant-users`，body 带 `tenant_id`），租户管理员仍走 `createUser`。
+- 每次 `openCreateDialog` 都重置 `createTenantId`，避免上一次的租户被带到下一次新建。
+- 新增弹窗同步补上「角色」多选：`getRoleListForSelect('tenant')` 懒加载（仅首次打开拉取），未选时本地拦截并提示「请至少选择一个角色」，提交时 body 带 `role_ids`。
+
+这条不是顺手优化，而是目视时发现的另一个早就存在的阻塞：`CreateUserReq` 与 `AdminCreateTenantUserReq` 的 `role_ids` 都是 `validate:"required,min=1"`，而弹窗此前从未提交过角色——也就是说无论租户管理员还是系统管理员，点「新增用户」都必定 400。服务层 `AdminCreateTenantUser` 还会 `validateRoleIDs(..., RoleScopeTenant)` 并 `AssignRoles`，所以弹窗只能列出 `scope` 为 `all` / `tenant` 的角色。
+
+### 38.4 验证状态
+
+- ✅ `go build ./...`；`go test ./...` 全绿（`/admin/tenant-users` 路由的权限码推导仍由 `route_check_test` 守护）。
+- ✅ `npx vue-tsc --noEmit` 通过；`npx vitest run` 22 个文件 225 例通过；`npm run build` 通过。
+- ✅ 真实浏览器目视（系统管理员登录，Playwright 驱动本机 Chrome 跑完整链路，含一次临时管理员 `uicheck_admin2`，验完即删）：
+  - 新增弹窗出现「目标租户」与「角色」两个选择器；
+  - 未选租户提交 → 提示「请先选择目标租户」，且发往 `/api/v1/users` 的请求次数为 0（本地拦截生效）；
+  - 已选租户、未选角色提交 → 提示「请至少选择一个角色」，仍未发出请求；
+  - 选租户 + 角色后提交 → `POST /api/v1/admin/tenant-users` 返回 200，响应 `tenant_id=01M52QRSGBV0B243R2ZE6R7RVT`、`role_ids=["role-tenant-admin-001"]`，新账号出现在该租户列表中；
+  - 绕过前端直调 `POST /api/v1/users` → 400 `系统管理员请使用跨租户接口为指定租户创建用户`。

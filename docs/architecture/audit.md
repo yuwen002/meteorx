@@ -22,7 +22,7 @@
 | resource_id | string | 资源 ID（如用户 ID） |
 | method | string | HTTP 方法（GET/POST/PUT/DELETE） |
 | path | string | 请求路径 |
-| request_body | string | 请求载荷（JSON，敏感信息已脱敏） |
+| request_body | string | 请求载荷（JSON，敏感信息已脱敏；multipart 请求只记占位符） |
 | response_body | string | 响应数据（JSON，敏感信息已脱敏） |
 | status_code | int | HTTP 状态码 |
 | result | string | 操作结果（成功/失败） |
@@ -122,6 +122,20 @@ r.Use(middleware.AuditMiddleware(auditLogger))
 `DELETE /messages/batch/delete`）。批量接口的请求体是 ID 数组，可能因 2000 字符截断而不完整，
 标签是「按类型筛出全部批量写」的唯一可靠依据；风险等级仍按方法归一（批量删除 = delete = critical）。
 业务模块不需要为此单独埋点，避免一次操作落两条审计。
+
+**导入操作的审计**：路径含 `import` 的请求额外打 `import` 标签（如 `POST /api/v1/users/import`、
+`POST /api/v1/admin/tenant-users/import`），用于把「批量建号」与「逐个新建」区分开。
+
+**请求体采集规则**（`readRequestBodyForAudit`）：
+
+| 请求类型 | 采集行为 | 落库内容 |
+|------|------|------|
+| `multipart/form-data` | **完全不读、不缓存**，直接返回占位符，handler 照常流式解析 | `[multipart/form-data 请求体不入审计日志]` |
+| 其他（JSON 等） | 用 `io.LimitReader` 最多读 64 KB，未读完的部分用 `io.MultiReader` 拼回 | 前 64 KB，脱敏 + 2000 字符截断 |
+
+文件导入的正文是二进制与用户明文数据（CSV/XLSX 可能含密码列），既不可读也不应落库；
+同时限制采集长度可避免上传请求在审计层被整体缓冲两次。因此**新增上传类接口无需任何审计埋点**，
+只要沿用 `multipart/form-data` 就自动隔离。
 
 ### 2. 手动审计（服务层）
 
@@ -240,8 +254,11 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
 
 ## 安全
 
-- 请求体敏感数据脱敏（密码、Token、密钥）
-- 响应体敏感数据脱敏
+- 请求体敏感数据脱敏：解析 JSON 后按**字段名包含关键字**匹配（`password` / `token` / `secret` /
+  `authorization` / `credit_card` / `id_card`），命中即替换为 `***`。用包含匹配而非全等匹配，
+  是为了覆盖 `old_password` / `new_password` / `initial_password` / `refresh_token` 这类变体
+- 响应体走同一套脱敏规则（初始化密码、重置密码结果同样被掩码）
+- multipart 请求体不采集（见上节），上传文件内容永远不会进入审计日志
 - 记录 IP 和 User Agent 用于安全分析
 - 所有写入不可变（只追加）
 
@@ -260,7 +277,8 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
 | 趋势分析 | ✅ 已完成 |
 | 热门模块 | ✅ 已完成 |
 | 数据清理 | ✅ 已完成 |
-| 请求/响应脱敏 | ⏳ 进行中 |
+| 请求/响应脱敏 | ✅ 已完成 |
+| multipart 正文隔离（导入/附件） | ✅ 已完成 |
 | 保留策略 | ⏳ 计划中 |
 
 ## 最佳实践
