@@ -349,7 +349,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Login to Docker Hub
         # Skip publishing gracefully when Docker Hub credentials are not configured
         # (otherwise login-action fails with "Username and password required").
