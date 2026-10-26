@@ -82,6 +82,13 @@
           @click="handleBatchStatus(0)"
         >批量禁用</el-button>
         <el-button
+          v-if="canBatchAssign"
+          size="small"
+          type="primary"
+          :loading="batchLoading"
+          @click="openBatchAssignRoles"
+        >分配角色</el-button>
+        <el-button
           v-if="canBatchDelete"
           size="small"
           type="danger"
@@ -281,6 +288,43 @@
       </template>
     </el-dialog>
 
+    <!-- 批量分配角色弹窗：提交后覆盖所选用户的全部角色 -->
+    <el-dialog
+      v-model="batchAssignVisible"
+      :title="`批量分配角色 - 已选 ${selectedRows.length} 个用户`"
+      width="520px"
+      :close-on-click-modal="false"
+    >
+      <el-alert
+        type="warning"
+        :closable="false"
+        show-icon
+        title="提交后将用所选角色覆盖这些用户当前的全部角色"
+        style="margin-bottom: 12px;"
+      />
+      <div v-loading="batchAssignLoading">
+        <div style="margin-bottom: 10px; font-size: 14px; color: #6b7280">
+          已选择 <b style="color: #2563eb">{{ batchAssignRoleIds.length }}</b> 个角色
+        </div>
+        <el-checkbox-group v-model="batchAssignRoleIds">
+          <el-checkbox
+            v-for="role in batchAssignRoles"
+            :key="role.id"
+            :label="role.id"
+            style="display: block; margin-bottom: 8px;"
+          >
+            {{ role.name }}
+            <el-tag size="small" type="info" style="margin-left: 8px;">{{ role.code }}</el-tag>
+          </el-checkbox>
+        </el-checkbox-group>
+        <el-empty v-if="batchAssignRoles.length === 0" description="暂无可分配角色" :image-size="60" />
+      </div>
+      <template #footer>
+        <el-button @click="batchAssignVisible = false">取消</el-button>
+        <el-button type="primary" :loading="batchAssignSaving" @click="submitBatchAssignRoles">确定</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 新增/编辑弹窗 -->
     <el-dialog
       v-model="dialogVisible"
@@ -466,7 +510,7 @@ import {
   type UserUpdateParams,
   type UserListParams
 } from '@/api/modules/user'
-import { getUserRoles, getRolePermissions, type RoleItem, getRoleListForSelect, assignUserRoles, removeAllUserRoles } from '@/api/modules/role'
+import { getUserRoles, getRolePermissions, type RoleItem, getRoleListForSelect, assignUserRoles, removeAllUserRoles, batchAssignUserRoles } from '@/api/modules/role'
 import { getTenantList, type TenantItem } from '@/api/modules/tenant'
 import { type PermissionItem } from '@/api/modules/permission'
 import { getAuditLogList, type AuditLogItem } from '@/api/modules/audit'
@@ -528,10 +572,18 @@ const loadList = reload
 const tableRef = ref<TableInstance>()
 const selectedRows = ref<UserItem[]>([])
 const batchLoading = ref(false)
+// 批量分配角色弹窗状态
+const batchAssignVisible = ref(false)
+const batchAssignLoading = ref(false)
+const batchAssignSaving = ref(false)
+const batchAssignRoles = ref<RoleItem[]>([])
+const batchAssignRoleIds = ref<string[]>([])
 const canBatchStatus = computed(() => userStore.hasPermission('user:batch_status'))
 const canBatchDelete = computed(() => userStore.hasPermission('user:batch_delete'))
+// 批量分配角色与单行分配角色同门槛，系统管理员默认拥有
+const canBatchAssign = computed(() => userStore.hasPermission('rbac:user_role:batch_assign') || userStore.isAdmin)
 // 回收站里的行不支持批量操作（批量接口只面向在用用户）
-const batchEnabled = computed(() => !isRecycleBin.value && (canBatchStatus.value || canBatchDelete.value))
+const batchEnabled = computed(() => !isRecycleBin.value && (canBatchStatus.value || canBatchDelete.value || canBatchAssign.value))
 
 // 系统管理员的批量接口把租户ID放在路径上，缺租户ID的行无法提交
 function isRowSelectable(row: UserItem) {
@@ -625,6 +677,46 @@ async function handleBatchDelete() {
     reload()
   } finally {
     batchLoading.value = false
+  }
+}
+
+// 打开批量分配角色弹窗：角色候选与单行分配保持一致
+async function openBatchAssignRoles() {
+  if (!selectedRows.value.length) return
+  batchAssignVisible.value = true
+  batchAssignRoleIds.value = []
+  batchAssignLoading.value = true
+  try {
+    const scope = userStore.isAdmin ? 'all' : 'tenant'
+    batchAssignRoles.value = (await getRoleListForSelect(scope)) || []
+  } catch (e) {
+    ElMessage.error('加载角色列表失败')
+  } finally {
+    batchAssignLoading.value = false
+  }
+}
+
+// 提交批量分配角色：每个用户的角色列表都是覆盖式更新，因此至少要选一个角色
+async function submitBatchAssignRoles() {
+  const rows = selectedRows.value.filter((row) => row.id)
+  if (!rows.length) return
+  if (!batchAssignRoleIds.value.length) {
+    ElMessage.warning('请至少选择一个角色')
+    return
+  }
+  batchAssignSaving.value = true
+  try {
+    await batchAssignUserRoles(
+      rows.map((row) => ({ user_id: row.id as string, role_ids: [...batchAssignRoleIds.value] }))
+    )
+    ElMessage.success(`已为 ${rows.length} 个用户分配角色`)
+    batchAssignVisible.value = false
+    clearSelection()
+    reload()
+  } catch (e) {
+    ElMessage.error((e as Error).message || '批量分配角色失败')
+  } finally {
+    batchAssignSaving.value = false
   }
 }
 

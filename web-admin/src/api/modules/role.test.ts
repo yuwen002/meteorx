@@ -22,6 +22,7 @@ import {
   getRBACStats,
   getUserRoles,
   assignUserRoles,
+  batchAssignUserRoles,
   removeUserRole,
   removeAllUserRoles,
   type RoleItem,
@@ -200,6 +201,20 @@ describe('Role API - 选择器、权限与用户角色', () => {
     vi.mocked(post).mockResolvedValue(undefined)
     await assignUserRoles('u-1', ['r-1', 'r-2'])
     expect(post).toHaveBeenCalledWith('/rbac/user-roles/u-1/roles', { role_ids: ['r-1', 'r-2'] })
+  })
+
+  it('batchAssignUserRoles 应以 assignments 提交批量分配', async () => {
+    vi.mocked(post).mockResolvedValue({ assigned: 2 })
+    await batchAssignUserRoles([
+      { user_id: 'u-1', role_ids: ['r-1'] },
+      { user_id: 'u-2', role_ids: ['r-1', 'r-2'] },
+    ])
+    expect(post).toHaveBeenCalledWith('/rbac/user-roles/batch/assign', {
+      assignments: [
+        { user_id: 'u-1', role_ids: ['r-1'] },
+        { user_id: 'u-2', role_ids: ['r-1', 'r-2'] },
+      ],
+    })
   })
 
   it('removeUserRole 应 DELETE 单个用户角色', async () => {

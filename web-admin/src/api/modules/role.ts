@@ -137,6 +137,16 @@ export function assignUserRoles(userId: string, roleIds: string[]) {
   return post(`/rbac/user-roles/${userId}/roles`, { role_ids: roleIds })
 }
 
+export interface BatchUserRoleAssignment {
+  user_id: string
+  role_ids: string[]
+}
+
+// 批量为多个用户分配角色（每个用户的角色列表均为覆盖式更新）
+export function batchAssignUserRoles(assignments: BatchUserRoleAssignment[]) {
+  return post('/rbac/user-roles/batch/assign', { assignments })
+}
+
 // 移除用户的单个角色
 export function removeUserRole(userId: string, roleId: string) {
   return del(`/rbac/user-roles/${userId}/roles/${roleId}`)
