@@ -137,6 +137,25 @@ func (r *userRoleRepository) CheckUserExists(ctx context.Context, userID string)
 	return nil
 }
 
+// GetUserScope 查询目标用户的租户归属与是否系统管理员，用于角色分配的作用域校验
+func (r *userRoleRepository) GetUserScope(ctx context.Context, userID string) (string, bool, error) {
+	var row struct {
+		TenantID string `gorm:"column:tenant_id"`
+		IsMaster bool   `gorm:"column:is_master"`
+	}
+	err := r.db.WithContext(ctx).Table("users").
+		Select("tenant_id", "is_master").
+		Where("id = ?", userID).
+		Take(&row).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", false, errors.New("用户不存在")
+		}
+		return "", false, err
+	}
+	return row.TenantID, row.IsMaster, nil
+}
+
 // CountByUserID 查询某用户已绑定的角色数量
 func (r *userRoleRepository) CountByUserID(ctx context.Context, userID string) (int64, error) {
 	var count int64

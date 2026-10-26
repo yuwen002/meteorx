@@ -542,6 +542,10 @@ func (m *mockUserRoleRepo) CheckUserExists(_ context.Context, _ string) error {
 	return nil
 }
 
+func (m *mockUserRoleRepo) GetUserScope(_ context.Context, _ string) (string, bool, error) {
+	return "", false, nil
+}
+
 func (m *mockUserRoleRepo) ListUserRoles(_ context.Context, _ int, _ int, _ string, _ string) ([]*rbacModel.UserRole, int64, error) {
 	return nil, 0, nil
 }

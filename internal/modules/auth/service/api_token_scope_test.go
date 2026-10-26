@@ -37,6 +37,9 @@ func (s *stubUserRoleRepo) GetUserIDsByRoleID(context.Context, string) ([]string
 func (s *stubUserRoleRepo) CountByRoleID(context.Context, string) (int64, error)         { return 0, nil }
 func (s *stubUserRoleRepo) CountByUserID(context.Context, string) (int64, error)         { return 0, nil }
 func (s *stubUserRoleRepo) CheckUserExists(context.Context, string) error                { return nil }
+func (s *stubUserRoleRepo) GetUserScope(context.Context, string) (string, bool, error) {
+	return "", false, nil
+}
 func (s *stubUserRoleRepo) ListUserRoles(context.Context, int, int, string, string) ([]*rbacmodel.UserRole, int64, error) {
 	return nil, 0, nil
 }

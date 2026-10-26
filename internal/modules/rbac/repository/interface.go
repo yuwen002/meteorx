@@ -67,5 +67,6 @@ type UserRoleRepository interface {
 	CountByRoleID(ctx context.Context, roleID string) (int64, error)
 	CountByUserID(ctx context.Context, userID string) (int64, error)
 	CheckUserExists(ctx context.Context, userID string) error
+	GetUserScope(ctx context.Context, userID string) (tenantID string, isMaster bool, err error)
 	ListUserRoles(ctx context.Context, page, pageSize int, userID, roleID string) ([]*model.UserRole, int64, error)
 }

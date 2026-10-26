@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"meteorx/internal/common/contextx"
 	"meteorx/internal/modules/rbac/dto"
 	"meteorx/internal/modules/rbac/model"
 )
@@ -19,7 +20,7 @@ func newTestRBAC() (*RBACService, *mockRoleRepo, *mockPermissionRepo, *mockRoleP
 }
 
 func seedRole(rr *mockRoleRepo, id, code, scope string, isSystem bool) *model.Role {
-	r := &model.Role{ID: id, Name: code, Code: code, Scope: scope, IsSystem: isSystem, Status: model.RoleStatusEnabled, TenantID: ""}
+	r := &model.Role{ID: id, Name: code, Code: code, Scope: scope, IsSystem: isSystem, Status: model.RoleStatusEnabled, TenantID: contextx.SystemTenantID}
 	rr.seed(r)
 	return r
 }
@@ -338,13 +339,120 @@ func TestAssignUserRoles_UserNotExists(t *testing.T) {
 func TestAssignUserRoles_Success(t *testing.T) {
 	svc, rr, _, _, urr := newTestRBAC()
 	seedRole(rr, "r1", "editor", model.RoleScopeTenant, false)
-	urr.userExists["u1"] = true
+	urr.seedUser("u1", "t1", false)
 
-	if err := svc.AssignUserRoles(context.Background(), "u1", dto.AssignUserRolesReq{RoleIDs: []string{"r1"}}); err != nil {
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	if err := svc.AssignUserRoles(ctx, "u1", dto.AssignUserRolesReq{RoleIDs: []string{"r1"}}); err != nil {
 		t.Fatalf("AssignUserRoles error: %v", err)
 	}
 	if len(urr.userRoles["u1"]) != 1 || urr.userRoles["u1"][0] != "r1" {
 		t.Fatalf("expected r1 assigned, got %v", urr.userRoles["u1"])
+	}
+}
+
+func TestAssignUserRoles_CrossTenantRejected(t *testing.T) {
+	svc, rr, _, _, urr := newTestRBAC()
+	seedRole(rr, "r1", "editor", model.RoleScopeTenant, false)
+	urr.seedUser("u2", "t2", false)
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	err := svc.AssignUserRoles(ctx, "u2", dto.AssignUserRolesReq{RoleIDs: []string{"r1"}})
+	if err == nil || !strings.Contains(err.Error(), "不属于当前租户") {
+		t.Fatalf("expected cross tenant error, got: %v", err)
+	}
+	if len(urr.userRoles["u2"]) != 0 {
+		t.Fatalf("expected no assignment, got %v", urr.userRoles["u2"])
+	}
+}
+
+func TestAssignUserRoles_MasterUserRejected(t *testing.T) {
+	svc, rr, _, _, urr := newTestRBAC()
+	seedRole(rr, "r1", "editor", model.RoleScopeTenant, false)
+	urr.seedUser("u1", "t1", true)
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	err := svc.AssignUserRoles(ctx, "u1", dto.AssignUserRolesReq{RoleIDs: []string{"r1"}})
+	if err == nil || !strings.Contains(err.Error(), "不属于当前租户") {
+		t.Fatalf("expected master user rejected, got: %v", err)
+	}
+}
+
+func TestAssignUserRoles_SystemRoleRejected(t *testing.T) {
+	svc, rr, _, _, urr := newTestRBAC()
+	seedRole(rr, "r1", "superadmin", model.RoleScopeSystem, true)
+	urr.seedUser("u1", "t1", false)
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	err := svc.AssignUserRoles(ctx, "u1", dto.AssignUserRolesReq{RoleIDs: []string{"r1"}})
+	if err == nil || !strings.Contains(err.Error(), "系统级角色") {
+		t.Fatalf("expected system role rejected, got: %v", err)
+	}
+}
+
+func TestAssignUserRoles_ForeignRoleRejected(t *testing.T) {
+	svc, rr, _, _, urr := newTestRBAC()
+	rr.seed(&model.Role{ID: "r9", Name: "别的租户角色", Code: "other", Scope: model.RoleScopeTenant, Status: model.RoleStatusEnabled, TenantID: "t2"})
+	urr.seedUser("u1", "t1", false)
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	err := svc.AssignUserRoles(ctx, "u1", dto.AssignUserRolesReq{RoleIDs: []string{"r9"}})
+	if err == nil || !strings.Contains(err.Error(), "不属于当前租户") {
+		t.Fatalf("expected foreign role rejected, got: %v", err)
+	}
+}
+
+func TestAssignUserRoles_SystemOperatorBypassesScope(t *testing.T) {
+	svc, rr, _, _, urr := newTestRBAC()
+	seedRole(rr, "r1", "superadmin", model.RoleScopeSystem, true)
+	urr.seedUser("u9", "t9", false)
+
+	ctx := contextx.SetVars(context.Background(), contextx.SystemTenantID, "admin", nil)
+	if err := svc.AssignUserRoles(ctx, "u9", dto.AssignUserRolesReq{RoleIDs: []string{"r1"}}); err != nil {
+		t.Fatalf("expected system operator bypass, got: %v", err)
+	}
+	if len(urr.userRoles["u9"]) != 1 {
+		t.Fatalf("expected r1 assigned, got %v", urr.userRoles["u9"])
+	}
+}
+
+func TestBatchAssignUserRoles_CrossTenantRejectedWholeBatch(t *testing.T) {
+	svc, rr, _, _, urr := newTestRBAC()
+	seedRole(rr, "r1", "editor", model.RoleScopeTenant, false)
+	urr.seedUser("u1", "t1", false)
+	urr.seedUser("u2", "t2", false)
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	_, err := svc.BatchAssignUserRoles(ctx, dto.BatchAssignUserRolesReq{UserRoleAssignments: []dto.UserRoleAssignment{
+		{UserID: "u1", RoleIDs: []string{"r1"}},
+		{UserID: "u2", RoleIDs: []string{"r1"}},
+	}})
+	if err == nil || !strings.Contains(err.Error(), "不属于当前租户") {
+		t.Fatalf("expected cross tenant error, got: %v", err)
+	}
+	if len(urr.userRoles["u1"]) != 0 || len(urr.userRoles["u2"]) != 0 {
+		t.Fatalf("expected whole batch rejected, got u1=%v u2=%v", urr.userRoles["u1"], urr.userRoles["u2"])
+	}
+}
+
+func TestBatchAssignUserRoles_Success(t *testing.T) {
+	svc, rr, _, _, urr := newTestRBAC()
+	seedRole(rr, "r1", "editor", model.RoleScopeTenant, false)
+	urr.seedUser("u1", "t1", false)
+	urr.seedUser("u2", "t1", false)
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	assigned, err := svc.BatchAssignUserRoles(ctx, dto.BatchAssignUserRolesReq{UserRoleAssignments: []dto.UserRoleAssignment{
+		{UserID: "u1", RoleIDs: []string{"r1"}},
+		{UserID: "u2", RoleIDs: []string{"r1"}},
+	}})
+	if err != nil {
+		t.Fatalf("BatchAssignUserRoles error: %v", err)
+	}
+	if assigned != 2 {
+		t.Fatalf("expected 2 assigned, got %d", assigned)
+	}
+	if len(urr.userRoles["u1"]) != 1 || len(urr.userRoles["u2"]) != 1 {
+		t.Fatalf("expected both assigned, got u1=%v u2=%v", urr.userRoles["u1"], urr.userRoles["u2"])
 	}
 }
 

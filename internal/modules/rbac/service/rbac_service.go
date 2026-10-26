@@ -668,6 +668,11 @@ func (s *RBACService) AssignUserRoles(ctx context.Context, userID string, req dt
 		roles = append(roles, role)
 	}
 
+	// 校验分配范围：租户操作者不能跨租户，也不能分配系统级角色
+	if err := s.validateRoleAssignScope(ctx, []string{userID}, roles); err != nil {
+		return err
+	}
+
 	if err := s.userRoleRepo.AssignRoles(ctx, userID, req.RoleIDs); err != nil {
 		return err
 	}
@@ -685,6 +690,39 @@ func (s *RBACService) AssignUserRoles(ctx context.Context, userID string, req dt
 		}
 	}
 
+	return nil
+}
+
+// validateRoleAssignScope 校验角色分配是否越出操作者的租户范围。
+// 系统管理员（虚拟租户 SYSTEM_ROOT）可跨租户分配；租户操作者只能为本租户的普通用户
+// 绑定 tenant/all 作用域且归属平台或本租户的角色。
+func (s *RBACService) validateRoleAssignScope(ctx context.Context, userIDs []string, roles []*model.Role) error {
+	tenantID := contextx.GetTenantID(ctx)
+	if tenantID == contextx.SystemTenantID {
+		return nil
+	}
+	if tenantID == "" {
+		return errors.New("缺少租户上下文，无法校验角色分配范围")
+	}
+
+	for _, userID := range userIDs {
+		userTenantID, isMaster, err := s.userRoleRepo.GetUserScope(ctx, userID)
+		if err != nil {
+			return err
+		}
+		if isMaster || userTenantID != tenantID {
+			return errors.New("用户 [" + userID + "] 不属于当前租户，无法分配角色")
+		}
+	}
+
+	for _, role := range roles {
+		if role.Scope == model.RoleScopeSystem {
+			return errors.New("当前租户无权分配系统级角色: " + role.Name)
+		}
+		if role.TenantID != contextx.SystemTenantID && role.TenantID != tenantID {
+			return errors.New("角色 [" + role.Name + "] 不属于当前租户，无法分配")
+		}
+	}
 	return nil
 }
 
@@ -799,19 +837,31 @@ func (s *RBACService) BatchAssignUserRoles(ctx context.Context, req dto.BatchAss
 	}
 
 	// 验证所有角色ID是否存在
-	roleNames := make(map[string]string)
+	roles := make(map[string]*model.Role, len(allRoleIDs))
 	for roleID := range allRoleIDs {
 		role, err := s.roleRepo.GetByID(ctx, roleID)
 		if err != nil {
 			return 0, errors.New("角色ID不存在: " + roleID)
 		}
-		roleNames[roleID] = role.Name
+		roles[roleID] = role
 	}
 	// 验证所有用户ID是否存在
+	userIDs := make([]string, 0, len(allUserIDs))
 	for userID := range allUserIDs {
+		userIDs = append(userIDs, userID)
+	}
+	for _, userID := range userIDs {
 		if err := s.userRoleRepo.CheckUserExists(ctx, userID); err != nil {
 			return 0, err
 		}
+	}
+	// 整批校验作用域，避免前几个用户角色已改、后面越权才报错的半成品状态
+	roleList := make([]*model.Role, 0, len(roles))
+	for _, role := range roles {
+		roleList = append(roleList, role)
+	}
+	if err := s.validateRoleAssignScope(ctx, userIDs, roleList); err != nil {
+		return 0, err
 	}
 
 	operatorID := logger.GetUserID(ctx)
@@ -826,8 +876,8 @@ func (s *RBACService) BatchAssignUserRoles(ctx context.Context, req dto.BatchAss
 
 		// 记录审计日志
 		for _, roleID := range assignment.RoleIDs {
-			if name, ok := roleNames[roleID]; ok {
-				s.auditLogger.LogRoleAssignment(ctx, assignment.UserID, operatorID, roleID, name)
+			if role, ok := roles[roleID]; ok {
+				s.auditLogger.LogRoleAssignment(ctx, assignment.UserID, operatorID, roleID, role.Name)
 			}
 		}
 

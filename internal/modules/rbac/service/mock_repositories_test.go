@@ -264,10 +264,17 @@ var _ repository.RolePermissionRepository = (*mockRolePermRepo)(nil)
 
 // ---------- mock: UserRoleRepository ----------
 
+// mockUserScope 模拟 users 表中的租户归属与主管理员标记
+type mockUserScope struct {
+	TenantID string
+	IsMaster bool
+}
+
 type mockUserRoleRepo struct {
 	userRoles  map[string][]string
 	roleUsers  map[string][]string
 	userExists map[string]bool
+	userScopes map[string]mockUserScope
 }
 
 func newMockUserRoleRepo() *mockUserRoleRepo {
@@ -275,7 +282,14 @@ func newMockUserRoleRepo() *mockUserRoleRepo {
 		userRoles:  make(map[string][]string),
 		roleUsers:  make(map[string][]string),
 		userExists: make(map[string]bool),
+		userScopes: make(map[string]mockUserScope),
 	}
+}
+
+// seedUser 登记一个用户及其租户归属，供作用域校验和存在性校验共用
+func (m *mockUserRoleRepo) seedUser(userID, tenantID string, isMaster bool) {
+	m.userExists[userID] = true
+	m.userScopes[userID] = mockUserScope{TenantID: tenantID, IsMaster: isMaster}
 }
 
 func (m *mockUserRoleRepo) AssignRoles(_ context.Context, userID string, roleIDs []string) error {
@@ -334,6 +348,13 @@ func (m *mockUserRoleRepo) CheckUserExists(_ context.Context, userID string) err
 		return nil
 	}
 	return errors.New("user not found")
+}
+
+func (m *mockUserRoleRepo) GetUserScope(_ context.Context, userID string) (string, bool, error) {
+	if s, ok := m.userScopes[userID]; ok {
+		return s.TenantID, s.IsMaster, nil
+	}
+	return "", false, errors.New("user not found")
 }
 
 func (m *mockUserRoleRepo) ListUserRoles(_ context.Context, _ int, _ int, _ string, _ string) ([]*model.UserRole, int64, error) {
