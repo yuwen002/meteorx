@@ -124,22 +124,25 @@ func TestGetClientIP(t *testing.T) {
 			expected: "192.168.1.1",
 		},
 		{
+			// 未配置可信代理段时装配点走 ClientIPFromXFFTrustedProxies(1)：
+			// chi v5.5 起 ClientIPFromXFF 空参直接 panic。
 			name:     "单跳 nginx：左侧伪造条目被忽略，取最右 nginx 追加的对端",
-			mw:       chimiddleware.ClientIPFromXFF(),
+			mw:       chimiddleware.ClientIPFromXFFTrustedProxies(1),
 			remote:   "10.0.0.5:9876",
 			xff:      "1.2.3.4, 203.0.113.7",
 			expected: "203.0.113.7",
 		},
 		{
+			// RemoteAddr 需在可信段内（即真正的 nginx 对端）：chi v5.5 起 peer 不可信时整个 XFF 被忽略。
 			name:     "多跳可信段：右起跳过可信地址取首个不可信项",
 			mw:       chimiddleware.ClientIPFromXFF("198.51.100.0/24"),
-			remote:   "10.0.0.5:9876",
+			remote:   "198.51.100.23:9876",
 			xff:      "203.0.113.9, 198.51.100.23",
 			expected: "203.0.113.9",
 		},
 		{
 			name:     "垃圾 XFF fail-closed：回退 RemoteAddr",
-			mw:       chimiddleware.ClientIPFromXFF(),
+			mw:       chimiddleware.ClientIPFromXFFTrustedProxies(1),
 			remote:   "192.168.1.9:5555",
 			xff:      "not-an-ip",
 			expected: "192.168.1.9",

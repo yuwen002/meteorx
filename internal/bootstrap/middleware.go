@@ -23,8 +23,14 @@ func SetupMiddleware(r *chi.Mux, allowedOrigins []string, trustedProxies []strin
 	// 安全响应头纵深防御：紧跟错误处理之后，确保异常/恢复路径的响应同样携带安全头
 	r.Use(middleware.SecurityHeaders)
 	// 替代已弃用的 chimiddleware.RealIP：后者无条件信任最左 XFF/True-Client-IP/X-Real-IP，
-	// 可被客户端伪造审计来源 IP（GHSA-3fxj-6jh8-hvhx）
-	r.Use(chimiddleware.ClientIPFromXFF(trustedProxies...))
+	// 可被客户端伪造审计来源 IP（GHSA-3fxj-6jh8-hvhx）。
+	// 注意不能把空列表直接传进 ClientIPFromXFF：chi v5.5 起空参会 panic，
+	// 而空参的语义本来就等同于「可信代理数=1、取 XFF 最右一条」，故显式走 TrustedProxies 分支。
+	if len(trustedProxies) == 0 {
+		r.Use(chimiddleware.ClientIPFromXFFTrustedProxies(1))
+	} else {
+		r.Use(chimiddleware.ClientIPFromXFF(trustedProxies...))
+	}
 	r.Use(chimiddleware.Timeout(60 * time.Second))
 
 	r.Use(CorsMiddleware(allowedOrigins))
