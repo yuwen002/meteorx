@@ -262,15 +262,103 @@ func TestBindRolePermissions_PermissionNotFound(t *testing.T) {
 }
 
 func TestBindRolePermissions_Success(t *testing.T) {
-	svc, rr, pr, rpr, _ := newTestRBAC()
+	svc, rr, pr, rpr, urr := newTestRBAC()
 	seedRole(rr, "r1", "editor", model.RoleScopeTenant, false)
 	pr.seed(&model.Permission{ID: "p1", Code: "user:read"})
+	// 操作者 op1 自身持有 user:read，绑定同编码权限属于子集，放行
+	urr.userRoles["op1"] = []string{"op-role"}
+	rpr.codesByRole["op-role"] = []string{"user:read"}
 
-	if err := svc.BindRolePermissions(context.Background(), "r1", dto.BindRolePermissionsReq{PermissionIDs: []string{"p1"}}); err != nil {
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	if err := svc.BindRolePermissions(ctx, "r1", dto.BindRolePermissionsReq{PermissionIDs: []string{"p1"}}); err != nil {
 		t.Fatalf("BindRolePermissions error: %v", err)
 	}
 	if len(rpr.rolePerms["r1"]) != 1 || rpr.rolePerms["r1"][0] != "p1" {
 		t.Fatalf("expected p1 bound, got %v", rpr.rolePerms["r1"])
+	}
+}
+
+// ---------- 绑定权限子集收紧（防止绑到自身角色直接提权或先绑再分配绕过） ----------
+
+func TestBindRolePermissions_PermissionSubsetRejected(t *testing.T) {
+	svc, rr, pr, rpr, urr := newTestRBAC()
+	seedRole(rr, "r1", "editor", model.RoleScopeTenant, false)
+	pr.seed(&model.Permission{ID: "p1", Code: "user:read"})
+	pr.seed(&model.Permission{ID: "p9", Code: "tenant:delete"})
+	// 操作者 op1 只持有 user:read，绑定其未持有的 tenant:delete 应拒绝
+	urr.userRoles["op1"] = []string{"op-role"}
+	rpr.codesByRole["op-role"] = []string{"user:read"}
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	err := svc.BindRolePermissions(ctx, "r1", dto.BindRolePermissionsReq{PermissionIDs: []string{"p1", "p9"}})
+	if err == nil || !strings.Contains(err.Error(), "未持有的权限") || !strings.Contains(err.Error(), "tenant:delete") {
+		t.Fatalf("expected subset rejected naming tenant:delete, got: %v", err)
+	}
+	if len(rpr.rolePerms["r1"]) != 0 {
+		t.Fatalf("expected no binding, got %v", rpr.rolePerms["r1"])
+	}
+}
+
+func TestBindRolePermissions_SystemOperatorBypassesSubset(t *testing.T) {
+	svc, rr, pr, rpr, _ := newTestRBAC()
+	seedRole(rr, "r1", "tenant_admin", model.RoleScopeTenant, false)
+	pr.seed(&model.Permission{ID: "p9", Code: "tenant:delete"})
+	// 系统操作者不受子集限制：即便自身不持有 tenant:delete 也可绑定
+	ctx := contextx.SetVars(context.Background(), contextx.SystemTenantID, "admin", nil)
+	if err := svc.BindRolePermissions(ctx, "r1", dto.BindRolePermissionsReq{PermissionIDs: []string{"p9"}}); err != nil {
+		t.Fatalf("expected system operator bypass subset check, got: %v", err)
+	}
+	if len(rpr.rolePerms["r1"]) != 1 || rpr.rolePerms["r1"][0] != "p9" {
+		t.Fatalf("expected p9 bound, got %v", rpr.rolePerms["r1"])
+	}
+}
+
+func TestBindRolePermissions_MissingOperatorContextRejected(t *testing.T) {
+	svc, rr, pr, rpr, _ := newTestRBAC()
+	seedRole(rr, "r1", "editor", model.RoleScopeTenant, false)
+	pr.seed(&model.Permission{ID: "p1", Code: "user:read"})
+
+	// 租户上下文但缺操作者 ID，应失败关闭而非默认放行
+	ctx := contextx.SetVars(context.Background(), "t1", "", nil)
+	err := svc.BindRolePermissions(ctx, "r1", dto.BindRolePermissionsReq{PermissionIDs: []string{"p1"}})
+	if err == nil || !strings.Contains(err.Error(), "缺少操作者上下文") {
+		t.Fatalf("expected missing operator context rejected, got: %v", err)
+	}
+	if len(rpr.rolePerms["r1"]) != 0 {
+		t.Fatalf("expected no binding, got %v", rpr.rolePerms["r1"])
+	}
+}
+
+func TestBatchBindRolesPermissions_PermissionSubsetRejected(t *testing.T) {
+	svc, rr, pr, rpr, urr := newTestRBAC()
+	seedRole(rr, "r1", "editor", model.RoleScopeTenant, false)
+	pr.seed(&model.Permission{ID: "p9", Code: "tenant:delete"})
+	urr.userRoles["op1"] = []string{"op-role"}
+	rpr.codesByRole["op-role"] = []string{"user:read"}
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	_, err := svc.BatchBindRolesPermissions(ctx, dto.BatchBindRolesPermissionsReq{
+		RoleIDs:       []string{"r1"},
+		PermissionIDs: []string{"p9"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "未持有的权限") || !strings.Contains(err.Error(), "tenant:delete") {
+		t.Fatalf("expected batch subset rejected naming tenant:delete, got: %v", err)
+	}
+}
+
+func TestBatchBindRolesPermissions_PermissionSubsetAllowed(t *testing.T) {
+	svc, rr, pr, rpr, urr := newTestRBAC()
+	seedRole(rr, "r1", "editor", model.RoleScopeTenant, false)
+	pr.seed(&model.Permission{ID: "p1", Code: "user:read"})
+	urr.userRoles["op1"] = []string{"op-role"}
+	rpr.codesByRole["op-role"] = []string{"user:read"}
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	if _, err := svc.BatchBindRolesPermissions(ctx, dto.BatchBindRolesPermissionsReq{
+		RoleIDs:       []string{"r1"},
+		PermissionIDs: []string{"p1"},
+	}); err != nil {
+		t.Fatalf("expected batch subset allowed, got: %v", err)
 	}
 }
 

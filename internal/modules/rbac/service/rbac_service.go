@@ -439,6 +439,11 @@ func (s *RBACService) BindRolePermissions(ctx context.Context, roleID string, re
 		permissions = append(permissions, perm)
 	}
 
+	// 校验绑定权限不越出操作者：只能绑定自身已持有的权限，防止绑到自身角色直接提权或先绑再分配绕过
+	if err := s.validateBindPermissionSubset(ctx, permissions); err != nil {
+		return err
+	}
+
 	if err := s.rolePermissionRepo.BindPermissions(ctx, roleID, req.PermissionIDs); err != nil {
 		return err
 	}
@@ -556,6 +561,11 @@ func (s *RBACService) BatchBindRolesPermissions(ctx context.Context, req dto.Bat
 			return 0, errors.New("权限ID不存在: " + permissionID)
 		}
 		permissions = append(permissions, perm)
+	}
+
+	// 整批校验绑定权限不越出操作者，与单条绑定同口径，防止批量入口绕过提权限制
+	if err := s.validateBindPermissionSubset(ctx, permissions); err != nil {
+		return 0, err
 	}
 
 	count, err := s.rolePermissionRepo.BatchBindPermissions(ctx, req.RoleIDs, req.PermissionIDs)
@@ -766,6 +776,39 @@ func (s *RBACService) validateRoleAssignPermissionSubset(ctx context.Context, ro
 		if len(exceed) > 0 {
 			return errors.New("角色 [" + role.Name + "] 含操作者未持有的权限，无法分配: " + strings.Join(exceed, ", "))
 		}
+	}
+	return nil
+}
+
+// validateBindPermissionSubset 限制「权限只能绑定自身已持有的权限」：非系统操作者为角色绑定的每个权限，
+// 其编码必须在操作者自身有效权限集合内，防止把自身没有的权限绑到自身所属角色直接提权，或先绑后分配绕过
+// 分配子集校验。系统操作者（SYSTEM_ROOT）不受此限制，与 validateRoleAssignPermissionSubset 口径一致。
+func (s *RBACService) validateBindPermissionSubset(ctx context.Context, perms []*model.Permission) error {
+	if contextx.GetTenantID(ctx) == contextx.SystemTenantID {
+		return nil
+	}
+	operatorID := contextx.GetUserID(ctx)
+	if operatorID == "" {
+		return errors.New("缺少操作者上下文，无法校验权限绑定范围")
+	}
+
+	operatorCodes, err := s.GetUserPermissionCodes(ctx, operatorID)
+	if err != nil {
+		return err
+	}
+	owned := make(map[string]struct{}, len(operatorCodes))
+	for _, code := range operatorCodes {
+		owned[code] = struct{}{}
+	}
+
+	var exceed []string
+	for _, perm := range perms {
+		if _, ok := owned[perm.Code]; !ok {
+			exceed = append(exceed, perm.Code)
+		}
+	}
+	if len(exceed) > 0 {
+		return errors.New("包含操作者未持有的权限，无法绑定: " + strings.Join(exceed, ", "))
 	}
 	return nil
 }
