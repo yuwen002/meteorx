@@ -20,20 +20,36 @@ import (
 // 同一次进程内，router 侧与 audit 模块侧两个 AuditService 实例必须共享同一 IntegrityGuard，
 // 否则两条写入路径算出的摘要不一致，校验必坏（见 bootstrap 装配与 audit.NewIntegrityGuard）。
 type IntegrityGuard struct {
-	key     []byte
-	enabled bool
+	key      []byte
+	prevKey  []byte // 轮换过渡期的旧 pepper；nil/空表示未处于轮换期
+	interval time.Duration
+	enabled  bool
 }
 
 // NewIntegrityGuard 依配置构造完整性摘要器；未启用或缺 pepper 时返回禁用实例（不 panic、不阻断）。
+// 处于密钥轮换过渡期（额外配置 previous_secret_key）时一并载入旧 key，供校验复验与 rehash 识别使用。
 func NewIntegrityGuard(cfg config.Config) *IntegrityGuard {
 	ic := cfg.Audit.Integrity
 	if !ic.HasIntegrityKey() {
 		return &IntegrityGuard{enabled: false}
 	}
-	return &IntegrityGuard{
-		key:     []byte(strings.TrimSpace(ic.SecretKey)),
-		enabled: true,
+	g := &IntegrityGuard{
+		key:      []byte(strings.TrimSpace(ic.SecretKey)),
+		interval: ic.GetAnchorInterval(),
+		enabled:  true,
 	}
+	if ic.HasPreviousKey() {
+		g.prevKey = []byte(strings.TrimSpace(ic.PreviousSecretKey))
+	}
+	return g
+}
+
+// AnchorInterval 锚点链时间桶宽度，供 rehash 全量重建时按同一口径切窗。
+func (g *IntegrityGuard) AnchorInterval() time.Duration {
+	if g == nil || g.interval <= 0 {
+		return time.Hour
+	}
+	return g.interval
 }
 
 // Enabled 摘要器是否处于生效状态。
@@ -41,14 +57,50 @@ func (g *IntegrityGuard) Enabled() bool {
 	return g != nil && g.enabled
 }
 
-// Compute 返回日志行摘要的 hex 字符串；禁用时返回空串（不写、不阻断）。
+// HasPrevious 是否处于密钥轮换过渡期：完整性生效且载入了非空旧 pepper。
+func (g *IntegrityGuard) HasPrevious() bool {
+	return g != nil && g.enabled && len(g.prevKey) > 0
+}
+
+// Compute 返回日志行摘要的 hex 字符串（当前 key）；禁用时返回空串（不写、不阻断）。
 func (g *IntegrityGuard) Compute(log *model.AuditLog) string {
 	if !g.Enabled() || log == nil {
 		return ""
 	}
-	mac := hmac.New(sha256.New, g.key)
-	mac.Write(canonical(log))
-	return hex.EncodeToString(mac.Sum(nil))
+	return computeWith(g.key, log)
+}
+
+// ComputeWithPrevious 用旧 pepper 重算行摘要；无旧 key（非轮换期）或禁用时返回空串。
+func (g *IntegrityGuard) ComputeWithPrevious(log *model.AuditLog) string {
+	if !g.HasPrevious() || log == nil {
+		return ""
+	}
+	return computeWith(g.prevKey, log)
+}
+
+// RowKeyStatus 行摘要与新旧两把 key 的匹配结论，供校验分类与 rehash 识别。
+type RowKeyStatus int
+
+const (
+	RowLegacy   RowKeyStatus = iota // RecordHash 为空：legacy/未启用，不参与校验
+	RowCurrent                      // 匹配当前 key：已验证
+	RowPrevious                     // 仅匹配旧 key：待 rehash（合法历史行，非篡改）
+	RowNone                         // 两把 key 都不匹配：真篡改
+)
+
+// ClassifyRow 判定一行摘要归属于哪把 key：空=Legacy；命中当前=Current；仅命中旧=Previous；否则 None。
+// 禁用时一律按 Legacy 处理（无摘要体系）。
+func (g *IntegrityGuard) ClassifyRow(log *model.AuditLog) RowKeyStatus {
+	if !g.Enabled() || log == nil || log.RecordHash == "" {
+		return RowLegacy
+	}
+	if computeWith(g.key, log) == log.RecordHash {
+		return RowCurrent
+	}
+	if g.HasPrevious() && computeWith(g.prevKey, log) == log.RecordHash {
+		return RowPrevious
+	}
+	return RowNone
 }
 
 // ComputeDigest 对任意字节序列做 keyed HMAC-SHA256（锚点窗口折叠与锚点哈希复用同一 pepper）。
@@ -57,9 +109,7 @@ func (g *IntegrityGuard) ComputeDigest(data []byte) string {
 	if !g.Enabled() {
 		return ""
 	}
-	mac := hmac.New(sha256.New, g.key)
-	mac.Write(data)
-	return hex.EncodeToString(mac.Sum(nil))
+	return digestWith(g.key, data)
 }
 
 // canonical 将日志的固定字段集按固定顺序做稳定序列化（长度前缀消除分隔符歧义），
@@ -116,13 +166,26 @@ func foldTime(t time.Time) string {
 	return t.UTC().Format("2006-01-02T15:04:05.999999999Z")
 }
 
-// FoldRecordHashes 将窗口内按 (created_at, id) 有序的行摘要逐行累加折叠为窗口累加摘要。
+// FoldRecordHashes 将窗口内按 (created_at, id) 有序的行摘要逐行累加折叠为窗口累加摘要（当前 key）。
 // 采用链式 HMAC：d_0 = HMAC(key, "")，d_i = HMAC(key, d_{i-1} || hash_i)（长度前缀消除歧义）。
 // 因顺序与条数均敏感，窗口内增删改或重序都会使重算摘要与落库值不符。禁用时返回空串。
 func (g *IntegrityGuard) FoldRecordHashes(hashes []string) string {
 	if !g.Enabled() {
 		return ""
 	}
+	return foldWith(g.key, hashes)
+}
+
+// FoldRecordHashesWithPrevious 用旧 pepper 折叠窗口行摘要；无旧 key（非轮换期）或禁用时返回空串。
+func (g *IntegrityGuard) FoldRecordHashesWithPrevious(hashes []string) string {
+	if !g.HasPrevious() {
+		return ""
+	}
+	return foldWith(g.prevKey, hashes)
+}
+
+// foldWith 以给定 key 执行链式折叠（current/previous 共用同一算法）。
+func foldWith(key []byte, hashes []string) string {
 	state := ""
 	var l [8]byte
 	for _, h := range hashes {
@@ -133,17 +196,30 @@ func (g *IntegrityGuard) FoldRecordHashes(hashes []string) string {
 		binary.BigEndian.PutUint64(l[:], uint64(len(h)))
 		buf = append(buf, l[:]...)
 		buf = append(buf, h...)
-		state = g.ComputeDigest(buf)
+		state = digestWith(key, buf)
 	}
 	return state
 }
 
-// AnchorHashOf 计算锚点哈希，把上一条锚点、本窗口摘要、行数与窗口边界链入，
+// AnchorHashOf 计算锚点哈希（当前 key），把上一条锚点、本窗口摘要、行数与窗口边界链入，
 // 使删改/插删窗口或断开链都会破坏后续所有锚点的 AnchorHash。禁用时返回空串。
 func (g *IntegrityGuard) AnchorHashOf(prevAnchorHash, windowDigest string, rowCount int64, start, end time.Time) string {
 	if !g.Enabled() {
 		return ""
 	}
+	return anchorWith(g.key, prevAnchorHash, windowDigest, rowCount, start, end)
+}
+
+// AnchorHashOfWithPrevious 用旧 pepper 计算锚点哈希；无旧 key（非轮换期）或禁用时返回空串。
+func (g *IntegrityGuard) AnchorHashOfWithPrevious(prevAnchorHash, windowDigest string, rowCount int64, start, end time.Time) string {
+	if !g.HasPrevious() {
+		return ""
+	}
+	return anchorWith(g.prevKey, prevAnchorHash, windowDigest, rowCount, start, end)
+}
+
+// anchorWith 以给定 key 计算锚点哈希（current/previous 共用同一序列化口径）。
+func anchorWith(key []byte, prevAnchorHash, windowDigest string, rowCount int64, start, end time.Time) string {
 	var l [8]byte
 	buf := make([]byte, 0, 160)
 	writeStr := func(s string) {
@@ -157,5 +233,19 @@ func (g *IntegrityGuard) AnchorHashOf(prevAnchorHash, windowDigest string, rowCo
 	buf = append(buf, l[:]...)
 	writeStr(foldTime(start))
 	writeStr(foldTime(end))
-	return g.ComputeDigest(buf)
+	return digestWith(key, buf)
+}
+
+// computeWith 以给定 key 对日志行计算 HMAC-SHA256 hex（canonical 口径与历史一致）。
+func computeWith(key []byte, log *model.AuditLog) string {
+	mac := hmac.New(sha256.New, key)
+	mac.Write(canonical(log))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// digestWith 以给定 key 对任意字节序列做 keyed HMAC-SHA256 hex。
+func digestWith(key, data []byte) string {
+	mac := hmac.New(sha256.New, key)
+	mac.Write(data)
+	return hex.EncodeToString(mac.Sum(nil))
 }

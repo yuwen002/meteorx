@@ -37,11 +37,12 @@ func InitModule(r chi.Router, db *gorm.DB, emailCfg *emailer.Emailer, integrity 
 	alertSvc := service.NewAlertService(alertRepo, emailCfg)
 	sessionSvc := service.NewSessionService(repo)
 	integritySvc := service.NewIntegrityService(integrity, repository.NewIntegrityRepository(db))
+	integrityCoordinator := NewIntegrityCoordinator(integritySvc)
 
 	h := handler.NewAuditHandler(svc)
 	alertH := handler.NewAlertHandler(alertSvc)
 	sessionH := handler.NewSessionHandler(sessionSvc)
-	integrityH := handler.NewIntegrityHandler(integritySvc)
+	integrityH := handler.NewIntegrityHandler(integrityCoordinator)
 
 	_ = repository.InitDefaultAlertRules(db)
 

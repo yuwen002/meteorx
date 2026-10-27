@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"meteorx/internal/config"
+	"meteorx/internal/modules/audit/model"
 	auditrepo "meteorx/internal/modules/audit/repository"
+	"meteorx/internal/modules/audit/service"
 	"meteorx/internal/testkit"
 
 	"github.com/stretchr/testify/require"
@@ -14,11 +16,19 @@ import (
 
 // verifyResp 与 dto.IntegrityVerifyResp 对齐的最小解析结构。
 type verifyResp struct {
-	Enabled      bool   `json:"enabled"`
-	Verdict      string `json:"verdict"`
-	CheckedRows  int64  `json:"checked_rows"`
-	LegacyRows   int64  `json:"legacy_rows"`
-	TamperedRows int64  `json:"tampered_rows"`
+	Enabled           bool   `json:"enabled"`
+	Verdict           string `json:"verdict"`
+	CheckedRows       int64  `json:"checked_rows"`
+	LegacyRows        int64  `json:"legacy_rows"`
+	TamperedRows      int64  `json:"tampered_rows"`
+	PendingRehashRows int64  `json:"pending_rehash_rows"`
+}
+
+// rehashResp 与 dto.IntegrityRehashResp 对齐的最小解析结构。
+type rehashResp struct {
+	RehashedRows   int64  `json:"rehashed_rows"`
+	AnchorsRebuilt int64  `json:"anchors_rebuilt"`
+	Message        string `json:"message"`
 }
 
 // TestInteg_AuditIntegrity_DisabledByDefault 默认配置（未配 pepper）下：
@@ -87,4 +97,79 @@ func TestInteg_AuditIntegrity_WriteHashThenVerifyAndTamper(t *testing.T) {
 	testkit.DecodeData(t, w, &res2)
 	require.Equal(t, "tampered", res2.Verdict, "改内容不改摘要须检出篡改")
 	require.Positive(t, res2.TamperedRows)
+}
+
+// TestInteg_AuditIntegrity_KeyRotationRehash 端到端锁住密钥轮换迁移：
+// 配当前=NEW、旧=OLD 的轮换态，手工植入一条旧 key 历史行→verify 为 pending_rehash；
+// 超管调 rehash→行迁到新 key、verify 回到 verified；非超管调 rehash 一律 403。
+func TestInteg_AuditIntegrity_KeyRotationRehash(t *testing.T) {
+	app := testkit.NewTestAppOpt(t, func(cfg *config.Config) {
+		cfg.Audit = config.AuditConfig{Integrity: config.AuditIntegrityConfig{
+			Enabled: true, SecretKey: "pepper-NEW", PreviousSecretKey: "pepper-OLD",
+		}}
+	})
+	sa := app.SuperadminHeader("sa", "t-1")
+	member := app.AuthHeader("m", "t-1", []string{"member"})
+
+	// 以旧 pepper 手工算一行摘要并直接入库（模拟轮换前历史数据）
+	oldGuard := service.NewIntegrityGuard(config.Config{Audit: config.AuditConfig{
+		Integrity: config.AuditIntegrityConfig{Enabled: true, SecretKey: "pepper-OLD"},
+	}})
+	// 以秒精度 UTC 时间戳落库，保证重算时的 CreatedAt 序列化与读回值逐字节一致。
+	createdAt := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	legacy := &model.AuditLog{
+		ID: "old-key-row-1", UserID: "u-1", Username: "legacy", TenantID: "t-1",
+		Module: "user", Action: "create", Result: "success", StatusCode: 200,
+		CreatedAt: createdAt,
+	}
+	// 用旧 pepper 对同一领域模型算摘要，再把相同字段值落 PO（模拟轮换前的历史数据）。
+	row := &auditrepo.AuditLogPO{
+		ID: legacy.ID, UserID: legacy.UserID, Username: legacy.Username, TenantID: legacy.TenantID,
+		Module: legacy.Module, Action: legacy.Action, Result: legacy.Result,
+		StatusCode: legacy.StatusCode, CreatedAt: legacy.CreatedAt,
+		RecordHash: oldGuard.Compute(legacy),
+	}
+	require.NotEmpty(t, row.RecordHash)
+	require.NoError(t, app.DB.Create(row).Error)
+
+	// 非超管无 audit:integrity:rehash 权限 → 403
+	w := app.Do(t, http.MethodPost, "/api/v1/audit/integrity/rehash", "", member)
+	require.Equal(t, http.StatusForbidden, w.Code, "非超管触发 rehash 应 403")
+
+	// 轮换态校验：旧 key 行判为待重算，非篡改
+	w = app.Do(t, http.MethodPost, "/api/v1/audit/integrity/verify", "", sa)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var pre verifyResp
+	testkit.DecodeData(t, w, &pre)
+	require.Equal(t, "pending_rehash", pre.Verdict, "旧 key 历史行应判为待重算")
+	require.Positive(t, pre.PendingRehashRows)
+	require.Zero(t, pre.TamperedRows)
+
+	// 执行 rehash
+	w = app.Do(t, http.MethodPost, "/api/v1/audit/integrity/rehash", "", sa)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var rr rehashResp
+	testkit.DecodeData(t, w, &rr)
+	require.Positive(t, rr.RehashedRows, "rehash 应重算旧 key 行")
+
+	// 迁移后再校验：回到 verified
+	w = app.Do(t, http.MethodPost, "/api/v1/audit/integrity/verify", "", sa)
+	require.Equal(t, http.StatusOK, w.Code)
+	var post verifyResp
+	testkit.DecodeData(t, w, &post)
+	require.Equal(t, "verified", post.Verdict, "rehash 后应 verified")
+	require.Zero(t, post.TamperedRows)
+	require.Zero(t, post.PendingRehashRows)
+}
+
+// TestInteg_AuditIntegrity_RehashRequiresPrevious 非轮换期（未配旧 pepper）时 rehash 返回 400。
+func TestInteg_AuditIntegrity_RehashRequiresPrevious(t *testing.T) {
+	app := testkit.NewTestAppOpt(t, func(cfg *config.Config) {
+		cfg.Audit = config.AuditConfig{Integrity: config.AuditIntegrityConfig{
+			Enabled: true, SecretKey: "pepper-ONLY",
+		}}
+	})
+	sa := app.SuperadminHeader("sa", "t-1")
+	w := app.Do(t, http.MethodPost, "/api/v1/audit/integrity/rehash", "", sa)
+	require.Equal(t, http.StatusBadRequest, w.Code, "未配旧 pepper 时 rehash 应 400")
 }

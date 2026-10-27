@@ -7,6 +7,19 @@
 
 ## [Unreleased]
 
+### 新增
+- **审计完整性密钥轮换与 rehash（双密钥过渡 + 锚点全量重建）**：`IntegrityGuard` 此前只持一把 pepper，换 key 后
+  `Verify` 会把旧密钥下的历史行与锚点一律误判为 `tampered`，无法区分「密钥轮换」与「真篡改」，也无迁移手段。现新增
+  可选配置 `audit.integrity.previous_secret_key`（env `METEORX_AUDIT_INTEGRITY_PREVIOUS_SECRET_KEY`），校验时同时
+  接受新旧两把 key：`ClassifyRow` 把每行判为已验证（命中新 key）/ 待重算（仅命中旧 key，合法历史、非篡改）/ 真篡改
+  （两把都对不上）；`Verify` 据此新增 `pending_rehash` 结论（优先级：真篡改 > 待重算 > 通过），响应补
+  `pending_rehash_rows` / `pending_rehash_samples`。新端点 `POST /api/v1/audit/integrity/rehash`（权限码
+  `audit:integrity:rehash`，仅平台超管）**只重写旧 key 可验证的行**到新 key（绝不盲重包，真篡改行不被洗白），因行摘要
+  值改变会使旧锚点必然失效，随即清空并从创世按新 key 全量重建整条锚点链；rehash 与周期锚点任务共享 mutex 串行，避免重建
+  期间被追加锚点。非轮换期（未配旧 pepper）调 rehash 返回 400。管理端完整性页新增 `pending_rehash` 态展示与一键
+  「密钥重算（rehash）」按钮，确认后自动复检。迁移完成、`verify` 回到 `verified` 后清空 `previous_secret_key` 即回
+  单密钥常态。
+
 ## [1.4.0] - 2026-10-27
 
 ### 文档

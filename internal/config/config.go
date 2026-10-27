@@ -49,6 +49,10 @@ type AuditIntegrityConfig struct {
 	Enabled bool `mapstructure:"enabled"`
 	// SecretKey 行摘要/锚点链的 pepper（建议 base64/随机串，经 METEORX_AUDIT_INTEGRITY_SECRET_KEY 注入，不落库）。
 	SecretKey string `mapstructure:"secret_key"`
+	// PreviousSecretKey 轮换过渡期的旧 pepper（经 METEORX_AUDIT_INTEGRITY_PREVIOUS_SECRET_KEY 注入，不落库）。
+	// 仅在密钥轮换后、历史行尚未全部重算到新密钥期间临时配置：校验时同时接受新旧两把 key，
+	// 仅匹配旧 key 的行判为“待重算”而非“篡改”；rehash 完成后可清空回到单密钥常态。
+	PreviousSecretKey string `mapstructure:"previous_secret_key"`
 	// AnchorInterval 锚点链生成间隔，默认 1h。
 	AnchorInterval time.Duration `mapstructure:"anchor_interval"`
 }
@@ -61,6 +65,12 @@ func (c AuditConfig) GetRetentionDays() int {
 // HasIntegrityKey 是否具备完整性校验条件：已启用且配置了非空 pepper。未满足时降级为关闭。
 func (c AuditIntegrityConfig) HasIntegrityKey() bool {
 	return c.Enabled && strings.TrimSpace(c.SecretKey) != ""
+}
+
+// HasPreviousKey 是否处于密钥轮换过渡期：完整性已生效且额外配置了非空旧 pepper。
+// 仅在 HasIntegrityKey 为真时才有意义（无当前 key 则无从重算到新密钥）。
+func (c AuditIntegrityConfig) HasPreviousKey() bool {
+	return c.HasIntegrityKey() && strings.TrimSpace(c.PreviousSecretKey) != ""
 }
 
 // GetAnchorInterval 返回锚点链生成间隔，未配置（≤0）时默认 1 小时。

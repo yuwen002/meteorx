@@ -317,6 +317,7 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
 |------|-----|------|------|
 | `enabled` | `METEORX_AUDIT_INTEGRITY_ENABLED` | `false` | 总开关 |
 | `secret_key` | `METEORX_AUDIT_INTEGRITY_SECRET_KEY` | 空 | HMAC pepper，**不落库**；未配置则整卡降级关闭 |
+| `previous_secret_key` | `METEORX_AUDIT_INTEGRITY_PREVIOUS_SECRET_KEY` | 空 | 轮换过渡期的旧 pepper；仅在换 key 迁移期临时配置，迁移完成后清空即回单密钥常态 |
 | `anchor_interval` | `METEORX_AUDIT_INTEGRITY_ANCHOR_INTERVAL` | `1h` | 锚点封口周期 |
 
 **行级摘要**：每行落库前计算 `record_hash = hex(HMAC-SHA256(pepper, canonical(log)))`。`canonical`（
@@ -338,10 +339,29 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
 
 - `verified`：行级重算全部相符且锚点链完整；
 - `tampered`：检出篡改行（改内容不改摘要）或窗口异常（删行/插行/重序/断链），并给出篡改行样本与异常锚点 ID；
+- `pending_rehash`：存在仅在旧 pepper 下可验证的历史行（密钥轮换所致，**非篡改**），可执行 rehash 迁移；
 - `not_configured`：未配 pepper，无法校验。
 
 行级重算可发现**内容篡改**（攻击者无 pepper 无法同步 `record_hash`）；锚点链可发现**删行/插行/重序/断链**
 （删除整行时行级重算无从发现，唯有窗口行数与累加摘要会失配）。
+
+### 密钥轮换与 rehash
+
+`secret_key`（pepper）一旦更换，旧密钥下写入的历史行与锚点在新 key 下重算必然不符——若只持一把 key，
+`Verify` 会把它们一律误判为 `tampered`，无法区分「轮换」与「真篡改」。为此引入**双密钥过渡 + 显式 rehash**：
+
+- **双密钥分类**：过渡期同时配置 `secret_key`（新）与 `previous_secret_key`（旧）。`ClassifyRow` 对每行同时
+  验两把 key：命中当前 → `RowCurrent`（已验证）；仅命中旧 → `RowPrevious`（待重算，合法历史）；两把都不命中
+  → `RowNone`（真篡改）；摘要为空 → `RowLegacy`。锚点折叠同理，先用新 key 复验、不命中再用旧 key 复验。
+  据此 `Verify` 给出三态优先级：有真篡改 → `tampered`；否则有待重算 → `pending_rehash`；否则 `verified`。
+- **rehash 迁移**：`POST /api/v1/audit/integrity/rehash`（权限码 `audit:integrity:rehash`，仅平台超管）。前置须
+  `enabled` 且配了 `previous_secret_key`，否则 400。它**只重写 `RowPrevious` 行**（有旧 key 的密码学自证，绝不
+  盲重包，`RowNone` 真篡改行不被洗白），把行摘要迁到新 key；随后因行摘要值改变会使旧锚点必然失效，
+  **清空并从创世按新 key 全量重建整条锚点链**（复用 `anchor_interval` 时间桶口径）。
+- **并发串行**：rehash 与周期任务 `IntegrityAnchorJob` 共享 `integrityAnchorMu`，重建期间不被追加锚点，避免链错乱。
+- **留痕**：rehash 是挂在受保护分组下的 HTTP POST，已被审计中间件自动记录（含真实操作者、状态码、响应体计数），
+  不再在 handler 内重复埋点。
+- **收尾**：迁移完成、`Verify` 回到 `verified` 后，清空 `previous_secret_key` 即回到单密钥常态。
 
 ## 安全
 
@@ -388,6 +408,7 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
 | 防篡改行级摘要（record_hash） | ✅ 已完成（默认关闭，需配 pepper） |
 | 防篡改周期锚点链（audit_integrity_anchors） | ✅ 已完成（默认关闭，需配 pepper） |
 | 完整性校验接口（verify） | ✅ 已完成（`audit:integrity:verify`） |
+| 密钥轮换双密钥分类 + rehash 迁移 | ✅ 已完成（`audit:integrity:rehash`，仅轮换过渡期可用） |
 
 ## 最佳实践
 

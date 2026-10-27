@@ -261,7 +261,7 @@ export function getAlertStats(days?: number): Promise<AlertStatsResult> {
 
 // ---------------------- 审计完整性校验 ----------------------
 
-export type IntegrityVerdict = 'verified' | 'tampered' | 'not_configured'
+export type IntegrityVerdict = 'verified' | 'tampered' | 'pending_rehash' | 'not_configured'
 
 export interface IntegrityVerifyResult {
   enabled: boolean
@@ -270,11 +270,20 @@ export interface IntegrityVerifyResult {
   legacy_rows: number
   tampered_rows: number
   tampered_samples: string[]
+  pending_rehash_rows: number
+  pending_rehash_samples: string[]
   anchors_checked: number
   anomaly_anchor_ids: string[]
   anomalies: string[]
   covered_from: string
   covered_to: string
+  message: string
+}
+
+// 密钥轮换 rehash 结果：重算到新密钥的行数、重建的锚点数
+export interface IntegrityRehashResult {
+  rehashed_rows: number
+  anchors_rebuilt: number
   message: string
 }
 
@@ -290,6 +299,8 @@ function normalizeIntegrityResult(raw: Partial<IntegrityVerifyResult> | null | u
     legacy_rows: raw?.legacy_rows ?? 0,
     tampered_rows: raw?.tampered_rows ?? 0,
     tampered_samples: Array.isArray(raw?.tampered_samples) ? raw.tampered_samples : [],
+    pending_rehash_rows: raw?.pending_rehash_rows ?? 0,
+    pending_rehash_samples: Array.isArray(raw?.pending_rehash_samples) ? raw.pending_rehash_samples : [],
     anchors_checked: raw?.anchors_checked ?? 0,
     anomaly_anchor_ids: Array.isArray(raw?.anomaly_anchor_ids) ? raw.anomaly_anchor_ids : [],
     anomalies: Array.isArray(raw?.anomalies) ? raw.anomalies : [],
@@ -302,4 +313,20 @@ function normalizeIntegrityResult(raw: Partial<IntegrityVerifyResult> | null | u
 // 触发审计日志防篡改完整性校验（行级重算 + 锚点链），仅平台超管可调
 export function verifyAuditIntegrity(): Promise<IntegrityVerifyResult> {
   return post<Partial<IntegrityVerifyResult>>('/audit/integrity/verify').then(normalizeIntegrityResult)
+}
+
+/**
+ * 密钥轮换 rehash：把仅匹配旧 pepper 的历史行重算到新 pepper 并重建锚点链，仅平台超管可调。
+ * 后端返回 nil 数值在边界兜底为 0。
+ */
+function normalizeRehashResult(raw: Partial<IntegrityRehashResult> | null | undefined): IntegrityRehashResult {
+  return {
+    rehashed_rows: raw?.rehashed_rows ?? 0,
+    anchors_rebuilt: raw?.anchors_rebuilt ?? 0,
+    message: raw?.message ?? ''
+  }
+}
+
+export function rehashAuditIntegrity(): Promise<IntegrityRehashResult> {
+  return post<Partial<IntegrityRehashResult>>('/audit/integrity/rehash').then(normalizeRehashResult)
 }

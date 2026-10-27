@@ -50,6 +50,7 @@
 | 方法 | 路径 | 功能 | 权限码 |
 |------|------|------|--------|
 | POST | `/audit/integrity/verify` | 校验审计日志完整性（行摘要 + 锚点链，只读） | `audit:integrity:verify` |
+| POST | `/audit/integrity/rehash` | 密钥轮换重算：把旧 pepper 历史行迁到新 pepper 并重建锚点链 | `audit:integrity:rehash` |
 
 ---
 
@@ -438,7 +439,8 @@
 **权限码：** `audit:integrity:verify`（仅平台超管）
 
 **说明：** 只读重放行级摘要与锚点链，**不修改任何数据**。需开启完整性（配置 `audit.integrity.enabled`
-与 `secret_key`）；未配置 pepper 时返回 `not_configured`。
+与 `secret_key`）；未配置 pepper 时返回 `not_configured`。处于密钥轮换过渡期（额外配 `previous_secret_key`）时，
+仅匹配旧 pepper 的历史行会被归入 `pending_rehash_rows`（非篡改），提示可执行 rehash。
 
 **成功响应（200）：**
 ```json
@@ -451,6 +453,8 @@
     "legacy_rows": 0,
     "tampered_rows": 0,
     "tampered_samples": [],
+    "pending_rehash_rows": 0,
+    "pending_rehash_samples": [],
     "anchors_checked": 36,
     "anomaly_anchor_ids": [],
     "anomalies": [],
@@ -467,9 +471,37 @@
 |------|------|
 | `verified` | 行级重算全部相符且锚点链完整 |
 | `tampered` | 检出篡改（内容被改）或异常（删/插/重序/断链），`tampered_samples` / `anomaly_anchor_ids` 给出定位样本 |
+| `pending_rehash` | 处于密钥轮换过渡期，`pending_rehash_rows` 行仅匹配旧 pepper（非篡改），可执行 rehash 迁移 |
 | `not_configured` | 未配置 pepper，无法校验（`enabled=false`） |
 
 > `record_hash` 为空的历史行视为 legacy（计入 `legacy_rows`），**不视为篡改**。
+
+---
+
+### 3.12 密钥轮换重算（rehash）
+
+`POST /api/v1/audit/integrity/rehash`
+
+**权限码：** `audit:integrity:rehash`（仅平台超管）
+
+**说明：** 密钥（pepper）轮换后的安全迁移。仅重写**旧 pepper 可验证**的历史行（`RowPrevious`）到当前
+pepper，真篡改行（两把 key 都对不上）不会被洗白；随后清空并从创世按当前 key **全量重建锚点链**。
+需同时配置 `secret_key`（新）与 `previous_secret_key`（旧）；**非轮换期（未配旧 pepper）返回 400**。
+迁移完成、`verify` 回到 `verified` 后，清空 `previous_secret_key` 即回单密钥常态。
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "data": {
+    "rehashed_rows": 9,
+    "anchors_rebuilt": 36,
+    "message": "已重算 9 行至当前密钥并重建 36 个锚点"
+  }
+}
+```
+
+**失败响应（400）：** 未启用完整性或未配置旧 pepper 时返回，`message` 为对应原因（如“未配置旧 pepper，无待迁移密钥”）。
 
 ---
 
@@ -493,6 +525,7 @@
 | `audit:session:list` | 查看会话列表 |
 | `audit:session:read` | 查看会话详情 |
 | `audit:integrity:verify` | 校验审计日志完整性（仅平台超管） |
+| `audit:integrity:rehash` | 密钥轮换后重算历史行并重建锚点链（仅平台超管） |
 
 ---
 
@@ -807,6 +840,7 @@ onMessage((msg) => {
 | `audit.retention_days` | `METEORX_AUDIT_RETENTION_DAYS` | `0` | 自动保留天数；`<= 0` 关闭（不自动删）。开启后每小时清理一次并补记自指审计 |
 | `audit.integrity.enabled` | `METEORX_AUDIT_INTEGRITY_ENABLED` | `false` | 防篡改完整性总开关 |
 | `audit.integrity.secret_key` | `METEORX_AUDIT_INTEGRITY_SECRET_KEY` | 空 | HMAC pepper（不落库）；未配置则整卡降级关闭、不阻断写入 |
+| `audit.integrity.previous_secret_key` | `METEORX_AUDIT_INTEGRITY_PREVIOUS_SECRET_KEY` | 空 | 轮换过渡期的旧 pepper；仅在换 key 迁移期临时配置，配合 rehash 使用，迁移完成后清空即回单密钥常态 |
 | `audit.integrity.anchor_interval` | `METEORX_AUDIT_INTEGRITY_ANCHOR_INTERVAL` | `1h` | 锚点链封口周期 |
 
 > 脱敏（见 7.2）与本节无关：`record_hash` 只覆盖已落库的字段，不改变任何脱敏行为。

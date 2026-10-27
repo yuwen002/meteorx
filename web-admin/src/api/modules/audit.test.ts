@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getAlertStats, getDetailedStats, getAnomalyLogs, getAuditLogList, getAuditLogDetail, getAuditStats, getAuditDashboard, cleanupAuditLogs, exportAuditLogs, getUserTimeline, verifyAuditIntegrity, type AlertStatsResult, type DetailedStats, type AnomalyLogItem } from './audit'
+import { getAlertStats, getDetailedStats, getAnomalyLogs, getAuditLogList, getAuditLogDetail, getAuditStats, getAuditDashboard, cleanupAuditLogs, exportAuditLogs, getUserTimeline, verifyAuditIntegrity, rehashAuditIntegrity, type AlertStatsResult, type DetailedStats, type AnomalyLogItem } from './audit'
 
 vi.mock('../request', () => ({
   get: vi.fn(),
@@ -273,5 +273,69 @@ describe('Audit API - Integrity Verify', () => {
     expect(result.anomalies).toEqual([])
     // 页面直接对这些数组做 .length / v-for，崩不崩取决于这里
     expect(() => result.anomalies.map(a => a)).not.toThrow()
+  })
+
+  it('verifyAuditIntegrity should pass through pending_rehash rows/samples (key rotation)', async () => {
+    vi.mocked(post).mockResolvedValue({
+      enabled: true,
+      verdict: 'pending_rehash',
+      checked_rows: 50,
+      pending_rehash_rows: 9,
+      pending_rehash_samples: ['l-100', 'l-101'],
+      tampered_rows: 0,
+      message: '检测到 9 行待密钥重算',
+    })
+
+    const result = await verifyAuditIntegrity()
+    expect(result.verdict).toBe('pending_rehash')
+    expect(result.pending_rehash_rows).toBe(9)
+    expect(result.pending_rehash_samples).toEqual(['l-100', 'l-101'])
+  })
+
+  it('verifyAuditIntegrity should normalize null pending_rehash_samples to empty', async () => {
+    vi.mocked(post).mockResolvedValue({
+      enabled: true,
+      verdict: 'verified',
+      pending_rehash_rows: null,
+      pending_rehash_samples: null,
+    })
+
+    const result = await verifyAuditIntegrity()
+    expect(result.pending_rehash_rows).toBe(0)
+    expect(result.pending_rehash_samples).toEqual([])
+    expect(() => result.pending_rehash_samples.map(s => s)).not.toThrow()
+  })
+})
+
+describe('Audit API - Integrity Rehash', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('rehashAuditIntegrity should POST /audit/integrity/rehash and pass through result', async () => {
+    vi.mocked(post).mockResolvedValue({
+      rehashed_rows: 9,
+      anchors_rebuilt: 3,
+      message: '已重算 9 行并重建 3 个锚点',
+    })
+
+    const result = await rehashAuditIntegrity()
+    expect(post).toHaveBeenCalledWith('/audit/integrity/rehash')
+    expect(result.rehashed_rows).toBe(9)
+    expect(result.anchors_rebuilt).toBe(3)
+    expect(result.message).toBe('已重算 9 行并重建 3 个锚点')
+  })
+
+  it('rehashAuditIntegrity should normalize null numbers to 0 (Go nil)', async () => {
+    vi.mocked(post).mockResolvedValue({
+      rehashed_rows: null,
+      anchors_rebuilt: null,
+      message: null,
+    })
+
+    const result = await rehashAuditIntegrity()
+    expect(result.rehashed_rows).toBe(0)
+    expect(result.anchors_rebuilt).toBe(0)
+    expect(result.message).toBe('')
   })
 })

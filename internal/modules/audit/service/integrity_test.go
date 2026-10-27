@@ -23,6 +23,13 @@ func newIntegrityGuard(secret string) *IntegrityGuard {
 	}})
 }
 
+// newRotatingGuard 构造处于密钥轮换过渡期的摘要器：当前 pepper=cur、旧 pepper=prev。
+func newRotatingGuard(cur, prev string) *IntegrityGuard {
+	return NewIntegrityGuard(config.Config{Audit: config.AuditConfig{
+		Integrity: config.AuditIntegrityConfig{Enabled: true, SecretKey: cur, PreviousSecretKey: prev},
+	}})
+}
+
 func sampleLog(id string) *model.AuditLog {
 	return &model.AuditLog{
 		ID:         id,
@@ -201,4 +208,121 @@ func TestIntegrityServiceNotConfigured(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, IntegrityVerdictNotConfigured, res.Verdict)
 	require.False(t, res.Enabled)
+}
+
+// TestClassifyRowDualKey 双密钥下逐行分类：命中当前=Current、仅命中旧=Previous、
+// 两把都不命中=None、空摘要=Legacy。
+func TestClassifyRowDualKey(t *testing.T) {
+	g := newRotatingGuard("pepper-NEW", "pepper-OLD")
+	require.True(t, g.HasPrevious())
+
+	// 旧 key 下的历史行：仅匹配旧 key
+	oldGuard := newIntegrityGuard("pepper-OLD")
+	oldRow := sampleLog("row-old")
+	oldRow.RecordHash = oldGuard.Compute(oldRow)
+	require.Equal(t, RowPrevious, g.ClassifyRow(oldRow))
+
+	// 新 key 下的行：匹配当前
+	newRow := sampleLog("row-new")
+	newRow.RecordHash = g.Compute(newRow)
+	require.Equal(t, RowCurrent, g.ClassifyRow(newRow))
+
+	// 两把 key 都对不上：真篡改
+	evil := sampleLog("row-evil")
+	evil.RecordHash = newIntegrityGuard("pepper-EVIL").Compute(evil)
+	require.Equal(t, RowNone, g.ClassifyRow(evil))
+
+	// 空摘要：legacy
+	legacy := sampleLog("row-legacy")
+	require.Equal(t, RowLegacy, g.ClassifyRow(legacy))
+
+	// 非轮换期（无旧 key）时旧 key 行应判 None（无从识别为待重算）
+	single := newIntegrityGuard("pepper-NEW")
+	require.False(t, single.HasPrevious())
+	require.Equal(t, RowNone, single.ClassifyRow(oldRow))
+}
+
+// TestRehashMigratesPreviousRows 轮换过渡期：旧 key 历史行 verify 为 pending_rehash，
+// rehash 后全部迁到新 key、verify 回到 verified，锚点链按新 key 重建。
+func TestRehashMigratesPreviousRows(t *testing.T) {
+	db := newIntegrityTestDB(t)
+	irepo := repository.NewIntegrityRepository(db)
+
+	// 以旧 pepper 写入两行（模拟轮换前的历史数据）
+	oldGuard := newIntegrityGuard("pepper-OLD")
+	svc := NewAuditService(repository.NewAuditLogRepository(db), WithIntegrity(oldGuard))
+	for i := 0; i < 2; i++ {
+		_, err := svc.CreateLog(context.Background(), dto.CreateAuditLogReq{
+			UserID: "u-1", Module: "user", Action: model.ActionTypeCreate, Result: model.ResultSuccess,
+		})
+		require.NoError(t, err)
+	}
+
+	// 轮换：当前=NEW、旧=OLD
+	rot := newRotatingGuard("pepper-NEW", "pepper-OLD")
+	ires := NewIntegrityService(rot, irepo)
+
+	res, err := ires.Verify(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, IntegrityVerdictPendingRehash, res.Verdict)
+	require.EqualValues(t, 2, res.PendingRehashRows)
+	require.Zero(t, res.TamperedRows)
+
+	rr, err := ires.Rehash(context.Background())
+	require.NoError(t, err)
+	require.EqualValues(t, 2, rr.RehashedRows)
+	require.Greater(t, rr.AnchorsRebuilt, int64(0), "rehash 应重建锚点链")
+
+	// 迁移后单看新 key 即应 verified（旧行已重算）
+	res2, err := NewIntegrityService(newIntegrityGuard("pepper-NEW"), irepo).Verify(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, IntegrityVerdictVerified, res2.Verdict)
+	require.Zero(t, res2.TamperedRows)
+	require.Zero(t, res2.PendingRehashRows)
+}
+
+// TestRehashDoesNotWhitelistTampered 真篡改行（两把 key 都不命中）不会被 rehash 洗白。
+func TestRehashDoesNotWhitelistTampered(t *testing.T) {
+	db := newIntegrityTestDB(t)
+	irepo := repository.NewIntegrityRepository(db)
+
+	oldGuard := newIntegrityGuard("pepper-OLD")
+	svc := NewAuditService(repository.NewAuditLogRepository(db), WithIntegrity(oldGuard))
+	created, err := svc.CreateLog(context.Background(), dto.CreateAuditLogReq{
+		UserID: "u-1", Module: "user", Action: model.ActionTypeCreate, Result: model.ResultSuccess,
+	})
+	require.NoError(t, err)
+	// 篡改：改内容、保留旧 key 算出的摘要 → 两把 key 都对不上
+	require.NoError(t, db.Model(&repository.AuditLogPO{}).Where("id = ?", created.ID).
+		Update("path", "/api/v1/tampered").Error)
+
+	rot := newRotatingGuard("pepper-NEW", "pepper-OLD")
+	ires := NewIntegrityService(rot, irepo)
+
+	res, err := ires.Verify(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, IntegrityVerdictTampered, res.Verdict)
+	require.EqualValues(t, 1, res.TamperedRows)
+
+	rr, err := ires.Rehash(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, rr.RehashedRows, "篡改行不属于待重算，不应被重写")
+
+	// rehash 后仍应报 tampered（篡改未被洗白）
+	res2, err := ires.Verify(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, IntegrityVerdictTampered, res2.Verdict)
+	require.EqualValues(t, 1, res2.TamperedRows)
+}
+
+// TestRehashRequiresPrevious 非轮换期（未配旧 pepper）时 Rehash 返回前置错误。
+func TestRehashRequiresPrevious(t *testing.T) {
+	db := newIntegrityTestDB(t)
+	single := newIntegrityGuard("pepper-NEW")
+	_, err := NewIntegrityService(single, repository.NewIntegrityRepository(db)).Rehash(context.Background())
+	require.ErrorIs(t, err, ErrIntegrityNoPreviousKey)
+
+	disabled := NewIntegrityGuard(config.Config{})
+	_, err = NewIntegrityService(disabled, repository.NewIntegrityRepository(db)).Rehash(context.Background())
+	require.ErrorIs(t, err, ErrIntegrityNotEnabled)
 }

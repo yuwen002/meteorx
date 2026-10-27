@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"meteorx/internal/modules/audit/model"
@@ -61,6 +62,12 @@ type RecordHashEntry struct {
 	CreatedAt  time.Time
 }
 
+// RecordHashUpdate 一行 record_hash 的重写目标（rehash 用）。
+type RecordHashUpdate struct {
+	ID         string
+	RecordHash string
+}
+
 // IntegrityRepository 审计完整性数据访问接口（锚点表 + 审计日志窗口读取）。
 type IntegrityRepository interface {
 	// CreateAnchor 追加一条锚点（append-only，永不更新/删除）。
@@ -79,6 +86,12 @@ type IntegrityRepository interface {
 	// ListLogsInRange 按 (created_at, id) 有序返回 [start, end) 内审计日志整行（含全部字段与存储的 record_hash），
 	// 供完整性校验逐行重算与窗口重放。start/end 任一为零值表示该侧不设界。
 	ListLogsInRange(ctx context.Context, start, end time.Time) ([]*model.AuditLog, error)
+
+	// BatchUpdateRecordHash 按 id 批量重写审计日志的 record_hash（rehash 迁移用），分块提交。
+	BatchUpdateRecordHash(ctx context.Context, updates []RecordHashUpdate) error
+
+	// DeleteAllAnchors 清空全部锚点（rehash 后全量重建前的收口删除）。
+	DeleteAllAnchors(ctx context.Context) error
 }
 
 // integrityRepository IntegrityRepository 的 GORM 实现。
@@ -174,4 +187,45 @@ func (r *integrityRepository) ListLogsInRange(ctx context.Context, start, end ti
 		logs[i] = po.toDomain()
 	}
 	return logs, nil
+}
+
+// rehashUpdateChunk 单批 UPDATE 的行数上限，避免一次拼接过长的 CASE WHEN 语句。
+const rehashUpdateChunk = 500
+
+// BatchUpdateRecordHash 按 id 批量重写 record_hash：以 CASE WHEN 单语句更新一块 id，分块提交。
+// 空入参直接返回 nil（不触库）。仅更新 record_hash，不改动 created_at 等被摘要覆盖的字段。
+func (r *integrityRepository) BatchUpdateRecordHash(ctx context.Context, updates []RecordHashUpdate) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	for start := 0; start < len(updates); start += rehashUpdateChunk {
+		end := start + rehashUpdateChunk
+		if end > len(updates) {
+			end = len(updates)
+		}
+		chunk := updates[start:end]
+		caseExpr := "CASE id "
+		args := make([]interface{}, 0, len(chunk)*3)
+		for _, u := range chunk {
+			caseExpr += "WHEN ? THEN ? "
+			args = append(args, u.ID, u.RecordHash)
+		}
+		caseExpr += "END"
+		// WHERE id IN (?,?,...)：逐 id 一个占位符（raw Exec 不会把切片展开为多值）
+		placeholders := make([]string, len(chunk))
+		for i, u := range chunk {
+			placeholders[i] = "?"
+			args = append(args, u.ID)
+		}
+		sql := "UPDATE audit_logs SET record_hash = " + caseExpr + " WHERE id IN (" + strings.Join(placeholders, ",") + ")"
+		if err := r.db.WithContext(ctx).Exec(sql, args...).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// DeleteAllAnchors 清空 audit_integrity_anchors 全表（rehash 后重建前调用）。
+func (r *integrityRepository) DeleteAllAnchors(ctx context.Context) error {
+	return r.db.WithContext(ctx).Where("1 = 1").Delete(&AuditIntegrityAnchorPO{}).Error
 }

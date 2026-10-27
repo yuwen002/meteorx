@@ -13,6 +13,9 @@
         <el-button type="primary" :loading="loading" @click="runVerify">
           <el-icon><CircleCheck /></el-icon>开始校验
         </el-button>
+        <el-button v-if="canRehash" type="warning" :loading="rehashing" @click="runRehash">
+          <el-icon><Refresh /></el-icon>密钥重算（rehash）
+        </el-button>
       </div>
     </el-card>
 
@@ -94,6 +97,31 @@
       </el-descriptions>
     </el-card>
 
+    <!-- 待密钥重算明细：仅在轮换过渡期（pending_rehash）展示，与篡改异常区分 -->
+    <el-card
+      v-if="result && result.enabled && result.verdict === 'pending_rehash'"
+      shadow="never"
+      class="anomaly-card"
+    >
+      <template #header>
+        <div class="card-header">
+          <span>待密钥重算</span>
+          <el-tag type="warning" size="small">可执行 rehash</el-tag>
+        </div>
+      </template>
+      <div class="anomaly-block">
+        <div class="block-title">
+          <el-icon><Warning /></el-icon>
+          仅匹配旧 pepper、待重算到新密钥的历史行：{{ result.pending_rehash_rows }}
+        </div>
+        <div v-if="result.pending_rehash_samples.length > 0" class="tag-wrap">
+          <el-tag v-for="id in result.pending_rehash_samples" :key="'p' + id" type="warning" size="small" class="id-tag">
+            {{ id }}
+          </el-tag>
+        </div>
+      </div>
+    </el-card>
+
     <!-- 异常明细 -->
     <el-card v-if="result && result.enabled && hasAnomaly" shadow="never" class="anomaly-card">
       <template #header>
@@ -136,15 +164,16 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  CircleCheck, CircleClose, Document, Clock, Connection
+  CircleCheck, CircleClose, Document, Clock, Connection, Refresh, Warning
 } from '@element-plus/icons-vue'
-import { verifyAuditIntegrity } from '@/api/modules/audit'
+import { verifyAuditIntegrity, rehashAuditIntegrity } from '@/api/modules/audit'
 import type { IntegrityVerifyResult } from '@/api/modules/audit'
 
 const result = ref<IntegrityVerifyResult | null>(null)
 const loading = ref(false)
+const rehashing = ref(false)
 
 const hasAnomaly = computed(() => {
   const r = result.value
@@ -152,12 +181,17 @@ const hasAnomaly = computed(() => {
   return r.tampered_rows > 0 || r.tampered_samples.length > 0 || r.anomaly_anchor_ids.length > 0 || r.anomalies.length > 0
 })
 
+// 处于密钥轮换过渡期（verdict=pending_rehash）才允许 rehash：把仅匹配旧 pepper 的历史行迁移到新密钥
+const canRehash = computed(() => !!result.value?.enabled && result.value?.verdict === 'pending_rehash')
+
 const verdictAlertType = computed<'success' | 'error' | 'warning' | 'info'>(() => {
   switch (result.value?.verdict) {
     case 'verified':
       return 'success'
     case 'tampered':
       return 'error'
+    case 'pending_rehash':
+      return 'warning'
     default:
       return 'info'
   }
@@ -169,6 +203,8 @@ const verdictTitle = computed(() => {
       return '校验通过：未发现篡改'
     case 'tampered':
       return '警告：检测到数据被篡改'
+    case 'pending_rehash':
+      return '提示：检测到待密钥重算数据'
     default:
       return '未知校验结果'
   }
@@ -180,6 +216,8 @@ const verdictDesc = computed(() => {
       return '所有参与校验的审计日志行摘要与锚点链均自洽。'
     case 'tampered':
       return '存在行摘要重算不符或锚点链断裂，请结合下方异常明细排查。'
+    case 'pending_rehash':
+      return '存在仅在旧 pepper 下可验证的历史行（密钥轮换所致，非篡改），可执行密钥重算迁移到新密钥并重建锚点链。'
     default:
       return ''
   }
@@ -193,11 +231,36 @@ async function runVerify() {
       ElMessage.error('检测到审计日志被篡改，请排查异常明细')
     } else if (result.value.enabled && result.value.verdict === 'verified') {
       ElMessage.success('完整性校验通过')
+    } else if (result.value.enabled && result.value.verdict === 'pending_rehash') {
+      ElMessage.warning('检测到待密钥重算的历史行，可执行密钥重算')
     }
   } catch (error) {
     console.error('完整性校验失败', error)
   } finally {
     loading.value = false
+  }
+}
+
+async function runRehash() {
+  try {
+    await ElMessageBox.confirm(
+      '将把仅匹配旧 pepper 的历史行重算到新 pepper，并清空重建整条锚点链。此操作会修改审计日志的行摘要列，请确认已完成密钥轮换配置。',
+      '确认执行密钥重算（rehash）？',
+      { type: 'warning', confirmButtonText: '执行', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  rehashing.value = true
+  try {
+    const res = await rehashAuditIntegrity()
+    ElMessage.success(res.message || '密钥重算完成')
+    // 重算后立即复检，预期回到 verified
+    await runVerify()
+  } catch (error) {
+    console.error('密钥重算失败', error)
+  } finally {
+    rehashing.value = false
   }
 }
 </script>

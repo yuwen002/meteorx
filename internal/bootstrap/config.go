@@ -92,6 +92,7 @@ func LoadConfig() (*config.Config, error) {
 		{"audit.retention_days", "METEORX_AUDIT_RETENTION_DAYS"},
 		{"audit.integrity.enabled", "METEORX_AUDIT_INTEGRITY_ENABLED"},
 		{"audit.integrity.secret_key", "METEORX_AUDIT_INTEGRITY_SECRET_KEY"},
+		{"audit.integrity.previous_secret_key", "METEORX_AUDIT_INTEGRITY_PREVIOUS_SECRET_KEY"},
 		{"audit.integrity.anchor_interval", "METEORX_AUDIT_INTEGRITY_ANCHOR_INTERVAL"},
 	}
 	for _, b := range envBindings {

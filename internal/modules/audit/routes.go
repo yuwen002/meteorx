@@ -62,9 +62,12 @@ func RegisterRoutes(r chi.Router, h *handler.AuditHandler, alertH *handler.Alert
 		})
 
 		// 完整性校验（非 CRUD 静态段，采用显式权限码避开 AutoRequirePermission 的路径推导歧义）
+		// verify 与 rehash 分属不同权限码，故按路由各自挂 RequirePermission 而非组级统一 Use。
 		r.Route("/integrity", func(r chi.Router) {
-			r.Use(middleware.RequirePermission(checker, "audit:integrity:verify"))
-			r.Post("/verify", integrityH.VerifyIntegrity) // audit:integrity:verify
+			r.With(middleware.RequirePermission(checker, "audit:integrity:verify")).
+				Post("/verify", integrityH.VerifyIntegrity) // audit:integrity:verify
+			r.With(middleware.RequirePermission(checker, "audit:integrity:rehash")).
+				Post("/rehash", integrityH.RehashIntegrity) // audit:integrity:rehash
 		})
 	})
 }

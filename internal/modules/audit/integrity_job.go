@@ -63,10 +63,13 @@ func (j *IntegrityAnchorJob) Start(ctx context.Context, interval time.Duration) 
 
 // runOnce 生成一条锚点：取链尾窗口右端为下界、now-grace 为上界折叠窗口行摘要并链式落库。
 // 无新行（空窗口）时不封口，留待后续窗口累积，避免周期性空锚点噪声。
+// 与密钥轮换 rehash 共用 integrityAnchorMu，避免 rehash 重建期间被并发追加锚点。
 func (j *IntegrityAnchorJob) runOnce(ctx context.Context) error {
 	if !j.guard.Enabled() {
 		return nil
 	}
+	integrityAnchorMu.Lock()
+	defer integrityAnchorMu.Unlock()
 	latest, err := j.irepo.LatestAnchor(ctx)
 	if err != nil {
 		return err

@@ -7750,6 +7750,34 @@
         ]
       }
     },
+    "/api/v1/audit/integrity/rehash": {
+      "post": {
+        "description": "权限码: `audit:integrity:rehash`（仅平台超管）。密钥轮换后把仅匹配旧 pepper 的历史行重算到当前 pepper 并重建锚点链；非轮换期（未配旧 pepper）返回 400。",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "密钥轮换重算（rehash）",
+        "tags": [
+          "审计日志"
+        ]
+      }
+    },
+    "/api/v1/audit/integrity/verify": {
+      "post": {
+        "description": "权限码: `audit:integrity:verify`（仅平台超管）。只读重放行级摘要与锚点链，不修改任何数据；返回 verdict：verified/tampered/pending_rehash/not_configured。",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "校验审计日志完整性",
+        "tags": [
+          "审计日志"
+        ]
+      }
+    },
     "/api/v1/audit/logs": {
       "get": {
         "parameters": [
