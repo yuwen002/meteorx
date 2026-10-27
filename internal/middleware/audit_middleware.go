@@ -302,8 +302,8 @@ func shouldSkipAudit(path string) bool {
 	return false
 }
 
-// NewAuditLogReq 从 HTTP 请求构建基础的审计日志请求（填充IP、设备信息等公共字段）
-// 供登录/登出等非中间件场景手动记录使用。
+// NewAuditLogReq 从 HTTP 请求构建基础的审计日志请求（填充IP、设备、链路关联等公共字段）
+// 供登录/注册/重置密码/OAuth 回调等非中间件场景手动记录使用。
 func NewAuditLogReq(r *http.Request) dto.CreateAuditLogReq {
 	return dto.CreateAuditLogReq{
 		Method:     r.Method,
@@ -312,6 +312,10 @@ func NewAuditLogReq(r *http.Request) dto.CreateAuditLogReq {
 		UserAgent:  r.UserAgent(),
 		DeviceInfo: ParseDeviceInfo(r.UserAgent()),
 		Referer:    r.Referer(),
+		// 链路关联：手动审计同样携带 trace/request/session，与自动审计同口径接入 Jaeger 关联
+		TraceID:   contextx.GetTraceID(r.Context()),
+		RequestID: contextx.GetRequestID(r.Context()),
+		SessionID: getSessionID(r),
 	}
 }
 

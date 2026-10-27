@@ -185,3 +185,32 @@ func TestParseTraceparentTraceID(t *testing.T) {
 		require.Equal(t, c.want, parseTraceparentTraceID(c.in), c.name)
 	}
 }
+
+// TestNewAuditLogReq_CarriesTraceCorrelation 手动审计必须与自动审计同口径携带
+// trace/request/session：否则登录/注册等手动记录将丢失与 Jaeger 链路的关联键。
+func TestNewAuditLogReq_CarriesTraceCorrelation(t *testing.T) {
+	const (
+		traceID   = "0af7651916cd43dd8448eb211c80319c"
+		requestID = "req-abc-123"
+		sessionID = "sess-xyz-789"
+	)
+	ctx := contextx.SetRequestID(contextx.SetTraceID(context.Background(), traceID), requestID)
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil).WithContext(ctx)
+	r.Header.Set("X-Session-ID", sessionID)
+
+	req := NewAuditLogReq(r)
+	require.Equal(t, traceID, req.TraceID)
+	require.Equal(t, requestID, req.RequestID)
+	require.Equal(t, sessionID, req.SessionID)
+	require.Equal(t, http.MethodPost, req.Method)
+	require.Equal(t, "/api/v1/auth/login", req.Path)
+}
+
+// TestNewAuditLogReq_NoContextTraceLeavesEmpty 无追踪上下文时 trace 字段应为空，
+// 而非编造一个随机值——手动审计的 trace 应严格反映是否真的处于被追踪的链路中。
+func TestNewAuditLogReq_NoContextTraceLeavesEmpty(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", nil)
+	req := NewAuditLogReq(r)
+	require.Empty(t, req.TraceID)
+	require.Empty(t, req.RequestID)
+}

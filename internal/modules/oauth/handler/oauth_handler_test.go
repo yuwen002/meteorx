@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"meteorx/internal/common/contextx"
+	"meteorx/internal/middleware"
+	auditdto "meteorx/internal/modules/audit/dto"
+	auditmodel "meteorx/internal/modules/audit/model"
 	"meteorx/internal/modules/oauth/dto"
 	"meteorx/internal/modules/oauth/handler"
 	"meteorx/internal/modules/oauth/service"
@@ -26,12 +29,12 @@ type stubOAuthService struct {
 	state       string
 	redirectErr error
 
-	loginUser        *userModel.User
-	loginPermCodes   []string
-	loginToken       string
+	loginUser         *userModel.User
+	loginPermCodes    []string
+	loginToken        string
 	loginRefreshToken string
-	loginIsNew       bool
-	loginErr         error
+	loginIsNew        bool
+	loginErr          error
 
 	tenantList    []dto.TenantOption
 	tenantListErr error
@@ -145,11 +148,11 @@ func TestGetRedirectURL_ProviderDisabled(t *testing.T) {
 
 func TestCallback_Success(t *testing.T) {
 	stub := &stubOAuthService{
-		loginUser:        sampleOAuthUser(),
-		loginPermCodes:   []string{"wiki:read"},
-		loginToken:       "jwt-token",
+		loginUser:         sampleOAuthUser(),
+		loginPermCodes:    []string{"wiki:read"},
+		loginToken:        "jwt-token",
 		loginRefreshToken: "refresh-token",
-		loginIsNew:       false,
+		loginIsNew:        false,
 	}
 	router := newOAuthRouter(stub)
 
@@ -320,4 +323,74 @@ func TestRefreshToken_ValidationFailure(t *testing.T) {
 
 	w := doOAuth(t, router, http.MethodPost, "/token/refresh", `{}`, "")
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// ---------- OAuth 回调公开入口审计覆盖 ----------
+
+// captureAuditLogs 注入测试期审计捕获钩子，返回捕获切片指针（t.Cleanup 自动还原）。
+func captureAuditLogs(t *testing.T) *[]auditdto.CreateAuditLogReq {
+	t.Helper()
+	var got []auditdto.CreateAuditLogReq
+	restore := middleware.SetAuditCaptureForTest(func(req *auditdto.CreateAuditLogReq) {
+		got = append(got, *req)
+	})
+	t.Cleanup(restore)
+	return &got
+}
+
+func TestCallback_Success_RecordsLoginAudit(t *testing.T) {
+	stub := &stubOAuthService{
+		loginUser:  sampleOAuthUser(),
+		loginToken: "jwt-token",
+		loginIsNew: false,
+	}
+	router := newOAuthRouter(stub)
+	got := captureAuditLogs(t)
+
+	doOAuth(t, router, http.MethodPost, "/callback", `{"provider":"google","code":"auth-code","state":"csrf-state","tenant_id":"t-1"}`, "")
+
+	require.Len(t, *got, 1)
+	rec := (*got)[0]
+	assert.Equal(t, "auth", rec.Module)
+	assert.Equal(t, auditmodel.ActionTypeLogin, rec.Action)
+	assert.Equal(t, auditmodel.ResultSuccess, rec.Result)
+	assert.Equal(t, "u-1", rec.UserID)
+	assert.Contains(t, rec.Tags, "google")
+	// 一次性凭据 code/state 绝不入审计
+	assert.NotContains(t, rec.RequestBody, "auth-code")
+	assert.NotContains(t, rec.RequestBody, "csrf-state")
+}
+
+func TestCallback_NewUser_RecordsCreateAudit(t *testing.T) {
+	stub := &stubOAuthService{
+		loginUser:  sampleOAuthUser(),
+		loginToken: "jwt-token",
+		loginIsNew: true,
+	}
+	router := newOAuthRouter(stub)
+	got := captureAuditLogs(t)
+
+	doOAuth(t, router, http.MethodPost, "/callback", `{"provider":"github","code":"c","state":"s","tenant_id":"t-1"}`, "")
+
+	require.Len(t, *got, 1)
+	rec := (*got)[0]
+	// 首次 OAuth 登录即隐式建号，归类为 create
+	assert.Equal(t, auditmodel.ActionTypeCreate, rec.Action)
+	assert.Equal(t, auditmodel.ResultSuccess, rec.Result)
+	assert.Contains(t, rec.Tags, "register")
+}
+
+func TestCallback_Failure_RecordsHighRiskAudit(t *testing.T) {
+	stub := &stubOAuthService{loginErr: service.ErrOAuthInvalidState}
+	router := newOAuthRouter(stub)
+	got := captureAuditLogs(t)
+
+	doOAuth(t, router, http.MethodPost, "/callback", `{"provider":"google","code":"c","state":"bad","tenant_id":"t-1"}`, "")
+
+	require.Len(t, *got, 1)
+	rec := (*got)[0]
+	assert.Equal(t, auditmodel.ActionTypeLogin, rec.Action)
+	assert.Equal(t, auditmodel.ResultFailure, rec.Result)
+	assert.Equal(t, auditmodel.RiskHigh, rec.RiskLevel)
+	assert.Equal(t, http.StatusBadRequest, rec.StatusCode)
 }

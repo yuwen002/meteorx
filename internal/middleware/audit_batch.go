@@ -153,6 +153,13 @@ func StopAuditBatchProcessor() {
 // 如果 req.IPLocation 为空，则尝试用全局 IP 定位器解析。
 // 优先使用批量处理器，回退到直接写入。
 func RecordAuditLog(ctx context.Context, req *dto.CreateAuditLogReq) {
+	// 测试捕获钩子：非 nil 时直接交给它，不触碰批量/服务写入。
+	// 生产代码中 testAuditCapture 恒为 nil。
+	if testAuditCapture != nil {
+		testAuditCapture(req)
+		return
+	}
+
 	if req.IPLocation == "" && globalIPLocator != nil && req.ClientIP != "" {
 		if loc, err := globalIPLocator.Locate(ctx, req.ClientIP); err == nil && loc != nil {
 			req.IPLocation = loc.FullText
@@ -165,4 +172,14 @@ func RecordAuditLog(ctx context.Context, req *dto.CreateAuditLogReq) {
 		// 无批量处理器时直接写入
 		_, _ = globalAuditSvc.CreateLog(ctx, *req)
 	}
+}
+
+// testAuditCapture 仅供测试注入的审计记录捕获钩子；非 nil 时 RecordAuditLog 将记录直接交给它。
+var testAuditCapture func(req *dto.CreateAuditLogReq)
+
+// SetAuditCaptureForTest 注入审计捕获钩子，返回还原函数。仅应在测试中使用。
+func SetAuditCaptureForTest(capture func(req *dto.CreateAuditLogReq)) func() {
+	prev := testAuditCapture
+	testAuditCapture = capture
+	return func() { testAuditCapture = prev }
 }

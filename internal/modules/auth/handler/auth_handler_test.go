@@ -10,6 +10,9 @@ import (
 	"testing"
 
 	"meteorx/internal/common/contextx"
+	"meteorx/internal/middleware"
+	auditdto "meteorx/internal/modules/audit/dto"
+	auditmodel "meteorx/internal/modules/audit/model"
 	"meteorx/internal/modules/auth/dto"
 	"meteorx/internal/modules/auth/handler"
 	"meteorx/internal/modules/auth/service"
@@ -43,11 +46,11 @@ type stubAuthService struct {
 	resetErr     error
 
 	sendEmailVerifyErr error
-	verifyEmailErr    error
+	verifyEmailErr     error
 
-	setup2FAResp *dto.Setup2FAResp
-	setup2FAErr  error
-	enable2FAErr error
+	setup2FAResp  *dto.Setup2FAResp
+	setup2FAErr   error
+	enable2FAErr  error
 	disable2FAErr error
 }
 
@@ -380,4 +383,98 @@ func TestDisable2FA_Success(t *testing.T) {
 	w := doAuth(t, router, "/2fa/disable", `{"code":"123456"}`, withUser("u-1"))
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "已关闭")
+}
+
+// ---------- 公开接口审计覆盖 ----------
+
+// captureAuditLogs 注入测试期审计捕获钩子，返回捕获切片指针（t.Cleanup 自动还原）。
+func captureAuditLogs(t *testing.T) *[]auditdto.CreateAuditLogReq {
+	t.Helper()
+	var got []auditdto.CreateAuditLogReq
+	restore := middleware.SetAuditCaptureForTest(func(req *auditdto.CreateAuditLogReq) {
+		got = append(got, *req)
+	})
+	t.Cleanup(restore)
+	return &got
+}
+
+func TestRegister_Success_RecordsAudit(t *testing.T) {
+	stub := &stubAuthService{registerUser: sampleUser("u-1", "alice")}
+	router := newAuthRouter(stub)
+	got := captureAuditLogs(t)
+
+	doAuth(t, router, "/register", `{"tenant_id":"t-1","username":"alice123","password":"pass1234","nickname":"爱丽丝","email":"a@x.com"}`, nil)
+
+	require.Len(t, *got, 1)
+	rec := (*got)[0]
+	assert.Equal(t, "auth", rec.Module)
+	assert.Equal(t, auditmodel.ActionTypeCreate, rec.Action)
+	assert.Equal(t, auditmodel.ResultSuccess, rec.Result)
+	assert.Equal(t, "alice", rec.Username)
+	assert.Equal(t, "u-1", rec.UserID)
+	assert.Equal(t, http.StatusOK, rec.StatusCode)
+	// 手动审计不采集请求体，明文密码绝不入审计
+	assert.Empty(t, rec.RequestBody)
+}
+
+func TestRegister_Failure_RecordsAuditFailure(t *testing.T) {
+	stub := &stubAuthService{registerErr: errors.New("user exists")}
+	router := newAuthRouter(stub)
+	got := captureAuditLogs(t)
+
+	doAuth(t, router, "/register", `{"tenant_id":"t","username":"alice123","password":"pass1234","nickname":"爱丽丝","email":"a@x.com"}`, nil)
+
+	require.Len(t, *got, 1)
+	rec := (*got)[0]
+	assert.Equal(t, auditmodel.ActionTypeCreate, rec.Action)
+	assert.Equal(t, auditmodel.ResultFailure, rec.Result)
+	assert.Equal(t, "alice123", rec.Username) // 失败时记录被申请的账号名
+	assert.Equal(t, "user exists", rec.ErrorMessage)
+	assert.Equal(t, auditmodel.RiskMedium, rec.RiskLevel)
+}
+
+func TestForgotPassword_RecordsHighRiskAudit(t *testing.T) {
+	stub := &stubAuthService{}
+	router := newAuthRouter(stub)
+	got := captureAuditLogs(t)
+
+	doAuth(t, router, "/forgot-password", `{"email":"a@x.com"}`, nil)
+
+	require.Len(t, *got, 1)
+	rec := (*got)[0]
+	assert.Equal(t, "auth", rec.Module)
+	assert.Equal(t, auditmodel.ActionTypeOther, rec.Action)
+	assert.Equal(t, auditmodel.ResultSuccess, rec.Result)
+	assert.Equal(t, auditmodel.RiskHigh, rec.RiskLevel)
+	assert.Equal(t, "a@x.com", rec.Username)
+}
+
+func TestResetPassword_Success_RecordsCriticalAudit(t *testing.T) {
+	stub := &stubAuthService{}
+	router := newAuthRouter(stub)
+	got := captureAuditLogs(t)
+
+	doAuth(t, router, "/reset-password", `{"token":"rt-1","new_password":"newpass123"}`, nil)
+
+	require.Len(t, *got, 1)
+	rec := (*got)[0]
+	assert.Equal(t, auditmodel.ActionTypeUpdate, rec.Action)
+	assert.Equal(t, auditmodel.ResultSuccess, rec.Result)
+	assert.Equal(t, auditmodel.RiskCritical, rec.RiskLevel)
+	// 令牌与新密码为凭据，绝不入审计
+	assert.Empty(t, rec.RequestBody)
+}
+
+func TestResetPassword_InvalidToken_RecordsFailureAudit(t *testing.T) {
+	stub := &stubAuthService{resetErr: service.ErrInvalidResetToken}
+	router := newAuthRouter(stub)
+	got := captureAuditLogs(t)
+
+	doAuth(t, router, "/reset-password", `{"token":"expired","new_password":"newpass123"}`, nil)
+
+	require.Len(t, *got, 1)
+	rec := (*got)[0]
+	assert.Equal(t, auditmodel.ResultFailure, rec.Result)
+	assert.Equal(t, http.StatusBadRequest, rec.StatusCode)
+	assert.Equal(t, auditmodel.RiskCritical, rec.RiskLevel)
 }

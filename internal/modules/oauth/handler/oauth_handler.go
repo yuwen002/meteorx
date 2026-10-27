@@ -4,12 +4,16 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
+	"meteorx/internal/middleware"
+	auditmodel "meteorx/internal/modules/audit/model"
 	"meteorx/internal/modules/oauth/dto"
 	"meteorx/internal/modules/oauth/service"
 	userdto "meteorx/internal/modules/user/dto"
@@ -69,8 +73,28 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	start := time.Now()
 	user, _, permCodes, token, refreshToken, isNew, err := h.svc.Login(r.Context(), req.Provider, req.Code, req.State, req.TenantID)
+
+	// OAuth 回调等价于一次登录/注册，属公开入口，成功失败都入审；
+	// code/state 为一次性凭据，不写入审计。
+	auditReq := middleware.NewAuditLogReq(r)
+	auditReq.Module = "auth"
+	auditReq.Action = auditmodel.ActionTypeLogin
+	auditReq.Resource = r.URL.Path
+	auditReq.Tags = fmt.Sprintf(`["oauth","login",%q]`, req.Provider)
+	auditReq.Duration = time.Since(start).Milliseconds()
+
 	if err != nil {
+		auditReq.StatusCode = http.StatusUnauthorized
+		if errors.Is(err, service.ErrOAuthInvalidState) || errors.Is(err, service.ErrOAuthProviderDisabled) {
+			auditReq.StatusCode = http.StatusBadRequest
+		}
+		auditReq.Result = auditmodel.ResultFailure
+		auditReq.ErrorMessage = err.Error()
+		auditReq.RiskLevel = auditmodel.RiskHigh
+		middleware.RecordAuditLog(r.Context(), &auditReq)
+
 		// 按哨兵错误映射固定文案：服务层错误可能携带上游细节，不得原样回显给客户端
 		switch {
 		case errors.Is(err, service.ErrOAuthInvalidState):
@@ -86,6 +110,20 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
+	auditReq.UserID = user.ID
+	auditReq.Username = user.Username
+	auditReq.TenantID = user.TenantID
+	auditReq.ResourceID = user.ID
+	auditReq.StatusCode = http.StatusOK
+	auditReq.Result = auditmodel.ResultSuccess
+	auditReq.RiskLevel = auditmodel.RiskMedium
+	if isNew {
+		// 首次 OAuth 登录即隐式建号，归类为创建以提升风险标注
+		auditReq.Action = auditmodel.ActionTypeCreate
+		auditReq.Tags = fmt.Sprintf(`["oauth","login","register",%q]`, req.Provider)
+	}
+	middleware.RecordAuditLog(r.Context(), &auditReq)
 
 	converter := userdto.UserConverter{}
 	loginResp := dto.OAuthLoginResponse{

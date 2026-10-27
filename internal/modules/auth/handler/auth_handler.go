@@ -52,11 +52,36 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	start := time.Now()
 	user, err := h.svc.Register(r.Context(), req)
+
+	// 注册是公开高危操作（批量建号/账号占用探测），成功失败都入审；
+	// 手动记录不采集请求体，注册的明文密码天然不入审计。
+	auditReq := middleware.NewAuditLogReq(r)
+	auditReq.Module = "auth"
+	auditReq.Action = auditmodel.ActionTypeCreate
+	auditReq.Resource = r.URL.Path
+	auditReq.Username = req.Username // 注册为匿名尝试，记录被申请的账号名
+	auditReq.RiskLevel = auditmodel.RiskMedium
+	auditReq.Tags = `["auth","register","create"]`
+	auditReq.Duration = time.Since(start).Milliseconds()
+
 	if err != nil {
+		auditReq.StatusCode = http.StatusInternalServerError
+		auditReq.Result = auditmodel.ResultFailure
+		auditReq.ErrorMessage = err.Error()
+		middleware.RecordAuditLog(r.Context(), &auditReq)
 		response.Fail(w, http.StatusInternalServerError, "用户注册失败: "+err.Error())
 		return
 	}
+
+	auditReq.UserID = user.ID
+	auditReq.TenantID = user.TenantID
+	auditReq.Username = user.Username
+	auditReq.ResourceID = user.ID
+	auditReq.StatusCode = http.StatusOK
+	auditReq.Result = auditmodel.ResultSuccess
+	middleware.RecordAuditLog(r.Context(), &auditReq)
 
 	converter := userdto.UserConverter{}
 	response.Success(w, converter.ToResponse(user))
@@ -175,8 +200,25 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	start := time.Now()
 	err := h.svc.ForgotPassword(r.Context(), req.Email)
+
+	// 密码重置申请是账号枚举/滥用的高信号，无论结果都入审；记录被申请重置的邮箱。
+	// 服务层对未注册邮箱也返回 nil（防枚举），因此 success 代指“请求已受理”。
+	auditReq := middleware.NewAuditLogReq(r)
+	auditReq.Module = "auth"
+	auditReq.Action = auditmodel.ActionTypeOther
+	auditReq.Resource = r.URL.Path
+	auditReq.Username = req.Email
+	auditReq.RiskLevel = auditmodel.RiskHigh
+	auditReq.Tags = `["auth","password_reset_request","other"]`
+	auditReq.Duration = time.Since(start).Milliseconds()
+
 	if err != nil {
+		auditReq.StatusCode = http.StatusInternalServerError
+		auditReq.Result = auditmodel.ResultFailure
+		auditReq.ErrorMessage = err.Error()
+		middleware.RecordAuditLog(r.Context(), &auditReq)
 		if errors.Is(err, service.ErrEmailNotConfigured) {
 			response.Fail(w, http.StatusInternalServerError, "邮件服务未配置")
 			return
@@ -184,6 +226,10 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 		response.Fail(w, http.StatusInternalServerError, "发送重置邮件失败")
 		return
 	}
+
+	auditReq.StatusCode = http.StatusOK
+	auditReq.Result = auditmodel.ResultSuccess
+	middleware.RecordAuditLog(r.Context(), &auditReq)
 
 	response.Success(w, dto.ForgotPasswordResp{
 		Message: "如果该邮箱已注册，重置链接已发送至您的邮箱",
@@ -198,19 +244,46 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	start := time.Now()
 	err := h.svc.ResetPassword(r.Context(), req.Token, req.NewPassword)
+
+	// 密码重置成功意味着账号被接管（令牌泄漏场景），属最高风险操作，必须入审；
+	// 重置令牌与新密码均为凭据，不写入审计。
+	auditReq := middleware.NewAuditLogReq(r)
+	auditReq.Module = "auth"
+	auditReq.Action = auditmodel.ActionTypeUpdate
+	auditReq.Resource = r.URL.Path
+	auditReq.RiskLevel = auditmodel.RiskCritical
+	auditReq.Tags = `["auth","password_reset","update"]`
+	auditReq.Duration = time.Since(start).Milliseconds()
+
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidResetToken) {
+		switch {
+		case errors.Is(err, service.ErrInvalidResetToken):
+			auditReq.StatusCode = http.StatusBadRequest
+		case errors.Is(err, service.ErrUserNotFound):
+			auditReq.StatusCode = http.StatusNotFound
+		default:
+			auditReq.StatusCode = http.StatusInternalServerError
+		}
+		auditReq.Result = auditmodel.ResultFailure
+		auditReq.ErrorMessage = err.Error()
+		middleware.RecordAuditLog(r.Context(), &auditReq)
+
+		switch {
+		case errors.Is(err, service.ErrInvalidResetToken):
 			response.Fail(w, http.StatusBadRequest, "重置链接已失效，请重新请求")
-			return
-		}
-		if errors.Is(err, service.ErrUserNotFound) {
+		case errors.Is(err, service.ErrUserNotFound):
 			response.Fail(w, http.StatusNotFound, "用户不存在")
-			return
+		default:
+			response.Fail(w, http.StatusInternalServerError, "重置密码失败")
 		}
-		response.Fail(w, http.StatusInternalServerError, "重置密码失败")
 		return
 	}
+
+	auditReq.StatusCode = http.StatusOK
+	auditReq.Result = auditmodel.ResultSuccess
+	middleware.RecordAuditLog(r.Context(), &auditReq)
 
 	response.Success(w, dto.ResetPasswordResp{
 		Message: "密码重置成功，请使用新密码登录",
