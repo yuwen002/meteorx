@@ -4,10 +4,12 @@ package handler
 import (
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
 	"meteorx/internal/common/validator"
+	"meteorx/internal/middleware"
 	"meteorx/internal/modules/audit/dto"
 	"meteorx/internal/modules/audit/model"
 	"meteorx/pkg/pagination"
@@ -17,6 +19,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 )
+
+// auditActionExport 审计导出动作名：model 无对应常量，导出既非增删改查，
+// 单列一类便于在审计列表中按动作检索这类数据外流行为。
+const auditActionExport = "export"
 
 // AuditService 审计服务接口（handler 依赖的最小业务面；*service.AuditService 完整实现）
 type AuditService interface {
@@ -125,6 +131,9 @@ func (h *AuditHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 
 // CleanupLogs 清理过期审计日志（超级管理员）
 // DELETE /api/v1/audit/logs/cleanup
+//
+// 该端点路径命中 shouldSkipAudit 的 /api/v1/audit/logs 前缀，不会被自动审计；
+// 而“删除审计历史”本身是最需留痕的高危操作，故在此手动补记，成功/失败均入库。
 func (h *AuditHandler) CleanupLogs(w http.ResponseWriter, r *http.Request) {
 	daysStr := r.URL.Query().Get("days")
 	days, _ := strconv.Atoi(daysStr)
@@ -132,29 +141,65 @@ func (h *AuditHandler) CleanupLogs(w http.ResponseWriter, r *http.Request) {
 		days = 30 // 默认清理30天前的日志
 	}
 
+	start := time.Now()
+	reqBody, _ := json.Marshal(map[string]int{"days": days})
+
 	// 只有超级管理员可以清理日志
 	if !contextx.HasRole(r.Context(), "superadmin") {
+		h.recordSelfOpAudit(r, start, model.ActionTypeDelete, model.RiskCritical,
+			string(reqBody), "", http.StatusForbidden, model.ResultFailure, "非超级管理员尝试清理审计日志")
 		response.Fail(w, http.StatusForbidden, "只有超级管理员可以清理审计日志")
 		return
 	}
 
 	affected, err := h.svc.CleanupLogs(r.Context(), days)
 	if err != nil {
+		h.recordSelfOpAudit(r, start, model.ActionTypeDelete, model.RiskCritical,
+			string(reqBody), "", http.StatusInternalServerError, model.ResultFailure, err.Error())
 		response.Fail(w, http.StatusInternalServerError, "清理审计日志失败")
 		return
 	}
 
+	respBody, _ := json.Marshal(map[string]int64{"deleted_count": affected})
+	h.recordSelfOpAudit(r, start, model.ActionTypeDelete, model.RiskCritical,
+		string(reqBody), string(respBody), http.StatusOK, model.ResultSuccess, "")
 	response.Success(w, map[string]int64{"deleted_count": affected})
+}
+
+// recordSelfOpAudit 记录“针对审计系统自身”的高危操作（清理/导出）。
+// 这些端点被自动审计的跳过规则排除，若不在此手动补记，删除/导出审计数据的行为将毫无痕迹。
+// 只记录操作者、请求参数摘要与结果摘要，不落任何审计数据正文。
+func (h *AuditHandler) recordSelfOpAudit(r *http.Request, start time.Time, action, risk, requestBody, responseBody string, statusCode int, result, errMsg string) {
+	req := middleware.NewAuditLogReq(r)
+	req.Module = "audit"
+	req.Action = action
+	req.Resource = r.URL.Path
+	req.RiskLevel = risk
+	req.UserID = contextx.GetUserID(r.Context())
+	req.Username = req.UserID
+	req.TenantID = contextx.GetTenantID(r.Context())
+	req.RequestBody = requestBody
+	req.ResponseBody = responseBody
+	req.StatusCode = statusCode
+	req.Result = result
+	req.ErrorMessage = errMsg
+	req.Duration = time.Since(start).Milliseconds()
+	req.Tags = fmt.Sprintf(`["audit",%q,%q]`, action, result)
+	middleware.RecordAuditLog(r.Context(), &req)
 }
 
 // ExportLogs 导出审计日志（CSV 格式）
 // GET /api/v1/audit/logs/export
+//
+// 批量导出审计数据属于数据外流，同样命中自动审计的跳过前缀，故手动留痕：
+// 只记录导出筛选条件与条数，不落 CSV 正文。
 func (h *AuditHandler) ExportLogs(w http.ResponseWriter, r *http.Request) {
 	format := r.URL.Query().Get("format")
 	if format == "" {
 		format = "csv"
 	}
 
+	start := time.Now()
 	query := &dto.ListAuditLogsQuery{
 		Page:      1,
 		PageSize:  10000, // 最多导出10000条
@@ -165,17 +210,30 @@ func (h *AuditHandler) ExportLogs(w http.ResponseWriter, r *http.Request) {
 		EndTime:   r.URL.Query().Get("end_time"),
 		Keyword:   r.URL.Query().Get("keyword"),
 	}
+	filters, _ := json.Marshal(map[string]string{
+		"format":     format,
+		"module":     query.Module,
+		"action":     query.Action,
+		"result":     query.Result,
+		"start_time": query.StartTime,
+		"end_time":   query.EndTime,
+		"keyword":    query.Keyword,
+	})
 
 	result, err := h.svc.ListLogs(r.Context(), query)
 	if err != nil {
+		h.recordSelfOpAudit(r, start, auditActionExport, model.RiskHigh, string(filters), "", http.StatusInternalServerError, model.ResultFailure, err.Error())
 		response.Fail(w, http.StatusInternalServerError, "获取审计日志失败")
 		return
 	}
 
 	switch format {
 	case "csv":
+		respBody, _ := json.Marshal(map[string]int{"exported_count": len(result.Items)})
+		h.recordSelfOpAudit(r, start, auditActionExport, model.RiskHigh, string(filters), string(respBody), http.StatusOK, model.ResultSuccess, "")
 		h.exportCSV(w, result.Items)
 	default:
+		h.recordSelfOpAudit(r, start, auditActionExport, model.RiskHigh, string(filters), "", http.StatusBadRequest, model.ResultFailure, "不支持的导出格式: "+format)
 		response.Fail(w, http.StatusBadRequest, "不支持的导出格式")
 	}
 }

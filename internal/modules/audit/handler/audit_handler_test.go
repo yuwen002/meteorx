@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"meteorx/internal/middleware"
 	"meteorx/internal/modules/audit/dto"
 	"meteorx/internal/modules/audit/handler"
 	"meteorx/internal/modules/audit/model"
@@ -14,6 +15,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// captureAudit 注入审计捕获钩子，返回捕获切片指针（t.Cleanup 自动还原）。
+func captureAudit(t *testing.T) *[]dto.CreateAuditLogReq {
+	t.Helper()
+	var got []dto.CreateAuditLogReq
+	restore := middleware.SetAuditCaptureForTest(func(req *dto.CreateAuditLogReq) {
+		got = append(got, *req)
+	})
+	t.Cleanup(restore)
+	return &got
+}
 
 func newAuditRouter(stub *stubAuditService) http.Handler {
 	h := handler.NewAuditHandler(stub)
@@ -228,4 +240,89 @@ func TestGetDashboard_ServiceError_Returns500(t *testing.T) {
 	w := doReq(t, router, http.MethodGet, "/dashboard", "", []string{"admin"})
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// ---------- 审计系统自身高危操作留痕 ----------
+
+func TestCleanupLogs_Superadmin_RecordsCriticalAudit(t *testing.T) {
+	stub := &stubAuditService{Affected: 88}
+	router := newAuditRouter(stub)
+	got := captureAudit(t)
+
+	doReq(t, router, http.MethodDelete, "/cleanup?days=60", "", []string{"superadmin"})
+
+	require.Len(t, *got, 1)
+	rec := (*got)[0]
+	assert.Equal(t, "audit", rec.Module)
+	assert.Equal(t, model.ActionTypeDelete, rec.Action)
+	assert.Equal(t, model.RiskCritical, rec.RiskLevel)
+	assert.Equal(t, model.ResultSuccess, rec.Result)
+	assert.Equal(t, http.StatusOK, rec.StatusCode)
+	assert.Equal(t, "user-1", rec.UserID)
+	assert.Equal(t, "tenant-1", rec.TenantID)
+	assert.Contains(t, rec.RequestBody, `"days":60`)
+	assert.Contains(t, rec.ResponseBody, `"deleted_count":88`)
+}
+
+func TestCleanupLogs_NonSuperadmin_RecordsFailureAudit(t *testing.T) {
+	stub := &stubAuditService{}
+	router := newAuditRouter(stub)
+	got := captureAudit(t)
+
+	doReq(t, router, http.MethodDelete, "/cleanup?days=30", "", []string{"admin"})
+
+	require.Len(t, *got, 1)
+	rec := (*got)[0]
+	assert.Equal(t, model.ActionTypeDelete, rec.Action)
+	assert.Equal(t, model.RiskCritical, rec.RiskLevel)
+	assert.Equal(t, model.ResultFailure, rec.Result)
+	assert.Equal(t, http.StatusForbidden, rec.StatusCode)
+}
+
+func TestCleanupLogs_ServiceError_RecordsFailureAudit(t *testing.T) {
+	stub := &stubAuditService{Err: errors.New("cleanup failed")}
+	router := newAuditRouter(stub)
+	got := captureAudit(t)
+
+	doReq(t, router, http.MethodDelete, "/cleanup?days=30", "", []string{"superadmin"})
+
+	require.Len(t, *got, 1)
+	rec := (*got)[0]
+	assert.Equal(t, model.ResultFailure, rec.Result)
+	assert.Equal(t, http.StatusInternalServerError, rec.StatusCode)
+	assert.Equal(t, "cleanup failed", rec.ErrorMessage)
+}
+
+func TestExportLogs_CSV_RecordsHighRiskAudit(t *testing.T) {
+	stub := &stubAuditService{ListResp: &dto.AuditLogListResp{
+		Items: []*dto.AuditLogResp{{ID: "l1"}, {ID: "l2"}},
+		Total: 2,
+	}}
+	router := newAuditRouter(stub)
+	got := captureAudit(t)
+
+	doReq(t, router, http.MethodGet, "/logs/export?format=csv&module=auth", "", []string{"admin"})
+
+	require.Len(t, *got, 1)
+	rec := (*got)[0]
+	assert.Equal(t, "audit", rec.Module)
+	assert.Equal(t, "export", rec.Action)
+	assert.Equal(t, model.RiskHigh, rec.RiskLevel)
+	assert.Equal(t, model.ResultSuccess, rec.Result)
+	assert.Contains(t, rec.RequestBody, `"module":"auth"`)
+	assert.Contains(t, rec.ResponseBody, `"exported_count":2`)
+}
+
+func TestExportLogs_UnsupportedFormat_RecordsFailureAudit(t *testing.T) {
+	stub := &stubAuditService{ListResp: &dto.AuditLogListResp{Items: []*dto.AuditLogResp{{ID: "l1"}}}}
+	router := newAuditRouter(stub)
+	got := captureAudit(t)
+
+	doReq(t, router, http.MethodGet, "/logs/export?format=xls", "", []string{"admin"})
+
+	require.Len(t, *got, 1)
+	rec := (*got)[0]
+	assert.Equal(t, "export", rec.Action)
+	assert.Equal(t, model.ResultFailure, rec.Result)
+	assert.Equal(t, http.StatusBadRequest, rec.StatusCode)
 }
