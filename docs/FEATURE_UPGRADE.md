@@ -1606,4 +1606,30 @@ client:
   `RoleNotFound`/`PermissionNotFound` 在到达子集校验前即返回，行为不变。
 - ℹ️ 本卡为纯后端安全校验，未改动前端；生产调用方仅两个 HTTP handler（均带真实请求上下文），无种子/后台调用会被误伤。
 - ℹ️ 边界说明：本卡与第四十二节共同闭环「租户内分配/绑定提权」主路径。未覆盖项：非系统操作者向**其他租户角色或系统级角色**
-  绑定自身已持有权限的跨租户角色改写（属角色归属越权，与提权正交），登记为后续项。
+  绑定自身已持有权限的跨租户角色改写（属角色归属越权，与提权正交），登记为后续项（已于第四十四节收口）。
+
+## 四十四、角色归属越权收口（绑定/分配只作用于可管理角色）
+
+### 44.1 起因
+
+第四十三节收口了绑定权限的子集，但登记的边界仍未闭：`BindRolePermissions` / `BatchBindRolesPermissions` 从不校验**目标角色的归属**——
+一个持 `rbac:role:bind_perm` 的租户操作者可把权限（哪怕自身已持有）绑到其他租户的角色或系统级角色上，形成跨租户/系统角色篡改；
+批量绑定入口甚至不校验角色是否存在。而分配入口 `validateRoleAssignScope` 早已拦住“系统级角色 + 他租户角色”，两个入口口径不一致。
+
+### 44.2 后端
+
+- 抽出共享护栏 `validateRolesInOperatorScope(ctx, roles)`：非系统操作者只能对归属本租户或平台（`SYSTEM_ROOT`）且非系统级的
+  角色操作；`scope=system` 或归属他租户均拒绝。系统操作者旁路。
+- `validateRoleAssignScope` 的角色循环改为委派给该 helper（行为与文案子串不变），分配与绑定从此共用同一护栏，消除口径漂移。
+- `BindRolePermissions` 在权限存在性校验后、子集校验前调用它；`BatchBindRolesPermissions` 新增逐角色存在性加载（缺失即 400）并整批校归属。
+- 校验顺序：角色/权限存在性 → 角色归属 → 权限子集 → 写入；归属拦截独立于子集（即使只绑自身已持有权限，绑到系统级/他租户角色仍拒）。
+
+### 44.3 验证状态
+
+- ✅ `go build ./...`、`go vet ./internal/modules/rbac/...`、`gofmt -l` 通过；`go test -count=1 ./internal/modules/rbac/... ./internal/integration/... ./internal/bootstrap/...` 全绿。
+- ✅ 新增 5 条 service 单测：绑定系统级角色拒绝、绑定他租户角色拒绝且不落绑定、系统操作者绕过归属、批量他租户角色拒绝、批量角色不存在。
+- ✅ 变异检验：把 `validateRolesInOperatorScope` 改为恒返回 nil 后，5 条拒绝用例转红（新增 3 绑定 + 因重构而依赖 helper 的 2 分配系统级/他租户用例），
+  绕过/放行用例仍绿，证明护栏由拒绝用例真实锚定，还原后全绿。
+- ✅ 分配侧重构安全：`TestAssignUserRoles_SystemRoleRejected`/`ForeignRoleRejected` 仅断言子串“系统级角色”/“不属于当前租户”，新文案仍包含；
+  `CrossTenantRejected`（用户级）由 `validateRoleAssignScope` 保留的用户循环拦截，不经过 helper。
+- ℹ️ 本卡为纯后端安全校验，未改动前端。至此分配与绑定两入口对“角色归属 + 权限子集”形成一致的护栏，租户内跨租户篡改与提权路径均已闭合。
