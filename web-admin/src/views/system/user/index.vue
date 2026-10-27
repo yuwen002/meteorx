@@ -89,6 +89,13 @@
           @click="openBatchAssignRoles"
         >分配角色</el-button>
         <el-button
+          v-if="canBatchExport"
+          size="small"
+          type="info"
+          :loading="batchLoading"
+          @click="handleExportSelected"
+        >导出所选</el-button>
+        <el-button
           v-if="canBatchDelete"
           size="small"
           type="danger"
@@ -514,6 +521,7 @@ import { getUserRoles, getRolePermissions, type RoleItem, getRoleListForSelect, 
 import { getTenantList, type TenantItem } from '@/api/modules/tenant'
 import { type PermissionItem } from '@/api/modules/permission'
 import { getAuditLogList, type AuditLogItem } from '@/api/modules/audit'
+import { createExport } from '@/api/modules/export'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
 import UserImportDialog from './components/UserImportDialog.vue'
@@ -582,8 +590,12 @@ const canBatchStatus = computed(() => userStore.hasPermission('user:batch_status
 const canBatchDelete = computed(() => userStore.hasPermission('user:batch_delete'))
 // 批量分配角色与单行分配角色同门槛，系统管理员默认拥有
 const canBatchAssign = computed(() => userStore.hasPermission('rbac:user_role:batch_assign') || userStore.isAdmin)
+// 导出所选走异步导出任务，需要 export:create 权限
+const canBatchExport = computed(() => userStore.hasPermission('export:create') || userStore.isAdmin)
 // 回收站里的行不支持批量操作（批量接口只面向在用用户）
-const batchEnabled = computed(() => !isRecycleBin.value && (canBatchStatus.value || canBatchDelete.value || canBatchAssign.value))
+const batchEnabled = computed(
+  () => !isRecycleBin.value && (canBatchStatus.value || canBatchDelete.value || canBatchAssign.value || canBatchExport.value)
+)
 
 // 系统管理员的批量接口把租户ID放在路径上，缺租户ID的行无法提交
 function isRowSelectable(row: UserItem) {
@@ -717,6 +729,33 @@ async function submitBatchAssignRoles() {
     ElMessage.error((e as Error).message || '批量分配角色失败')
   } finally {
     batchAssignSaving.value = false
+  }
+}
+
+// 导出所选用户：创建异步导出任务，完成后在下载中心下载。
+// 任务按租户归属落库，因此系统管理员一次只能导出一个租户的用户。
+async function handleExportSelected() {
+  const rows = selectedRows.value.filter((row) => row.id)
+  if (!rows.length) return
+  const tenantIds = new Set(rows.map((row) => row.tenant_id || ''))
+  if (userStore.isAdmin && tenantIds.size > 1) {
+    ElMessage.warning('所选用户属于多个租户，请先按租户筛选后再导出')
+    return
+  }
+  batchLoading.value = true
+  try {
+    await createExport({
+      resource: 'user',
+      format: 'csv',
+      ...(userStore.isAdmin && rows[0].tenant_id ? { tenant_id: rows[0].tenant_id } : {}),
+      filters: { ids: rows.map((row) => row.id as string) }
+    })
+    ElMessage.success(`已创建导出任务（${rows.length} 个用户），完成后可在下载中心下载`)
+    clearSelection()
+  } catch (e) {
+    ElMessage.error((e as Error).message || '创建导出任务失败')
+  } finally {
+    batchLoading.value = false
   }
 }
 

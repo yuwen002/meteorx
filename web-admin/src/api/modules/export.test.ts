@@ -54,6 +54,18 @@ describe('Export API', () => {
     expect(res.status).toBe('completed')
   })
 
+  it('createExport 导出所选用户时应透传 ids 与目标租户', async () => {
+    const payload: CreateExportParams = {
+      resource: 'user',
+      format: 'csv',
+      tenant_id: 'tn-1',
+      filters: { ids: ['u-1', 'u-2'] },
+    }
+    vi.mocked(post).mockResolvedValue(sampleJob)
+    await createExport(payload)
+    expect(post).toHaveBeenCalledWith('/exports', payload)
+  })
+
   it('getExportDetail 应 GET /exports/{id}', async () => {
     vi.mocked(get).mockResolvedValue(sampleJob)
     const res = await getExportDetail('job-1')

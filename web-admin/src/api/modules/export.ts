@@ -42,6 +42,9 @@ export interface CreateExportParams {
   resource: ExportResource
   /** 导出格式，不传默认 csv */
   format?: ExportFormat
+  /** 目标租户：仅系统管理员生效，为其它租户创建任务时显式声明归属 */
+  tenant_id?: string
+  /** 筛选条件；导出所选用户时传 { ids: [...] }（后端限 200 条） */
   filters?: Record<string, unknown>
 }
 
