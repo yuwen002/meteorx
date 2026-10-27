@@ -24,16 +24,13 @@ type IntegrityAnchorJob struct {
 	grace time.Duration
 }
 
-// anchorGrace 封口时预留的安全边界：窗口右端取 now-grace，给异步批量 flush 的迟到行留出落库时间，
-// 避免刚写入、created_at 落在窗口边缘的行被本次封口漏掉后又落进已封窗口（否则校验会因窗口内容漂移而误报）。
-const anchorGrace = time.Minute
-
 // NewIntegrityAnchorJob 创建锚点链任务实例。guard 须与写入侧共用同一实例（摘要/折叠同一 pepper）。
+// 封口安全边界取 guard.AnchorGrace()，与 rehash 全量重建共用同一口径。
 func NewIntegrityAnchorJob(db *gorm.DB, cfg config.Config, guard *service.IntegrityGuard) *IntegrityAnchorJob {
 	return &IntegrityAnchorJob{
 		guard: guard,
 		irepo: repository.NewIntegrityRepository(db),
-		grace: anchorGrace,
+		grace: guard.AnchorGrace(),
 	}
 }
 

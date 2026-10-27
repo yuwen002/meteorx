@@ -357,7 +357,12 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
 - **rehash 迁移**：`POST /api/v1/audit/integrity/rehash`（权限码 `audit:integrity:rehash`，仅平台超管）。前置须
   `enabled` 且配了 `previous_secret_key`，否则 400。它**只重写 `RowPrevious` 行**（有旧 key 的密码学自证，绝不
   盲重包，`RowNone` 真篡改行不被洗白），把行摘要迁到新 key；随后因行摘要值改变会使旧锚点必然失效，
-  **清空并从创世按新 key 全量重建整条锚点链**（复用 `anchor_interval` 时间桶口径）。
+  **从创世按新 key 全量重建整条锚点链**（复用 `anchor_interval` 时间桶口径）。
+- **重建原子性**：重建走 `ReplaceAnchors`——在**单个事务**内先删旧链再插新链，二者不可分割。避免“旧链已删、
+  新链未建”中途失败导致锚点表被清空却无新链，`Verify` 反而因“无锚点可查”静默判 `verified`、丢历史防护。
+- **封口边界**：重建窗口右端一律 **clamp 到 `now - grace`**（与周期任务同口径，grace 取 `IntegrityGuard.AnchorGrace`），
+  绝不产出以**未来时刻**收尾的窗口；否则其后新写入的行会落进已封窗口，令校验重放时窗口内容漂移而误报。
+  落在 `now - grace` 之后的新行不纳入本次重建，留待周期任务下次封口（它们仍以新 key 写入，行级校验照常通过）。
 - **并发串行**：rehash 与周期任务 `IntegrityAnchorJob` 共享 `integrityAnchorMu`，重建期间不被追加锚点，避免链错乱。
 - **留痕**：rehash 是挂在受保护分组下的 HTTP POST，已被审计中间件自动记录（含真实操作者、状态码、响应体计数），
   不再在 handler 内重复埋点。

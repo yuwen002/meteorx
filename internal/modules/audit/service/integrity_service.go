@@ -192,10 +192,7 @@ func (s *IntegrityService) Rehash(ctx context.Context) (*dto.IntegrityRehashResp
 		return nil, err
 	}
 
-	// 2) 重建锚点链：清空旧锚点，按当前 key 从创世重新折叠全量历史行
-	if err := s.irepo.DeleteAllAnchors(ctx); err != nil {
-		return nil, err
-	}
+	// 2) 重建锚点链：按当前 key 从创世重新折叠全量历史行，并在单事务内原子替换旧链（删旧+建新不可分割）。
 	rebuilt, err := s.rebuildAnchors(ctx)
 	if err != nil {
 		return nil, err
@@ -210,23 +207,32 @@ func (s *IntegrityService) Rehash(ctx context.Context) (*dto.IntegrityRehashResp
 }
 
 // rebuildAnchors 按 (created_at, id) 有序读取全量行（已为新 key 摘要），以 anchor_interval 为时间桶
-// 从创世链式生成锚点。空表时不生成。返回落库锚点条数。
+// 从创世链式生成整条新锚点链，最后通过 ReplaceAnchors 单事务原子替换旧链（删旧+建新不可分割）。
+// 窗口右端一律不越过安全界 sealLimit=now-grace（与周期任务同口径）：一方面避免重建出以未来时刻
+// 收尾的窗口（否则其后新写入的行会落进已封窗口内，令校验重放时窗口内容漂移而误报），另一方面使
+// sealLimit 之后的新行留给周期任务下次封口（它们仍以当前 key 写入，行级校验照常通过）。
+// 空表时清空锚点。返回落库锚点条数。
 func (s *IntegrityService) rebuildAnchors(ctx context.Context) (int64, error) {
 	logs, err := s.irepo.ListLogsInRange(ctx, time.Time{}, time.Time{})
 	if err != nil {
 		return 0, err
 	}
-	if len(logs) == 0 {
-		return 0, nil
-	}
+	sealLimit := time.Now().Add(-s.guard.AnchorGrace())
 	interval := s.guard.AnchorInterval()
+
 	var (
-		count    int64
+		anchors  []*repository.IntegrityAnchor
 		prevHash string
 	)
 	for i := 0; i < len(logs); {
 		winStart := logs[i].CreatedAt
+		if !winStart.Before(sealLimit) {
+			break // 该窗起始已在安全界之后，尾部交给周期任务封口
+		}
 		winEnd := winStart.Add(interval)
+		if winEnd.After(sealLimit) {
+			winEnd = sealLimit // 末窗 clamp：右端不越过安全界进入未来
+		}
 		var hashes []string
 		j := i
 		for j < len(logs) && logs[j].CreatedAt.Before(winEnd) {
@@ -243,12 +249,13 @@ func (s *IntegrityService) rebuildAnchors(ctx context.Context) (int64, error) {
 			PrevAnchorHash: prevHash,
 		}
 		anchor.AnchorHash = s.guard.AnchorHashOf(prevHash, windowDigest, anchor.RowCount, winStart, winEnd)
-		if err := s.irepo.CreateAnchor(ctx, anchor); err != nil {
-			return count, err
-		}
-		count++
+		anchors = append(anchors, anchor)
 		prevHash = anchor.AnchorHash
 		i = j
 	}
-	return count, nil
+
+	if err := s.irepo.ReplaceAnchors(ctx, anchors); err != nil {
+		return 0, err
+	}
+	return int64(len(anchors)), nil
 }

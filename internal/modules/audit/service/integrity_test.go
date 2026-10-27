@@ -9,6 +9,7 @@ import (
 	"meteorx/internal/modules/audit/dto"
 	"meteorx/internal/modules/audit/model"
 	"meteorx/internal/modules/audit/repository"
+	"meteorx/pkg/idgen"
 
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -46,6 +47,24 @@ func sampleLog(id string) *model.AuditLog {
 		Duration:   10,
 		CreatedAt:  time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
 	}
+}
+
+// seedKeyedRow 以指定 guard 计算 record_hash，把一条带显式 created_at 的历史行直接落库
+// （模拟密钥轮换前的旧数据，created_at 可控以便验证封口边界）。
+func seedKeyedRow(t *testing.T, db *gorm.DB, g *IntegrityGuard, m *model.AuditLog) {
+	t.Helper()
+	m.RecordHash = g.Compute(m)
+	po := repository.AuditLogPO{
+		ID: m.ID, UserID: m.UserID, Username: m.Username, TenantID: m.TenantID,
+		Module: m.Module, Action: m.Action, Resource: m.Resource, ResourceID: m.ResourceID,
+		Method: m.Method, Path: m.Path, RequestBody: m.RequestBody, ResponseBody: m.ResponseBody,
+		StatusCode: m.StatusCode, Result: m.Result, ErrorMessage: m.ErrorMessage,
+		ClientIP: m.ClientIP, IPLocation: m.IPLocation, UserAgent: m.UserAgent, DeviceInfo: m.DeviceInfo,
+		Duration: m.Duration, SessionID: m.SessionID, RequestID: m.RequestID, TraceID: m.TraceID,
+		Referer: m.Referer, RiskLevel: m.RiskLevel, Tags: m.Tags,
+		RecordHash: m.RecordHash, CreatedAt: m.CreatedAt,
+	}
+	require.NoError(t, db.Create(&po).Error)
 }
 
 // TestCanonicalDeterministicAndSensitive 摘要须对同输入稳定、对任一被覆盖字段变化敏感、
@@ -248,15 +267,13 @@ func TestRehashMigratesPreviousRows(t *testing.T) {
 	db := newIntegrityTestDB(t)
 	irepo := repository.NewIntegrityRepository(db)
 
-	// 以旧 pepper 写入两行（模拟轮换前的历史数据）
+	// 以旧 pepper 写入两行历史数据，created_at 落在久远过去（早于 grace，重建时会被封口）
 	oldGuard := newIntegrityGuard("pepper-OLD")
-	svc := NewAuditService(repository.NewAuditLogRepository(db), WithIntegrity(oldGuard))
-	for i := 0; i < 2; i++ {
-		_, err := svc.CreateLog(context.Background(), dto.CreateAuditLogReq{
-			UserID: "u-1", Module: "user", Action: model.ActionTypeCreate, Result: model.ResultSuccess,
-		})
-		require.NoError(t, err)
-	}
+	ra := sampleLog("row-a")
+	rb := sampleLog("row-b")
+	rb.CreatedAt = ra.CreatedAt.Add(time.Minute)
+	seedKeyedRow(t, db, oldGuard, ra)
+	seedKeyedRow(t, db, oldGuard, rb)
 
 	// 轮换：当前=NEW、旧=OLD
 	rot := newRotatingGuard("pepper-NEW", "pepper-OLD")
@@ -271,7 +288,13 @@ func TestRehashMigratesPreviousRows(t *testing.T) {
 	rr, err := ires.Rehash(context.Background())
 	require.NoError(t, err)
 	require.EqualValues(t, 2, rr.RehashedRows)
-	require.Greater(t, rr.AnchorsRebuilt, int64(0), "rehash 应重建锚点链")
+	require.Greater(t, rr.AnchorsRebuilt, int64(0), "历史行早已越过 grace，rehash 应重建锚点链")
+
+	// 重建的锚点窗口右端都不得越过当前时刻（防未来窗吞并后续写入行，见 B）
+	var future int64
+	require.NoError(t, db.Model(&repository.AuditIntegrityAnchorPO{}).
+		Where("window_end > ?", time.Now()).Count(&future).Error)
+	require.Zero(t, future, "重建锚点的窗口右端不得进入未来")
 
 	// 迁移后单看新 key 即应 verified（旧行已重算）
 	res2, err := NewIntegrityService(newIntegrityGuard("pepper-NEW"), irepo).Verify(context.Background())
@@ -279,6 +302,74 @@ func TestRehashMigratesPreviousRows(t *testing.T) {
 	require.Equal(t, IntegrityVerdictVerified, res2.Verdict)
 	require.Zero(t, res2.TamperedRows)
 	require.Zero(t, res2.PendingRehashRows)
+}
+
+// TestRehashNoFutureWindowSwallowsLaterRow 锁死 B：rehash 重建不得产生以未来时刻收尾的窗口。
+// 历史行落在 now-30min（早于 grace 会被封口，但其 +1h 窗口右端会越入未来）；若产生未来窗，
+// rehash 后新写入的行会落进该已封窗口，令校验重放时窗口行数/摘要漂移而误报 tampered。
+func TestRehashNoFutureWindowSwallowsLaterRow(t *testing.T) {
+	db := newIntegrityTestDB(t)
+	irepo := repository.NewIntegrityRepository(db)
+
+	oldGuard := newIntegrityGuard("pepper-OLD")
+	recent := sampleLog("row-recent")
+	recent.CreatedAt = time.Now().UTC().Truncate(time.Second).Add(-30 * time.Minute)
+	seedKeyedRow(t, db, oldGuard, recent)
+
+	rot := newRotatingGuard("pepper-NEW", "pepper-OLD")
+	_, err := NewIntegrityService(rot, irepo).Rehash(context.Background())
+	require.NoError(t, err)
+
+	// 重建后任何锚点窗口右端均不得超过当前时刻
+	var future int64
+	require.NoError(t, db.Model(&repository.AuditIntegrityAnchorPO{}).
+		Where("window_end > ?", time.Now()).Count(&future).Error)
+	require.Zero(t, future, "封口窗口右端不得进入未来")
+
+	// rehash 后以新 key 再写一行（created_at≈now）：不得落入任何已封窗口
+	newSvc := NewAuditService(repository.NewAuditLogRepository(db), WithIntegrity(newIntegrityGuard("pepper-NEW")))
+	_, err = newSvc.CreateLog(context.Background(), dto.CreateAuditLogReq{
+		UserID: "u-2", Module: "user", Action: model.ActionTypeCreate, Result: model.ResultSuccess,
+	})
+	require.NoError(t, err)
+
+	res, err := NewIntegrityService(newIntegrityGuard("pepper-NEW"), irepo).Verify(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, IntegrityVerdictVerified, res.Verdict, "rehash 后新写入行不得落入未来窗导致误报")
+	require.Zero(t, res.TamperedRows)
+	require.Zero(t, len(res.AnomalyAnchorIDs))
+}
+
+// TestReplaceAnchorsReplacesAtomically 锁死 A：ReplaceAnchors 在单事务内原子地删旧+建新，
+// 不会残留旧链、也不会因建新失败而丢旧链（空切片=仅清空）。
+func TestReplaceAnchorsReplacesAtomically(t *testing.T) {
+	db := newIntegrityTestDB(t)
+	irepo := repository.NewIntegrityRepository(db)
+	base := time.Now().UTC().Truncate(time.Second)
+	mk := func(i int, end time.Time) *repository.IntegrityAnchor {
+		return &repository.IntegrityAnchor{
+			ID: idgen.New(), WindowStart: end.Add(-time.Hour), WindowEnd: end,
+			RowCount: int64(i + 1), WindowDigest: "d", AnchorHash: "a", PrevAnchorHash: "",
+		}
+	}
+
+	old := []*repository.IntegrityAnchor{mk(0, base), mk(1, base.Add(time.Hour)), mk(2, base.Add(2*time.Hour))}
+	require.NoError(t, irepo.ReplaceAnchors(context.Background(), old))
+	var n int64
+	require.NoError(t, db.Model(&repository.AuditIntegrityAnchorPO{}).Count(&n).Error)
+	require.EqualValues(t, 3, n)
+
+	fresh := []*repository.IntegrityAnchor{mk(0, base.Add(3*time.Hour)), mk(1, base.Add(4*time.Hour))}
+	require.NoError(t, irepo.ReplaceAnchors(context.Background(), fresh))
+	var pos []repository.AuditIntegrityAnchorPO
+	require.NoError(t, db.Order("window_end ASC").Find(&pos).Error)
+	require.Len(t, pos, 2)
+	require.Equal(t, fresh[0].ID, pos[0].ID)
+	require.Equal(t, fresh[1].ID, pos[1].ID)
+
+	require.NoError(t, irepo.ReplaceAnchors(context.Background(), nil))
+	require.NoError(t, db.Model(&repository.AuditIntegrityAnchorPO{}).Count(&n).Error)
+	require.Zero(t, n)
 }
 
 // TestRehashDoesNotWhitelistTampered 真篡改行（两把 key 都不命中）不会被 rehash 洗白。

@@ -12,6 +12,10 @@ import (
 	"meteorx/internal/modules/audit/model"
 )
 
+// anchorGraceDefault 锚点封口的默认安全边界：窗口右端取 now-此值，规避刚写入、created_at 落在
+// 窗口边缘的迟到行被本次封口漏掉后又落进已封窗口（否则校验会因窗口内容漂移而误报）。
+const anchorGraceDefault = time.Minute
+
 // IntegrityGuard 计算审计日志的行级完整性摘要（防篡改）。
 // 用 HMAC-SHA256(pepper, canonical(log)) 覆盖固定字段集：只要任一被覆盖字段被篡改，
 // 重算摘要即与落库值不符。pepper（SecretKey）不落库；未启用或未配密钥时 enabled=false，
@@ -23,6 +27,7 @@ type IntegrityGuard struct {
 	key      []byte
 	prevKey  []byte // 轮换过渡期的旧 pepper；nil/空表示未处于轮换期
 	interval time.Duration
+	grace    time.Duration
 	enabled  bool
 }
 
@@ -36,6 +41,7 @@ func NewIntegrityGuard(cfg config.Config) *IntegrityGuard {
 	g := &IntegrityGuard{
 		key:      []byte(strings.TrimSpace(ic.SecretKey)),
 		interval: ic.GetAnchorInterval(),
+		grace:    anchorGraceDefault,
 		enabled:  true,
 	}
 	if ic.HasPreviousKey() {
@@ -50,6 +56,15 @@ func (g *IntegrityGuard) AnchorInterval() time.Duration {
 		return time.Hour
 	}
 	return g.interval
+}
+
+// AnchorGrace 封口安全边界：窗口右端取 now-grace，给异步批量 flush 的迟到行留出落库时间。
+// 周期锚点任务与 rehash 全量重建共用同一口径，避免两处对「可封窗口右端」的理解漂移。
+func (g *IntegrityGuard) AnchorGrace() time.Duration {
+	if g == nil || g.grace < 0 {
+		return anchorGraceDefault
+	}
+	return g.grace
 }
 
 // Enabled 摘要器是否处于生效状态。

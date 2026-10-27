@@ -90,8 +90,9 @@ type IntegrityRepository interface {
 	// BatchUpdateRecordHash 按 id 批量重写审计日志的 record_hash（rehash 迁移用），分块提交。
 	BatchUpdateRecordHash(ctx context.Context, updates []RecordHashUpdate) error
 
-	// DeleteAllAnchors 清空全部锚点（rehash 后全量重建前的收口删除）。
-	DeleteAllAnchors(ctx context.Context) error
+	// ReplaceAnchors 在单个事务内清空全部旧锚点并写入新链（rehash 全量重建的原子收口）。
+	// 传空切片等价于仅清空。整体原子：中途失败则旧锚点不会被丢。
+	ReplaceAnchors(ctx context.Context, anchors []*IntegrityAnchor) error
 }
 
 // integrityRepository IntegrityRepository 的 GORM 实现。
@@ -225,7 +226,40 @@ func (r *integrityRepository) BatchUpdateRecordHash(ctx context.Context, updates
 	return nil
 }
 
-// DeleteAllAnchors 清空 audit_integrity_anchors 全表（rehash 后重建前调用）。
-func (r *integrityRepository) DeleteAllAnchors(ctx context.Context) error {
-	return r.db.WithContext(ctx).Where("1 = 1").Delete(&AuditIntegrityAnchorPO{}).Error
+// replaceAnchorChunk 单条 INSERT 语句携带的锚点数上限，避免一次拼接过长。
+const replaceAnchorChunk = 500
+
+// ReplaceAnchors 在单事务内先清空旧锚点链、再批量写入新链，使「删旧+建新」原子化。
+// 中途任何失败整体回滚，不会出现“旧链已删、新链未建”的空窗（rehash 重建的收口保护）。
+func (r *integrityRepository) ReplaceAnchors(ctx context.Context, anchors []*IntegrityAnchor) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("1 = 1").Delete(&AuditIntegrityAnchorPO{}).Error; err != nil {
+			return err
+		}
+		if len(anchors) == 0 {
+			return nil
+		}
+		pos := make([]*AuditIntegrityAnchorPO, len(anchors))
+		for i, a := range anchors {
+			pos[i] = &AuditIntegrityAnchorPO{
+				ID:             a.ID,
+				WindowStart:    a.WindowStart,
+				WindowEnd:      a.WindowEnd,
+				RowCount:       a.RowCount,
+				WindowDigest:   a.WindowDigest,
+				AnchorHash:     a.AnchorHash,
+				PrevAnchorHash: a.PrevAnchorHash,
+			}
+		}
+		for start := 0; start < len(pos); start += replaceAnchorChunk {
+			end := start + replaceAnchorChunk
+			if end > len(pos) {
+				end = len(pos)
+			}
+			if err := tx.Create(pos[start:end]).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
