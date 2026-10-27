@@ -170,7 +170,16 @@
           <el-tab-pane label="详细信息">
             <el-descriptions :column="2" border>
               <el-descriptions-item label="会话ID">{{ currentLog.session_id || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="链路追踪ID">{{ currentLog.trace_id || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="链路追踪ID">
+                <el-link
+                  v-if="buildTraceUrl(currentLog.trace_id)"
+                  :href="buildTraceUrl(currentLog.trace_id)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  type="primary"
+                >{{ currentLog.trace_id }}</el-link>
+                <span v-else>{{ currentLog.trace_id || '-' }}</span>
+              </el-descriptions-item>
               <el-descriptions-item label="用户代理" :span="2">
                 <span style="word-break: break-all; font-size: 12px;">{{ currentLog.user_agent || '-' }}</span>
               </el-descriptions-item>
@@ -208,6 +217,7 @@ import { Search, Document, Calendar, CircleCheck, CircleClose } from '@element-p
 import { getUserTimeline } from '@/api/modules/audit'
 import type { TimelineItem, AuditLogItem } from '@/api/modules/audit'
 import { useUserStore } from '@/stores/user'
+import { buildTraceUrl } from '@/utils/trace'
 
 const route = useRoute()
 const userStore = useUserStore()

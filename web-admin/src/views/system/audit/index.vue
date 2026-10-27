@@ -359,7 +359,16 @@
         <el-descriptions-item label="操作用户">{{ currentLog.username }} ({{ currentLog.user_id }})</el-descriptions-item>
         <el-descriptions-item label="租户ID">{{ currentLog.tenant_id || '-' }}</el-descriptions-item>
         <el-descriptions-item label="会话ID">{{ currentLog.session_id || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="链路ID">{{ currentLog.trace_id || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="链路ID">
+          <el-link
+            v-if="buildTraceUrl(currentLog.trace_id)"
+            :href="buildTraceUrl(currentLog.trace_id)"
+            target="_blank"
+            rel="noopener noreferrer"
+            type="primary"
+          >{{ currentLog.trace_id }}</el-link>
+          <span v-else>{{ currentLog.trace_id || '-' }}</span>
+        </el-descriptions-item>
         <el-descriptions-item label="模块">{{ currentLog.module }}</el-descriptions-item>
         <el-descriptions-item label="操作类型">{{ getActionLabel(currentLog.action) }}</el-descriptions-item>
         <el-descriptions-item label="风险等级">
@@ -432,6 +441,7 @@ import { getAuditLogList, getAuditDashboard, getAuditLogDetail, cleanupAuditLogs
 import type { AuditLogItem, AuditDashboardData } from '@/api/modules/audit'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
+import { buildTraceUrl } from '@/utils/trace'
 
 const trendDays = ref(7)
 
