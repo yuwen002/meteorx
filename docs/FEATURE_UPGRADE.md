@@ -1500,7 +1500,7 @@ client:
 - ⚠️ 目视只覆盖系统管理员路径（`SYSTEM_ROOT` 放行）；租户端的越权拒绝由 service 单测覆盖，本地 `tenant_admin` 未绑定
   `rbac:user_role:batch_assign`，无法在界面上触发。
 - ℹ️ 已知后续项：该校验只限制「租户 + 角色作用域」，未限制「角色权限集合必须属于操作者」，即持有 `rbac:user_role:assign`
-  的普通租户用户仍可给自己授予 `tenant_admin`。
+  的普通租户用户仍可给自己授予 `tenant_admin`。（已于第四十二节收口）
 
 ## 四十一、用户列表「导出所选用户」（Export Selected Users）
 
@@ -1547,3 +1547,30 @@ client:
   `GET /api/v1/exports?resource=user` 列表可见该任务 → 下载 CSV 为表头 + 2 行且含两个用户名。
   同次目视还用 `GET /api/v1/rbac/permissions?resource=export` 确认 `export:list/create/read/delete` 已入库。
   验完删除任务（文件同步清理）与临时账号，admin 密码 hash 已还原，库中无残留。
+
+## 四十二、角色分配「权限不越出操作者」收口（No Privilege Escalation On Assign）
+
+### 42.1 起因
+
+第四十节为角色分配补齐了「租户 + 角色作用域」校验，但登记了一个已知缺口：`validateRoleAssignScope` 只挡住跨租户与系统级角色，
+未限制「被授角色的权限集合必须属于操作者」。后果是：一个仅持有 `rbac:user_role:assign` 的普通租户用户，可以给任意同租户账号
+（包括其自己）授予 `tenant_admin` 等更高权限角色，形成水平/垂直提权。
+
+### 42.2 后端
+
+- 新增 `validateRoleAssignPermissionSubset(ctx, roles)`：非系统操作者所分配的**每个角色**，其权限编码集合必须是操作者自身
+  有效权限集合（`GetUserPermissionCodes`，合并其全部角色）的子集；出现操作者未持有的编码即拒绝，错误消息点名越权编码。
+- 系统操作者（`contextx.GetTenantID == SYSTEM_ROOT`）不受此限制，与 `validateRoleAssignScope` 口径一致；缺少操作者上下文直接拒绝。
+- `AssignUserRoles` 与 `BatchAssignUserRoles` 均在 `validateRoleAssignScope` 之后调用它；批量入口整批校验，
+  任一角色越权则整批拒绝，避免「前几个已授、后面才报错」的半成品状态。
+
+### 42.3 验证状态
+
+- ✅ `go build ./...`、`go vet ./internal/modules/rbac/...`、`gofmt -l` 通过；`go test -count=1 ./internal/modules/rbac/... ./internal/integration/... ./internal/bootstrap/...` 全绿。
+- ✅ 新增 4 条 service 单测：子集放行、越权拒绝且点名 `tenant:delete`、系统操作者绕过子集、批量整批拒绝（不落任何分配）。
+- ✅ 变异检验：把 `validateRoleAssignPermissionSubset` 改为恒返回 nil 后，两条「拒绝」用例转红、两条「放行/绕过」用例仍绿，
+  证明护栏由拒绝用例真实锚定，还原后全绿。
+- ℹ️ 本卡为纯后端安全校验，未改动前端；租户端操作者路径的越权拒绝由 service 单测覆盖（本地 `tenant_admin` 未绑定
+  `rbac:user_role:assign`，界面无法触发，与第四十节口径一致）。系统管理员路径经既有目视脚本放行不受影响。
+- ℹ️ 边界说明：本卡只收口「分配角色」，未收口「给角色绑定权限」（`BindRolePermissions`）——操作者仍可能先把自身没有的
+  权限绑到一个角色上、再分配出去。彻底闭环需同法约束绑定入口，登记为后续项。
