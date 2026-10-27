@@ -12,6 +12,7 @@ import (
 	"meteorx/pkg/idgen"
 	"meteorx/pkg/logger"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -672,6 +673,10 @@ func (s *RBACService) AssignUserRoles(ctx context.Context, userID string, req dt
 	if err := s.validateRoleAssignScope(ctx, []string{userID}, roles); err != nil {
 		return err
 	}
+	// 校验权限不越出操作者：只能授予自身已持有的权限，防止持 assign 权限者自授更高角色提权
+	if err := s.validateRoleAssignPermissionSubset(ctx, roles); err != nil {
+		return err
+	}
 
 	if err := s.userRoleRepo.AssignRoles(ctx, userID, req.RoleIDs); err != nil {
 		return err
@@ -721,6 +726,45 @@ func (s *RBACService) validateRoleAssignScope(ctx context.Context, userIDs []str
 		}
 		if role.TenantID != contextx.SystemTenantID && role.TenantID != tenantID {
 			return errors.New("角色 [" + role.Name + "] 不属于当前租户，无法分配")
+		}
+	}
+	return nil
+}
+
+// validateRoleAssignPermissionSubset 限制「权限只能向下授予」：非系统操作者所分配的每个角色，
+// 其权限集合必须是操作者自身有效权限集合的子集，防止仅持有 assign 权限却给用户（含自己）
+// 授予更高权限角色造成提权。系统操作者（SYSTEM_ROOT）不受此限制，与 validateRoleAssignScope 口径一致。
+func (s *RBACService) validateRoleAssignPermissionSubset(ctx context.Context, roles []*model.Role) error {
+	if contextx.GetTenantID(ctx) == contextx.SystemTenantID {
+		return nil
+	}
+	operatorID := contextx.GetUserID(ctx)
+	if operatorID == "" {
+		return errors.New("缺少操作者上下文，无法校验角色权限范围")
+	}
+
+	operatorCodes, err := s.GetUserPermissionCodes(ctx, operatorID)
+	if err != nil {
+		return err
+	}
+	owned := make(map[string]struct{}, len(operatorCodes))
+	for _, code := range operatorCodes {
+		owned[code] = struct{}{}
+	}
+
+	for _, role := range roles {
+		roleCodes, err := s.GetRolePermissionCodes(ctx, role.ID)
+		if err != nil {
+			return err
+		}
+		var exceed []string
+		for _, code := range roleCodes {
+			if _, ok := owned[code]; !ok {
+				exceed = append(exceed, code)
+			}
+		}
+		if len(exceed) > 0 {
+			return errors.New("角色 [" + role.Name + "] 含操作者未持有的权限，无法分配: " + strings.Join(exceed, ", "))
 		}
 	}
 	return nil
@@ -861,6 +905,10 @@ func (s *RBACService) BatchAssignUserRoles(ctx context.Context, req dto.BatchAss
 		roleList = append(roleList, role)
 	}
 	if err := s.validateRoleAssignScope(ctx, userIDs, roleList); err != nil {
+		return 0, err
+	}
+	// 整批校验权限子集，与单条分配同口径，防止批量入口绕过提权限制
+	if err := s.validateRoleAssignPermissionSubset(ctx, roleList); err != nil {
 		return 0, err
 	}
 

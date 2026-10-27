@@ -415,6 +415,83 @@ func TestAssignUserRoles_SystemOperatorBypassesScope(t *testing.T) {
 	}
 }
 
+// ---------- 权限子集收紧（防止持 assign 权限者自授更高角色提权） ----------
+
+func TestAssignUserRoles_PermissionSubsetAllowed(t *testing.T) {
+	svc, rr, _, rpr, urr := newTestRBAC()
+	seedRole(rr, "r1", "editor", model.RoleScopeTenant, false)
+	rpr.codesByRole["r1"] = []string{"user:list"}
+	// 操作者 op1 自身持有 user:list 与 user:update，授予只含 user:list 的 r1 属于子集
+	urr.userRoles["op1"] = []string{"op-role"}
+	rpr.codesByRole["op-role"] = []string{"user:list", "user:update"}
+	urr.seedUser("u1", "t1", false)
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	if err := svc.AssignUserRoles(ctx, "u1", dto.AssignUserRolesReq{RoleIDs: []string{"r1"}}); err != nil {
+		t.Fatalf("expected subset allowed, got: %v", err)
+	}
+	if len(urr.userRoles["u1"]) != 1 {
+		t.Fatalf("expected r1 assigned, got %v", urr.userRoles["u1"])
+	}
+}
+
+func TestAssignUserRoles_PermissionSubsetRejected(t *testing.T) {
+	svc, rr, _, rpr, urr := newTestRBAC()
+	seedRole(rr, "r2", "adminish", model.RoleScopeTenant, false)
+	rpr.codesByRole["r2"] = []string{"user:list", "tenant:delete"}
+	// 操作者 op1 只持有 user:list，r2 含其未持有的 tenant:delete，应拒绝
+	urr.userRoles["op1"] = []string{"op-role"}
+	rpr.codesByRole["op-role"] = []string{"user:list"}
+	urr.seedUser("u1", "t1", false)
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	err := svc.AssignUserRoles(ctx, "u1", dto.AssignUserRolesReq{RoleIDs: []string{"r2"}})
+	if err == nil || !strings.Contains(err.Error(), "未持有的权限") || !strings.Contains(err.Error(), "tenant:delete") {
+		t.Fatalf("expected subset rejected naming tenant:delete, got: %v", err)
+	}
+	if len(urr.userRoles["u1"]) != 0 {
+		t.Fatalf("expected no assignment, got %v", urr.userRoles["u1"])
+	}
+}
+
+func TestAssignUserRoles_SystemOperatorBypassesSubset(t *testing.T) {
+	svc, rr, _, rpr, urr := newTestRBAC()
+	seedRole(rr, "r1", "tenant_admin", model.RoleScopeTenant, false)
+	rpr.codesByRole["r1"] = []string{"tenant:delete"}
+	// 系统操作者不受子集限制：即便自己不“持有” tenant:delete（无角色）也可授予
+	urr.seedUser("u9", "t9", false)
+
+	ctx := contextx.SetVars(context.Background(), contextx.SystemTenantID, "admin", nil)
+	if err := svc.AssignUserRoles(ctx, "u9", dto.AssignUserRolesReq{RoleIDs: []string{"r1"}}); err != nil {
+		t.Fatalf("expected system operator bypass subset check, got: %v", err)
+	}
+	if len(urr.userRoles["u9"]) != 1 {
+		t.Fatalf("expected r1 assigned, got %v", urr.userRoles["u9"])
+	}
+}
+
+func TestBatchAssignUserRoles_PermissionSubsetRejectedWholeBatch(t *testing.T) {
+	svc, rr, _, rpr, urr := newTestRBAC()
+	seedRole(rr, "r2", "adminish", model.RoleScopeTenant, false)
+	rpr.codesByRole["r2"] = []string{"user:list", "tenant:delete"}
+	urr.userRoles["op1"] = []string{"op-role"}
+	rpr.codesByRole["op-role"] = []string{"user:list"}
+	urr.seedUser("u1", "t1", false)
+	urr.seedUser("u2", "t1", false)
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	_, err := svc.BatchAssignUserRoles(ctx, dto.BatchAssignUserRolesReq{UserRoleAssignments: []dto.UserRoleAssignment{
+		{UserID: "u1", RoleIDs: []string{"r2"}},
+		{UserID: "u2", RoleIDs: []string{"r2"}},
+	}})
+	if err == nil || !strings.Contains(err.Error(), "未持有的权限") {
+		t.Fatalf("expected whole batch rejected, got: %v", err)
+	}
+	if len(urr.userRoles["u1"]) != 0 || len(urr.userRoles["u2"]) != 0 {
+		t.Fatalf("expected no assignment, got u1=%v u2=%v", urr.userRoles["u1"], urr.userRoles["u2"])
+	}
+}
+
 func TestBatchAssignUserRoles_CrossTenantRejectedWholeBatch(t *testing.T) {
 	svc, rr, _, _, urr := newTestRBAC()
 	seedRole(rr, "r1", "editor", model.RoleScopeTenant, false)
