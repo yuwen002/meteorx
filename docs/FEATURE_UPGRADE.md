@@ -1501,3 +1501,49 @@ client:
   `rbac:user_role:batch_assign`，无法在界面上触发。
 - ℹ️ 已知后续项：该校验只限制「租户 + 角色作用域」，未限制「角色权限集合必须属于操作者」，即持有 `rbac:user_role:assign`
   的普通租户用户仍可给自己授予 `tenant_admin`。
+
+## 四十一、用户列表「导出所选用户」（Export Selected Users）
+
+### 41.1 起因
+
+异步导出链路（`/api/v1/exports` + 下载中心）早已可用，但只能按资源类型导全部数据：用户列表没有导出入口，
+`userExporter` 也只认 `status` 过滤。上一张卡补齐多选与批量栏后，「勾一批人导出」成为自然诉求，
+而所选用户 ID 集合没有任何传递通道，只能先导出全部再人工筛选。
+
+### 41.2 后端
+
+- `userExporter` 支持 `filters.ids`：与租户条件叠加，他租户 ID 与已软删用户不会越界导出；
+  新增的 `exporter.filterStrings` 同时兼容 JSON 反序列化后的 `[]any` 与代码内直接构造的 `[]string`。
+- 服务层 `normalizeIDFilter` 在创建阶段规范化 `ids`（剔空、去重、去首尾空格）；非字符串数组、剔空后为空、
+  超过 `MaxFilterIDs`（200）均返回 400 `ErrInvalidFilters`，避免任务已建却注定失败。
+- `CreateExportReq` 新增 `tenant_id`（**仅 `is_master` 生效**）：系统管理员在跨租户用户列表里导出时，
+  任务归属被选中的租户而不是虚拟租户 `SYSTEM_ROOT`（否则 exporter 按租户过滤会导出 0 行）；
+  普通租户传了同名字段会被忽略，handler 也不会把它混进 `filters`。
+- `List` 对 `is_master` 不按租户过滤（仍严格限定 `user_id` 为本人），否则系统管理员在下载中心看不到自己为子租户创建的任务；
+  repository 层约定 `tenantID == ""` 表示不限租户，普通租户路径始终带租户条件。
+- `permissions.go` 补登记 `export:list/create/read/delete` 四个权限码：此前它们只存在于自动推导测试里，
+  权限表中并不存在，任何租户角色都无处勾选；`/exports/{id}/download` 由推导复用 `export:list`，无需单独授权。
+
+### 41.3 前端
+
+- `export.ts` 的 `CreateExportParams` 增加 `tenant_id` 与 `filters.ids` 说明。
+- 用户列表批量栏新增「导出所选」（按 `export:create` 或系统管理员身份显隐，回收站视图不展示）：
+  把勾选行 ID 作为 `filters.ids` 建任务，成功提示「已创建导出任务，完成后可在下载中心下载」。
+- 系统管理员勾选了跨租户的行时前端先拦截并提示先按租户筛选——一个导出任务只能归属一个租户；
+  同时把 `tenant_id` 一并提交，避免任务落到虚拟租户上。
+
+### 41.4 验证状态
+
+- ✅ `go build ./...`、`go vet ./internal/modules/export/... ./internal/modules/rbac/...` 通过；
+  `go test -count=1 ./internal/modules/export/... ./internal/modules/rbac/...` 全绿（exporter / service / handler / repository 均新增用例）。
+- ✅ 单测覆盖：`ids` 规范化后落库为 `{"ids":["u1","u2"]}`；非字符串数组、全空、超过 200 条返回 `ErrInvalidFilters`，恰好 200 条放行；
+  他租户 ID 与软删用户不导出；`List` 在 `isMaster=false` 时 0 条、`isMaster=true` 时跨租户可见。
+- ✅ `npx vue-tsc --noEmit` 通过；`npx vitest run` 22 个文件 231 例通过（新增 `createExport` 透传 `ids` 与 `tenant_id` 用例）；
+  `npm run build` 通过。
+- ✅ 真实浏览器目视（系统管理员登录、Playwright 驱动本机 Chrome、本机 MySQL + miniredis）：临时建两个同租户账号
+  `uicheck_b1/b2_*` 并搜索出恰好 2 行 → 勾选后批量栏出现「导出所选」→ 点击后 `POST /api/v1/exports` 返回 200，
+  请求体为 `{"resource":"user","format":"csv","tenant_id":"<目标租户>","filters":{"ids":[两个临时账号 ID]}}`，
+  任务 `tenant_id` 落在目标租户而非 `SYSTEM_ROOT` → 轮询 `GET /api/v1/exports/{id}` 到 `completed` 且 `rows=2` →
+  `GET /api/v1/exports?resource=user` 列表可见该任务 → 下载 CSV 为表头 + 2 行且含两个用户名。
+  同次目视还用 `GET /api/v1/rbac/permissions?resource=export` 确认 `export:list/create/read/delete` 已入库。
+  验完删除任务（文件同步清理）与临时账号，admin 密码 hash 已还原，库中无残留。

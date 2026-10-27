@@ -35,6 +35,7 @@
 |------|------|------|----------|------|
 | resource | string | 是 | oneof | 资源类型：`user` / `task` / `audit_log` / `wiki_document` |
 | format | string | 否 | oneof | 导出格式：`csv` / `xlsx` / `json` / `pdf`；不传默认 `csv` |
+| tenant_id | string | 否 | 最长 26 | 目标租户，**仅系统管理员生效**：为其它租户创建任务时显式声明归属；普通租户传了也会被忽略，任务仍归属当前租户 |
 | filters | object | 否 | 最多 32 个键 | 筛选条件（自由键值对，按资源类型解释，见 4.1） |
 
 ### 2.2 ExportJobResp（导出任务响应）
@@ -89,10 +90,21 @@ worker 抢占任务时采用条件更新（仅 `pending` → `running`），多 
 }
 ```
 
+**导出所选用户（用户列表勾选后发起）：**
+```json
+{
+  "resource": "user",
+  "format": "csv",
+  "filters": { "ids": ["01M4RD56ZNNX2EG13N4EENTQJ6", "01M4RD5A7B9C0D1E2F3G4H5J6K"] }
+}
+```
+
 **成功响应（200）：** ExportJobResp（`status=pending`）
 
 **业务规则：**
 - `resource` 不在支持列表内返回 400（`不支持的资源类型`）
+- `filters.ids` 会先规范化再入库：剔空、去重、去首尾空格；**必须是字符串数组、规范化后非空且不超过 200 条**，否则返回 400（`筛选条件无效`）。非法条件在创建阶段就拒绝，避免任务已建却注定失败
+- `tenant_id` 只对系统管理员（`is_master`）生效，任务归属该租户；其它角色传了也会被忽略，不会跨出租户
 - 队列上限准入：本租户未完结（pending/running）任务数 ≥ `export.max_active_jobs`（默认 10）时返回 429；配额计数查询异常时不阻断创建（fail-open）
 - 任务落库即返回，不阻塞请求；由 worker 池异步执行
 - `expires_at` = 当前时间 + `export.retention_days`（默认 7 天）
@@ -111,6 +123,9 @@ worker 抢占任务时采用条件更新（仅 `pending` → `running`），多 
 | resource | string | 按资源类型筛选 |
 
 **成功响应（200）：** 分页响应，data 为 ExportJobResp 数组（仅当前用户创建的任务）
+
+系统管理员为其它租户创建的任务归属目标租户，为使其能在下载中心看到这些任务，
+`is_master` 用户查询列表时**不按租户过滤**（仍严格限定 `user_id` 为本人）；普通用户始终按当前租户 + 本人过滤。
 
 ### 3.3 导出任务详情
 
@@ -155,18 +170,19 @@ worker 抢占任务时采用条件更新（仅 `pending` → `running`），多 
 
 | resource | 支持的筛选键 |
 |----------|--------------|
-| `user` | `status` |
+| `user` | `status`、`ids` |
 | `task` | `status`、`priority` |
 | `audit_log` | `module`、`action`、`result`、`riskLevel`、`startTime`、`endTime` |
 | `wiki_document` | `publishStatus` |
 
 未识别的键会被忽略；时间类筛选值格式为 `2006-01-02 15:04:05`。
+`ids` 目前仅 `user` 资源支持，用于「导出所选用户」，与租户条件叠加生效（他租户 ID 不会越界导出）。
 
 ### 4.2 错误码映射
 
 | 状态码 | 场景 |
 |--------|------|
-| 400 | 不支持的资源类型 |
+| 400 | 不支持的资源类型；或 `filters.ids` 类型/条数不合法（须为不超过 200 条的字符串数组） |
 | 403 | 无权访问该导出任务（跨归属访问） |
 | 404 | 导出任务不存在 |
 | 409 | 任务未完成时请求下载；或删除时导出文件正被占用（任务记录保留，可重试） |
