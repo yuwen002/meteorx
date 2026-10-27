@@ -1,4 +1,4 @@
-import { get, del } from '../request'
+import { get, post, del } from '../request'
 
 export interface AuditLogItem {
   id: string
@@ -257,4 +257,49 @@ function normalizeAlertStats(raw: Partial<AlertStatsResult> | null | undefined):
 // 获取告警统计数据（含风险等级分布和规则命中排名）
 export function getAlertStats(days?: number): Promise<AlertStatsResult> {
   return get<Partial<AlertStatsResult>>('/audit/alerts/stats', { days: days || 7 }).then(normalizeAlertStats)
+}
+
+// ---------------------- 审计完整性校验 ----------------------
+
+export type IntegrityVerdict = 'verified' | 'tampered' | 'not_configured'
+
+export interface IntegrityVerifyResult {
+  enabled: boolean
+  verdict: IntegrityVerdict | string
+  checked_rows: number
+  legacy_rows: number
+  tampered_rows: number
+  tampered_samples: string[]
+  anchors_checked: number
+  anomaly_anchor_ids: string[]
+  anomalies: string[]
+  covered_from: string
+  covered_to: string
+  message: string
+}
+
+/**
+ * 零值兜底。后端 Go 的 nil 切片（tampered_samples / anomaly_anchor_ids / anomalies）
+ * 会序列化成 null，页面直接对这些字段 v-for / .length 会报错，在 API 边界统一收敛成空数组。
+ */
+function normalizeIntegrityResult(raw: Partial<IntegrityVerifyResult> | null | undefined): IntegrityVerifyResult {
+  return {
+    enabled: raw?.enabled ?? false,
+    verdict: raw?.verdict ?? 'not_configured',
+    checked_rows: raw?.checked_rows ?? 0,
+    legacy_rows: raw?.legacy_rows ?? 0,
+    tampered_rows: raw?.tampered_rows ?? 0,
+    tampered_samples: Array.isArray(raw?.tampered_samples) ? raw.tampered_samples : [],
+    anchors_checked: raw?.anchors_checked ?? 0,
+    anomaly_anchor_ids: Array.isArray(raw?.anomaly_anchor_ids) ? raw.anomaly_anchor_ids : [],
+    anomalies: Array.isArray(raw?.anomalies) ? raw.anomalies : [],
+    covered_from: raw?.covered_from ?? '',
+    covered_to: raw?.covered_to ?? '',
+    message: raw?.message ?? ''
+  }
+}
+
+// 触发审计日志防篡改完整性校验（行级重算 + 锚点链），仅平台超管可调
+export function verifyAuditIntegrity(): Promise<IntegrityVerifyResult> {
+  return post<Partial<IntegrityVerifyResult>>('/audit/integrity/verify').then(normalizeIntegrityResult)
 }

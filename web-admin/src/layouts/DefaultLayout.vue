@@ -142,6 +142,10 @@
             <el-icon><Connection /></el-icon>
             <template #title>{{ t('nav.session') }}</template>
           </el-menu-item>
+          <el-menu-item index="/system/audit/integrity">
+            <el-icon><Lock /></el-icon>
+            <template #title>{{ t('nav.integrity') }}</template>
+          </el-menu-item>
           <el-menu-item index="/system/announcement">
             <el-icon><Bell /></el-icon>
             <template #title>{{ t('nav.announcementMgmt') }}</template>

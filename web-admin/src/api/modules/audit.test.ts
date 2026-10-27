@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getAlertStats, getDetailedStats, getAnomalyLogs, getAuditLogList, getAuditLogDetail, getAuditStats, getAuditDashboard, cleanupAuditLogs, exportAuditLogs, getUserTimeline, type AlertStatsResult, type DetailedStats, type AnomalyLogItem } from './audit'
+import { getAlertStats, getDetailedStats, getAnomalyLogs, getAuditLogList, getAuditLogDetail, getAuditStats, getAuditDashboard, cleanupAuditLogs, exportAuditLogs, getUserTimeline, verifyAuditIntegrity, type AlertStatsResult, type DetailedStats, type AnomalyLogItem } from './audit'
 
 vi.mock('../request', () => ({
   get: vi.fn(),
@@ -8,7 +8,7 @@ vi.mock('../request', () => ({
   put: vi.fn(),
 }))
 
-import { get, del } from '../request'
+import { get, del, post } from '../request'
 
 describe('Audit API - Alert Stats', () => {
   beforeEach(() => {
@@ -221,5 +221,57 @@ describe('Audit API - Logs & Dashboard', () => {
     const result = await getUserTimeline({ user_id: 'u1', page: 1 })
     expect(get).toHaveBeenCalledWith('/audit/user-timeline', { user_id: 'u1', page: 1 })
     expect(result.items).toHaveLength(0)
+  })
+})
+
+describe('Audit API - Integrity Verify', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('verifyAuditIntegrity should POST /audit/integrity/verify and pass through result', async () => {
+    vi.mocked(post).mockResolvedValue({
+      enabled: true,
+      verdict: 'tampered',
+      checked_rows: 120,
+      legacy_rows: 5,
+      tampered_rows: 2,
+      tampered_samples: ['l-001', 'l-002'],
+      anchors_checked: 3,
+      anomaly_anchor_ids: ['an-001'],
+      anomalies: ['窗口摘要与锚点不符'],
+      covered_from: '2026-01-01T00:00:00Z',
+      covered_to: '2026-01-02T00:00:00Z',
+      message: '检测到 2 行被篡改',
+    })
+
+    const result = await verifyAuditIntegrity()
+    expect(post).toHaveBeenCalledWith('/audit/integrity/verify')
+    expect(result.enabled).toBe(true)
+    expect(result.verdict).toBe('tampered')
+    expect(result.tampered_rows).toBe(2)
+    expect(result.tampered_samples).toHaveLength(2)
+    expect(result.anomaly_anchor_ids).toEqual(['an-001'])
+  })
+
+  it('verifyAuditIntegrity should normalize null arrays to empty (Go nil slice)', async () => {
+    vi.mocked(post).mockResolvedValue({
+      enabled: false,
+      verdict: 'not_configured',
+      checked_rows: null,
+      tampered_samples: null,
+      anomaly_anchor_ids: null,
+      anomalies: null,
+    })
+
+    const result = await verifyAuditIntegrity()
+    expect(result.enabled).toBe(false)
+    expect(result.verdict).toBe('not_configured')
+    expect(result.checked_rows).toBe(0)
+    expect(result.tampered_samples).toEqual([])
+    expect(result.anomaly_anchor_ids).toEqual([])
+    expect(result.anomalies).toEqual([])
+    // 页面直接对这些数组做 .length / v-for，崩不崩取决于这里
+    expect(() => result.anomalies.map(a => a)).not.toThrow()
   })
 })

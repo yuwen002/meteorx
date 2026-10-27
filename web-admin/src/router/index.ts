@@ -231,6 +231,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '会话分析', icon: 'Connection', permission: 'audit:session:list', requireMaster: true }
       },
       {
+        path: 'system/audit/integrity',
+        name: 'AuditIntegrity',
+        component: () => import('@/views/system/audit/integrity.vue'),
+        meta: { title: '完整性校验', icon: 'CircleCheck', permission: 'audit:integrity:verify', requireMaster: true }
+      },
+      {
         path: 'system/cancel-request',
         name: 'CancelRequest',
         component: () => import('@/views/system/cancel-request/index.vue'),
