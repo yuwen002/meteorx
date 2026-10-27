@@ -141,6 +141,33 @@ func TestSanitizeBody_MasksPasswordVariants(t *testing.T) {
 	require.Contains(t, out, "alice")
 }
 
+// TestSanitizeBody_RecursesNestedObjects 嵌套对象里的凭据也必须脱敏，
+// 只处理顶层会漏掉 {"config":{"password":...}} 这类结构。
+func TestSanitizeBody_RecursesNestedObjects(t *testing.T) {
+	out := sanitizeBody(`{"name":"n1","config":{"db_password":"s3cret","host":"localhost"}}`)
+
+	require.NotContains(t, out, "s3cret", "嵌套层的 db_password 必须被脱敏")
+	require.Contains(t, out, "***")
+	require.Contains(t, out, "localhost", "非敏感字段应保留")
+	require.Contains(t, out, "n1")
+}
+
+// TestSanitizeBody_RecursesArrays 数组元素内的敏感字段也要脱敏。
+func TestSanitizeBody_RecursesArrays(t *testing.T) {
+	out := sanitizeBody(`{"users":[{"api_key":"AKIA123","name":"bob"}]}`)
+
+	require.NotContains(t, out, "AKIA123", "数组内的 api_key 必须被脱敏")
+	require.Contains(t, out, "bob")
+}
+
+// TestSanitizeBody_TopLevelArray 顶层就是数组的 JSON 也要能递归脱敏。
+func TestSanitizeBody_TopLevelArray(t *testing.T) {
+	out := sanitizeBody(`[{"access_key":"SECRET-XYZ"},{"id":1}]`)
+
+	require.NotContains(t, out, "SECRET-XYZ", "顶层数组内的 access_key 必须被脱敏")
+	require.Contains(t, out, "\"id\":1")
+}
+
 // TestBuildTags_ImportMarker 批量导入需要 import 标签，便于审计按类型检索。
 func TestBuildTags_ImportMarker(t *testing.T) {
 	tags := buildTags("users", model.ActionTypeCreate, model.ResultSuccess, "POST", "/api/v1/users/import")

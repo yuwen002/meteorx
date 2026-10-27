@@ -256,33 +256,68 @@ func parseModuleAndAction(path, method string) (module, action string) {
 	return module, action
 }
 
-// sanitizeBody 对请求/响应体进行脱敏处理
+// sensitiveFieldKeywords 命中即脱敏的字段名关键字（小写子串匹配）。
+// 按“字段名包含关键字”而非全等匹配，覆盖 password/token/secret 的各种命名变体，
+// 并补齐 api_key/access_key/private_key 等密钥类字段——只靠旧的全等清单会整片漏掉。
+var sensitiveFieldKeywords = []string{
+	"password", "passwd", "pwd",
+	"token", "secret", "authorization",
+	"api_key", "apikey", "access_key", "private_key", "secret_key",
+	"credit_card", "card_no", "cvv",
+	"id_card", "idcard",
+	"totp", "otp", "mfa",
+}
+
+// isSensitiveField 判断字段名是否命中敏感关键字。
+func isSensitiveField(key string) bool {
+	lower := strings.ToLower(key)
+	for _, kw := range sensitiveFieldKeywords {
+		if strings.Contains(lower, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+// sanitizeValue 递归遍历 JSON 值：命中敏感字段名的直接替换为 ***，
+// 并继续下钻嵌套对象与数组——避免凭据藏在二层结构里明文进审计库。
+func sanitizeValue(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		for k, child := range val {
+			if isSensitiveField(k) {
+				val[k] = "***"
+				continue
+			}
+			val[k] = sanitizeValue(child)
+		}
+		return val
+	case []interface{}:
+		for i, child := range val {
+			val[i] = sanitizeValue(child)
+		}
+		return val
+	default:
+		return v
+	}
+}
+
+// sanitizeBody 对请求/响应体进行脱敏处理，递归覆盖嵌套结构。
 func sanitizeBody(body string) string {
 	if body == "" {
 		return ""
 	}
 
-	// 尝试解析 JSON
-	var data map[string]interface{}
+	// 解析为通用值（而非仅 map）：顶层是数组的 JSON 也要能递归脱敏。
+	var data interface{}
 	if err := json.Unmarshal([]byte(body), &data); err != nil {
 		return body // 不是 JSON，原样返回
 	}
 
-	// 敏感字段脱敏。按“字段名包含关键字”匹配，而不是只列全等名：
-	// old_password / new_password / initial_password / refresh_token 这类变体
-	// 只靠全等匹配会全部漏掉。
-	sensitiveKeywords := []string{"password", "token", "secret", "authorization", "credit_card", "id_card"}
-	for key := range data {
-		lower := strings.ToLower(key)
-		for _, kw := range sensitiveKeywords {
-			if strings.Contains(lower, kw) {
-				data[key] = "***"
-				break
-			}
-		}
+	result, err := json.Marshal(sanitizeValue(data))
+	if err != nil {
+		return body
 	}
-
-	result, _ := json.Marshal(data)
 	return string(result)
 }
 
