@@ -377,6 +377,10 @@
 
 **成功响应：** CSV 文件流
 
+> **自身留痕**：本路径命中 `shouldSkipAudit` 的 `/api/v1/audit/logs` 前缀，不被自动审计；批量导出审计数据属于
+> 数据外流，handler 内手动补记为 `module=audit / action=export / risk=high`，**成功与失败都入库**，
+> 只记导出筛选条件与条数（`{exported_count:N}`），不落 CSV 正文。
+
 ### 3.8 审计日志详情
 
 `GET /api/v1/audit/logs/{id}`
@@ -414,6 +418,10 @@
   "data": { "deleted_count": 15230 }
 }
 ```
+
+> **自身留痕**：删除审计历史是最需留痕的高危操作，但本路径同样被自动审计前缀跳过；handler 内手动补记为
+> `module=audit / action=delete / risk=critical`，**成功与非超管越权（403）/ 服务失败（500）都入库**，
+> 只记参数与结果摘要（`{days}` / `{deleted_count}`）。
 
 ---
 
@@ -596,8 +604,12 @@
 
 ### 7.2 脱敏处理
 
-- 密码字段自动脱敏（`******`）
-- Token 字段自动脱敏
+- 按**字段名包含关键字**匹配脱敏（命中即替换为 `***`）：`password`/`passwd`/`pwd`、`token`/`secret`/`authorization`、
+  `api_key`/`apikey`/`access_key`/`private_key`/`secret_key`、`credit_card`/`card_no`/`cvv`、`id_card`/`idcard`、
+  `totp`/`otp`/`mfa`——用包含匹配以覆盖 `old_password`/`refresh_token` 这类命名变体
+- **递归脱敏**：不止处理 JSON 顶层 key，`sanitizeValue` 递归下钻嵌套对象与数组元素（顶层是数组的批量请求同样处理），
+  `config.db_password`、`users[].api_key` 这类嵌套明文也会被掩码
+- multipart 请求体不采集，上传文件内容不进入审计日志
 - 敏感字段通过 `AuditIgnore` 标签标记后不记录
 
 ### 7.3 日志模块标识
