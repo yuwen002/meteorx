@@ -15,6 +15,13 @@
 - **站内消息文档与测试基线同步**：新增 `docs/api/message-api.md`（5 端点、数据结构、分类映射、错误码、WS 推送协议与前端入口）与 `docs/architecture/message.md`（按人写行的取舍、`deliverInbox` 不参与销账、`maxTenantFanout` 双重截断、404 与幂等语义、typed-nil 与 `json.Unmarshal` 复用 map 两个已踩过的坑）；`docs/README.md` 索引与目录树同步；README 补「站内消息中心」特性、`message` 模块与文档条目、API 总览第 18 节（运维端点顺延为 19）、`message.retention_days` 配置与 `/messages` 页面；测试基线更新为 Go **181** 文件 / 覆盖率 **50.4%**、前端 **20** 文件（`docs/development/testing.md` 同步）
 
 ### 新增
+- **审计日志保留策略自动化 + 防篡改完整性校验**（均默认关闭、向后兼容）：
+  （卡 A）`audit.retention_days`（env `METEORX_AUDIT_RETENTION_DAYS`，默认 0=关闭）开启后由 `AuditRetentionJob` 每小时清理过期行，
+  并在删除成功后经 `middleware.RecordAuditLog` 主动补记一条 `audit/delete/critical` 自指审计（触发者 `system`），系统自动清理不再零痕迹。
+  （卡 B）`audit.integrity.*`（`enabled` / `secret_key`（HMAC pepper，不落库）/ `anchor_interval`）开启后每行落库算
+  `record_hash = HMAC-SHA256(pepper, canonical(log))`，并由 `IntegrityAnchorJob` 周期把窗口行摘要折叠为锚点链式追加进
+  `audit_integrity_anchors`；新增只读校验端点 `POST /api/v1/audit/integrity/verify`（权限码 `audit:integrity:verify`，仅超管），
+  返回 `verified`/`tampered`/`not_configured`。未配 pepper 时整卡降级关闭、不写摘要也不阻断写入；`record_hash` 为空的历史行视为 legacy 不计失败。
 - **审计详情链路 ID 可一键跳转 Jaeger**：审计日志与用户时间线的详情弹窗此前把 `trace_id` 当纯文本展示，排障时要手动复制再去 Jaeger 粘贴。现新增 `web-admin/src/utils/trace.ts` 的 `buildTraceUrl()`（读 `VITE_JAEGER_BASE_URL`，未配置 base 或无 trace 时回退纯文本），两处 `trace_id` 改为可点开的 `el-link`，直接深链到对应 trace 页；生产默认留空不影响。
 - **用户列表「导出所选」**：勾选用户后一键创建异步导出任务（`filters.ids`，后端剔空去重并限 200 条，非法条件在创建阶段就 400），系统管理员按所选行的 `tenant_id` 建任务、下载中心不再受虚拟租户 `SYSTEM_ROOT` 限制；同时补登记 `export:list/create/read/delete` 四个权限码——此前它们只存在于自动推导测试里，权限表中并无此码，任何租户角色都无处勾选，等于「能力已上线、授权入口缺失」。
 - **用户列表批量分配角色（前端入口补齐 + 租户作用域校验）**：后端 `POST /rbac/user-roles/batch/assign` 与权限码 `rbac:user_role:batch_assign` 早已注册却无前端调用，列表批量栏新增「分配角色」（弹窗复用单行分配的角色候选，提交前提示覆盖式更新）；同时 service 层补上作用域校验——租户操作者只能给本租户非主管理员用户分配 `tenant`/`all` 作用域且归属平台或本租户的角色，任一越权整批不写，系统管理员（`SYSTEM_ROOT`）保持跨租户可用。
@@ -74,6 +81,9 @@
 - **审计操作记录的 trace_id 与 OTel/Jaeger 链路对不上（追踪形同虚设）**：`AuditMiddleware.getTraceID()` 独立于 OpenTelemetry，入站请求通常不带 `X-Trace-ID`（那是写在响应上的），于是绝大多数请求它会生成一个随机 UUID 落库，命中 `Traceparent` 时又存整串 header（约 55 字符、超出 `trace_id` 列 `size:50`），导致从操作记录跳不进 Jaeger；它还会覆盖 `TracingMiddleware` 写好的 `X-Trace-ID` 响应头，且 `logger.Ctx` 从不带 trace。现让真实 OTel Trace ID 成为唯一关联键：`TracingMiddleware` 将 span trace id 注入 contextx+logger 并统一回填响应头，审计经 `resolveTraceID` 复用同一值、回退时只取 traceparent 的 32 位 trace-id 段，`logger.Ctx` 附加 trace_id，全局中间件序调整为 Recovery→Tracing→Logger。实测响应头、访问日志、导出 span 的 TraceID 三者逐字节一致。
 
 ### 安全
+- **审计防篡改**：`audit_logs` 此前可被持有 DB 权限者直接 UPDATE/DELETE 而不留密码学痕迹。现以行级 `record_hash`（HMAC-SHA256）+ 周期
+  锚点链（append-only `audit_integrity_anchors`，`PrevAnchorHash → AnchorHash`）双层覆盖：行级重算发现内容篡改，锚点链发现删/插/重序/断链。
+  因异步批量 + 多副本并发 flush，严格逐行线性链不可行，故取此双层方案；pepper 不落库，router 侧与模块侧两个 `AuditService` 实例共享同一 `IntegrityGuard`。
 - **公开凭据操作纳入审计**：注册 / 忘记密码 / 重置密码 / OAuth 回调位于公开分组、不经过 `AuditMiddleware` 且无手动埋点，账号枚举、密码重置申请与成功（账号接管信号）、第三方首登建号在后台操作记录里完全静默；现按 `login` 既有模式在 handler 层补手动审计，成功与失败都入库并标注风险等级，且不采集请求体，密码 / 重置令牌 / OAuth `code`、`state` 天然不落库。
 - **角色分配「权限不越出操作者」收口**：`validateRoleAssignScope` 此前只挡住跨租户与系统级角色，仅持有 `rbac:user_role:assign` 的普通租户用户仍能给同租户账号（含自己）授予 `tenant_admin` 等更高权限角色，形成水平/垂直提权。新增 `validateRoleAssignPermissionSubset`，要求被授角色的权限编码集合是操作者自身有效权限（`GetUserPermissionCodes`，合并其全部角色）的子集，出现操作者未持有的编码即整批返回 400 并点名越权编码；系统操作者（虚拟租户 `SYSTEM_ROOT`）不受此限制。`AssignUserRoles` 与 `BatchAssignUserRoles` 两条入口同口径收口，批量任一角色越权则整批不写。
 - **角色绑定权限「权限不越出操作者」收口**：`BindRolePermissions`/`BatchBindRolesPermissions` 此前只校验角色与权限 ID 是否存在，不校验被绑权限是否属于操作者；持 `rbac:role:bind_perm` 但无高权的租户操作者可把 `tenant:delete` 等自身未持有的权限绑到自己所属角色上直接自我提权，或先绑后分配绕过第四十二节。新增 `validateBindPermissionSubset`，要求被绑权限编码必须存在于操作者自身有效权限集内，出现未持有编码即返回 400 并点名越权编码（批量整批拒绝）；系统操作者（`SYSTEM_ROOT`）不受此限，缺操作者上下文时失败关闭。与角色分配收口共同闭环租户内提权主路径。

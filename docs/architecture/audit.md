@@ -30,6 +30,7 @@
 | client_ip | string | 客户端 IP |
 | user_agent | string | 浏览器 UA |
 | duration | int64 | 请求耗时（毫秒） |
+| record_hash | string | 行级完整性摘要（HMAC-SHA256 hex，防篡改；未启用完整性时为空） |
 | created_at | time.Time | 时间戳 |
 
 ### 索引
@@ -291,12 +292,56 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
 
 ## 数据保留
 
-```
-// 保留策略
-- 超过 90 天的日志可归档
-- 清理定时任务删除旧日志
-- 可通过 config.yaml 配置
-```
+日志可按配置的天数自动清理，详见下节「数据保留策略（自动化）」。手动清理端点
+`DELETE /api/v1/audit/logs/cleanup` 始终可用（见「审计自身操作的留痕」）。
+
+## 数据保留策略（自动化）
+
+配置项 `audit.retention_days`（env `METEORX_AUDIT_RETENTION_DAYS`）控制自动保留窗口，**默认 0 = 关闭**
+（向后兼容，不做任何自动删除）。开启后由 `AuditRetentionJob`（`internal/modules/audit/retention_job.go`）
+每小时执行一轮 `svc.CleanupLogs(ctx, days)`，删除早于保留期的日志行。
+
+- `Start(ctx, time.Hour)` 在 `days <= 0` 时**立即返回**，不起后台协程、零开销。
+- 清理直连 service（不经 handler 的 `recordSelfOpAudit`），故任务在删除成功后**主动补记一条自指审计**
+  （经 `middleware.RecordAuditLog`）：`module=audit / action=delete / risk=critical / result=success`，
+  触发者记为 `system`，只落 `{days}` 与 `{deleted_count}` 摘要，不落任何正文。定时清理从此不再零痕迹。
+
+## 防篡改完整性校验
+
+因审计走**异步批量 + 多副本并发 flush**，严格逐行线性哈希链会强制写串行化、不可行。故采用**行级摘要 +
+周期锚点链**双层方案，两者均可独立检出不同篡改，全部逻辑默认关闭、配 pepper 才生效。
+
+配置项（`audit.integrity.*`）：
+
+| 配置 | env | 默认 | 说明 |
+|------|-----|------|------|
+| `enabled` | `METEORX_AUDIT_INTEGRITY_ENABLED` | `false` | 总开关 |
+| `secret_key` | `METEORX_AUDIT_INTEGRITY_SECRET_KEY` | 空 | HMAC pepper，**不落库**；未配置则整卡降级关闭 |
+| `anchor_interval` | `METEORX_AUDIT_INTEGRITY_ANCHOR_INTERVAL` | `1h` | 锚点封口周期 |
+
+**行级摘要**：每行落库前计算 `record_hash = hex(HMAC-SHA256(pepper, canonical(log)))`。`canonical`（
+`service/integrity.go`）按固定顺序对全部被覆盖字段做**长度前缀稳定序列化**，含 `created_at`、`status_code`、
+`duration`，**排除 `record_hash` 自身**（否则无法自证）。任一字段被改、`pepper` 不同都会使重算摘要不符。
+未启用或无 pepper 时 `Compute` 返回空串——**既不写摘要也不阻断写入**（可用性优先）；`record_hash` 为空的历史行
+视为 legacy，校验时**不计入失败**。
+
+> ⚠️ router 侧（供审计中间件/批量）与 `audit.InitModule` 侧两个 `AuditService` 实例**必须共享同一
+> `IntegrityGuard`**，否则两条写入路径算出的摘要不一致、校验必坏。`bootstrap/router.go` 只构造一次 guard 并同时注入两处。
+
+**周期锚点链**：`IntegrityAnchorJob`（`integrity_job.go`）按周期把「窗口内全部行摘要」按 `(created_at, id)`
+有序折叠为一个 `WindowDigest`，追加进 append-only 表 `audit_integrity_anchors`，并以 `PrevAnchorHash → AnchorHash`
+链向上一条锚点（`AnchorHash` 同时纳入窗口摘要、行数与窗口边界）。窗口右端取 `now - 1min`（安全边界，规避迟到行），
+**空窗口不封口**（无新行不产噪声），创世窗口无下界、落库存最早行的 `created_at`。
+
+**校验接口**：`POST /api/v1/audit/integrity/verify`（权限码 `audit:integrity:verify`，仅平台超管）。只读重放、
+不改任何数据，返回 `verdict`：
+
+- `verified`：行级重算全部相符且锚点链完整；
+- `tampered`：检出篡改行（改内容不改摘要）或窗口异常（删行/插行/重序/断链），并给出篡改行样本与异常锚点 ID；
+- `not_configured`：未配 pepper，无法校验。
+
+行级重算可发现**内容篡改**（攻击者无 pepper 无法同步 `record_hash`）；锚点链可发现**删行/插行/重序/断链**
+（删除整行时行级重算无从发现，唯有窗口行数与累加摘要会失配）。
 
 ## 安全
 
@@ -312,6 +357,10 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
   但在 handler 内手动补记（见「审计自身操作的留痕」），删历史 / 拖库不再零痕迹
 - 记录 IP 和 User Agent 用于安全分析
 - 所有写入不可变（只追加）
+- **防篡改完整性校验**：行级 HMAC 摘要（`record_hash`）+ 周期锚点链（`audit_integrity_anchors`）双层覆盖，
+  内容篡改与删/插/重序/断链均可检出；pepper 不落库，未配置时整卡关闭、不阻断写入（见「防篡改完整性校验」）
+- **自动保留清理留痕**：`audit.retention_days` 开启后，`AuditRetentionJob` 每次清理主动补记一条
+  `audit/delete/critical` 自指审计（触发者 `system`），删历史不再零痕迹（见「数据保留策略（自动化）」）
 
 ## 实现清单
 
@@ -335,7 +384,10 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
 | trace_id 与 OTel/Jaeger 链路同源关联 | ✅ 已完成 |
 | 公开端点手动审计覆盖（登录/注册/重置/OAuth 回调） | ✅ 已完成 |
 | 手动审计携带 trace/request/session 关联 | ✅ 已完成 |
-| 保留策略 | ⏳ 计划中 |
+| 保留策略 | ✅ 已完成（`audit.retention_days`，默认关闭） |
+| 防篡改行级摘要（record_hash） | ✅ 已完成（默认关闭，需配 pepper） |
+| 防篡改周期锚点链（audit_integrity_anchors） | ✅ 已完成（默认关闭，需配 pepper） |
+| 完整性校验接口（verify） | ✅ 已完成（`audit:integrity:verify`） |
 
 ## 最佳实践
 

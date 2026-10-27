@@ -1738,3 +1738,50 @@ client:
 - ✅ 变异检验：破坏 map 递归（`val[k]=child` 不回写）令嵌套+数组用例转红、`recordSelfOpAudit` 改空令 5 条审计用例
   全转红、导出风险 `High→Low` 令导出用例转红（expected high actual low），逐条归因，还原后全绿。
 - ℹ️ 本卡为纯后端审计自指收口，未改动前端。至此「删审计历史 / 拖审计数据」本身也被审计，脱敏覆盖嵌套正文。
+
+## 四十八、审计保留策略自动化与防篡改完整性校验（行级摘要 + 周期锚点链）
+
+### 48.1 背景与缺口
+
+第四十七节把「删除审计历史」这一动作本身纳入了审计，但仍有两处缺口：
+
+- **保留策略悬空**：清理端点只能人工触发，`实现清单` 里的「保留策略」长期停在 `⏳ 计划中`，海量审计无自动回收；
+  且若定时任务直连仓储删除，将**绕过** handler 的自指留痕，「系统半夜删库」再次零痕迹。
+- **审计可被静默改写**：审计日志是「谁在何时做了什么」的最终凭据，但历史上 `audit_logs` 可被持有 DB 权限者
+  **直接 UPDATE/DELETE 而不留任何密码学痕迹**。常规做法「逐行哈希链」在异步批量 + 多副本并发 flush 下
+  会强制写串行化，不可落地。
+
+### 48.2 后端
+
+**卡 A — 数据保留策略自动化**（`audit.retention_days`，env `METEORX_AUDIT_RETENTION_DAYS`，默认 0=关闭）：
+
+- 仿 `message.MessageExpiryJob` 新增 `AuditRetentionJob`（`internal/modules/audit/retention_job.go`），
+  `Start(ctx, time.Hour)` 在 `days <= 0` 时**立即返回**、不起协程；`runOnce` 调既有 `svc.CleanupLogs(ctx, days)`。
+- 清理直连 service 不经 handler，故任务在删除成功后经 `middleware.RecordAuditLog` **主动补记一条自指审计**：
+  `module=audit / action=delete / risk=critical / result=success`，触发者记为 `system`，只落 `{days}` / `{deleted_count}` 摘要。
+
+**卡 B — 防篡改完整性校验**（`audit.integrity.*`，默认关闭）：因并发写不可行线性链，改为**行级摘要 + 周期锚点链**双层：
+
+- 每行落库前算 `record_hash = hex(HMAC-SHA256(pepper, canonical(log)))`（`service/integrity.go`）。`canonical`
+  按固定顺序做**长度前缀稳定序列化**，含 `created_at`/`status_code`/`duration`，**排除 `record_hash` 自身**。
+  pepper 来自 `METEORX_AUDIT_INTEGRITY_SECRET_KEY`，**不落库**；未配置则 `Compute` 返回空串——不写摘要也**不阻断写入**，
+  `record_hash` 为空的旧行视为 legacy 不计失败。
+- `IntegrityAnchorJob`（`integrity_job.go`）按周期把「窗口内全部行摘要」按 `(created_at, id)` 折叠为一个 `WindowDigest`，
+  追加进 append-only 表 `audit_integrity_anchors`，以 `PrevAnchorHash → AnchorHash` 链向上一条。窗口右端取 `now-1min`（安全边界），
+  **空窗口不封口**、创世窗口存最早行 `created_at`（规避 MySQL 零值时间）。
+- 校验 `POST /api/v1/audit/integrity/verify`（权限码 `audit:integrity:verify`，仅超管）只读重放：行级重算发现**内容篡改**、
+  锚点链发现**删/插/重序/断链**，返回 `verified`/`tampered`/`not_configured`。
+- **关键装配**：router 侧（中间件/批量）与 `audit.InitModule` 侧两个 `AuditService` 实例**必须共享同一 `IntegrityGuard`**，
+  否则两条写路径摘要不一致、校验必坏。`bootstrap/router.go` 只构造一次 guard 并同时注入两处（`WithIntegrity` 变参选项保持向后兼容）。
+
+### 48.3 验证状态
+
+- ✅ `go build ./...`、`go vet ./internal/... ./cmd/...`、改动文件 `gofmt -l` 空输出、`go test ./...` 全量绿（FAIL=0）。
+- ✅ 卡 A 单测：`days>0` 删旧留新、`days≤0` 不启动且 `RunOnce` 不删、清理补记 `audit/delete/critical/system` 自指审计（经 `SetAuditCaptureForTest` 捕获）。
+- ✅ 卡 B 单测：`canonical` 确定性与逐字段敏感（含 `CreatedAt`、排除 `RecordHash`）、`FoldRecordHashes` 顺序/条数敏感、写读篡改/legacy/`not_configured`；
+  锚点链用小时级历史时间与窗口边界**确定性**封口（规避真实时钟 tick 竞争），覆盖正常→verified、删行/断链定位、空窗口不封口、禁用不写不封口不阻断。
+- ✅ 集成：`internal/integration` 默认配置下 verify 返回 `not_configured`、非超管 403；开启 pepper 后经真实 HTTP 写路径（审计中间件→批量 service）
+  落下非空 `record_hash`（锁定 router 注入生效），verify=verified，DB 内改一行内容不动摘要 → verify=tampered。
+- ✅ 变异检验：`FoldRecordHashes` 去累加（只折叠末行）令「丢弃前缀行」断言转红；`canonical` 去 `CreatedAt` 令「改动 CreatedAt」断言转红；
+  job 封口 `PrevAnchorHash` 恒空令「第二条须链向第一条」断言转红，逐条归因，还原后全绿。
+- ℹ️ 两卡均**默认关闭**，零配置变更即零行为变化；开启前对既有审计读写完全无感。

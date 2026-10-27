@@ -397,7 +397,12 @@ idgen.MustParse() → 解析并验证 ID 格式
 ### 审计安全
 
 - 所有写操作自动记录审计日志
-- 审计日志不可篡改
+- **防篡改完整性校验**（`audit.integrity.*`，默认关闭）：每行落库时计算 `record_hash = HMAC-SHA256(pepper, canonical(log))`，
+  周期性把窗口内行摘要折叠为锚点并 `PrevAnchorHash → AnchorHash` 链式追加进 `audit_integrity_anchors`；
+  `POST /audit/integrity/verify` 只读重放——行级重算发现内容篡改，锚点链发现删/插/重序/断链。pepper 不落库，
+  未配置时整卡关闭、不阻断写入（因异步批量+多副本并发，严格逐行线性链不可行，故取此双层方案）
+- **自动保留清理**（`audit.retention_days`，默认 0=关闭）：`AuditRetentionJob` 每小时清理过期行，
+  并在每次删除后经中间件主动补记一条 `audit/delete/critical` 自指审计（触发者 `system`）
 - 支持 CSV 导出和多维度查询
 - **自身操作留痕**：审计清理（`DELETE /logs/cleanup`）与导出（`GET /logs/export`）虽被自动中间件前缀跳过，
   但在 handler 内手动补记（清理=严重风险 / 导出=高风险，成功与失败都入库），避免超管删历史/拖库零痕迹

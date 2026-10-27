@@ -45,6 +45,12 @@
 | GET | `/audit/sessions` | 会话摘要列表（分页） | `audit:session:list` |
 | GET | `/audit/sessions/{id}/logs` | 获取会话的所有日志 | `audit:session:read` |
 
+### 1.4 完整性校验
+
+| 方法 | 路径 | 功能 | 权限码 |
+|------|------|------|--------|
+| POST | `/audit/integrity/verify` | 校验审计日志完整性（行摘要 + 锚点链，只读） | `audit:integrity:verify` |
+
 ---
 
 ## 2. 数据结构
@@ -425,6 +431,48 @@
 
 ---
 
+### 3.11 完整性校验
+
+`POST /api/v1/audit/integrity/verify`
+
+**权限码：** `audit:integrity:verify`（仅平台超管）
+
+**说明：** 只读重放行级摘要与锚点链，**不修改任何数据**。需开启完整性（配置 `audit.integrity.enabled`
+与 `secret_key`）；未配置 pepper 时返回 `not_configured`。
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "data": {
+    "enabled": true,
+    "verdict": "verified",
+    "checked_rows": 12580,
+    "legacy_rows": 0,
+    "tampered_rows": 0,
+    "tampered_samples": [],
+    "anchors_checked": 36,
+    "anomaly_anchor_ids": [],
+    "anomalies": [],
+    "covered_from": "2026-09-01T00:00:00Z",
+    "covered_to": "2026-10-01T00:00:00Z",
+    "message": "完整性校验通过：12580 行、36 个锚点均一致"
+  }
+}
+```
+
+**`verdict` 取值：**
+
+| 值 | 含义 |
+|------|------|
+| `verified` | 行级重算全部相符且锚点链完整 |
+| `tampered` | 检出篡改（内容被改）或异常（删/插/重序/断链），`tampered_samples` / `anomaly_anchor_ids` 给出定位样本 |
+| `not_configured` | 未配置 pepper，无法校验（`enabled=false`） |
+
+> `record_hash` 为空的历史行视为 legacy（计入 `legacy_rows`），**不视为篡改**。
+
+---
+
 ## 4. 权限码列表
 
 | 权限码 | 说明 |
@@ -444,6 +492,7 @@
 | `audit:alert:stats` | 查看告警统计 |
 | `audit:session:list` | 查看会话列表 |
 | `audit:session:read` | 查看会话详情 |
+| `audit:integrity:verify` | 校验审计日志完整性（仅平台超管） |
 
 ---
 
@@ -748,3 +797,16 @@ onMessage((msg) => {
   }
 })
 ```
+
+### 7.7 数据保留与完整性校验配置
+
+均位于 `config.yaml` 的 `audit` 段（可用环境变量覆盖），**默认全部关闭**（向后兼容）：
+
+| 配置项 | env | 默认 | 说明 |
+|------|-----|------|------|
+| `audit.retention_days` | `METEORX_AUDIT_RETENTION_DAYS` | `0` | 自动保留天数；`<= 0` 关闭（不自动删）。开启后每小时清理一次并补记自指审计 |
+| `audit.integrity.enabled` | `METEORX_AUDIT_INTEGRITY_ENABLED` | `false` | 防篡改完整性总开关 |
+| `audit.integrity.secret_key` | `METEORX_AUDIT_INTEGRITY_SECRET_KEY` | 空 | HMAC pepper（不落库）；未配置则整卡降级关闭、不阻断写入 |
+| `audit.integrity.anchor_interval` | `METEORX_AUDIT_INTEGRITY_ANCHOR_INTERVAL` | `1h` | 锚点链封口周期 |
+
+> 脱敏（见 7.2）与本节无关：`record_hash` 只覆盖已落库的字段，不改变任何脱敏行为。
