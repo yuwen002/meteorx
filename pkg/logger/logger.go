@@ -512,12 +512,13 @@ func Fatalf(format string, args ...any) {
 // 上下文相关
 // ---------------------------------------------------------------------------
 
-// Ctx 创建一个带上下文信息的日志器（自动附加 request_id, user_id, tenant_id）
+// Ctx 创建一个带上下文信息的日志器（自动附加 request_id, user_id, tenant_id, trace_id）
 func Ctx(ctx context.Context) *slog.Logger {
 	return std.With(
 		slog.String("request_id", GetRequestID(ctx)),
 		slog.String("user_id", GetUserID(ctx)),
 		slog.String("tenant_id", GetTenantID(ctx)),
+		slog.String("trace_id", GetTraceID(ctx)),
 	)
 }
 

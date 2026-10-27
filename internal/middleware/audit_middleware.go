@@ -58,10 +58,13 @@ func AuditMiddleware(auditSvc *service.AuditService, ipLocator iplocation.IPLoca
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 
-			// 1. 在入口处生成 request_id / trace_id，注入 context 和响应头
+			// 1. 生成 request_id / trace_id，注入 context 和响应头。
+			//    trace_id 以 TracingMiddleware 已注入的真实 OTel Trace ID 为准，
+			//    仅当无追踪上下文时（OTel 关闭等）才回退到头部解析/生成，
+			//    保证审计记录的 trace_id 能直接点进 Jaeger 链路。
 			requestID := getRequestID(r)
-			traceID := getTraceID(r)
 			ctx := contextx.SetRequestID(r.Context(), requestID)
+			traceID := resolveTraceID(r)
 			ctx = contextx.SetTraceID(ctx, traceID)
 			r = r.WithContext(ctx)
 
@@ -478,17 +481,44 @@ func getRequestID(r *http.Request) string {
 	return idgen.NewUUID()
 }
 
-// getTraceID 从请求中获取链路追踪ID
-// 优先顺序: X-Trace-ID > Traceparent > 自动生成 UUID
+// resolveTraceID 解析当前请求应关联的链路追踪ID：
+// 优先取 TracingMiddleware 已注入的真实 OTel Trace ID，
+// 无追踪上下文时（OTel 关闭等）才回退到请求头/生成。
+func resolveTraceID(r *http.Request) string {
+	if traceID := contextx.GetTraceID(r.Context()); traceID != "" {
+		return traceID
+	}
+	return getTraceID(r)
+}
+
+// getTraceID 在无追踪上下文时从请求头回退获取链路追踪ID
+// 优先顺序: Traceparent 的 trace-id 段 > X-Trace-ID > 自动生成 UUID
 func getTraceID(r *http.Request) string {
-	// 优先从 header 获取
+	// 标准 W3C traceparent 优先：只取其中的 trace-id 段（而非整串，避免超列宽且无法检索）
+	if traceID := parseTraceparentTraceID(r.Header.Get("Traceparent")); traceID != "" {
+		return traceID
+	}
 	if traceID := r.Header.Get("X-Trace-ID"); traceID != "" {
 		return traceID
 	}
-	if traceID := r.Header.Get("Traceparent"); traceID != "" {
-		return traceID
-	}
 
-	// 自动生成追踪ID
+	// 无上游追踪时的占位 ID（此时并无 Jaeger 链路可关联，仅用于日志内自身区分）
 	return idgen.NewUUID()
+}
+
+// parseTraceparentTraceID 从 W3C traceparent（version-traceId-parentId-flags）中抽取 traceId。
+// 仅当 traceId 为 32 位十六进制且非全零时返回，否则返回空串。
+func parseTraceparentTraceID(traceparent string) string {
+	if traceparent == "" {
+		return ""
+	}
+	parts := strings.Split(traceparent, "-")
+	if len(parts) < 4 {
+		return ""
+	}
+	traceID := parts[1]
+	if len(traceID) != 32 || strings.Trim(traceID, "0") == "" {
+		return ""
+	}
+	return traceID
 }

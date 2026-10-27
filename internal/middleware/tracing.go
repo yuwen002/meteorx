@@ -3,6 +3,9 @@ package middleware
 import (
 	"net/http"
 
+	"meteorx/internal/common/contextx"
+	"meteorx/pkg/logger"
+
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
@@ -53,16 +56,21 @@ func TracingMiddleware(next http.Handler) http.Handler {
 		ctx, span := tracer.Start(ctx, spanName, opts...)
 		defer span.End()
 
-		// 5. 将 Trace ID 写入响应头（便于前端/调试工具关联）
-		spanContext := span.SpanContext()
-		if spanContext.HasTraceID() {
-			w.Header().Set("X-Trace-ID", spanContext.TraceID().String())
+		// 5. 将真实 OTel Trace ID 作为全链路唯一关联键：
+		//    同时写入 contextx（供审计落库）与 logger（供结构化日志），并回填响应头，
+		//    使「操作记录 / 日志 / Jaeger 链路」三处共用同一个 trace_id。
+		//    即使该 trace 未被采样，SpanContext 仍携带有效的 W3C Trace ID，可正常关联。
+		if spanContext := span.SpanContext(); spanContext.HasTraceID() {
+			traceID := spanContext.TraceID().String()
+			ctx = contextx.SetTraceID(ctx, traceID)
+			ctx = logger.WithTraceID(ctx, traceID)
+			w.Header().Set("X-Trace-ID", traceID)
 		}
 
 		// 6. 包装 ResponseWriter 以捕获状态码
 		rw := NewResponseWriter(w)
 
-		// 7. 将带有 Span 的 Context 传递下去
+		// 7. 将带有 Span 与 trace_id 的 Context 传递下去
 		next.ServeHTTP(rw, r.WithContext(ctx))
 
 		// 8. 记录响应状态码，并根据状态码设置 Span 状态

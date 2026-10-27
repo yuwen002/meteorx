@@ -42,8 +42,8 @@ import (
 	userRepo "meteorx/internal/modules/user/repository"
 	"meteorx/internal/modules/wiki"
 	wikiSvc "meteorx/internal/modules/wiki/service"
-	dbpkg "meteorx/internal/pkg/db"
 	"meteorx/internal/notify"
+	dbpkg "meteorx/internal/pkg/db"
 	"meteorx/internal/ws"
 	"meteorx/pkg/logger"
 	"meteorx/pkg/security"
@@ -66,10 +66,11 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 	metricsCollector := middleware.NewMetricsCollector()
 	promMetrics := middleware.NewPrometheusMetrics()
 
-	// 全局中间件：Recovery -> Logger -> Tracing -> Metrics -> CORS
+	// 全局中间件：Recovery -> Tracing -> Logger -> Metrics -> CORS
+	// Tracing 置于 Logger 之前，使访问日志与结构化日志都能带上真实 OTel Trace ID
 	r.Use(middleware.Recovery)
-	r.Use(middleware.Logger)
 	r.Use(middleware.TracingMiddleware)
+	r.Use(middleware.Logger)
 	r.Use(metricsCollector.Metrics)
 	r.Use(promMetrics.Middleware)
 

@@ -179,15 +179,26 @@ func TestCtxLogger(t *testing.T) {
 	err := Init(Config{Level: "debug"})
 	require.NoError(t, err)
 
+	// 将全局日志器指向内存缓冲，以便断言 Ctx 实际附加了哪些字段
+	var buf bytes.Buffer
+	std = slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
 	ctx := context.Background()
 	ctx = WithRequestID(ctx, "req-001")
 	ctx = WithUserID(ctx, "user-001")
 	ctx = WithTenantID(ctx, "tenant-001")
+	ctx = WithTraceID(ctx, "trace-001")
 
-	// Ctx 应该返回一个带上下文的日志器，不会 panic
 	logger := Ctx(ctx)
 	require.NotNil(t, logger)
 	logger.Info("context-aware log")
+
+	out := buf.String()
+	require.Contains(t, out, "request_id=req-001")
+	require.Contains(t, out, "user_id=user-001")
+	require.Contains(t, out, "tenant_id=tenant-001")
+	// trace_id 必须随 Ctx 自动附加，使结构化日志可关联到 Jaeger 链路
+	require.Contains(t, out, "trace_id=trace-001")
 }
 
 // ---------------------------------------------------------------------------

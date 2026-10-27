@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"meteorx/internal/common/contextx"
 	"meteorx/internal/modules/audit/model"
 
 	"github.com/stretchr/testify/require"
@@ -143,4 +145,43 @@ func TestSanitizeBody_MasksPasswordVariants(t *testing.T) {
 func TestBuildTags_ImportMarker(t *testing.T) {
 	tags := buildTags("users", model.ActionTypeCreate, model.ResultSuccess, "POST", "/api/v1/users/import")
 	require.Contains(t, tags, `"import"`)
+}
+
+// TestResolveTraceID_PrefersContextTrace 审计必须优先复用 TracingMiddleware 注入的真实
+// OTel trace id，即使请求头带了另一个值，也不得覆盖——否则落库的 trace_id 与链路对不上。
+func TestResolveTraceID_PrefersContextTrace(t *testing.T) {
+	const realTrace = "0af7651916cd43dd8448eb211c80319c"
+	ctx := contextx.SetTraceID(context.Background(), realTrace)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil).WithContext(ctx)
+	r.Header.Set("X-Trace-ID", "deadbeef") // 干扰头，应被忽略
+
+	require.Equal(t, realTrace, resolveTraceID(r))
+}
+
+// TestResolveTraceID_FallsBackToTraceparent 无追踪上下文时，回退只取 traceparent
+// 中的 trace-id 段（而非整串），保证存入 trace_id 列（size:50）的是可检索的 32 位十六进制。
+func TestResolveTraceID_FallsBackToTraceparent(t *testing.T) {
+	const tid = "12345678901234567890123456789012"
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
+	r.Header.Set("Traceparent", "00-"+tid+"-00f067aa0ba902b7-01")
+
+	require.Equal(t, tid, resolveTraceID(r))
+}
+
+// TestParseTraceparentTraceID 校验 W3C traceparent 解析的边界：合法取段、非法/全零返回空。
+func TestParseTraceparentTraceID(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"valid", "00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01", "0af7651916cd43dd8448eb211c80319c"},
+		{"all-zero-trace", "00-00000000000000000000000000000000-00f067aa0ba902b7-01", ""},
+		{"too-short", "00-abc-def", ""},
+		{"wrong-length", "00-0af7651916cd43dd-00f067aa0ba902b7-01", ""},
+		{"empty", "", ""},
+	}
+	for _, c := range cases {
+		require.Equal(t, c.want, parseTraceparentTraceID(c.in), c.name)
+	}
 }

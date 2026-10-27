@@ -51,9 +51,11 @@ func Logger(next http.Handler) http.Handler {
 		duration := time.Since(start)
 
 		// 记录结构化日志（客户端 IP 经可信代理解析，防头部伪造）
+		// trace_id 由前置的 TracingMiddleware 注入 context，与审计记录/Jaeger 链路同源
 		clientIP := security.GetClientIP(r)
 		logger.Info("HTTP Request",
 			"request_id", requestID,
+			"trace_id", logger.GetTraceID(r.Context()),
 			"method", r.Method,
 			"path", r.URL.Path,
 			"query", r.URL.RawQuery,
