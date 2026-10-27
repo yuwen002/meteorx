@@ -31,17 +31,44 @@ type Config struct {
 	Audit        AuditConfig        `mapstructure:"audit"`
 }
 
-// AuditConfig 审计模块配置（数据保留策略）。
-// 未配置时保持向后兼容：保留清理默认关闭。
+// AuditConfig 审计模块配置（保留策略 + 防篡改完整性）。
+// 未配置时保持向后兼容：保留清理默认关闭、完整性校验默认关闭。
 type AuditConfig struct {
 	// RetentionDays 审计日志保留天数：>0 时由定时任务删除更早的日志；≤0（默认 0）表示不自动清理。
 	// 删除审计历史是敏感操作，默认关闭，避免升级后静默丢历史。
 	RetentionDays int `mapstructure:"retention_days"`
+	// Integrity 防篡改完整性校验配置（行级 HMAC 摘要 + 周期锚点链）。
+	Integrity AuditIntegrityConfig `mapstructure:"integrity"`
+}
+
+// AuditIntegrityConfig 审计日志防篡改完整性配置。
+// 行摘要用 HMAC-SHA256(pepper)：pepper 不落库，未配置主密钥时整卡降级为关闭，
+// 绝不阻断审计写入（审计可用性优先）。
+type AuditIntegrityConfig struct {
+	// Enabled 总开关，默认 false；须与 SecretKey 同时满足才生效。
+	Enabled bool `mapstructure:"enabled"`
+	// SecretKey 行摘要/锚点链的 pepper（建议 base64/随机串，经 METEORX_AUDIT_INTEGRITY_SECRET_KEY 注入，不落库）。
+	SecretKey string `mapstructure:"secret_key"`
+	// AnchorInterval 锚点链生成间隔，默认 1h。
+	AnchorInterval time.Duration `mapstructure:"anchor_interval"`
 }
 
 // GetRetentionDays 返回审计日志保留天数；直接取配置值，≤0 表示不自动清理（默认关闭）。
 func (c AuditConfig) GetRetentionDays() int {
 	return c.RetentionDays
+}
+
+// HasIntegrityKey 是否具备完整性校验条件：已启用且配置了非空 pepper。未满足时降级为关闭。
+func (c AuditIntegrityConfig) HasIntegrityKey() bool {
+	return c.Enabled && strings.TrimSpace(c.SecretKey) != ""
+}
+
+// GetAnchorInterval 返回锚点链生成间隔，未配置（≤0）时默认 1 小时。
+func (c AuditIntegrityConfig) GetAnchorInterval() time.Duration {
+	if c.AnchorInterval > 0 {
+		return c.AnchorInterval
+	}
+	return time.Hour
 }
 
 // ExportConfig 数据导出模块配置。

@@ -334,3 +334,19 @@ type AnomalyLogResp struct {
 	RiskLevel     string `json:"risk_level"`
 	Details       string `json:"details"`
 }
+
+// IntegrityVerifyResp 审计完整性校验结果。
+type IntegrityVerifyResp struct {
+	Enabled          bool     `json:"enabled"`            // 完整性是否已配置生效
+	Verdict          string   `json:"verdict"`            // verified / tampered / not_configured
+	CheckedRows      int64    `json:"checked_rows"`       // 参与行级重算的日志行数
+	LegacyRows       int64    `json:"legacy_rows"`        // RecordHash 为空的旧数据行数（不计失败）
+	TamperedRows     int64    `json:"tampered_rows"`      // 行摘要重算不符的篡改行数
+	TamperedSamples  []string `json:"tampered_samples"`   // 篡改行样本ID（上限若干条）
+	AnchorsChecked   int64    `json:"anchors_checked"`    // 校验的锚点条数
+	AnomalyAnchorIDs []string `json:"anomaly_anchor_ids"` // 异常锚点ID
+	Anomalies        []string `json:"anomalies"`          // 异常描述样本
+	CoveredFrom      string   `json:"covered_from"`       // 锚点链覆盖起始时间
+	CoveredTo        string   `json:"covered_to"`         // 锚点链覆盖结束时间
+	Message          string   `json:"message"`            // 结论摘要
+}

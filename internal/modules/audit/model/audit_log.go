@@ -70,6 +70,7 @@ type AuditLog struct {
 	Referer      string    // 来源页面
 	RiskLevel    string    // 风险等级（low/medium/high/critical）
 	Tags         string    // 标签（JSON数组）
+	RecordHash   string    // 行级完整性摘要（hex HMAC-SHA256）；空表示 legacy/未启用，不参与校验
 	CreatedAt    time.Time // 创建时间
 }
 

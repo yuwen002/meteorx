@@ -40,6 +40,13 @@ type TestApp struct {
 // NewTestApp 构造一个挂载全部模块真实路由的测试应用。
 func NewTestApp(t *testing.T) *TestApp {
 	t.Helper()
+	return NewTestAppOpt(t)
+}
+
+// NewTestAppOpt 同 NewTestApp，但允许在 InitRouter 前对 cfg 做定向调整
+// （如开启审计完整性 pepper），供需要验证特定配置下生产接线的集成测试复用。
+func NewTestAppOpt(t *testing.T, tune ...func(*config.Config)) *TestApp {
+	t.Helper()
 
 	mr, err := miniredis.Run()
 	require.NoError(t, err)
@@ -70,6 +77,9 @@ func NewTestApp(t *testing.T) *TestApp {
 			LoginLockout:   config.LoginLockoutConfig{Enabled: false},
 		},
 		File: config.FileConfig{UploadPath: t.TempDir()},
+	}
+	for _, f := range tune {
+		f(cfg)
 	}
 
 	ctx, stop := context.WithCancel(context.Background())

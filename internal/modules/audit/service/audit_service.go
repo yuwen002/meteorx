@@ -15,6 +15,16 @@ import (
 type AuditService struct {
 	repo      repository.AuditLogRepository
 	alertEval AlertEvaluator
+	integrity *IntegrityGuard
+}
+
+// AuditServiceOption 构造选项，用于可选注入（保持既有 NewAuditService(repo) 调用点向后兼容）。
+type AuditServiceOption func(*AuditService)
+
+// WithIntegrity 注入行级完整性摘要器。写入路径据此在落库前计算 RecordHash；
+// 传入禁用实例（nil 或 enabled=false）时不写摘要、不阻断。两个 AuditService 实例须共享同一 guard。
+func WithIntegrity(g *IntegrityGuard) AuditServiceOption {
+	return func(s *AuditService) { s.integrity = g }
 }
 
 // AlertEvaluator 告警评估链的窄接口：审计日志落库成功后把真实存在的日志行
@@ -32,8 +42,12 @@ func (s *AuditService) SetAlertEvaluator(eval AlertEvaluator) {
 }
 
 // NewAuditService 创建审计日志服务
-func NewAuditService(repo repository.AuditLogRepository) *AuditService {
-	return &AuditService{repo: repo}
+func NewAuditService(repo repository.AuditLogRepository, opts ...AuditServiceOption) *AuditService {
+	s := &AuditService{repo: repo}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // CreateLog 创建审计日志
@@ -67,6 +81,9 @@ func (s *AuditService) CreateLog(ctx context.Context, req dto.CreateAuditLogReq)
 		Tags:         req.Tags,
 		CreatedAt:    time.Now(),
 	}
+
+	// 落库前计算行级完整性摘要（禁用时为空串，不写、不阻断）
+	log.RecordHash = s.integrity.Compute(log)
 
 	if err := s.repo.Create(ctx, log); err != nil {
 		return nil, err
@@ -115,6 +132,8 @@ func (s *AuditService) BatchCreateLogs(ctx context.Context, reqs []dto.CreateAud
 			Tags:         req.Tags,
 			CreatedAt:    time.Now(),
 		}
+		// 批量同样逐行计算摘要后再落库
+		logs[i].RecordHash = s.integrity.Compute(logs[i])
 	}
 
 	if err := s.repo.BatchCreate(ctx, logs); err != nil {

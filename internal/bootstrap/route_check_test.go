@@ -131,7 +131,7 @@ func buildTestRouter() *chi.Mux {
 				tenant.RegisterAdminRoutes(r, &tenantHandler.TenantHandler{}, nil)
 				user.RegisterAdminRoutes(r, &userHandler.UserHandler{}, nil)
 				rbac.RegisterRoutes(r, &rbacHandler.RBACHandler{}, nil)
-				audit.RegisterRoutes(r, &auditHandler.AuditHandler{}, &auditHandler.AlertHandler{}, &auditHandler.SessionHandler{}, nil, nil)
+				audit.RegisterRoutes(r, &auditHandler.AuditHandler{}, &auditHandler.AlertHandler{}, &auditHandler.SessionHandler{}, &auditHandler.IntegrityHandler{}, nil, nil)
 				plan.RegisterAdminRoutes(r, &planHandler.PlanHandler{}, nil)
 				dashboard.RegisterRoutes(r, &dashboardHandler.DashboardHandler{}, nil)
 				notification.RegisterRoutes(r, &notificationHandler.AnnouncementHandler{}, nil)

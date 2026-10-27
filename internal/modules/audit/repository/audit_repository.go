@@ -37,6 +37,7 @@ type AuditLogPO struct {
 	Referer      string    `gorm:"size:500;comment:来源页面"`
 	RiskLevel    string    `gorm:"index;size:20;comment:风险等级(low/medium/high/critical)"`
 	Tags         string    `gorm:"size:500;comment:标签(JSON数组)"`
+	RecordHash   string    `gorm:"size:64;index;comment:行级完整性摘要(HMAC-SHA256 hex)，空为legacy/未启用"`
 	CreatedAt    time.Time `gorm:"index;autoCreateTime;comment:创建时间"`
 }
 
@@ -74,6 +75,7 @@ func (po AuditLogPO) toDomain() *model.AuditLog {
 		Referer:      po.Referer,
 		RiskLevel:    po.RiskLevel,
 		Tags:         po.Tags,
+		RecordHash:   po.RecordHash,
 		CreatedAt:    po.CreatedAt,
 	}
 }
@@ -107,6 +109,7 @@ func auditLogFromDomain(l *model.AuditLog) *AuditLogPO {
 		Referer:      l.Referer,
 		RiskLevel:    l.RiskLevel,
 		Tags:         l.Tags,
+		RecordHash:   l.RecordHash,
 		CreatedAt:    l.CreatedAt,
 	}
 }
@@ -123,7 +126,7 @@ func NewAuditLogRepository(db *gorm.DB) AuditLogRepository {
 
 // Models 返回本模块全部待迁移模型，作为 AutoMigrate 与脏列巡检的单一模型来源。
 func Models() []interface{} {
-	return []interface{}{&AuditLogPO{}, &AlertRulePO{}, &AuditAlertPO{}}
+	return []interface{}{&AuditLogPO{}, &AlertRulePO{}, &AuditAlertPO{}, &AuditIntegrityAnchorPO{}}
 }
 
 // AutoMigrate 自动迁移表结构

@@ -13,17 +13,18 @@ import (
 // h: 审计日志处理器实例
 // alertH: 告警处理器实例
 // sessionH: 会话分析处理器实例
+// integrityH: 完整性校验处理器实例
 // checker: 权限检查器
 // ipLocator: IP地理位置解析器
 // 挂载路径前缀: /api/v1/audit
-func RegisterRoutes(r chi.Router, h *handler.AuditHandler, alertH *handler.AlertHandler, sessionH *handler.SessionHandler, checker middleware.PermissionChecker, ipLocator iplocation.IPLocator) {
+func RegisterRoutes(r chi.Router, h *handler.AuditHandler, alertH *handler.AlertHandler, sessionH *handler.SessionHandler, integrityH *handler.IntegrityHandler, checker middleware.PermissionChecker, ipLocator iplocation.IPLocator) {
 	r.Route("/audit", func(r chi.Router) {
 		// Dashboard 统计接口：无需细粒度权限校验（只需登录）
-		r.Get("/stats", h.GetStats)               // 审计统计概览
-		r.Get("/dashboard", h.GetDashboard)       // 审计看板数据
-		r.Get("/user-timeline", h.GetUserTimeline)        // 用户时间线（需登录）
-		r.Get("/detailed-stats", h.GetDetailedStats)      // 详细统计（需登录）
-		r.Get("/anomalies", h.GetAnomalyLogs)             // 异常检测（需登录）
+		r.Get("/stats", h.GetStats)                  // 审计统计概览
+		r.Get("/dashboard", h.GetDashboard)          // 审计看板数据
+		r.Get("/user-timeline", h.GetUserTimeline)   // 用户时间线（需登录）
+		r.Get("/detailed-stats", h.GetDetailedStats) // 详细统计（需登录）
+		r.Get("/anomalies", h.GetAnomalyLogs)        // 异常检测（需登录）
 
 		// 需要细粒度权限校验的路由组
 		r.Route("/logs", func(r chi.Router) {
@@ -58,6 +59,12 @@ func RegisterRoutes(r chi.Router, h *handler.AuditHandler, alertH *handler.Alert
 			r.Use(middleware.AutoRequirePermission(checker))
 			r.Get("/", sessionH.ListSessions)            // audit:session:list
 			r.Get("/{id}/logs", sessionH.GetSessionLogs) // audit:session:read
+		})
+
+		// 完整性校验（非 CRUD 静态段，采用显式权限码避开 AutoRequirePermission 的路径推导歧义）
+		r.Route("/integrity", func(r chi.Router) {
+			r.Use(middleware.RequirePermission(checker, "audit:integrity:verify"))
+			r.Post("/verify", integrityH.VerifyIntegrity) // audit:integrity:verify
 		})
 	})
 }

@@ -205,7 +205,10 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 审计日志中间件：自动记录所有请求（挂载在认证之后，确保能获取用户信息）
 			repo := auditRepo.NewAuditLogRepository(db)
 			ipLocator := initIPLocator(cfg)
-			auditService := auditSvc.NewAuditService(repo)
+			// 行级完整性摘要器全局构造一次，同时注入此处（中间件/批量）与下方 audit.InitModule（管理侧），
+			// 两个 AuditService 实例必须共享同一 guard，否则两条写入路径算出的 RecordHash 不一致致校验必坏。
+			integrityGuard := audit.NewIntegrityGuard(*cfg)
+			auditService := auditSvc.NewAuditService(repo, auditSvc.WithIntegrity(integrityGuard))
 
 			// 邮件配置提前构造：告警评估链接线与审计管理接口（下方 admin 分组）共用
 			emailCfg := emailer.NewEmailer(cfg.Email.Host, cfg.Email.Port, cfg.Email.Username, cfg.Email.Password, cfg.Email.From, cfg.Email.FromName)
@@ -301,7 +304,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 				rbac.InitModule(r, db, rdb, repo)
 
 				// 8. 审计日志管理接口（仅后台管理员可操作）
-				audit.InitModule(r, db, emailCfg)
+				audit.InitModule(r, db, emailCfg, integrityGuard)
 
 				// 9. 套餐管理接口（仅平台超级管理员可操作）
 				plan.InitAdminModule(r, db)
@@ -397,6 +400,14 @@ func StartMessageExpiryJob(ctx context.Context, db *gorm.DB, cfg *config.Config)
 func StartAuditRetentionJob(ctx context.Context, db *gorm.DB, cfg *config.Config) {
 	job := audit.NewAuditRetentionJob(db, *cfg)
 	job.Start(ctx, time.Hour)
+}
+
+// StartAuditIntegrityJob 启动审计完整性锚点链定时任务
+// 周期性折叠窗口行摘要生成锚点；未启用完整性时自动跳过（guard 与写入侧同 cfg 派生，结果一致）
+func StartAuditIntegrityJob(ctx context.Context, db *gorm.DB, cfg *config.Config) {
+	guard := audit.NewIntegrityGuard(*cfg)
+	job := audit.NewIntegrityAnchorJob(db, *cfg, guard)
+	job.Start(ctx, cfg.Audit.Integrity.GetAnchorInterval())
 }
 
 // initIPLocator 根据配置初始化 IP 地理位置解析器

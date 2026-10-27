@@ -120,11 +120,12 @@ const (
 // 审计日志权限码（/api/v1/audit 相关）
 // ============================================================
 const (
-	AuditLogList    = "audit:log:list"    // 查询审计日志列表
-	AuditLogExport  = "audit:log:export"  // 导出审计日志
-	AuditLogCreate  = "audit:log:create"  // 创建审计日志（内部使用）
-	AuditLogRead    = "audit:log:read"    // 查询审计日志详情
-	AuditLogCleanup = "audit:log:cleanup" // 清理审计日志
+	AuditLogList         = "audit:log:list"         // 查询审计日志列表
+	AuditLogExport       = "audit:log:export"       // 导出审计日志
+	AuditLogCreate       = "audit:log:create"       // 创建审计日志（内部使用）
+	AuditLogRead         = "audit:log:read"         // 查询审计日志详情
+	AuditLogCleanup      = "audit:log:cleanup"      // 清理审计日志
+	AuditIntegrityVerify = "audit:integrity:verify" // 校验审计日志完整性（行摘要 + 锚点链）
 )
 
 // ============================================================
@@ -339,6 +340,7 @@ func GetPermissionDefs() []PermissionDef {
 		{Name: "创建审计日志", Code: AuditLogCreate, Description: "创建审计日志记录（内部使用）", Resource: "audit_log", Action: "create"},
 		{Name: "查询审计日志详情", Code: AuditLogRead, Description: "查看单个审计日志详情", Resource: "audit_log", Action: "read"},
 		{Name: "清理审计日志", Code: AuditLogCleanup, Description: "清理过期审计日志", Resource: "audit_log", Action: "cleanup"},
+		{Name: "校验审计完整性", Code: AuditIntegrityVerify, Description: "校验审计日志行摘要与锚点链完整性", Resource: "audit_integrity", Action: "verify"},
 
 		// 套餐管理
 		{Name: "查询套餐列表", Code: PlanList, Description: "查询套餐列表", Resource: "plan", Action: "list"},

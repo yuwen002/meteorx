@@ -121,6 +121,9 @@ func StartApp() {
 	// 10.9 启动审计日志保留清理定时任务（删除超过 audit.retention_days 的审计日志，≤0 关闭）
 	StartAuditRetentionJob(ctx, db, cfg)
 
+	// 10.10 启动审计完整性锚点链定时任务（周期性折叠窗口行摘要生成锚点，未启用时自动跳过）
+	StartAuditIntegrityJob(ctx, db, cfg)
+
 	// 11. 构造 http.Server 以支持优雅关闭
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	srv := &http.Server{
