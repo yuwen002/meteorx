@@ -1573,4 +1573,37 @@ client:
 - ℹ️ 本卡为纯后端安全校验，未改动前端；租户端操作者路径的越权拒绝由 service 单测覆盖（本地 `tenant_admin` 未绑定
   `rbac:user_role:assign`，界面无法触发，与第四十节口径一致）。系统管理员路径经既有目视脚本放行不受影响。
 - ℹ️ 边界说明：本卡只收口「分配角色」，未收口「给角色绑定权限」（`BindRolePermissions`）——操作者仍可能先把自身没有的
-  权限绑到一个角色上、再分配出去。彻底闭环需同法约束绑定入口，登记为后续项。
+  权限绑到一个角色上、再分配出去。彻底闭环需同法约束绑定入口（已于第四十三节收口）。
+
+## 四十三、角色绑定权限「权限不越出操作者」收口（No Privilege Escalation On Bind）
+
+### 43.1 起因
+
+第四十二节收口了「分配角色」的权限子集，但登记了一个边界缺口：给角色绑定权限的 `BindRolePermissions` / `BatchBindRolesPermissions`
+仅校验角色与权限 ID 是否存在，不校验被绑权限是否属于操作者。于是仍存两条提权路径：
+
+1. **直接自我提权**：持 `rbac:role:bind_perm` 但无高权的租户操作者，把 `tenant:delete` 等自身未持有的权限绑到**自己所属的角色**上，
+   无需经过分配环节即刻获得该权限。
+2. **先绑后分配绕过**：先把自身没有的权限绑到一个角色，再设法分配出去，绕开第四十二节仅在分配环节设卡的子集校验。
+
+### 43.2 后端
+
+- 新增 `validateBindPermissionSubset(ctx, perms)`：非系统操作者为角色绑定的**每个权限**，其编码必须在操作者自身有效权限集合
+  （`GetUserPermissionCodes`）内；出现未持有的编码即拒绝，错误消息点名越权编码。
+- 系统操作者（`contextx.GetTenantID == SYSTEM_ROOT`）不受此限制，与 `validateRoleAssignPermissionSubset` 口径一致；
+  缺操作者上下文（非系统且无用户 ID）时失败关闭。
+- `BindRolePermissions` 与 `BatchBindRolesPermissions` 均在权限存在性校验之后、实际写入之前调用它；批量入口整批校验，
+  任一权限越权则整批不写。校验位于写库前，且失败关闭，避免留下部分绑定。
+
+### 43.3 验证状态
+
+- ✅ `go build ./...`、`go vet ./internal/modules/rbac/...`、`gofmt -l` 通过；`go test -count=1 ./internal/modules/rbac/... ./internal/integration/...` 全绿。
+- ✅ 新增 5 条 service 单测：子集放行、越权拒绝且点名 `tenant:delete`（不落任何绑定）、系统操作者绕过子集、缺操作者上下文失败关闭、
+  批量整批拒绝与批量放行。
+- ✅ 变异检验：把 `validateBindPermissionSubset` 改为恒返回 nil 后，三条「拒绝」用例转红、放行/绕过用例仍绿，
+  证明护栏由拒绝用例真实锚定，还原后全绿。
+- ✅ 既有 `TestBindRolePermissions_Success` 改为携带租户+操作者上下文（操作者持有被绑权限），与新守卫语义一致；
+  `RoleNotFound`/`PermissionNotFound` 在到达子集校验前即返回，行为不变。
+- ℹ️ 本卡为纯后端安全校验，未改动前端；生产调用方仅两个 HTTP handler（均带真实请求上下文），无种子/后台调用会被误伤。
+- ℹ️ 边界说明：本卡与第四十二节共同闭环「租户内分配/绑定提权」主路径。未覆盖项：非系统操作者向**其他租户角色或系统级角色**
+  绑定自身已持有权限的跨租户角色改写（属角色归属越权，与提权正交），登记为后续项。

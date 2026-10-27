@@ -70,6 +70,7 @@
 
 ### 安全
 - **角色分配「权限不越出操作者」收口**：`validateRoleAssignScope` 此前只挡住跨租户与系统级角色，仅持有 `rbac:user_role:assign` 的普通租户用户仍能给同租户账号（含自己）授予 `tenant_admin` 等更高权限角色，形成水平/垂直提权。新增 `validateRoleAssignPermissionSubset`，要求被授角色的权限编码集合是操作者自身有效权限（`GetUserPermissionCodes`，合并其全部角色）的子集，出现操作者未持有的编码即整批返回 400 并点名越权编码；系统操作者（虚拟租户 `SYSTEM_ROOT`）不受此限制。`AssignUserRoles` 与 `BatchAssignUserRoles` 两条入口同口径收口，批量任一角色越权则整批不写。
+- **角色绑定权限「权限不越出操作者」收口**：`BindRolePermissions`/`BatchBindRolesPermissions` 此前只校验角色与权限 ID 是否存在，不校验被绑权限是否属于操作者；持 `rbac:role:bind_perm` 但无高权的租户操作者可把 `tenant:delete` 等自身未持有的权限绑到自己所属角色上直接自我提权，或先绑后分配绕过第四十二节。新增 `validateBindPermissionSubset`，要求被绑权限编码必须存在于操作者自身有效权限集内，出现未持有编码即返回 400 并点名越权编码（批量整批拒绝）；系统操作者（`SYSTEM_ROOT`）不受此限，缺操作者上下文时失败关闭。与角色分配收口共同闭环租户内提权主路径。
 
 ### 测试
 - **告警详情入口 E2E 与 CI 环境缺口修复（新增 1 条，共 9 条）**：新用例从 `?alert_id=` 打开告警详情，点击「触发用户」直达该用户时间线，并断言传的是 `user_id` 而非退化成用户名——这锁住的是「消息落地页 → 入口按钮 → 目标页」这段此前只有落地页被覆盖的链路。排查 CI 的 `e2e` job 时发现一个会在流水线上直接变红的缺口：该 job 用 `AutoMigrate + Seed` 建库，而 `seed.sql` 只写 `users`/`roles`、**不写 `tenants`**，上一轮新增的 `list-tenants` 夹具在本地靠存量租户才能返回非空 ID；现改为 `ensure-tenant`（库里一条都没有时新建并标记 `created`，用例 `finally` 只删自己建的那条），并新增 `seed-alert`/`delete-alert` 夹具。夹具自检时真实踩到 `audit_alerts.user_id` 列宽只有 26（ULID 长度），调用方拼出的 `${用户名}-alert-uid` 达 37 字符，MySQL 直接拒绝 INSERT，故 `seed-alert` 改为由夹具生成并回传 `user_id`。变异检验 2 项逐个归因：`openUserTimeline` 不带 query → 仅本用例红；把「优先 `user_id`」改成「只用用户名」→ 仅本用例红（另两条深链用例仍绿）。恢复后全量 E2E **9 条** 全绿；E2E 跑的是 `web-admin/dist`，两次变异均先 `npm run build`
