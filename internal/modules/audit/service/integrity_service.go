@@ -9,6 +9,7 @@ import (
 	"meteorx/internal/modules/audit/dto"
 	"meteorx/internal/modules/audit/repository"
 	"meteorx/pkg/idgen"
+	"meteorx/pkg/logger"
 )
 
 // 完整性校验结论。
@@ -21,6 +22,10 @@ const (
 
 // verifySampleLimit 结果中各类样本的最大返回条数，避免整表异常时响应过大。
 const verifySampleLimit = 20
+
+// rehashScanPage 密钥轮换 rehash 分页扫描的每页行数：以 (created_at, id) 游标逐页推进，
+// 避免大表一次性载入全表。页大小平衡单页内存与数据库往返次数。
+const rehashScanPage = 1000
 
 // IntegrityService 审计完整性校验服务：只读重放行摘要与锚点链，不做任何写入。
 // 与写入侧共用同一 IntegrityGuard（同一 pepper），据以重算并比对。
@@ -167,7 +172,8 @@ var (
 
 // Rehash 密钥轮换迁移：把仅匹配旧 pepper 的历史行重算到当前 pepper，随后全量重建锚点链。
 // 只重写 ClassifyRow==RowPrevious（旧 key 可验证）的行——两把 key 都对不上的真篡改行不会被洗白。
-// 因行摘要值改变会使旧锚点必然失效，故先清空旧锚点再按 anchor_interval 时间桶从创世重建。
+// 因行摘要值改变会使旧锚点必然失效，故随后按 anchor_interval 时间桶从创世重建整条链并原子替换。
+// 行迁移与锚点重建均以 (created_at, id) 游标分页流式推进，避免大表一次性载入全表；逐页打进度日志。
 // 本方法不做并发锁与自审（由上层 coordinator 编排）。
 func (s *IntegrityService) Rehash(ctx context.Context) (*dto.IntegrityRehashResp, error) {
 	if !s.guard.Enabled() {
@@ -177,20 +183,38 @@ func (s *IntegrityService) Rehash(ctx context.Context) (*dto.IntegrityRehashResp
 		return nil, ErrIntegrityNoPreviousKey
 	}
 
-	// 1) 读全量行，收集仅匹配旧 key 的行，用当前 key 重算后批量回写
-	logs, err := s.irepo.ListLogsInRange(ctx, time.Time{}, time.Time{})
-	if err != nil {
-		return nil, err
-	}
-	updates := make([]repository.RecordHashUpdate, 0)
-	for _, l := range logs {
-		if s.guard.ClassifyRow(l) == RowPrevious {
-			updates = append(updates, repository.RecordHashUpdate{ID: l.ID, RecordHash: s.guard.Compute(l)})
+	logger.Info("[audit.rehash] 开始密钥轮换迁移：扫描仅匹配旧 pepper 的历史行并重算到当前 pepper")
+
+	// 1) 游标分页流式扫描全表，逐页收集仅匹配旧 key 的行并用当前 key 批量回写（重写不改 (created_at,id)，游标稳定）。
+	var scanned, rehashed int64
+	cursorT, cursorID := time.Time{}, ""
+	for {
+		page, err := s.irepo.ListLogsPage(ctx, cursorT, cursorID, rehashScanPage)
+		if err != nil {
+			return nil, err
+		}
+		if len(page) == 0 {
+			break
+		}
+		scanned += int64(len(page))
+		updates := make([]repository.RecordHashUpdate, 0, len(page))
+		for _, l := range page {
+			if s.guard.ClassifyRow(l) == RowPrevious {
+				updates = append(updates, repository.RecordHashUpdate{ID: l.ID, RecordHash: s.guard.Compute(l)})
+			}
+		}
+		if err := s.irepo.BatchUpdateRecordHash(ctx, updates); err != nil {
+			return nil, err
+		}
+		rehashed += int64(len(updates))
+		last := page[len(page)-1]
+		cursorT, cursorID = last.CreatedAt, last.ID
+		logger.Infof("[audit.rehash] 行迁移进度：已扫描 %d 行，累计重算 %d 行", scanned, rehashed)
+		if len(page) < rehashScanPage {
+			break // 最后一页
 		}
 	}
-	if err := s.irepo.BatchUpdateRecordHash(ctx, updates); err != nil {
-		return nil, err
-	}
+	logger.Infof("[audit.rehash] 行迁移完成：共扫描 %d 行、重算 %d 行到新密钥；开始重建锚点链", scanned, rehashed)
 
 	// 2) 重建锚点链：按当前 key 从创世重新折叠全量历史行，并在单事务内原子替换旧链（删旧+建新不可分割）。
 	rebuilt, err := s.rebuildAnchors(ctx)
@@ -198,25 +222,24 @@ func (s *IntegrityService) Rehash(ctx context.Context) (*dto.IntegrityRehashResp
 		return nil, err
 	}
 
+	logger.Infof("[audit.rehash] 完成：重算 %d 行到新密钥，重建 %d 个锚点", rehashed, rebuilt)
+
 	return &dto.IntegrityRehashResp{
-		RehashedRows:   int64(len(updates)),
+		RehashedRows:   rehashed,
 		AnchorsRebuilt: rebuilt,
-		Message: "已重算 " + strconv.FormatInt(int64(len(updates)), 10) +
+		Message: "已重算 " + strconv.FormatInt(rehashed, 10) +
 			" 行到新密钥，重建 " + strconv.FormatInt(rebuilt, 10) + " 个锚点",
 	}, nil
 }
 
-// rebuildAnchors 按 (created_at, id) 有序读取全量行（已为新 key 摘要），以 anchor_interval 为时间桶
-// 从创世链式生成整条新锚点链，最后通过 ReplaceAnchors 单事务原子替换旧链（删旧+建新不可分割）。
-// 窗口右端一律不越过安全界 sealLimit=now-grace（与周期任务同口径）：一方面避免重建出以未来时刻
-// 收尾的窗口（否则其后新写入的行会落进已封窗口内，令校验重放时窗口内容漂移而误报），另一方面使
-// sealLimit 之后的新行留给周期任务下次封口（它们仍以当前 key 写入，行级校验照常通过）。
+// rebuildAnchors 以 (created_at, id) 游标分页流式读取全量行（已为新 key 摘要），以 anchor_interval 为时间桶
+// 从创世链式构建整条新锚点链，最后通过 ReplaceAnchors 单事务原子替换旧链（删旧+建新不可分割）。
+// 与旧的一次性载入版逐字节等价：窗口边界、折叠顺序、行分类口径均一致，仅不再把全表驻留内存——
+// 当前只保留“正在累积窗口”的行摘要与已完成的锚点列表（锚点数受时间桶限制，自然有界）。
+// 窗口右端一律不越过安全界 sealLimit=now-grace（与周期任务同口径）：避免重建出以未来时刻收尾的窗口
+// （否则其后新写入的行会落进已封窗口内，令校验重放时窗口内容漂移而误报）；sealLimit 之后的新行留给周期任务下次封口。
 // 空表时清空锚点。返回落库锚点条数。
 func (s *IntegrityService) rebuildAnchors(ctx context.Context) (int64, error) {
-	logs, err := s.irepo.ListLogsInRange(ctx, time.Time{}, time.Time{})
-	if err != nil {
-		return 0, err
-	}
 	sealLimit := time.Now().Add(-s.guard.AnchorGrace())
 	interval := s.guard.AnchorInterval()
 
@@ -224,38 +247,74 @@ func (s *IntegrityService) rebuildAnchors(ctx context.Context) (int64, error) {
 		anchors  []*repository.IntegrityAnchor
 		prevHash string
 	)
-	for i := 0; i < len(logs); {
-		winStart := logs[i].CreatedAt
-		if !winStart.Before(sealLimit) {
-			break // 该窗起始已在安全界之后，尾部交给周期任务封口
+	// 当前累积窗口：跨页续接，仅在遇到下一窗口起始或遗历结束时才封口。
+	var (
+		inWindow  bool
+		winStart  time.Time
+		winEnd    time.Time
+		winHashes []string
+	)
+	closeWindow := func() {
+		if !inWindow {
+			return
 		}
-		winEnd := winStart.Add(interval)
-		if winEnd.After(sealLimit) {
-			winEnd = sealLimit // 末窗 clamp：右端不越过安全界进入未来
-		}
-		var hashes []string
-		j := i
-		for j < len(logs) && logs[j].CreatedAt.Before(winEnd) {
-			hashes = append(hashes, logs[j].RecordHash)
-			j++
-		}
-		windowDigest := s.guard.FoldRecordHashes(hashes)
+		windowDigest := s.guard.FoldRecordHashes(winHashes)
 		anchor := &repository.IntegrityAnchor{
 			ID:             idgen.New(),
 			WindowStart:    winStart,
 			WindowEnd:      winEnd,
-			RowCount:       int64(len(hashes)),
+			RowCount:       int64(len(winHashes)),
 			WindowDigest:   windowDigest,
 			PrevAnchorHash: prevHash,
 		}
 		anchor.AnchorHash = s.guard.AnchorHashOf(prevHash, windowDigest, anchor.RowCount, winStart, winEnd)
 		anchors = append(anchors, anchor)
 		prevHash = anchor.AnchorHash
-		i = j
+		winHashes = winHashes[:0]
+		inWindow = false
 	}
+
+	cursorT, cursorID := time.Time{}, ""
+	for {
+		page, err := s.irepo.ListLogsPage(ctx, cursorT, cursorID, rehashScanPage)
+		if err != nil {
+			return 0, err
+		}
+		if len(page) == 0 {
+			break
+		}
+		reachedLimit := false
+		for _, l := range page {
+			if !l.CreatedAt.Before(sealLimit) {
+				reachedLimit = true // 该行已在安全界之后，留给周期任务封口
+				break
+			}
+			if !inWindow || !l.CreatedAt.Before(winEnd) {
+				closeWindow()
+				winStart = l.CreatedAt
+				winEnd = winStart.Add(interval)
+				if winEnd.After(sealLimit) {
+					winEnd = sealLimit // 末窗 clamp：右端不越过安全界进入未来
+				}
+				inWindow = true
+			}
+			winHashes = append(winHashes, l.RecordHash)
+		}
+		last := page[len(page)-1]
+		cursorT, cursorID = last.CreatedAt, last.ID
+		if reachedLimit {
+			break
+		}
+		if len(page) < rehashScanPage {
+			break // 最后一页
+		}
+	}
+	closeWindow() // 收最后一个跨页未完的窗口
 
 	if err := s.irepo.ReplaceAnchors(ctx, anchors); err != nil {
 		return 0, err
 	}
+	logger.Infof("[audit.rehash] 锚点重建完成：封口 %d 个窗口（安全界 %s）",
+		len(anchors), sealLimit.Format(time.RFC3339))
 	return int64(len(anchors)), nil
 }

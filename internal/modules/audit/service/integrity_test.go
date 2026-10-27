@@ -417,3 +417,68 @@ func TestRehashRequiresPrevious(t *testing.T) {
 	_, err = NewIntegrityService(disabled, repository.NewIntegrityRepository(db)).Rehash(context.Background())
 	require.ErrorIs(t, err, ErrIntegrityNotEnabled)
 }
+
+// TestNewIntegrityGuardAnchorGraceFromConfig 锁 E：grace 取配置 anchor_grace，未配置回落 1 分钟，
+// 周期任务与 rehash 重建共用同一口径。
+func TestNewIntegrityGuardAnchorGraceFromConfig(t *testing.T) {
+	// 未配置 → 默认 1 分钟
+	g := NewIntegrityGuard(config.Config{Audit: config.AuditConfig{
+		Integrity: config.AuditIntegrityConfig{Enabled: true, SecretKey: "x"},
+	}})
+	require.Equal(t, time.Minute, g.AnchorGrace())
+
+	// 自定义 → 5 分钟
+	g2 := NewIntegrityGuard(config.Config{Audit: config.AuditConfig{
+		Integrity: config.AuditIntegrityConfig{Enabled: true, SecretKey: "x", AnchorGrace: 5 * time.Minute},
+	}})
+	require.Equal(t, 5*time.Minute, g2.AnchorGrace())
+
+	// Getter 零值兑底
+	require.Equal(t, time.Minute, config.AuditIntegrityConfig{}.GetAnchorGrace())
+}
+
+// TestListLogsPageCursorTraversal 锁 C 新 primitive：游标分页逐页遍历应与全量 (created_at, id) 全序一致，
+// 每行恰访问一次——尤其考验同一 created_at 并列行靠 id 二级游标推进（否则会漏行/重行）。
+func TestListLogsPageCursorTraversal(t *testing.T) {
+	db := newIntegrityTestDB(t)
+	irepo := repository.NewIntegrityRepository(db)
+	oldGuard := newIntegrityGuard("pepper-OLD")
+	base := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
+
+	// 7 行，每两行前进一秒（r1,r2 同秒……），制造 created_at 并列，靠 id 二级排序
+	ids := []string{"r1", "r2", "r3", "r4", "r5", "r6", "r7"}
+	for i, id := range ids {
+		l := sampleLog(id)
+		l.CreatedAt = base.Add(time.Duration(i/2) * time.Second)
+		seedKeyedRow(t, db, oldGuard, l)
+	}
+
+	// limit=2 逐页遍历
+	var seen []string
+	ct, cid := time.Time{}, ""
+	for {
+		page, err := irepo.ListLogsPage(context.Background(), ct, cid, 2)
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		for _, l := range page {
+			seen = append(seen, l.ID)
+		}
+		last := page[len(page)-1]
+		ct, cid = last.CreatedAt, last.ID
+		if len(page) < 2 {
+			break
+		}
+	}
+	require.Equal(t, ids, seen, "分页遍历顺序与完整性必须与全序一致")
+
+	// 与全量读取一致
+	all, err := irepo.ListLogsInRange(context.Background(), time.Time{}, time.Time{})
+	require.NoError(t, err)
+	var allIDs []string
+	for _, l := range all {
+		allIDs = append(allIDs, l.ID)
+	}
+	require.Equal(t, allIDs, seen)
+}

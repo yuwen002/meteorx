@@ -87,6 +87,11 @@ type IntegrityRepository interface {
 	// 供完整性校验逐行重算与窗口重放。start/end 任一为零值表示该侧不设界。
 	ListLogsInRange(ctx context.Context, start, end time.Time) ([]*model.AuditLog, error)
 
+	// ListLogsPage 以 (created_at, id) 复合游标向后至多取 limit 行（按 (created_at, id) 升序），
+	// 供大表 rehash 分页流式遍历，避免一次性把全表载入内存。afterCreatedAt 为零值且 afterID 为空时
+	// 从最早行开始；limit<=0 回落默认页大小。重写 record_hash 不改变 (created_at, id)，游标迭代稳定。
+	ListLogsPage(ctx context.Context, afterCreatedAt time.Time, afterID string, limit int) ([]*model.AuditLog, error)
+
 	// BatchUpdateRecordHash 按 id 批量重写审计日志的 record_hash（rehash 迁移用），分块提交。
 	BatchUpdateRecordHash(ctx context.Context, updates []RecordHashUpdate) error
 
@@ -178,6 +183,32 @@ func (r *integrityRepository) ListLogsInRange(ctx context.Context, start, end ti
 		db = db.Where("created_at < ?", end)
 	}
 	db = db.Order("created_at ASC").Order("id ASC")
+
+	var pos []AuditLogPO
+	if err := db.Find(&pos).Error; err != nil {
+		return nil, err
+	}
+	logs := make([]*model.AuditLog, len(pos))
+	for i, po := range pos {
+		logs[i] = po.toDomain()
+	}
+	return logs, nil
+}
+
+// rehashPageDefault ListLogsPage 未显式传 limit 时的默认页大小（行数），平衡单页内存与往返次数。
+const rehashPageDefault = 1000
+
+// ListLogsPage 以 (created_at, id) 复合游标向后分页读取审计日志整行，按 (created_at, id) 升序。
+// 首页（afterCreatedAt 零值且 afterID 为空）不加游标条件，从最早行起；后续页取严格大于游标的行。
+func (r *integrityRepository) ListLogsPage(ctx context.Context, afterCreatedAt time.Time, afterID string, limit int) ([]*model.AuditLog, error) {
+	if limit <= 0 {
+		limit = rehashPageDefault
+	}
+	db := r.db.WithContext(ctx).Model(&AuditLogPO{})
+	if !afterCreatedAt.IsZero() || afterID != "" {
+		db = db.Where("created_at > ? OR (created_at = ? AND id > ?)", afterCreatedAt, afterCreatedAt, afterID)
+	}
+	db = db.Order("created_at ASC").Order("id ASC").Limit(limit)
 
 	var pos []AuditLogPO
 	if err := db.Find(&pos).Error; err != nil {

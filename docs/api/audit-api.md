@@ -842,5 +842,6 @@ onMessage((msg) => {
 | `audit.integrity.secret_key` | `METEORX_AUDIT_INTEGRITY_SECRET_KEY` | 空 | HMAC pepper（不落库）；未配置则整卡降级关闭、不阻断写入 |
 | `audit.integrity.previous_secret_key` | `METEORX_AUDIT_INTEGRITY_PREVIOUS_SECRET_KEY` | 空 | 轮换过渡期的旧 pepper；仅在换 key 迁移期临时配置，配合 rehash 使用，迁移完成后清空即回单密钥常态 |
 | `audit.integrity.anchor_interval` | `METEORX_AUDIT_INTEGRITY_ANCHOR_INTERVAL` | `1h` | 锚点链封口周期 |
+| `audit.integrity.anchor_grace` | `METEORX_AUDIT_INTEGRITY_ANCHOR_GRACE` | `1m` | 锚点封口安全边界：窗口右端取 `now - grace`，给异步 flush 迟到行留落库时间；周期任务与 rehash 重建共用同一口径 |
 
 > 脱敏（见 7.2）与本节无关：`record_hash` 只覆盖已落库的字段，不改变任何脱敏行为。

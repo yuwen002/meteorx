@@ -249,6 +249,7 @@ audit:
     enabled: false             # 总开关，默认 false
     secret_key: ""             # 行摘要/锚点链 pepper（建议经 METEORX_AUDIT_INTEGRITY_SECRET_KEY 注入，勿明文提交）
     anchor_interval: 1h        # 锚点链生成间隔，默认 1h
+    anchor_grace: 1m           # 锚点封口安全边界：窗口右端取 now-此值，给迟到行留落库时间，默认 1m
 
 # 多渠道消息通知配置
 notify:

@@ -55,6 +55,17 @@ type AuditIntegrityConfig struct {
 	PreviousSecretKey string `mapstructure:"previous_secret_key"`
 	// AnchorInterval 锚点链生成间隔，默认 1h。
 	AnchorInterval time.Duration `mapstructure:"anchor_interval"`
+	// AnchorGrace 锚点封口安全边界：窗口右端取 now-此值，给异步批量 flush 的迟到行留出落库时间，
+	// 周期锚点任务与 rehash 全量重建共用同一口径。默认 1m。
+	AnchorGrace time.Duration `mapstructure:"anchor_grace"`
+}
+
+// GetAnchorGrace 返回锚点封口安全边界，未配置（≤0）时默认 1 分钟。
+func (c AuditIntegrityConfig) GetAnchorGrace() time.Duration {
+	if c.AnchorGrace > 0 {
+		return c.AnchorGrace
+	}
+	return time.Minute
 }
 
 // GetRetentionDays 返回审计日志保留天数；直接取配置值，≤0 表示不自动清理（默认关闭）。

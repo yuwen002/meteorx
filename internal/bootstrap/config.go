@@ -94,6 +94,7 @@ func LoadConfig() (*config.Config, error) {
 		{"audit.integrity.secret_key", "METEORX_AUDIT_INTEGRITY_SECRET_KEY"},
 		{"audit.integrity.previous_secret_key", "METEORX_AUDIT_INTEGRITY_PREVIOUS_SECRET_KEY"},
 		{"audit.integrity.anchor_interval", "METEORX_AUDIT_INTEGRITY_ANCHOR_INTERVAL"},
+		{"audit.integrity.anchor_grace", "METEORX_AUDIT_INTEGRITY_ANCHOR_GRACE"},
 	}
 	for _, b := range envBindings {
 		if err := mustBindEnv(v, b.key, b.env); err != nil {

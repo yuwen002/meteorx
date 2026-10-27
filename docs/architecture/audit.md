@@ -319,6 +319,7 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
 | `secret_key` | `METEORX_AUDIT_INTEGRITY_SECRET_KEY` | 空 | HMAC pepper，**不落库**；未配置则整卡降级关闭 |
 | `previous_secret_key` | `METEORX_AUDIT_INTEGRITY_PREVIOUS_SECRET_KEY` | 空 | 轮换过渡期的旧 pepper；仅在换 key 迁移期临时配置，迁移完成后清空即回单密钥常态 |
 | `anchor_interval` | `METEORX_AUDIT_INTEGRITY_ANCHOR_INTERVAL` | `1h` | 锚点封口周期 |
+| `anchor_grace` | `METEORX_AUDIT_INTEGRITY_ANCHOR_GRACE` | `1m` | 锚点封口安全边界：窗口右端取 `now - grace`，给异步 flush 迟到行留落库时间；周期任务与 rehash 重建共用同一口径 |
 
 **行级摘要**：每行落库前计算 `record_hash = hex(HMAC-SHA256(pepper, canonical(log)))`。`canonical`（
 `service/integrity.go`）按固定顺序对全部被覆盖字段做**长度前缀稳定序列化**，含 `created_at`、`status_code`、
@@ -331,7 +332,7 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
 
 **周期锚点链**：`IntegrityAnchorJob`（`integrity_job.go`）按周期把「窗口内全部行摘要」按 `(created_at, id)`
 有序折叠为一个 `WindowDigest`，追加进 append-only 表 `audit_integrity_anchors`，并以 `PrevAnchorHash → AnchorHash`
-链向上一条锚点（`AnchorHash` 同时纳入窗口摘要、行数与窗口边界）。窗口右端取 `now - 1min`（安全边界，规避迟到行），
+链向上一条锚点（`AnchorHash` 同时纳入窗口摘要、行数与窗口边界）。窗口右端取 `now - anchor_grace`（安全边界，规避迟到行），
 **空窗口不封口**（无新行不产噪声），创世窗口无下界、落库存最早行的 `created_at`。
 
 **校验接口**：`POST /api/v1/audit/integrity/verify`（权限码 `audit:integrity:verify`，仅平台超管）。只读重放、
@@ -360,9 +361,12 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
   **从创世按新 key 全量重建整条锚点链**（复用 `anchor_interval` 时间桶口径）。
 - **重建原子性**：重建走 `ReplaceAnchors`——在**单个事务**内先删旧链再插新链，二者不可分割。避免“旧链已删、
   新链未建”中途失败导致锚点表被清空却无新链，`Verify` 反而因“无锚点可查”静默判 `verified`、丢历史防护。
-- **封口边界**：重建窗口右端一律 **clamp 到 `now - grace`**（与周期任务同口径，grace 取 `IntegrityGuard.AnchorGrace`），
-  绝不产出以**未来时刻**收尾的窗口；否则其后新写入的行会落进已封窗口，令校验重放时窗口内容漂移而误报。
-  落在 `now - grace` 之后的新行不纳入本次重建，留待周期任务下次封口（它们仍以新 key 写入，行级校验照常通过）。
+- **封口边界**：重建窗口右端一律 **clamp 到 `now - grace`**（与周期任务同口径，grace 取 `IntegrityGuard.AnchorGrace`，
+  可经 `anchor_grace` 配置），绝不产出以**未来时刻**收尾的窗口；否则其后新写入的行会落进已封窗口，令校验重放时
+  窗口内容漂移而误报。落在 `now - grace` 之后的新行不纳入本次重建，留待周期任务下次封口（它们仍以新 key 写入，行级校验照常通过）。
+- **大表分批流式**：行迁移与锚点重建都以 `(created_at, id)` 复合游标分页（`ListLogsPage`，每页 `rehashScanPage=1000`）
+  逐页推进，不再一次性把全表载入内存；重写 `record_hash` 不改 `(created_at, id)`，游标迭代稳定。锚点重建只保留
+  「当前累积窗口」的行摘要与已完成锚点列表（锚点数受时间桶限制自然有界），与旧的一次性载入版逐字节等价。
 - **并发串行**：rehash 与周期任务 `IntegrityAnchorJob` 共享 `integrityAnchorMu`，重建期间不被追加锚点，避免链错乱。
 - **留痕**：rehash 是挂在受保护分组下的 HTTP POST，已被审计中间件自动记录（含真实操作者、状态码、响应体计数），
   不再在 handler 内重复埋点。

@@ -41,7 +41,7 @@ func NewIntegrityGuard(cfg config.Config) *IntegrityGuard {
 	g := &IntegrityGuard{
 		key:      []byte(strings.TrimSpace(ic.SecretKey)),
 		interval: ic.GetAnchorInterval(),
-		grace:    anchorGraceDefault,
+		grace:    ic.GetAnchorGrace(),
 		enabled:  true,
 	}
 	if ic.HasPreviousKey() {

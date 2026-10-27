@@ -20,6 +20,18 @@
   「密钥重算（rehash）」按钮，确认后自动复检。迁移完成、`verify` 回到 `verified` 后清空 `previous_secret_key` 即回
   单密钥常态。
 
+### 修复
+- **审计完整性 rehash 锚点重建健壮性加固**：针对上条 rehash 的三项正确性/可用性缺口：
+  1. **重建原子化**——旧实现先 `DeleteAllAnchors` 清空再逐条重建，非同一事务；中途崩溃/报错会使锚点表被清空
+     却无新链，`Verify` 反而因“无锚点可查”静默判 `verified`、丢历史防护。改为 `ReplaceAnchors`：单事务内先删旧链
+     再分块插新链，失败整体回滚。
+  2. **杜绝未来窗**——旧实现窗口右端 `winStart + interval` 可能落在未来，使其后新写入的行落进“已封窗”而校验重放
+     内容漂移、误报 `tampered`。现把窗口右端一律 clamp 到 `now - grace`（与周期任务同口径），绝不产出未来时刻收尾的窗口。
+  3. **大表分批流式**——行迁移与锚点重建改为以 `(created_at, id)` 复合游标分页（新增 `ListLogsPage`，每页 1000）逐页推进，
+     不再一次性把全表载入内存；逐页打进度日志。与旧的一次性载入版逐字节等价。
+  新增可选配置 `audit.integrity.anchor_grace`（env `METEORX_AUDIT_INTEGRITY_ANCHOR_GRACE`，默认 `1m`）：封口安全边界
+  改为可配置，`IntegrityGuard.AnchorGrace` 成为周期任务与 rehash 重建的单一口径来源。
+
 ## [1.4.0] - 2026-10-27
 
 ### 文档
