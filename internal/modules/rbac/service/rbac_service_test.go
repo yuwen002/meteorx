@@ -362,6 +362,89 @@ func TestBatchBindRolesPermissions_PermissionSubsetAllowed(t *testing.T) {
 	}
 }
 
+// ---------- 绑定角色归属收口（非系统操作者不能操作系统级/他租户角色的权限） ----------
+
+func TestBindRolePermissions_SystemScopeRoleRejected(t *testing.T) {
+	svc, rr, pr, rpr, urr := newTestRBAC()
+	seedRole(rr, "rs", "superadmin", model.RoleScopeSystem, true)
+	pr.seed(&model.Permission{ID: "p1", Code: "user:read"})
+	// 操作者持有被绑权限，仍因目标为系统级角色而越权（验证归属拦截独立于子集）
+	urr.userRoles["op1"] = []string{"op-role"}
+	rpr.codesByRole["op-role"] = []string{"user:read"}
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	err := svc.BindRolePermissions(ctx, "rs", dto.BindRolePermissionsReq{PermissionIDs: []string{"p1"}})
+	if err == nil || !strings.Contains(err.Error(), "系统级角色") {
+		t.Fatalf("expected system-scope role rejected, got: %v", err)
+	}
+	if len(rpr.rolePerms["rs"]) != 0 {
+		t.Fatalf("expected no binding, got %v", rpr.rolePerms["rs"])
+	}
+}
+
+func TestBindRolePermissions_ForeignTenantRoleRejected(t *testing.T) {
+	svc, rr, pr, rpr, urr := newTestRBAC()
+	rr.seed(&model.Role{ID: "r9", Name: "别的租户角色", Code: "other", Scope: model.RoleScopeTenant, Status: model.RoleStatusEnabled, TenantID: "t2"})
+	pr.seed(&model.Permission{ID: "p1", Code: "user:read"})
+	urr.userRoles["op1"] = []string{"op-role"}
+	rpr.codesByRole["op-role"] = []string{"user:read"}
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	err := svc.BindRolePermissions(ctx, "r9", dto.BindRolePermissionsReq{PermissionIDs: []string{"p1"}})
+	if err == nil || !strings.Contains(err.Error(), "不属于当前租户") {
+		t.Fatalf("expected foreign tenant role rejected, got: %v", err)
+	}
+	if len(rpr.rolePerms["r9"]) != 0 {
+		t.Fatalf("expected no binding, got %v", rpr.rolePerms["r9"])
+	}
+}
+
+func TestBindRolePermissions_SystemOperatorBypassesRoleScope(t *testing.T) {
+	svc, rr, pr, rpr, _ := newTestRBAC()
+	rr.seed(&model.Role{ID: "r9", Name: "别的租户角色", Code: "other", Scope: model.RoleScopeTenant, Status: model.RoleStatusEnabled, TenantID: "t2"})
+	pr.seed(&model.Permission{ID: "p1", Code: "user:read"})
+
+	// 系统操作者可跨租户修改角色权限，不受归属限制
+	ctx := contextx.SetVars(context.Background(), contextx.SystemTenantID, "admin", nil)
+	if err := svc.BindRolePermissions(ctx, "r9", dto.BindRolePermissionsReq{PermissionIDs: []string{"p1"}}); err != nil {
+		t.Fatalf("expected system operator bypass role scope, got: %v", err)
+	}
+	if len(rpr.rolePerms["r9"]) != 1 {
+		t.Fatalf("expected p1 bound, got %v", rpr.rolePerms["r9"])
+	}
+}
+
+func TestBatchBindRolesPermissions_ForeignTenantRoleRejected(t *testing.T) {
+	svc, rr, pr, rpr, urr := newTestRBAC()
+	rr.seed(&model.Role{ID: "r9", Name: "别的租户角色", Code: "other", Scope: model.RoleScopeTenant, Status: model.RoleStatusEnabled, TenantID: "t2"})
+	pr.seed(&model.Permission{ID: "p1", Code: "user:read"})
+	urr.userRoles["op1"] = []string{"op-role"}
+	rpr.codesByRole["op-role"] = []string{"user:read"}
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	_, err := svc.BatchBindRolesPermissions(ctx, dto.BatchBindRolesPermissionsReq{
+		RoleIDs:       []string{"r9"},
+		PermissionIDs: []string{"p1"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "不属于当前租户") {
+		t.Fatalf("expected batch foreign role rejected, got: %v", err)
+	}
+}
+
+func TestBatchBindRolesPermissions_RoleNotFound(t *testing.T) {
+	svc, _, pr, _, _ := newTestRBAC()
+	pr.seed(&model.Permission{ID: "p1", Code: "user:read"})
+
+	ctx := contextx.SetVars(context.Background(), "t1", "op1", nil)
+	_, err := svc.BatchBindRolesPermissions(ctx, dto.BatchBindRolesPermissionsReq{
+		RoleIDs:       []string{"no-role"},
+		PermissionIDs: []string{"p1"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "角色ID不存在") {
+		t.Fatalf("expected role not found in batch, got: %v", err)
+	}
+}
+
 func TestUnbindRolePermission_RoleNotFound(t *testing.T) {
 	svc, _, _, _, _ := newTestRBAC()
 	err := svc.UnbindRolePermission(context.Background(), "no-role", "p1")

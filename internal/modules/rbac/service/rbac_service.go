@@ -424,7 +424,7 @@ func (s *RBACService) BatchDeletePermissions(ctx context.Context, ids []string) 
 // BindRolePermissions 为角色绑定权限集，并记录授予审计与失效权限缓存。
 func (s *RBACService) BindRolePermissions(ctx context.Context, roleID string, req dto.BindRolePermissionsReq) error {
 	// 验证角色是否存在
-	_, err := s.roleRepo.GetByID(ctx, roleID)
+	role, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
 		return errors.New("角色不存在")
 	}
@@ -437,6 +437,11 @@ func (s *RBACService) BindRolePermissions(ctx context.Context, roleID string, re
 			return errors.New("权限ID不存在: " + permissionID)
 		}
 		permissions = append(permissions, perm)
+	}
+
+	// 校验角色归属：非系统操作者不能操作系统级或他租户角色的权限，防止跨租户/系统角色篡改
+	if err := s.validateRolesInOperatorScope(ctx, []*model.Role{role}); err != nil {
+		return err
 	}
 
 	// 校验绑定权限不越出操作者：只能绑定自身已持有的权限，防止绑到自身角色直接提权或先绑再分配绕过
@@ -561,6 +566,19 @@ func (s *RBACService) BatchBindRolesPermissions(ctx context.Context, req dto.Bat
 			return 0, errors.New("权限ID不存在: " + permissionID)
 		}
 		permissions = append(permissions, perm)
+	}
+
+	// 验证角色存在并整批校验归属：非系统操作者不能操作系统级或他租户角色，与单条绑定同口径
+	roles := make([]*model.Role, 0, len(req.RoleIDs))
+	for _, roleID := range req.RoleIDs {
+		role, err := s.roleRepo.GetByID(ctx, roleID)
+		if err != nil {
+			return 0, errors.New("角色ID不存在: " + roleID)
+		}
+		roles = append(roles, role)
+	}
+	if err := s.validateRolesInOperatorScope(ctx, roles); err != nil {
+		return 0, err
 	}
 
 	// 整批校验绑定权限不越出操作者，与单条绑定同口径，防止批量入口绕过提权限制
@@ -730,12 +748,26 @@ func (s *RBACService) validateRoleAssignScope(ctx context.Context, userIDs []str
 		}
 	}
 
+	return s.validateRolesInOperatorScope(ctx, roles)
+}
+
+// validateRolesInOperatorScope 校验一批角色是否落在非系统操作者可管理的作用域内：
+// 既不能是 scope=system 的系统级角色，也不能归属其他租户（归属平台 SYSTEM_ROOT 的全局角色可用）。
+// 分配与绑定两个入口共用此护栏；系统操作者（SYSTEM_ROOT）不受此限制。
+func (s *RBACService) validateRolesInOperatorScope(ctx context.Context, roles []*model.Role) error {
+	tenantID := contextx.GetTenantID(ctx)
+	if tenantID == contextx.SystemTenantID {
+		return nil
+	}
+	if tenantID == "" {
+		return errors.New("缺少租户上下文，无法校验角色作用域")
+	}
 	for _, role := range roles {
 		if role.Scope == model.RoleScopeSystem {
-			return errors.New("当前租户无权分配系统级角色: " + role.Name)
+			return errors.New("当前租户无权操作系统级角色: " + role.Name)
 		}
 		if role.TenantID != contextx.SystemTenantID && role.TenantID != tenantID {
-			return errors.New("角色 [" + role.Name + "] 不属于当前租户，无法分配")
+			return errors.New("角色 [" + role.Name + "] 不属于当前租户，无法操作")
 		}
 	}
 	return nil
