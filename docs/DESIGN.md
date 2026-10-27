@@ -399,6 +399,10 @@ idgen.MustParse() → 解析并验证 ID 格式
 - 所有写操作自动记录审计日志
 - 审计日志不可篡改
 - 支持 CSV 导出和多维度查询
+- **自身操作留痕**：审计清理（`DELETE /logs/cleanup`）与导出（`GET /logs/export`）虽被自动中间件前缀跳过，
+  但在 handler 内手动补记（清理=严重风险 / 导出=高风险，成功与失败都入库），避免超管删历史/拖库零痕迹
+- **递归脱敏**：`sanitizeBody` 递归下钻嵌套对象与数组元素，`config.db_password`、`users[].api_key` 等
+  嵌套明文也会被掩码，不再只覆盖 JSON 顶层 key
 - **批量处理优化**：使用 `AuditBatchProcessor` 批量写入数据库（100条/5秒），性能提升10-100倍
 - **Context传递**：异步审计日志使用带超时的Context（10秒），避免goroutine泄漏
 - **链路可观测性**：审计详情与用户时间线的 `trace_id` 支持一键跳转 Jaeger，前端 `buildTraceUrl()`（`web-admin/src/utils/trace.ts`）读取 `VITE_JAEGER_BASE_URL` 拼 `/trace/<id>` 深链；未配置 base 或该行无 trace 时回退纯文本，生产默认留空不影响

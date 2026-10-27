@@ -183,6 +183,26 @@ middleware.RecordAuditLog(r.Context(), &auditReq)
   `trace_id` 留空而非编造占位值。
 - 手动记录**不采集请求体**，密码 / 重置令牌 / OAuth `code`/`state` 等凭据天然不入库。
 
+### 4. 审计自身操作的留痕（handler 层）
+
+审计管理路由里，`shouldSkipAudit` 用前缀跳过 `/api/v1/audit/logs`（避免审计自查页面自我刷屏），
+但**连带**跳过了两个高危端点：`DELETE /api/v1/audit/logs/cleanup`（按天删除审计历史）与
+`GET /api/v1/audit/logs/export`（一次导出最多 1 万条）。二者恰好是「最能掩盖痕迹」的操作，若
+不补审计则平台超管删空审计库 / 批量拖库完全零痕迹。因此在 handler 内手动补记：
+
+```go
+// CleanupLogs / ExportLogs 的成功与失败各路径均调用：
+h.recordSelfOpAudit(r, start, action, risk, reqBody, respBody, statusCode, result, errMsg)
+```
+
+- 清理记为 `module=audit / action=delete / risk=critical`；导出记为 `module=audit / action=export / risk=high`。
+- **成功与失败都入库**：非超管越权（403）、服务失败（500）、非法格式（400）均落 `failure` 并带 `error_message`。
+- 只记**参数摘要与结果摘要**（如 `{days:60}`、`{deleted_count:88}`、导出筛选条件与 `{exported_count:N}`），
+  不落任何正文。
+- 经由 `middleware.RecordAuditLog`，**不经过 `shouldSkipAudit`**，故不会被跳过；而自动中间件对这两
+  路径本就跳过，因此**不会双记**。`recordSelfOpAudit` 基于 `NewAuditLogReq(r)`，与自动/手动审计
+  同口径携带 `trace_id`/`request_id`/`session_id`。
+
 ## 审计流程
 
 ```
@@ -280,11 +300,16 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
 
 ## 安全
 
-- 请求体敏感数据脱敏：解析 JSON 后按**字段名包含关键字**匹配（`password` / `token` / `secret` /
-  `authorization` / `credit_card` / `id_card`），命中即替换为 `***`。用包含匹配而非全等匹配，
-  是为了覆盖 `old_password` / `new_password` / `initial_password` / `refresh_token` 这类变体
+- 请求体敏感数据脱敏：解析 JSON 后按**字段名包含关键字**匹配，命中即替换为 `***`。用包含匹配而非全等匹配，
+  是为了覆盖 `old_password` / `new_password` / `initial_password` / `refresh_token` 这类变体；关键字表包含
+  `password` / `passwd` / `pwd` / `token` / `secret` / `authorization` / `api_key` / `apikey` / `access_key` /
+  `private_key` / `secret_key` / `credit_card` / `card_no` / `cvv` / `id_card` / `idcard` / `totp` / `otp` / `mfa`
+- **递归脱敏**：脱敏不仅作用于 JSON 顶层 key，`sanitizeValue` 会**递归下钻嵌套对象与数组元素**（顶层是
+  数组的批量请求同样被处理），因此 `config.db_password`、`users[].api_key` 这类嵌套明文也会被掩码
 - 响应体走同一套脱敏规则（初始化密码、重置密码结果同样被掩码）
 - multipart 请求体不采集（见上节），上传文件内容永远不会进入审计日志
+- 审计**自身高危操作**（清理 `DELETE /logs/cleanup`、导出 `GET /logs/export`）虽被自动中间件前缀跳过，
+  但在 handler 内手动补记（见「审计自身操作的留痕」），删历史 / 拖库不再零痕迹
 - 记录 IP 和 User Agent 用于安全分析
 - 所有写入不可变（只追加）
 
@@ -304,6 +329,8 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
 | 热门模块 | ✅ 已完成 |
 | 数据清理 | ✅ 已完成 |
 | 请求/响应脱敏 | ✅ 已完成 |
+| 嵌套对象/数组递归脱敏（`sanitizeValue`） | ✅ 已完成 |
+| 审计自身操作留痕（cleanup 严重 / export 高风险） | ✅ 已完成 |
 | multipart 正文隔离（导入/附件） | ✅ 已完成 |
 | trace_id 与 OTel/Jaeger 链路同源关联 | ✅ 已完成 |
 | 公开端点手动审计覆盖（登录/注册/重置/OAuth 回调） | ✅ 已完成 |

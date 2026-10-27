@@ -1703,3 +1703,38 @@ client:
   登录失败、`StopAuditBatchProcessor()` 强制 flush 后断言 `audit_logs` 确有一行 `auth/login/failure`（高风险、
   未泄露密码），证明公开操作审计真实落库。
 - ℹ️ 本卡为纯后端审计覆盖收口，未改动前端；前端 `trace_id → Jaeger` 可点跳链另卡。
+
+## 四十七、审计自身操作留痕与脱敏递归（清理/导出补审计 + 嵌套正文脱敏）
+
+### 47.1 背景与缺口
+
+第四十五、四十六节收口了「关联」与「公开入口覆盖」，但审计模块**对自身高危操作反而存在盲区**：
+`AuditMiddleware.shouldSkipAudit` 用前缀跳过 `/api/v1/audit/logs`（避免审计自查页面刷屏），
+却连带把 `DELETE /api/v1/audit/logs/cleanup`（按天删除审计历史）与 `GET /api/v1/audit/logs/export`
+（一次导出最多 1 万条）也一并吞掉——这两条路径既不被自动审计、handler 当时也**没有手动审计**。
+结果是平台超管「删空审计历史」与「批量拖库」这两个最能掩盖痕迹的操作零留痕，构成合规上的自指漏洞。
+另一处缺陷：`sanitizeBody` 只脱敏 JSON **顶层** key，嵌套对象（如 `config.db_password`）与数组元素内的
+敏感字段仍以明文入库；关键字表也缺 `api_key`/`access_key`/`private_key` 等云凭据类字段。
+
+### 47.2 后端
+
+- `audit` handler：`CleanupLogs` 与 `ExportLogs` 在**成功与失败各路径**补手动审计——统一经私有 helper
+  `recordSelfOpAudit`（基于 `middleware.NewAuditLogReq(r)`，与自动/手动审计同口径携带 trace/request/session）。
+  清理记为 `module=audit / action=delete / risk=critical`、导出记为 `module=audit / action=export / risk=high`；
+  非超管越权（403）、服务失败（500）、非法格式（400）均落 `failure` 并带 `error_message`。
+- `recordSelfOpAudit` **只记参数摘要与结果摘要**（如 `{days:60}`、`{deleted_count:88}`、导出筛选条件与
+  `{exported_count:N}`），不落任何正文；`RecordAuditLog` 不经 `shouldSkipAudit`，而中间件对这两路径本就跳过，
+  故**不会双记**。
+- `middleware.sanitizeBody`：改为解析成 `interface{}` 后由 `sanitizeValue` **递归下钻** map 与 slice，命中敏感
+  字段名的值整体替换为 `***`；顶层是数组（如批量接口）同样被处理。关键字表扩充
+  `api_key`/`apikey`/`access_key`/`private_key`/`secret_key`/`passwd`/`pwd`/`card_no`/`cvv`/`idcard`/`totp`/`otp`/`mfa`。
+
+### 47.3 验证状态
+
+- ✅ `go build ./...`、`go vet ./internal/middleware/... ./internal/modules/audit/...`、`gofmt -l` 通过；`go test ./...` 全量绿。
+- ✅ 新增单测：handler 侧 5 条审计断言（清理超管成功记 critical、非超管记 403 failure、服务失败记 500 failure、
+  导出 CSV 记 export/high 且正文含 exported_count、非法格式记 400 failure）；middleware 侧 3 条递归脱敏用例
+  （嵌套对象、数组元素、顶层数组），断言嵌套明文确被掩码。
+- ✅ 变异检验：破坏 map 递归（`val[k]=child` 不回写）令嵌套+数组用例转红、`recordSelfOpAudit` 改空令 5 条审计用例
+  全转红、导出风险 `High→Low` 令导出用例转红（expected high actual low），逐条归因，还原后全绿。
+- ℹ️ 本卡为纯后端审计自指收口，未改动前端。至此「删审计历史 / 拖审计数据」本身也被审计，脱敏覆盖嵌套正文。
