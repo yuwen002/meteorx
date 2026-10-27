@@ -401,6 +401,7 @@ idgen.MustParse() → 解析并验证 ID 格式
 - 支持 CSV 导出和多维度查询
 - **批量处理优化**：使用 `AuditBatchProcessor` 批量写入数据库（100条/5秒），性能提升10-100倍
 - **Context传递**：异步审计日志使用带超时的Context（10秒），避免goroutine泄漏
+- **链路可观测性**：审计详情与用户时间线的 `trace_id` 支持一键跳转 Jaeger，前端 `buildTraceUrl()`（`web-admin/src/utils/trace.ts`）读取 `VITE_JAEGER_BASE_URL` 拼 `/trace/<id>` 深链；未配置 base 或该行无 trace 时回退纯文本，生产默认留空不影响
 
 ---
 
