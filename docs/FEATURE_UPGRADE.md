@@ -1667,3 +1667,39 @@ client:
 - ✅ 真实启动目视：请求 `GET /health` 返回 `X-Trace-ID=a0e95349f05edac1abde2a75200a2ef4`，同一值出现在访问日志
   `trace_id=` 字段与 OTel stdout 导出 span 的 `"TraceID"` 中，三处逐字节一致，证明关联已贯通（审计经 `contextx` 落同一值）。
 - ℹ️ 本卡为纯后端可观测性收口，未改动前端。
+
+## 四十六、公开接口审计覆盖（登录/注册/重置/OAuth 回调手动入库 + 同口径链路关联）
+
+### 46.1 背景与缺口
+
+上一节（第四十五节）打通了「关联」，但公开入口的**覆盖**仍有缺口：`auth.InitModule` 下的
+`register` / `forgot-password` / `reset-password` 与 `oauth` 的 `callback` 全部位于公开分组，
+不经过 `AuditMiddleware`，而它们当时**没有任何手动审计**——注册建号、密码重置申请与成功
+（账号接管信号）、OAuth 登录/首登建号，这些高危凭据操作在后台操作记录里完全静默。
+（`login` / `logout` 早已有手动审计。）另一处遗留：手动审计用的 `NewAuditLogReq` 不填
+`trace_id`/`request_id`/`session_id`，导致第四十五节的链路关联对手动记录（含既有 login/logout）失效。
+
+### 46.2 后端
+
+- `middleware.NewAuditLogReq`：补齐 `TraceID`/`RequestID`（取自 `contextx`）与 `SessionID`（`getSessionID`），
+  使手动审计与自动审计**同口径**携带链路关联键；无追踪上下文时 `trace_id` 留空，不回退生成占位 UUID。
+- `auth` handler：`Register`（create，成功回填 UserID/TenantID/ResourceID、失败记录被申请账号名）、
+  `ForgotPassword`（other / 高风险，记录被申请重置的邮箱）、`ResetPassword`（update / 严重风险，
+  成功即账号被接管）均按 `login` 既有模式补手动审计，**成功与失败都入库**。
+- `oauth` handler：`Callback` 补审计——等价一次登录（login），首次登录隐式建号归类为 `create` 并加
+  `register` 标签；失败按哨兵错误映射状态码、高风险入库。
+- 所有手动记录**不采集请求体**，密码 / 重置令牌 / OAuth `code`/`state` 天然不入库。
+- `middleware.SetAuditCaptureForTest`：仅测试注入的审计捕获钩子（非 nil 时 `RecordAuditLog` 直接
+  交给它、绕过批量/服务写入），生产恒为 nil；用于 handler 单测断言审计记录字段。
+
+### 46.3 验证状态
+
+- ✅ `go build ./...`、`go vet`、`gofmt -l` 通过；`go test ./...` 全量绿。
+- ✅ 新增单测：`NewAuditLogReq` 携带 trace/request/session、无上下文时留空；auth `Register`/`ForgotPassword`/
+  `ResetPassword` 与 oauth `Callback` 的成功/失败审计断言（含“明文凭据不入库”）。
+- ✅ 变异检验：还原 `NewAuditLogReq.TraceID`、`Register` 成功入库、`Callback` isNew→create 三处分别令对应
+  用例精确转红、其余仍绿，逐条归因。
+- ✅ 端到端集成：`TestInteg_Audit_PublicLoginFailureRecorded` 走**完整 router + 真实 sqlite**，打一次公开的
+  登录失败、`StopAuditBatchProcessor()` 强制 flush 后断言 `audit_logs` 确有一行 `auth/login/failure`（高风险、
+  未泄露密码），证明公开操作审计真实落库。
+- ℹ️ 本卡为纯后端审计覆盖收口，未改动前端；前端 `trace_id → Jaeger` 可点跳链另卡。

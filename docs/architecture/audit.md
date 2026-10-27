@@ -163,6 +163,26 @@ func (s *WikiService) UpdateDocument(ctx context.Context, id, userID string, req
 }
 ```
 
+### 3. 公开端点的手动审计（handler 层）
+
+登录 / 注册 / 忘记密码 / 重置密码 / OAuth 回调等**公开端点不在受保护分组**，不经过
+`AuditMiddleware`，因此必须在 handler 内手动记录，否则这些凭据类高危操作（账号枚举、
+暴力破解、令牌接管）将完全静默。
+
+```go
+auditReq := middleware.NewAuditLogReq(r) // 预填 IP/UA/设备/Referer + trace/request/session
+auditReq.Module = "auth"
+auditReq.Action = auditmodel.ActionTypeLogin
+auditReq.Result = auditmodel.ResultFailure // 成功/失败都记录
+auditReq.RiskLevel = auditmodel.RiskHigh
+middleware.RecordAuditLog(r.Context(), &auditReq)
+```
+
+- `NewAuditLogReq` 与自动审计**同口径**携带 `trace_id`/`request_id`/`session_id`（取自
+  `contextx` 与 `getSessionID`），手动记录也能从操作记录跳查 Jaeger 链路；无追踪上下文时
+  `trace_id` 留空而非编造占位值。
+- 手动记录**不采集请求体**，密码 / 重置令牌 / OAuth `code`/`state` 等凭据天然不入库。
+
 ## 审计流程
 
 ```
@@ -286,6 +306,8 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
 | 请求/响应脱敏 | ✅ 已完成 |
 | multipart 正文隔离（导入/附件） | ✅ 已完成 |
 | trace_id 与 OTel/Jaeger 链路同源关联 | ✅ 已完成 |
+| 公开端点手动审计覆盖（登录/注册/重置/OAuth 回调） | ✅ 已完成 |
+| 手动审计携带 trace/request/session 关联 | ✅ 已完成 |
 | 保留策略 | ⏳ 计划中 |
 
 ## 最佳实践
