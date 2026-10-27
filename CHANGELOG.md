@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-27
+
 ### 文档
 - **OpenAPI / Apifox 路由补齐**：`go run scripts/openapi_sync.go` 对比出 7 条路由缺条目（本次新增的两个导入端点，以及此前遗漏的 `GET /admin/dashboard/slow-queries`、`GET /admin/dashboard/trend`、`POST /admin/dashboard/slow-queries/reset`、`GET /auth/oauth/providers`、`POST /auth/oauth/complete-email`），已用 `-apply` 补齐，并在 `inferSummary` 中为两个导入端点登记中文摘要；现代码路由与两份文档 **261/261** 完全匹配。
 - **用户批量导入文档**：`docs/api/user-api.md` 新增 3.11「批量导入用户」（表单字段、文件列与中英文别名、全量事务/配额整批预检等 6 条业务规则、成功与 400 `details` 响应示例、错误码表），数据结构补 `ImportResult` / `ImportUserResult` / `ImportRowError`，接口总览补 `POST /users/import` 与 `POST /admin/tenant-users/import`；`docs/architecture/audit.md` 补 multipart 正文隔离（只落占位符）与按字段名子串脱敏的规则，并把「请求/响应脱敏」标记为已完成。

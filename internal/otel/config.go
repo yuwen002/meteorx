@@ -36,7 +36,7 @@ func DefaultConfig() *Config {
 		Insecure:    true,
 		SampleRate:  1.0,
 		ServiceName: "meteorx",
-		// 与最近发布版本保持同步（当前 v1.3.0），发版时随 CHANGELOG 一并更新
-		ServiceVersion: "1.3.0",
+		// 与最近发布版本保持同步（当前 v1.4.0），发版时随 CHANGELOG 一并更新
+		ServiceVersion: "1.4.0",
 	}
 }
