@@ -237,6 +237,12 @@ ws:
 message:
   retention_days: 90           # 消息保留天数，默认 90；负值关闭清理任务
 
+# 审计日志配置（保留策略；留空/删除即回落默认，均可经环境变量覆盖，详见 .env.example）
+audit:
+  # 保留策略：>0 时由定时任务（每小时）物理删除 created_at 早于 N 天前的审计日志；
+  # 删除审计历史属敏感操作，默认 0=关闭，需显式开启（清理会记一条 audit/delete/critical 自指审计）。
+  retention_days: 0            # ≤0 关闭自动清理（默认）；如 365 表示保留一年
+
 # 多渠道消息通知配置
 notify:
   webhook:

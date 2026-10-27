@@ -88,6 +88,8 @@ func LoadConfig() (*config.Config, error) {
 		{"file.cloud.public_base_url", "METEORX_FILE_CLOUD_PUBLIC_BASE_URL"},
 		{"file.cloud.presign_ttl", "METEORX_FILE_CLOUD_PRESIGN_TTL"},
 		{"file.cloud.force_path_style", "METEORX_FILE_CLOUD_FORCE_PATH_STYLE"},
+		// Audit 保留策略（audit.* 在 config.yaml 中默认注释，Unmarshal 不对其应用 AutomaticEnv，故显式绑定）
+		{"audit.retention_days", "METEORX_AUDIT_RETENTION_DAYS"},
 	}
 	for _, b := range envBindings {
 		if err := mustBindEnv(v, b.key, b.env); err != nil {

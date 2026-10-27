@@ -28,6 +28,20 @@ type Config struct {
 	Export       ExportConfig       `mapstructure:"export"`
 	Message      MessageConfig      `mapstructure:"message"`
 	AI           AIConfig           `mapstructure:"ai"`
+	Audit        AuditConfig        `mapstructure:"audit"`
+}
+
+// AuditConfig 审计模块配置（数据保留策略）。
+// 未配置时保持向后兼容：保留清理默认关闭。
+type AuditConfig struct {
+	// RetentionDays 审计日志保留天数：>0 时由定时任务删除更早的日志；≤0（默认 0）表示不自动清理。
+	// 删除审计历史是敏感操作，默认关闭，避免升级后静默丢历史。
+	RetentionDays int `mapstructure:"retention_days"`
+}
+
+// GetRetentionDays 返回审计日志保留天数；直接取配置值，≤0 表示不自动清理（默认关闭）。
+func (c AuditConfig) GetRetentionDays() int {
+	return c.RetentionDays
 }
 
 // ExportConfig 数据导出模块配置。

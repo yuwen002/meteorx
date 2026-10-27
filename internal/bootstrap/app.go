@@ -118,6 +118,9 @@ func StartApp() {
 	// 10.8 启动站内消息过期清理定时任务（删除超过 message.retention_days 的收件箱消息）
 	StartMessageExpiryJob(ctx, db, cfg)
 
+	// 10.9 启动审计日志保留清理定时任务（删除超过 audit.retention_days 的审计日志，≤0 关闭）
+	StartAuditRetentionJob(ctx, db, cfg)
+
 	// 11. 构造 http.Server 以支持优雅关闭
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	srv := &http.Server{

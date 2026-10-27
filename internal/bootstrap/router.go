@@ -392,6 +392,13 @@ func StartMessageExpiryJob(ctx context.Context, db *gorm.DB, cfg *config.Config)
 	job.Start(ctx, time.Hour)
 }
 
+// StartAuditRetentionJob 启动审计日志保留清理定时任务
+// 周期性物理删除超过 audit.retention_days 的审计日志（≤0 表示关闭，默认不启动）
+func StartAuditRetentionJob(ctx context.Context, db *gorm.DB, cfg *config.Config) {
+	job := audit.NewAuditRetentionJob(db, *cfg)
+	job.Start(ctx, time.Hour)
+}
+
 // initIPLocator 根据配置初始化 IP 地理位置解析器
 func initIPLocator(cfg *config.Config) iplocation.IPLocator {
 	provider := cfg.IPLocation.Provider
