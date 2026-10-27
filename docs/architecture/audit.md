@@ -115,6 +115,7 @@ r.Use(middleware.AuditMiddleware(auditLogger))
 // - 在哪里（client_ip, user_agent）
 // - 何时（duration, created_at）
 // - 结果（status_code, success/failure, error_message）
+// - 关联（request_id, session_id, trace_id）
 // - 标签（tags：模块 / 动作 / 方法 / 结果，以及 upload、batch、download 等特征）
 ```
 
@@ -136,6 +137,11 @@ r.Use(middleware.AuditMiddleware(auditLogger))
 文件导入的正文是二进制与用户明文数据（CSV/XLSX 可能含密码列），既不可读也不应落库；
 同时限制采集长度可避免上传请求在审计层被整体缓冲两次。因此**新增上传类接口无需任何审计埋点**，
 只要沿用 `multipart/form-data` 就自动隔离。
+
+**链路追踪关联（trace_id）**：审计记录的 `trace_id` 直接复用 `TracingMiddleware` 注入的真实 OTel Trace ID（经 `resolveTraceID` 读取
+请求上下文），因此它与结构化日志的 `trace_id` 字段、`X-Trace-ID` 响应头、Jaeger 中的 span `TraceID` **逐字节一致**——
+从一条操作记录可直接跳查完整调用链。仅当无追踪上下文（OTel 关闭等）时才回退：优先取 W3C `traceparent` 的 32 位
+trace-id 段（而非整串 header，避免超出 `trace_id` 列 `size:50`），最后才生成占位 UUID。详见 `docs/DESIGN.md` 与 FEATURE_UPGRADE 第四十五节。
 
 ### 2. 手动审计（服务层）
 
@@ -279,6 +285,7 @@ func (r *auditRepository) ListLogs(ctx context.Context, query *model.AuditLogQue
 | 数据清理 | ✅ 已完成 |
 | 请求/响应脱敏 | ✅ 已完成 |
 | multipart 正文隔离（导入/附件） | ✅ 已完成 |
+| trace_id 与 OTel/Jaeger 链路同源关联 | ✅ 已完成 |
 | 保留策略 | ⏳ 计划中 |
 
 ## 最佳实践

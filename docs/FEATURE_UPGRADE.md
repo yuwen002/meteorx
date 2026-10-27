@@ -1633,3 +1633,37 @@ client:
 - ✅ 分配侧重构安全：`TestAssignUserRoles_SystemRoleRejected`/`ForeignRoleRejected` 仅断言子串“系统级角色”/“不属于当前租户”，新文案仍包含；
   `CrossTenantRejected`（用户级）由 `validateRoleAssignScope` 保留的用户循环拦截，不经过 helper。
 - ℹ️ 本卡为纯后端安全校验，未改动前端。至此分配与绑定两入口对“角色归属 + 权限子集”形成一致的护栏，租户内跨租户篡改与提权路径均已闭合。
+
+## 四十五、链路追踪关联收口（操作记录/日志/响应头共用真实 TraceID）
+
+### 45.1 起因
+
+项目早已搭好 OpenTelemetry 骨架（`TracingMiddleware` 创建 span、GORM 插件、OTel Collector + Jaeger 部署），
+但**追踪与后台操作记录是断开的**：`AuditMiddleware.getTraceID()` 独立于 OTel，入站请求通常不带 `X-Trace-ID`
+（那是写在响应上的），于是绝大多数请求它会**生成一个随机 UUID** 落库；即便命中 `Traceparent` 也是存整串 header
+（约 55 字符，超过 `trace_id` 列 `size:50`）。结果：审计记录里的 `trace_id` 与 Jaeger 中的真实 trace 对不上，
+点不进链路；且审计中间件会把 `TracingMiddleware` 写好的 `X-Trace-ID` 响应头覆盖成自己的 UUID。
+`logger.WithTraceID` 定义了却从未被调用，`logger.Ctx()` 也不带 trace_id。审计**覆盖面本身是完整的**
+（保护分组内每个请求都自动入库，仅跳过 health 与审计自查端点），缺的是「关联」而非「记录」。
+
+### 45.2 后端
+
+- `TracingMiddleware`：span 创建后，把真实 OTel Trace ID 同时注入 `contextx`（供审计落库）与 `logger`（供结构化日志），
+  并统一回填 `X-Trace-ID` 响应头——三处共用同一个值。即使 trace 未被采样，`SpanContext` 仍携带有效的 W3C Trace ID，可正常关联。
+- `AuditMiddleware`：抽出 `resolveTraceID(r)`——优先复用 `TracingMiddleware` 注入 context 的真实 Trace ID，
+  仅在无追踪上下文（OTel 关闭等）时才回退；回退路径新增 `parseTraceparentTraceID`，只取 `traceparent` 的 32 位 trace-id 段
+  （而非整串），避免超列宽且无法检索。
+- `logger.Ctx` 自动附加 `trace_id`；全局中间件顺序调整为 `Recovery → Tracing → Logger`，使访问日志 `HTTP Request` 行也带上真实 trace。
+
+### 45.3 验证状态
+
+- ✅ `go build ./...`、`go vet ./internal/middleware/... ./pkg/logger/... ./internal/bootstrap/...`、`gofmt -l` 通过；
+  `go test -count=1 ./internal/middleware/... ./pkg/logger/... ./internal/bootstrap/... ./internal/integration/...` 全绿。
+- ✅ 新增单测：`tracing_test.go`（注入真实 trace id 且 contextx/logger/响应头三处同源、延续上游 `traceparent`）、
+  审计 `resolveTraceID` 优先复用 context、回退取 `traceparent` trace-id 段、`parseTraceparentTraceID` 边界表；
+  `logger_test.go` 断言 `Ctx` 输出确含 `trace_id=`。
+- ✅ 变异检验：三处还原分别令 `TestTracingMiddleware_*`、`TestResolveTraceID_PrefersContextTrace`、`TestCtxLogger` 精确转红，
+  其余仍绿，还原后全绿。
+- ✅ 真实启动目视：请求 `GET /health` 返回 `X-Trace-ID=a0e95349f05edac1abde2a75200a2ef4`，同一值出现在访问日志
+  `trace_id=` 字段与 OTel stdout 导出 span 的 `"TraceID"` 中，三处逐字节一致，证明关联已贯通（审计经 `contextx` 落同一值）。
+- ℹ️ 本卡为纯后端可观测性收口，未改动前端。
