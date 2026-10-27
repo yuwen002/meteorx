@@ -21,6 +21,27 @@ func filterString(filters map[string]any, key string) string {
 	return ""
 }
 
+// filterStrings 从筛选条件中取字符串数组，兼容 JSON 反序列化后的 []any 与
+// 代码内直接构造的 []string；缺失或类型不符返回 nil。
+func filterStrings(filters map[string]any, key string) []string {
+	if filters == nil {
+		return nil
+	}
+	switch v := filters[key].(type) {
+	case []string:
+		return v
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
 // fmtTime 格式化非空时间
 func fmtTime(t time.Time) string {
 	if t.IsZero() {

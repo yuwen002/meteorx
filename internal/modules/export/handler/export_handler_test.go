@@ -84,6 +84,32 @@ func TestHandler_Create_Success(t *testing.T) {
 	require.Equal(t, "exp1", body.Data.ID)
 }
 
+func TestHandler_Create_MasterTargetTenant(t *testing.T) {
+	svc := &stubExportService{createJob: completedJob("exp1", "")}
+	h := handler.NewExportHandler(svc)
+
+	w := httptest.NewRecorder()
+	newExportRouter(h).ServeHTTP(w, newRequest(http.MethodPost, "/api/v1/exports",
+		`{"resource":"user","tenant_id":"t9","filters":{"ids":["u1"]}}`, contextx.SystemTenantID, "root"))
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "t9", svc.gotTenant, "系统管理员按目标租户创建任务")
+	require.Empty(t, svc.gotCreate.TenantID, "目标租户是归属信息，不应进入筛选条件")
+	require.Equal(t, []any{"u1"}, svc.gotCreate.Filters["ids"])
+}
+
+func TestHandler_Create_TenantUserCannotOverrideTenant(t *testing.T) {
+	svc := &stubExportService{createJob: completedJob("exp1", "")}
+	h := handler.NewExportHandler(svc)
+
+	w := httptest.NewRecorder()
+	newExportRouter(h).ServeHTTP(w, newRequest(http.MethodPost, "/api/v1/exports",
+		`{"resource":"user","tenant_id":"t9"}`, "t1", "u1"))
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "t1", svc.gotTenant, "租户用户不能借 tenant_id 跨租户建任务")
+}
+
 func TestHandler_Create_MissingIdentity(t *testing.T) {
 	h := handler.NewExportHandler(&stubExportService{})
 
@@ -110,6 +136,7 @@ func TestHandler_Create_ErrorMapping(t *testing.T) {
 	}{
 		{"queue_full_429", service.ErrExportQueueFull, http.StatusTooManyRequests},
 		{"invalid_resource_400", service.ErrInvalidResource, http.StatusBadRequest},
+		{"invalid_filters_400", service.ErrInvalidFilters, http.StatusBadRequest},
 		{"internal_500", errBoom, http.StatusInternalServerError},
 	}
 	for _, tc := range cases {
@@ -154,6 +181,17 @@ func TestHandler_List_PassesQuery(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	require.Len(t, body.Data.Data, 2)
 	require.Equal(t, 2, body.Data.Pagination.Total)
+}
+
+func TestHandler_List_MasterFlag(t *testing.T) {
+	svc := &stubExportService{listTotal: 0}
+	h := handler.NewExportHandler(svc)
+
+	w := httptest.NewRecorder()
+	newExportRouter(h).ServeHTTP(w, newRequest(http.MethodGet, "/api/v1/exports", "", contextx.SystemTenantID, "root"))
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.True(t, svc.gotMaster, "系统管理员应让服务层放开租户限制")
 }
 
 func TestHandler_List_MissingIdentity(t *testing.T) {

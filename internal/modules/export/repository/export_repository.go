@@ -85,6 +85,7 @@ func fromDomain(m *model.ExportJob) *ExportJobPO {
 type ExportRepository interface {
 	Create(ctx context.Context, job *model.ExportJob) error
 	GetByID(ctx context.Context, id string) (*model.ExportJob, error)
+	// ListByUser 按创建人列出任务；tenantID 为空表示不限租户（仅系统管理员跨租户查看时使用）
 	ListByUser(ctx context.Context, tenantID, userID string, page, pageSize int, status, resource string) ([]*model.ExportJob, int64, error)
 	// ListPending 拉取待执行任务（worker 消费），按创建时间升序
 	ListPending(ctx context.Context, limit int) ([]*model.ExportJob, error)
@@ -145,8 +146,11 @@ func (r *exportRepository) ListByUser(ctx context.Context, tenantID, userID stri
 	var pos []*ExportJobPO
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&ExportJobPO{}).
-		Where("tenant_id = ? AND user_id = ?", tenantID, userID)
+	query := r.db.WithContext(ctx).Model(&ExportJobPO{}).Where("user_id = ?", userID)
+	// tenantID 为空表示不限租户：系统管理员需要看到自己为其它租户创建的任务
+	if tenantID != "" {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}

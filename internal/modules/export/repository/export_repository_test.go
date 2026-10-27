@@ -387,6 +387,27 @@ func TestExportRepo_ListByUser_Ownership(t *testing.T) {
 	require.Equal(t, int64(1), total)
 	require.Len(t, items, 1)
 	require.Equal(t, "j1", items[0].ID)
+
+	// tenantID 为空表示不限租户，但仍只返回本人的任务
+	all, allTotal, err := repo.ListByUser(ctx, "", "u1", 1, 20, "", "")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), allTotal)
+	require.Equal(t, "j1", all[0].ID)
+
+	// 系统管理员为其它租户创建的任务：不限租户时可见，收窄到当前租户时不可见
+	cross := newJob("j3", model.ExportStatusCompleted, time.Now().Add(time.Hour))
+	cross.TenantID = "t9"
+	cross.UserID = "root"
+	require.NoError(t, repo.Create(ctx, cross))
+
+	rootItems, rootTotal, err := repo.ListByUser(ctx, "", "root", 1, 20, "", "")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), rootTotal)
+	require.Equal(t, "t9", rootItems[0].TenantID)
+
+	_, scopedTotal, err := repo.ListByUser(ctx, "SYSTEM_ROOT", "root", 1, 20, "", "")
+	require.NoError(t, err)
+	require.Equal(t, int64(0), scopedTotal, "按具体租户过滤时不应看到他租户任务")
 }
 
 func TestExportRepo_CountActiveByTenant(t *testing.T) {

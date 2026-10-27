@@ -37,8 +37,8 @@ func (s *stubExportService) GetByID(_ context.Context, id, tenantID, userID stri
 	return s.getJob, s.getErr
 }
 
-func (s *stubExportService) List(_ context.Context, tenantID, userID string, req dto.ListExportReq) ([]*model.ExportJob, int64, error) {
-	s.gotTenant, s.gotUser, s.gotList = tenantID, userID, req
+func (s *stubExportService) List(_ context.Context, tenantID, userID string, req dto.ListExportReq, isMaster bool) ([]*model.ExportJob, int64, error) {
+	s.gotTenant, s.gotUser, s.gotList, s.gotMaster = tenantID, userID, req, isMaster
 	return s.listItems, s.listTotal, s.listErr
 }
 

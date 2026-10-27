@@ -144,6 +144,34 @@ func TestUserExporter_FilterStatus(t *testing.T) {
 	require.Equal(t, int64(1), rows)
 }
 
+func TestUserExporter_FilterIDs(t *testing.T) {
+	db := newExporterTestDB(t)
+	now := time.Now()
+	require.NoError(t, db.Create(&tUser{ID: "u1", TenantID: "t1", Username: "alice", CreatedAt: now}).Error)
+	require.NoError(t, db.Create(&tUser{ID: "u2", TenantID: "t1", Username: "bob", CreatedAt: now}).Error)
+	require.NoError(t, db.Create(&tUser{ID: "u3", TenantID: "t2", Username: "carol", CreatedAt: now}).Error)
+	require.NoError(t, db.Create(&tUser{ID: "u4", TenantID: "t1", Username: "ghost", CreatedAt: now, DeletedAt: ptr(now)}).Error)
+
+	// JSON 反序列化后是 []any：选中的他租户用户与已软删用户不得被导出
+	var buf bytes.Buffer
+	sink := NewCSVSink(&buf)
+	rows, err := NewUserExporter(db).Stream(context.Background(), "t1", map[string]any{"ids": []any{"u1", "u3", "u4"}}, sink)
+	require.NoError(t, sink.Close())
+	require.NoError(t, err)
+	require.Equal(t, int64(1), rows)
+	records := readCSV(t, &buf)
+	require.Len(t, records, 2, "表头 + 1 数据行")
+	require.Equal(t, "alice", records[1][1])
+
+	// 代码内直接构造的 []string 同样支持
+	var buf2 bytes.Buffer
+	sink2 := NewCSVSink(&buf2)
+	rows2, err := NewUserExporter(db).Stream(context.Background(), "t1", map[string]any{"ids": []string{"u1", "u2"}}, sink2)
+	require.NoError(t, sink2.Close())
+	require.NoError(t, err)
+	require.Equal(t, int64(2), rows2)
+}
+
 func TestTaskExporter_Stream(t *testing.T) {
 	db := newExporterTestDB(t)
 	now := time.Now()

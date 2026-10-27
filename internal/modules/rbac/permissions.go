@@ -199,6 +199,17 @@ const (
 )
 
 // ============================================================
+// 数据导出权限码（/api/v1/exports 相关，租户内可用）
+// 下载接口 /exports/{id}/download 由自动推导复用 export:list
+// ============================================================
+const (
+	ExportList   = "export:list"   // 查询导出任务列表与下载文件
+	ExportCreate = "export:create" // 创建导出任务（含导出所选）
+	ExportRead   = "export:read"   // 查询导出任务详情
+	ExportDelete = "export:delete" // 删除导出任务及其文件
+)
+
+// ============================================================
 // 租户侧套餐权限码（/api/v1/tenant/current/plan 相关，租户私有）
 // ============================================================
 const (
@@ -357,6 +368,12 @@ func GetPermissionDefs() []PermissionDef {
 		{Name: "恢复已删除文件", Code: FileRestore, Description: "从回收站恢复文件", Resource: "file", Action: "restore"},
 		{Name: "永久删除文件", Code: FilePermanentDelete, Description: "从回收站永久删除文件（物理删除，不可恢复）", Resource: "file", Action: "permanent_delete"},
 		{Name: "批量删除文件", Code: FileBatchDelete, Description: "批量删除文件", Resource: "file", Action: "batch_delete"},
+
+		// 数据导出（下载接口复用 export:list）
+		{Name: "查询导出任务列表", Code: ExportList, Description: "查询当前用户的导出任务并下载文件", Resource: "export", Action: "list"},
+		{Name: "创建导出任务", Code: ExportCreate, Description: "创建异步导出任务（支持按所选用户导出）", Resource: "export", Action: "create"},
+		{Name: "查询导出任务详情", Code: ExportRead, Description: "查看导出任务状态与行数", Resource: "export", Action: "read"},
+		{Name: "删除导出任务", Code: ExportDelete, Description: "删除导出任务及其生成的文件", Resource: "export", Action: "delete"},
 
 		// 租户侧套餐
 		{Name: "查询当前租户套餐", Code: TenantPlanCurrent, Description: "查询当前租户套餐与用量", Resource: "plan", Action: "current"},

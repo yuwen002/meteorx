@@ -9,8 +9,10 @@ import (
 
 // CreateExportReq 创建导出任务请求
 type CreateExportReq struct {
-	Resource string         `json:"resource" validate:"required,oneof=user task audit_log wiki_document" label:"资源类型"`
-	Format   string         `json:"format,omitempty" validate:"omitempty,oneof=csv xlsx json pdf" label:"导出格式"`
+	Resource string `json:"resource" validate:"required,oneof=user task audit_log wiki_document" label:"资源类型"`
+	Format   string `json:"format,omitempty" validate:"omitempty,oneof=csv xlsx json pdf" label:"导出格式"`
+	// TenantID 仅系统管理员生效：为其它租户创建导出任务时显式声明数据归属租户
+	TenantID string         `json:"tenant_id,omitempty" validate:"omitempty,max=26" label:"目标租户"`
 	Filters  map[string]any `json:"filters,omitempty" validate:"max=32" label:"筛选条件"`
 }
 

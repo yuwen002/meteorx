@@ -48,6 +48,10 @@ func (e *userExporter) Stream(ctx context.Context, tenantID string, filters map[
 	if s := filterString(filters, "status"); s != "" {
 		q = q.Where("status = ?", s)
 	}
+	// 导出所选：ids 已在服务层去过重与限条数，此处仍与租户条件叠加，跨租户 ID 不会越界
+	if ids := filterStrings(filters, "ids"); len(ids) > 0 {
+		q = q.Where("id IN ?", ids)
+	}
 
 	var batch []userRow
 	err := q.FindInBatches(&batch, exportBatchSize, func(res *gorm.DB, _ int) error {

@@ -24,7 +24,7 @@ import (
 type ExportServiceAPI interface {
 	CreateExport(ctx context.Context, tenantID, userID string, req dto.CreateExportReq) (*model.ExportJob, error)
 	GetByID(ctx context.Context, id, tenantID, userID string, isMaster bool) (*model.ExportJob, error)
-	List(ctx context.Context, tenantID, userID string, req dto.ListExportReq) ([]*model.ExportJob, int64, error)
+	List(ctx context.Context, tenantID, userID string, req dto.ListExportReq, isMaster bool) ([]*model.ExportJob, int64, error)
 	Delete(ctx context.Context, id, tenantID, userID string, isMaster bool) (*model.ExportJob, error)
 }
 
@@ -50,6 +50,12 @@ func (h *ExportHandler) Create(w http.ResponseWriter, r *http.Request) {
 		response.Fail(w, http.StatusUnauthorized, "未获取到用户信息")
 		return
 	}
+	// 系统管理员可为指定租户创建任务（如在跨租户用户列表里导出所选用户），
+	// 任务归属目标租户，以便后续按租户隔离下载与清理。
+	if info, _ := tenantctx.From(r.Context()); info != nil && info.IsMaster && req.TenantID != "" {
+		tenantID = req.TenantID
+	}
+	req.TenantID = "" // 目标租户是任务归属信息，不进入筛选条件
 	job, err := h.svc.CreateExport(r.Context(), tenantID, userID, req)
 	if err != nil {
 		writeExportErr(w, err)
@@ -76,7 +82,9 @@ func (h *ExportHandler) List(w http.ResponseWriter, r *http.Request) {
 		Status:   r.URL.Query().Get("status"),
 		Resource: r.URL.Query().Get("resource"),
 	}
-	items, total, err := h.svc.List(r.Context(), tenantID, userID, req)
+	info, _ := tenantctx.From(r.Context())
+	isMaster := info != nil && info.IsMaster
+	items, total, err := h.svc.List(r.Context(), tenantID, userID, req, isMaster)
 	if err != nil {
 		writeExportErr(w, err)
 		return
@@ -155,6 +163,8 @@ func writeExportErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, service.ErrExportForbidden):
 		response.Fail(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, service.ErrInvalidResource):
+		response.Fail(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, service.ErrInvalidFilters):
 		response.Fail(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, service.ErrExportQueueFull):
 		response.Fail(w, http.StatusTooManyRequests, err.Error())

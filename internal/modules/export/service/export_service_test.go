@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"meteorx/internal/common/contextx"
 	"meteorx/internal/modules/export/dto"
 	"meteorx/internal/modules/export/model"
 	"meteorx/internal/modules/export/repository"
@@ -91,6 +93,51 @@ func TestService_CreateExport_Format(t *testing.T) {
 	require.Equal(t, model.FormatCSV, job3.Format)
 }
 
+func TestService_CreateExport_IDFilterNormalized(t *testing.T) {
+	svc, _ := newService(t, 7)
+	ctx := context.Background()
+
+	job, err := svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{
+		Resource: model.ResourceUser,
+		Filters:  map[string]any{"ids": []any{"u1", " u2 ", "u1", ""}},
+	})
+	require.NoError(t, err)
+	// 剔空、去重、去首尾空格后落库，避免 IN 条件里带无意义值
+	require.JSONEq(t, `{"ids":["u1","u2"]}`, job.FiltersJSON)
+}
+
+func TestService_CreateExport_IDFilterRejected(t *testing.T) {
+	svc, _ := newService(t, 7)
+	ctx := context.Background()
+
+	invalid := []map[string]any{
+		{"ids": "u1"},                      // 非数组
+		{"ids": []any{"u1", 2}},            // 含非字符串元素
+		{"ids": []any{}},                   // 空数组
+		{"ids": []any{"", "  "}},           // 剔空后为空
+		{"ids": manyIDs(MaxFilterIDs + 1)}, // 超上限
+	}
+	for _, filters := range invalid {
+		_, err := svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{Resource: model.ResourceUser, Filters: filters})
+		require.ErrorIs(t, err, ErrInvalidFilters, "filters=%v", filters)
+	}
+
+	// 恰好等于上限时允许
+	_, err := svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{
+		Resource: model.ResourceUser,
+		Filters:  map[string]any{"ids": manyIDs(MaxFilterIDs)},
+	})
+	require.NoError(t, err)
+}
+
+func manyIDs(n int) []string {
+	ids := make([]string, n)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("u%d", i)
+	}
+	return ids
+}
+
 func TestService_CreateExport_QueueFull(t *testing.T) {
 	svc, _ := newService(t, 7)
 	ctx := context.Background()
@@ -163,10 +210,23 @@ func TestService_List(t *testing.T) {
 	_, err = svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{Resource: model.ResourceTask})
 	require.NoError(t, err)
 
-	items, total, err := svc.List(ctx, "t1", "u1", dto.ListExportReq{Page: 1, PageSize: 20})
+	items, total, err := svc.List(ctx, "t1", "u1", dto.ListExportReq{Page: 1, PageSize: 20}, false)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), total)
 	require.Len(t, items, 2)
+
+	// 系统管理员为其它租户创建的任务归属目标租户：
+	// 按当前租户（SYSTEM_ROOT）严格过滤时看不到，master 视角不限租户则能看到
+	_, err = svc.CreateExport(ctx, "t2", "root", dto.CreateExportReq{Resource: model.ResourceUser})
+	require.NoError(t, err)
+	_, total, err = svc.List(ctx, contextx.SystemTenantID, "root", dto.ListExportReq{Page: 1, PageSize: 20}, false)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), total)
+
+	items, total, err = svc.List(ctx, contextx.SystemTenantID, "root", dto.ListExportReq{Page: 1, PageSize: 20}, true)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Equal(t, "t2", items[0].TenantID)
 }
 
 func TestService_CleanupExpired(t *testing.T) {

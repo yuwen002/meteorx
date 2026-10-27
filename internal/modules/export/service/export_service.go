@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"meteorx/internal/modules/export/dto"
@@ -21,6 +23,8 @@ var (
 	ErrExportForbidden = errors.New("无权访问该导出任务")
 	ErrInvalidResource = errors.New("不支持的资源类型")
 	ErrExportQueueFull = errors.New("导出队列已满，请稍后再试")
+	// ErrInvalidFilters 筛选条件不合法（如 ids 不是字符串数组、为空或超出条数上限），对应 HTTP 400
+	ErrInvalidFilters = fmt.Errorf("筛选条件无效：ids 需为非空字符串数组且不超过 %d 条", MaxFilterIDs)
 	// ErrExportFileInUse 导出文件无法删除（正被占用或权限不足），此时保留记录供重试，对应 HTTP 409
 	ErrExportFileInUse = errors.New("导出文件正被占用，请稍后重试")
 )
@@ -29,6 +33,10 @@ var (
 // 可通过配置 export.max_active_jobs 覆盖（见 Config.MaxActiveJobs）；
 // 达到上限后新建任务返回 ErrExportQueueFull（429），防止队列被单租户占满。
 const MaxActiveJobsPerTenant = 10
+
+// MaxFilterIDs 单次「导出所选」允许携带的 ID 条数上限。
+// 派生任务会把它拼成 IN 条件，过大的集合既无前端使用场景，也会拖慢查询。
+const MaxFilterIDs = 200
 
 // Config 导出服务配置
 type Config struct {
@@ -60,6 +68,10 @@ func (s *ExportService) CreateExport(ctx context.Context, tenantID, userID strin
 	if !model.ValidFormat(format) {
 		// 非法的格式（理论上已被 handler 校验拦截）回落默认 CSV，保证任务可正常创建
 		format = model.DefaultFormat
+	}
+	// 导出所选等场景会带 ids 过滤：先规范化并丢弃脏数据，避免任务已创建却注定失败
+	if err := normalizeIDFilter(req.Filters); err != nil {
+		return nil, err
 	}
 	// 队列上限准入：未完结任务达上限时拒绝新建，查询失败时不阻断创建（fail-open）
 	limit := s.config.MaxActiveJobs
@@ -117,13 +129,18 @@ func (s *ExportService) GetByID(ctx context.Context, id, tenantID, userID string
 	return job, nil
 }
 
-// List 分页列出当前用户的导出任务
-func (s *ExportService) List(ctx context.Context, tenantID, userID string, req dto.ListExportReq) ([]*model.ExportJob, int64, error) {
+// List 分页列出当前用户的导出任务。
+// 系统管理员（isMaster）不以租户限定范围：其为其它租户创建的任务归属目标租户，
+// 若仍按当前租户（SYSTEM_ROOT）过滤，下载中心将看不到这些任务。
+func (s *ExportService) List(ctx context.Context, tenantID, userID string, req dto.ListExportReq, isMaster bool) ([]*model.ExportJob, int64, error) {
 	if req.Page <= 0 {
 		req.Page = 1
 	}
 	if req.PageSize <= 0 || req.PageSize > 100 {
 		req.PageSize = 20
+	}
+	if isMaster {
+		tenantID = "" // 空租户ID 表示不限租户，见 repository.ListByUser
 	}
 	return s.repo.ListByUser(ctx, tenantID, userID, req.Page, req.PageSize, req.Status, req.Resource)
 }
@@ -180,3 +197,49 @@ func (s *ExportService) CleanupExpired(ctx context.Context, now time.Time, limit
 
 // Repo 暴露仓储给 worker 使用
 func (s *ExportService) Repo() repository.ExportRepository { return s.repo }
+
+// normalizeIDFilter 规范化 filters.ids：剔空、去重、限制条数，并回写为 []string。
+// 未携带 ids 时直接返回；携带但类型不符、剔空后为空或超上限时返回 ErrInvalidFilters，
+// 让调用方在创建任务阶段就得到明确反馈，而不是任务跑起来后才发现条件无效。
+func normalizeIDFilter(filters map[string]any) error {
+	if filters == nil {
+		return nil
+	}
+	raw, ok := filters["ids"]
+	if !ok {
+		return nil
+	}
+	var ids []string
+	switch v := raw.(type) {
+	case []string:
+		ids = v
+	case []any:
+		for _, item := range v {
+			s, isStr := item.(string)
+			if !isStr {
+				return ErrInvalidFilters
+			}
+			ids = append(ids, s)
+		}
+	default:
+		return ErrInvalidFilters
+	}
+	seen := make(map[string]struct{}, len(ids))
+	unique := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	if len(unique) == 0 || len(unique) > MaxFilterIDs {
+		return ErrInvalidFilters
+	}
+	filters["ids"] = unique
+	return nil
+}
