@@ -172,6 +172,116 @@ func (h *ChatHandler) Presence(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, dto.PresenceResp{OnlineUserIDs: h.svc.PresenceUsers(r.Context())})
 }
 
+// ---- 群聊 ----
+
+// CreateGroup 创建群聊会话。POST /api/v1/chat/conversations/group
+func (h *ChatHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := currentIdentity(r)
+	if tenantID == "" || userID == "" {
+		response.Unauthorized(w, "未获取到用户信息")
+		return
+	}
+	var req dto.CreateGroupReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+	conv, err := h.svc.CreateGroup(r.Context(), tenantID, userID, req.Name, req.MemberIDs)
+	if err != nil {
+		h.writeErr(w, err, "创建群聊失败")
+		return
+	}
+	response.Success(w, service.ToConversationResp(conv))
+}
+
+// RenameGroup 群改名（仅群主）。PUT /api/v1/chat/conversations/{id}
+func (h *ChatHandler) RenameGroup(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := currentIdentity(r)
+	id := chi.URLParam(r, "id")
+	if tenantID == "" || userID == "" || id == "" {
+		response.BadRequest(w, "参数不完整")
+		return
+	}
+	var req dto.RenameGroupReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+	if err := h.svc.RenameGroup(r.Context(), tenantID, userID, id, req.Name); err != nil {
+		h.writeErr(w, err, "群改名失败")
+		return
+	}
+	response.Success(w, map[string]bool{"ok": true})
+}
+
+// ListMembers 列出会话成员。GET /api/v1/chat/conversations/{id}/members
+func (h *ChatHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := currentIdentity(r)
+	id := chi.URLParam(r, "id")
+	if tenantID == "" || userID == "" || id == "" {
+		response.BadRequest(w, "参数不完整")
+		return
+	}
+	members, err := h.svc.ListMembers(r.Context(), tenantID, userID, id)
+	if err != nil {
+		h.writeErr(w, err, "获取成员列表失败")
+		return
+	}
+	items := make([]*dto.MemberResp, 0, len(members))
+	for _, m := range members {
+		items = append(items, service.ToMemberResp(m))
+	}
+	response.Success(w, items)
+}
+
+// AddMembers 向群添加成员。POST /api/v1/chat/conversations/{id}/members
+func (h *ChatHandler) AddMembers(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := currentIdentity(r)
+	id := chi.URLParam(r, "id")
+	if tenantID == "" || userID == "" || id == "" {
+		response.BadRequest(w, "参数不完整")
+		return
+	}
+	var req dto.AddMembersReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+	if err := h.svc.AddMembers(r.Context(), tenantID, userID, id, req.UserIDs); err != nil {
+		h.writeErr(w, err, "添加成员失败")
+		return
+	}
+	response.Success(w, map[string]bool{"ok": true})
+}
+
+// RemoveMember 群主移除成员。DELETE /api/v1/chat/conversations/{id}/members/{userId}
+func (h *ChatHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := currentIdentity(r)
+	id := chi.URLParam(r, "id")
+	target := chi.URLParam(r, "userId")
+	if tenantID == "" || userID == "" || id == "" || target == "" {
+		response.BadRequest(w, "参数不完整")
+		return
+	}
+	if err := h.svc.RemoveMember(r.Context(), tenantID, userID, id, target); err != nil {
+		h.writeErr(w, err, "移除成员失败")
+		return
+	}
+	response.Success(w, map[string]bool{"ok": true})
+}
+
+// LeaveGroup 退出群聊。POST /api/v1/chat/conversations/{id}/leave
+func (h *ChatHandler) LeaveGroup(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := currentIdentity(r)
+	id := chi.URLParam(r, "id")
+	if tenantID == "" || userID == "" || id == "" {
+		response.BadRequest(w, "参数不完整")
+		return
+	}
+	if err := h.svc.LeaveGroup(r.Context(), tenantID, userID, id); err != nil {
+		h.writeErr(w, err, "退出群聊失败")
+		return
+	}
+	response.Success(w, map[string]bool{"ok": true})
+}
+
 // writeErr 将业务错误映射为合适的 HTTP 响应。
 func (h *ChatHandler) writeErr(w http.ResponseWriter, err error, fallback string) {
 	switch {
@@ -191,6 +301,20 @@ func (h *ChatHandler) writeErr(w http.ResponseWriter, err error, fallback string
 		response.BadRequest(w, "已超过可撤回时限")
 	case errors.Is(err, service.ErrAlreadyRecalled):
 		response.BadRequest(w, "消息已被撤回")
+	case errors.Is(err, service.ErrGroupNameEmpty):
+		response.BadRequest(w, "群名称不能为空")
+	case errors.Is(err, service.ErrGroupMembersEmpty):
+		response.BadRequest(w, "群成员不能为空")
+	case errors.Is(err, service.ErrGroupMemberLimit):
+		response.BadRequest(w, "群成员数超出上限")
+	case errors.Is(err, service.ErrNotGroupConversation):
+		response.BadRequest(w, "该会话不是群聊会话")
+	case errors.Is(err, service.ErrOwnerOnly):
+		response.Fail(w, http.StatusForbidden, "仅群主可执行该操作")
+	case errors.Is(err, service.ErrCannotRemoveSelf):
+		response.BadRequest(w, "不能移除自己，请使用退群")
+	case errors.Is(err, service.ErrNotGroupMember):
+		response.BadRequest(w, "该用户不在群内")
 	default:
 		response.Fail(w, http.StatusInternalServerError, fallback)
 	}

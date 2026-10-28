@@ -34,6 +34,20 @@ var (
 	ErrRecallWindowClosed = errors.New("recall window has closed")
 	// ErrAlreadyRecalled 消息已被撤回
 	ErrAlreadyRecalled = errors.New("message already recalled")
+	// ErrGroupNameEmpty 群名称为空
+	ErrGroupNameEmpty = errors.New("group name is empty")
+	// ErrGroupMembersEmpty 群初始成员为空（不含创建人）
+	ErrGroupMembersEmpty = errors.New("group must have at least one member")
+	// ErrGroupMemberLimit 群成员数超出上限
+	ErrGroupMemberLimit = errors.New("group member limit exceeded")
+	// ErrNotGroupConversation 目标会话不是群聊会话
+	ErrNotGroupConversation = errors.New("conversation is not a group")
+	// ErrOwnerOnly 仅群主可执行该操作
+	ErrOwnerOnly = errors.New("only the group owner can do this")
+	// ErrCannotRemoveSelf 不能移除自己，请使用退群
+	ErrCannotRemoveSelf = errors.New("cannot remove yourself, use leave instead")
+	// ErrNotGroupMember 目标用户不在群内
+	ErrNotGroupMember = errors.New("user is not a member of the group")
 )
 
 // RecallWindow 发送人可撤回自身消息的时间窗口，超时后拒绝撤回。
@@ -59,6 +73,13 @@ type ChatServiceInterface interface {
 	RecallMessage(ctx context.Context, tenantID, userID, conversationID, messageID string) error
 	NotifyTyping(ctx context.Context, tenantID, userID, conversationID string, typing bool) error
 	PresenceUsers(ctx context.Context) []string
+	// 群聊：创建/改名/加人/踢人/退群/成员列表
+	CreateGroup(ctx context.Context, tenantID, userID, name string, memberIDs []string) (*model.Conversation, error)
+	RenameGroup(ctx context.Context, tenantID, userID, conversationID, name string) error
+	AddMembers(ctx context.Context, tenantID, userID, conversationID string, userIDs []string) error
+	RemoveMember(ctx context.Context, tenantID, userID, conversationID, targetUserID string) error
+	LeaveGroup(ctx context.Context, tenantID, userID, conversationID string) error
+	ListMembers(ctx context.Context, tenantID, userID, conversationID string) ([]*model.ConversationMember, error)
 }
 
 // ChatService 聊天模块业务服务。
@@ -236,6 +257,245 @@ func (s *ChatService) PresenceUsers(ctx context.Context) []string {
 	return s.pusher.OnlineUserIDs()
 }
 
+// ---- 群聊 ----
+
+// CreateGroup 创建群聊会话：创建人不计入成员列表，群名必填，
+// 成员（含创建人）不得超过上限；若启用租户校验则逐个确认同租户。
+func (s *ChatService) CreateGroup(ctx context.Context, tenantID, userID, name string, memberIDs []string) (*model.Conversation, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, ErrGroupNameEmpty
+	}
+	// 去重并剔除创建人（自己与自己建群无意义）
+	seen := make(map[string]struct{}, len(memberIDs))
+	ids := make([]string, 0, len(memberIDs))
+	for _, id := range memberIDs {
+		id = strings.TrimSpace(id)
+		if id == "" || id == userID {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) < model.GroupMinMembers {
+		return nil, ErrGroupMembersEmpty
+	}
+	if len(ids)+1 > model.GroupMaxMembers {
+		return nil, ErrGroupMemberLimit
+	}
+	if err := s.ensureTenantMembers(ctx, tenantID, ids); err != nil {
+		return nil, err
+	}
+	conv, err := s.repo.CreateGroupConversation(ctx, tenantID, userID, name, ids)
+	if err != nil {
+		return nil, err
+	}
+	conv.MyRole = model.MemberRoleOwner
+	conv.MemberCount = int64(len(ids) + 1)
+	conv.PeerName = name
+	return conv, nil
+}
+
+// RenameGroup 群改名：仅群主可操作。
+func (s *ChatService) RenameGroup(ctx context.Context, tenantID, userID, conversationID, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ErrGroupNameEmpty
+	}
+	if _, err := s.ensureGroupOwner(ctx, tenantID, userID, conversationID); err != nil {
+		return err
+	}
+	return s.repo.UpdateConversationName(ctx, conversationID, name)
+}
+
+// AddMembers 向群添加成员：任意成员可邀请；校验群上限与同租户后，
+// 若确有新增则向全员投递最后一条消息摘要以刷新会话列表。
+func (s *ChatService) AddMembers(ctx context.Context, tenantID, userID, conversationID string, userIDs []string) error {
+	if err := s.ensureMember(ctx, conversationID, tenantID, userID); err != nil {
+		return err
+	}
+	conv, err := s.repo.GetConversation(ctx, conversationID)
+	if err != nil || conv == nil {
+		return ErrConversationNotFound
+	}
+	if conv.Type != model.ConversationTypeGroup {
+		return ErrNotGroupConversation
+	}
+	seen := make(map[string]struct{}, len(userIDs))
+	ids := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return ErrGroupMembersEmpty
+	}
+	cnt, err := s.repo.CountMembers(ctx, conversationID)
+	if err != nil {
+		return err
+	}
+	if cnt+int64(len(ids)) > model.GroupMaxMembers {
+		return ErrGroupMemberLimit
+	}
+	if err := s.ensureTenantMembers(ctx, tenantID, ids); err != nil {
+		return err
+	}
+	added, err := s.repo.AddMembers(ctx, conversationID, tenantID, ids)
+	if err != nil {
+		return err
+	}
+	if added > 0 {
+		// 携带最新成员数推送，接收端可直接更新列表而无需回拉（人数为尽力而为，前端仍以列表接口为准）
+		if cnt, err := s.repo.CountMembers(ctx, conversationID); err == nil {
+			conv.MemberCount = cnt
+		}
+		s.pushConversationRefresh(ctx, conv, userID)
+	}
+	return nil
+}
+
+// RemoveMember 群主移除成员；不移除自己，移除后群只剩一人时删除会话。
+func (s *ChatService) RemoveMember(ctx context.Context, tenantID, userID, conversationID, targetUserID string) error {
+	conv, err := s.ensureGroupOwner(ctx, tenantID, userID, conversationID)
+	if err != nil {
+		return err
+	}
+	if targetUserID == userID {
+		return ErrCannotRemoveSelf
+	}
+	if _, ok, err := s.repo.GetMemberRole(ctx, conversationID, targetUserID); err != nil {
+		return err
+	} else if !ok {
+		return ErrNotGroupMember
+	}
+	if err := s.repo.RemoveMember(ctx, conversationID, targetUserID); err != nil {
+		return err
+	}
+	return s.cleanupIfEmpty(ctx, conversationID, conv)
+}
+
+// LeaveGroup 退群：成员均可退；群主退群后群转为无主（仅保留成员角色不再可踢/改名），
+// 退群后无人则删除会话。
+func (s *ChatService) LeaveGroup(ctx context.Context, tenantID, userID, conversationID string) error {
+	if err := s.ensureMember(ctx, conversationID, tenantID, userID); err != nil {
+		return err
+	}
+	conv, err := s.repo.GetConversation(ctx, conversationID)
+	if err != nil || conv == nil {
+		return ErrConversationNotFound
+	}
+	if conv.Type != model.ConversationTypeGroup {
+		return ErrNotGroupConversation
+	}
+	if err := s.repo.RemoveMember(ctx, conversationID, userID); err != nil {
+		return err
+	}
+	return s.cleanupIfEmpty(ctx, conversationID, conv)
+}
+
+// ListMembers 列出群（或任意会话）成员并富化展示名，调用者必须是成员。
+func (s *ChatService) ListMembers(ctx context.Context, tenantID, userID, conversationID string) ([]*model.ConversationMember, error) {
+	if err := s.ensureMember(ctx, conversationID, tenantID, userID); err != nil {
+		return nil, err
+	}
+	members, err := s.repo.ListMembers(ctx, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	if s.dir != nil && len(members) > 0 {
+		ids := make([]string, 0, len(members))
+		for _, m := range members {
+			ids = append(ids, m.UserID)
+		}
+		if names, err := s.dir.ResolveUserNames(ctx, ids); err == nil {
+			for _, m := range members {
+				m.UserName = names[m.UserID]
+			}
+		}
+	}
+	return members, nil
+}
+
+// ensureGroupOwner 校验会话为群且调用者为群主，返回会话。
+func (s *ChatService) ensureGroupOwner(ctx context.Context, tenantID, userID, conversationID string) (*model.Conversation, error) {
+	if err := s.ensureMember(ctx, conversationID, tenantID, userID); err != nil {
+		return nil, err
+	}
+	conv, err := s.repo.GetConversation(ctx, conversationID)
+	if err != nil || conv == nil {
+		return nil, ErrConversationNotFound
+	}
+	if conv.Type != model.ConversationTypeGroup {
+		return nil, ErrNotGroupConversation
+	}
+	if role, _, err := s.repo.GetMemberRole(ctx, conversationID, userID); err != nil {
+		return nil, err
+	} else if role != model.MemberRoleOwner {
+		return nil, ErrOwnerOnly
+	}
+	return conv, nil
+}
+
+// cleanupIfEmpty 群内已无成员时软删除会话；否则携带最新人数刷新全员会话列表。
+func (s *ChatService) cleanupIfEmpty(ctx context.Context, conversationID string, conv *model.Conversation) error {
+	cnt, err := s.repo.CountMembers(ctx, conversationID)
+	if err != nil {
+		return err
+	}
+	if cnt == 0 {
+		return s.repo.DeleteConversation(ctx, conv.ID)
+	}
+	conv.MemberCount = cnt
+	s.pushConversationRefresh(ctx, conv, "")
+	return nil
+}
+
+// pushConversationRefresh 向全体成员投递会话摘要（带发送人占位），供会话列表/群名/成员数刷新；
+// 排除 excludeUserID（操作发起者已同步拿到响应）。hub 为 nil 时跳过。
+func (s *ChatService) pushConversationRefresh(ctx context.Context, conv *model.Conversation, excludeUserID string) {
+	if s.pusher == nil {
+		return
+	}
+	members, err := s.repo.ListMembers(ctx, conv.ID)
+	if err != nil {
+		return
+	}
+	resp := ToConversationResp(conv)
+	for _, m := range members {
+		if m.UserID == excludeUserID {
+			continue
+		}
+		s.pusher.SendToUser(m.UserID, ws.NewMessage(ws.MsgTypeChatConversation, resp))
+	}
+}
+
+// ensureTenantMembers 逐个校验目标用户属于当前租户（未启用校验器时跳过）。
+func (s *ChatService) ensureTenantMembers(ctx context.Context, tenantID string, userIDs []string) error {
+	if s.members == nil {
+		return nil
+	}
+	for _, uid := range userIDs {
+		ok, err := s.members.IsTenantMember(ctx, tenantID, uid)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return ErrParticipantInvalid
+		}
+	}
+	return nil
+}
+
 // ensureMember 校验用户为指定会话（同租户）成员，否则返回 ErrConversationNotFound。
 func (s *ChatService) ensureMember(ctx context.Context, conversationID, tenantID, userID string) error {
 	ok, err := s.repo.IsMember(ctx, conversationID, tenantID, userID)
@@ -248,7 +508,7 @@ func (s *ChatService) ensureMember(ctx context.Context, conversationID, tenantID
 	return nil
 }
 
-// enrichConversationNames 批量富化会话对方展示名。
+// enrichConversationNames 批量富化会话展示名：direct 取对方昵称，group 取群名。
 func (s *ChatService) enrichConversationNames(ctx context.Context, convs []*model.Conversation) {
 	if s.dir == nil || len(convs) == 0 {
 		return
@@ -259,11 +519,18 @@ func (s *ChatService) enrichConversationNames(ctx context.Context, convs []*mode
 			ids = append(ids, c.PeerUserID)
 		}
 	}
+	if len(ids) == 0 {
+		return
+	}
 	names, err := s.dir.ResolveUserNames(ctx, ids)
 	if err != nil {
 		return
 	}
 	for _, c := range convs {
+		if c.Type == model.ConversationTypeGroup {
+			c.PeerName = c.Name
+			continue
+		}
 		c.PeerName = names[c.PeerUserID]
 	}
 }
@@ -295,10 +562,25 @@ func ToConversationResp(c *model.Conversation) *dto.ConversationResp {
 		PeerName:    c.PeerName,
 		LastMessage: c.LastMessage,
 		UnreadCount: c.UnreadCount,
+		MemberCount: c.MemberCount,
+		MyRole:      c.MyRole,
 		CreatedAt:   c.CreatedAt.Format("2006-01-02 15:04:05"),
 	}
 	if c.LastAt != nil {
 		resp.LastAt = c.LastAt.Format("2006-01-02 15:04:05")
+	}
+	return resp
+}
+
+// ToMemberResp 将领域成员转换为响应对象。
+func ToMemberResp(m *model.ConversationMember) *dto.MemberResp {
+	resp := &dto.MemberResp{
+		UserID: m.UserID,
+		Name:   m.UserName,
+		Role:   m.Role,
+	}
+	if !m.JoinedAt.IsZero() {
+		resp.JoinedAt = m.JoinedAt.Format("2006-01-02 15:04:05")
 	}
 	return resp
 }

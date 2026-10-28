@@ -6,6 +6,22 @@ type CreateDirectReq struct {
 	ParticipantID string `json:"participant_id" validate:"required,max=26" label:"对方用户ID"` // 私聊对方用户 ID
 }
 
+// CreateGroupReq 创建群聊会话请求。
+type CreateGroupReq struct {
+	Name      string   `json:"name" validate:"required,min=1,max=50" label:"群名称"`                      // 群名称
+	MemberIDs []string `json:"member_ids" validate:"required,min=1,max=49,dive,max=26" label:"成员ID列表"` // 初始成员（不含创建人）
+}
+
+// RenameGroupReq 群改名请求。
+type RenameGroupReq struct {
+	Name string `json:"name" validate:"required,min=1,max=50" label:"群名称"` // 新群名称
+}
+
+// AddMembersReq 向会话添加成员请求。
+type AddMembersReq struct {
+	UserIDs []string `json:"user_ids" validate:"required,min=1,max=49,dive,max=26" label:"用户ID列表"` // 待加入的用户 ID
+}
+
 // SendMessageReq 发送消息请求。
 type SendMessageReq struct {
 	Content string `json:"content" validate:"required,max=2000" label:"消息内容"` // 消息正文
@@ -37,13 +53,23 @@ type PresenceResp struct {
 // ConversationResp 会话响应。
 type ConversationResp struct {
 	ID          string `json:"id"`
-	Type        string `json:"type"`
-	PeerUserID  string `json:"peer_user_id"`
-	PeerName    string `json:"peer_name"`
+	Type        string `json:"type"`         // direct / group
+	PeerUserID  string `json:"peer_user_id"` // 仅 direct 会话返回对方 ID
+	PeerName    string `json:"peer_name"`    // 展示名：direct 为对方昵称，group 为群名称
 	LastMessage string `json:"last_message"`
 	LastAt      string `json:"last_at,omitempty"`
 	UnreadCount int64  `json:"unread_count"`
+	MemberCount int64  `json:"member_count"` // 成员数（仅 group 有意义）
+	MyRole      string `json:"my_role"`      // 当前用户在该会话的角色：owner / member
 	CreatedAt   string `json:"created_at"`
+}
+
+// MemberResp 会话成员响应。
+type MemberResp struct {
+	UserID   string `json:"user_id"`
+	Name     string `json:"name"`
+	Role     string `json:"role"` // owner / member
+	JoinedAt string `json:"joined_at"`
 }
 
 // ChatMessageResp 聊天消息响应。

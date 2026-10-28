@@ -16,11 +16,13 @@ import (
 
 // ConversationPO 会话持久化对象，映射 chat_conversations 表。
 // Key 列名为 conv_key（key 是 MySQL 保留字），(tenant_id, conv_key) 唯一以支持私聊去重。
+// Name 仅群聊使用（direct 会话留空）。
 type ConversationPO struct {
 	ID        string         `gorm:"primaryKey;size:26;comment:会话ID"`
 	TenantID  string         `gorm:"size:26;not null;uniqueIndex:idx_chat_conv_key;comment:租户ID"`
-	Type      string         `gorm:"size:20;not null;comment:会话类型(direct)"`
+	Type      string         `gorm:"size:20;not null;comment:会话类型(direct/group)"`
 	Key       string         `gorm:"column:conv_key;size:80;not null;uniqueIndex:idx_chat_conv_key;comment:会话去重键"`
+	Name      string         `gorm:"size:100;comment:群名称(仅 group)"`
 	CreatedAt time.Time      `gorm:"autoCreateTime;comment:创建时间"`
 	UpdatedAt time.Time      `gorm:"autoUpdateTime;comment:更新时间"`
 	DeletedAt gorm.DeletedAt `gorm:"index;comment:软删除时间"`
@@ -35,6 +37,7 @@ type ConversationMemberPO struct {
 	ConversationID string     `gorm:"size:26;not null;uniqueIndex:idx_chat_member;index;comment:会话ID"`
 	TenantID       string     `gorm:"size:26;not null;index;comment:租户ID"`
 	UserID         string     `gorm:"column:user_id;size:26;not null;uniqueIndex:idx_chat_member;index;comment:成员用户ID"`
+	Role           string     `gorm:"size:20;default:member;comment:成员角色(owner/member)"`
 	LastReadAt     *time.Time `gorm:"comment:最后已读时间"`
 	JoinedAt       time.Time  `gorm:"autoCreateTime;comment:加入时间"`
 }
@@ -66,6 +69,7 @@ func (p ConversationPO) toDomain() *model.Conversation {
 		TenantID:  p.TenantID,
 		Type:      p.Type,
 		Key:       p.Key,
+		Name:      p.Name,
 		CreatedAt: p.CreatedAt,
 		UpdatedAt: p.UpdatedAt,
 	}
@@ -77,6 +81,7 @@ func (p ConversationMemberPO) toDomain() *model.ConversationMember {
 		ConversationID: p.ConversationID,
 		TenantID:       p.TenantID,
 		UserID:         p.UserID,
+		Role:           p.Role,
 		LastReadAt:     p.LastReadAt,
 		JoinedAt:       p.JoinedAt,
 	}
@@ -147,7 +152,7 @@ func (r *chatRepository) EnsureDirectConversation(ctx context.Context, tenantID,
 				return err
 			}
 			if cnt == 0 {
-				m := ConversationMemberPO{ID: idgen.New(), ConversationID: conv.ID, TenantID: tenantID, UserID: uid, JoinedAt: now}
+				m := ConversationMemberPO{ID: idgen.New(), ConversationID: conv.ID, TenantID: tenantID, UserID: uid, Role: model.MemberRoleMember, JoinedAt: now}
 				if err := tx.Create(&m).Error; err != nil {
 					return err
 				}
@@ -159,6 +164,116 @@ func (r *chatRepository) EnsureDirectConversation(ctx context.Context, tenantID,
 		return nil, err
 	}
 	return conv.toDomain(), nil
+}
+
+// CreateGroupConversation 创建群聊会话（事务内写会话行与全部成员行）。
+// 去重键取新生成 ULID，与 direct 的规范化 key 命名空间天然不冲突。
+func (r *chatRepository) CreateGroupConversation(ctx context.Context, tenantID, creatorID, name string, memberIDs []string) (*model.Conversation, error) {
+	convPO := ConversationPO{
+		ID:       idgen.New(),
+		TenantID: tenantID,
+		Type:     model.ConversationTypeGroup,
+		Key:      idgen.New(),
+		Name:     name,
+	}
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&convPO).Error; err != nil {
+			return err
+		}
+		// 创建人为 owner，被邀请者为 member
+		if err := tx.Create(&ConversationMemberPO{
+			ID: idgen.New(), ConversationID: convPO.ID, TenantID: tenantID,
+			UserID: creatorID, Role: model.MemberRoleOwner,
+		}).Error; err != nil {
+			return err
+		}
+		if len(memberIDs) > 0 {
+			rows := make([]ConversationMemberPO, 0, len(memberIDs))
+			for _, uid := range memberIDs {
+				rows = append(rows, ConversationMemberPO{
+					ID: idgen.New(), ConversationID: convPO.ID, TenantID: tenantID,
+					UserID: uid, Role: model.MemberRoleMember,
+				})
+			}
+			if err := tx.Create(&rows).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return convPO.toDomain(), nil
+}
+
+// UpdateConversationName 重命名会话。
+func (r *chatRepository) UpdateConversationName(ctx context.Context, conversationID, name string) error {
+	return r.db.WithContext(ctx).Model(&ConversationPO{}).
+		Where("id = ?", conversationID).Update("name", name).Error
+}
+
+// DeleteConversation 软删除会话。
+func (r *chatRepository) DeleteConversation(ctx context.Context, conversationID string) error {
+	return r.db.WithContext(ctx).Where("id = ?", conversationID).Delete(&ConversationPO{}).Error
+}
+
+// GetMemberRole 返回用户在会话中的角色与非成员标记。
+func (r *chatRepository) GetMemberRole(ctx context.Context, conversationID, userID string) (string, bool, error) {
+	var p ConversationMemberPO
+	err := r.db.WithContext(ctx).
+		Where("conversation_id = ? AND user_id = ?", conversationID, userID).First(&p).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return p.Role, true, nil
+}
+
+// CountMembers 统计会话成员数。
+func (r *chatRepository) CountMembers(ctx context.Context, conversationID string) (int64, error) {
+	var cnt int64
+	err := r.db.WithContext(ctx).Model(&ConversationMemberPO{}).
+		Where("conversation_id = ?", conversationID).Count(&cnt).Error
+	return cnt, err
+}
+
+// AddMembers 向会话添加成员，已存在的成员静默跳过；返回实际新增人数。
+func (r *chatRepository) AddMembers(ctx context.Context, conversationID, tenantID string, userIDs []string) (int64, error) {
+	if len(userIDs) == 0 {
+		return 0, nil
+	}
+	var existing []string
+	if err := r.db.WithContext(ctx).Model(&ConversationMemberPO{}).
+		Where("conversation_id = ?", conversationID).Pluck("user_id", &existing).Error; err != nil {
+		return 0, err
+	}
+	has := make(map[string]struct{}, len(existing))
+	for _, uid := range existing {
+		has[uid] = struct{}{}
+	}
+	added := int64(0)
+	for _, uid := range userIDs {
+		if _, ok := has[uid]; ok {
+			continue
+		}
+		has[uid] = struct{}{} // 同一请求内重复 ID 只加一次
+		m := ConversationMemberPO{ID: idgen.New(), ConversationID: conversationID, TenantID: tenantID, UserID: uid, Role: model.MemberRoleMember}
+		if err := r.db.WithContext(ctx).Create(&m).Error; err != nil {
+			return added, err
+		}
+		added++
+	}
+	return added, nil
+}
+
+// RemoveMember 从会话移除指定成员。
+func (r *chatRepository) RemoveMember(ctx context.Context, conversationID, userID string) error {
+	return r.db.WithContext(ctx).
+		Where("conversation_id = ? AND user_id = ?", conversationID, userID).
+		Delete(&ConversationMemberPO{}).Error
 }
 
 // GetConversation 按 ID 查询未删除会话。
@@ -222,14 +337,26 @@ func (r *chatRepository) ListConversations(ctx context.Context, tenantID, userID
 		return nil, err
 	}
 
-	// 全部成员，用于确定 direct 会话的对方
+	// 全部成员，用于确定 direct 会话的对方与群会话成员数
 	var allMembers []ConversationMemberPO
 	if err := r.db.WithContext(ctx).Where("conversation_id IN ?", convIDs).Find(&allMembers).Error; err != nil {
 		return nil, err
 	}
-	peerOf := make(map[string]string, len(convIDs)) // conversationID -> 对方 userID
+	// 会话类型映射：仅 direct 会话需要取对方，group 会话展示群名
+	typeOf := make(map[string]string, len(convPos))
+	for _, cp := range convPos {
+		typeOf[cp.ID] = cp.Type
+	}
+	peerOf := make(map[string]string, len(convIDs))     // conversationID -> 对方 userID（仅 direct）
+	memberCount := make(map[string]int64, len(convIDs)) // conversationID -> 成员数
+	myRole := make(map[string]string, len(convIDs))     // conversationID -> 当前用户角色
 	for _, m := range allMembers {
-		if m.UserID != userID {
+		memberCount[m.ConversationID]++
+		if m.UserID == userID {
+			myRole[m.ConversationID] = m.Role
+			continue
+		}
+		if typeOf[m.ConversationID] == model.ConversationTypeDirect {
 			peerOf[m.ConversationID] = m.UserID
 		}
 	}
@@ -238,6 +365,8 @@ func (r *chatRepository) ListConversations(ctx context.Context, tenantID, userID
 	for _, cp := range convPos {
 		conv := cp.toDomain()
 		conv.PeerUserID = peerOf[conv.ID]
+		conv.MemberCount = memberCount[conv.ID]
+		conv.MyRole = myRole[conv.ID]
 		// 最后一条消息
 		var last ChatMessagePO
 		if err := r.db.WithContext(ctx).

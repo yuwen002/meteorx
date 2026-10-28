@@ -8,8 +8,26 @@ import "time"
 
 // 会话类型常量
 const (
-	// ConversationTypeDirect 1:1 私聊会话（首版唯一支持的类型）
+	// ConversationTypeDirect 1:1 私聊会话，会话由参与者唯一确定
 	ConversationTypeDirect = "direct"
+	// ConversationTypeGroup 群聊会话：多人参与、可增减成员，名称由成员维护
+	ConversationTypeGroup = "group"
+)
+
+// 会话成员角色常量（仅对 group 会话有义，direct 成员均记为 member）
+const (
+	// MemberRoleOwner 创建人：可改名、移除成员
+	MemberRoleOwner = "owner"
+	// MemberRoleMember 普通成员：可发消息、邀请成员、退群
+	MemberRoleMember = "member"
+)
+
+// 群规模限制
+const (
+	// GroupMinMembers 初始成员下限（不含创建人）
+	GroupMinMembers = 1
+	// GroupMaxMembers 群成员上限（含创建人）
+	GroupMaxMembers = 50
 )
 
 // 消息类型常量
@@ -19,31 +37,35 @@ const (
 )
 
 // Conversation 会话领域模型。
-// 首版为 1:1 私聊：同一租户内两个用户由 DeterministicKey 唯一确定一个会话，
-// 重复发起私聊时按 key 复用既有会话，不产生新行。
+// direct：同一租户内两个用户由 DirectKey 唯一确定一个会话，重复发起时按 key 复用既有会话；
+// group：去重键取新生成的 ULID（天然唯一），名称存于 Name，创建人在成员表中标记为 owner。
 type Conversation struct {
 	ID        string    // 会话唯一标识（ULID）
-	TenantID  string    // 所属租户 ID（多租户隔离，私聊双方必须同租户）
-	Type      string    // 会话类型：direct
-	Key       string    // 会话去重键（direct 类型下由参与者 ID 规范化生成，租户内唯一）
+	TenantID  string    // 所属租户 ID（多租户隔离，成员必须同租户）
+	Type      string    // 会话类型：direct / group
+	Key       string    // 会话去重键（direct 由参与者 ID 规范化生成；group 为生成的 ULID）
+	Name      string    // 会话名称（仅 group 使用，direct 为空）
 	CreatedAt time.Time // 创建时间
 	UpdatedAt time.Time // 更新时间
 
 	// 以下为读取响应时由服务层富化的非持久化字段
-	PeerUserID  string // 对方用户 ID（direct 会话中除自己外的成员）
-	PeerName    string // 对方展示名（昵称优先，回退用户名）
+	PeerUserID  string // 对方用户 ID（仅 direct 会话填充；group 为空）
+	PeerName    string // 展示名：direct 为对方昵称，group 为群名称
 	LastMessage string // 会话最后一条消息摘要（无消息时为空）
 	LastAt      *time.Time
-	UnreadCount int64 // 当前用户在该会话的未读数
+	UnreadCount int64  // 当前用户在该会话的未读数
+	MemberCount int64  // 成员数（仅 group 富化）
+	MyRole      string // 当前用户在该会话中的角色：owner / member（列表富化）
 }
 
 // ConversationMember 会话成员领域模型。
-// 记录用户与会话的归属关系及各自的已读水位（LastReadAt），用于计算未读数。
+// 记录用户与会话的归属关系、角色及各自的已读水位（LastReadAt），用于计算未读数与权限判定。
 type ConversationMember struct {
 	ID             string     // 成员记录唯一标识（ULID）
 	ConversationID string     // 所属会话 ID
 	TenantID       string     // 所属租户 ID（冗余，便于隔离查询）
 	UserID         string     // 成员用户 ID
+	Role           string     // 成员角色：owner / member
 	LastReadAt     *time.Time // 该成员最后已读时间，用于计算未读；为空表示从未读
 	JoinedAt       time.Time  // 加入时间
 	UserName       string     // 展示名（富化字段，不持久化）

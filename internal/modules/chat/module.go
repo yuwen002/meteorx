@@ -28,10 +28,16 @@ func InitModule(r chi.Router, db *gorm.DB, hub *ws.Hub) {
 func RegisterRoutes(r chi.Router, h *handler.ChatHandler) {
 	r.Route("/chat", func(r chi.Router) {
 		r.Post("/conversations/direct", h.OpenDirect)
+		r.Post("/conversations/group", h.CreateGroup)
 		r.Get("/conversations", h.ListConversations)
+		r.Put("/conversations/{id}", h.RenameGroup)
 		r.Get("/conversations/{id}/messages", h.ListMessages)
 		r.Post("/conversations/{id}/messages", h.SendMessage)
 		r.Delete("/conversations/{id}/messages/{msgId}", h.RecallMessage)
+		r.Get("/conversations/{id}/members", h.ListMembers)
+		r.Post("/conversations/{id}/members", h.AddMembers)
+		r.Delete("/conversations/{id}/members/{userId}", h.RemoveMember)
+		r.Post("/conversations/{id}/leave", h.LeaveGroup)
 		r.Post("/conversations/{id}/read", h.MarkRead)
 		r.Post("/conversations/{id}/typing", h.Typing)
 		r.Get("/presence", h.Presence)

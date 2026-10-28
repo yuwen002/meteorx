@@ -12,16 +12,18 @@ import (
 type MessageType string
 
 const (
-	MsgTypeAlert       MessageType = "alert"        // 告警通知
-	MsgTypeAnnouncement MessageType = "announcement"  // 公告通知
-	MsgTypePing        MessageType = "ping"          // 心跳
-	MsgTypePong        MessageType = "pong"          // 心跳响应
-	MsgTypeUnreadCount MessageType = "unread_count"  // 未读数量更新
-	MsgTypeChat        MessageType = "chat"          // 协作即时消息（1:1 私聊新消息实时投递）
+	MsgTypeAlert        MessageType = "alert"        // 告警通知
+	MsgTypeAnnouncement MessageType = "announcement" // 公告通知
+	MsgTypePing         MessageType = "ping"         // 心跳
+	MsgTypePong         MessageType = "pong"         // 心跳响应
+	MsgTypeUnreadCount  MessageType = "unread_count" // 未读数量更新
+	MsgTypeChat         MessageType = "chat"         // 协作即时消息（1:1 私聊新消息实时投递）
 	// MsgTypeChatTyping 输入中提示：瞬态事件，不落库、不补偿，离线用户无需感知
 	MsgTypeChatTyping MessageType = "chat_typing"
 	// MsgTypeChatRecall 消息撤回事件：接收方据此把已在屏上的消息原位替换为已撤回态
 	MsgTypeChatRecall MessageType = "chat_recall"
+	// MsgTypeChatConversation 会话元信息变更（群名/成员数等）：接收方据此刷新会话列表
+	MsgTypeChatConversation MessageType = "chat_conversation"
 )
 
 // Message WebSocket 消息结构
@@ -33,12 +35,12 @@ type Message struct {
 
 // Hub 连接管理器
 type Hub struct {
-	mu       sync.RWMutex
-	clients  map[string]map[*Client]bool // userID -> clients
-	broadcast chan *Message              // 广播通道
-	register  chan *Client               // 注册通道
-	unregister chan *Client              // 注销通道
-	done      chan struct{}             // 关闭信号
+	mu         sync.RWMutex
+	clients    map[string]map[*Client]bool // userID -> clients
+	broadcast  chan *Message               // 广播通道
+	register   chan *Client                // 注册通道
+	unregister chan *Client                // 注销通道
+	done       chan struct{}               // 关闭信号
 }
 
 // NewHub 创建 Hub
