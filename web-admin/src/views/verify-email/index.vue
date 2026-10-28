@@ -1,23 +1,23 @@
 <template>
   <div class="verify-email-page">
     <div class="card">
-      <h2>邮箱验证</h2>
+      <h2>{{ t('verifyEmail.title') }}</h2>
 
       <div v-if="loading" class="status-area">
         <el-icon class="is-loading" :size="32"><Loading /></el-icon>
-        <p>正在验证...</p>
+        <p>{{ t('verifyEmail.verifying') }}</p>
       </div>
 
       <div v-else-if="verified" class="status-area">
         <el-icon :size="48" color="#67c23a"><CircleCheckFilled /></el-icon>
-        <p class="success-text">邮箱验证成功！</p>
-        <el-button type="primary" @click="$router.push('/login')">去登录</el-button>
+        <p class="success-text">{{ t('verifyEmail.success') }}</p>
+        <el-button type="primary" @click="$router.push('/login')">{{ t('verifyEmail.goLogin') }}</el-button>
       </div>
 
       <div v-else class="status-area">
         <el-icon :size="48" color="#f56c6c"><CircleCloseFilled /></el-icon>
         <p class="error-text">{{ errorMsg }}</p>
-        <el-button type="primary" @click="$router.push('/login')">返回登录</el-button>
+        <el-button type="primary" @click="$router.push('/login')">{{ t('verifyEmail.backToLogin') }}</el-button>
       </div>
     </div>
   </div>
@@ -28,17 +28,19 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { Loading, CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { verifyEmail } from '@/api/auth'
+import { useI18n } from '@/composables/useI18n'
 
+const { t } = useI18n()
 const route = useRoute()
 const token = (route.query.token || '') as string
 
 const loading = ref(true)
 const verified = ref(false)
-const errorMsg = ref('验证失败，请重新发送验证邮件')
+const errorMsg = ref(t('verifyEmail.failed'))
 
 onMounted(async () => {
   if (!token) {
-    errorMsg.value = '缺少验证令牌'
+    errorMsg.value = t('verifyEmail.missingToken')
     loading.value = false
     return
   }
@@ -46,7 +48,7 @@ onMounted(async () => {
     await verifyEmail(token)
     verified.value = true
   } catch (e) {
-    errorMsg.value = (e as Error).message || '验证失败，请重新发送验证邮件'
+    errorMsg.value = (e as Error).message || t('verifyEmail.failed')
   } finally {
     loading.value = false
   }

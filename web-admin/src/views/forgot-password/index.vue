@@ -2,8 +2,8 @@
   <div class="forgot-password-page">
     <div class="forgot-password-box">
       <div class="header">
-        <h2>忘记密码</h2>
-        <p>输入您的邮箱，我们将发送重置链接</p>
+        <h2>{{ t('auth.forgotPassword') }}</h2>
+        <p>{{ t('forgotPassword.subtitle') }}</p>
       </div>
 
       <el-form
@@ -14,10 +14,10 @@
         class="form"
         @keyup.enter="handleSubmit"
       >
-        <el-form-item label="邮箱" prop="email">
+        <el-form-item :label="t('common.email')" prop="email">
           <el-input
             v-model="form.email"
-            placeholder="请输入您的注册邮箱"
+            :placeholder="t('forgotPassword.emailPlaceholder')"
             prefix-icon="Message"
             clearable
             size="large"
@@ -32,16 +32,16 @@
           style="width: 100%"
           @click="handleSubmit"
         >
-          发送重置链接
+          {{ t('forgotPassword.submit') }}
         </el-button>
 
         <div v-if="success" class="success-tip">
           <el-icon><SuccessFilled /></el-icon>
-          <span>重置链接已发送至您的邮箱，请查收邮件</span>
+          <span>{{ t('forgotPassword.sentTip') }}</span>
         </div>
 
         <div class="footer-links">
-          <router-link to="/login">返回登录</router-link>
+          <router-link to="/login">{{ t('auth.backToLogin') }}</router-link>
         </div>
       </el-form>
     </div>
@@ -49,13 +49,15 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { SuccessFilled } from '@element-plus/icons-vue'
 import { forgotPassword } from '@/api/auth'
+import { useI18n } from '@/composables/useI18n'
 
+const { t } = useI18n()
 const router = useRouter()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
@@ -65,12 +67,12 @@ const form = reactive({
   email: ''
 })
 
-const formRules: FormRules = {
+const formRules = computed<FormRules>(() => ({
   email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }
+    { required: true, message: t('forgotPassword.emailRequired'), trigger: 'blur' },
+    { type: 'email', message: t('forgotPassword.emailInvalid'), trigger: 'blur' }
   ]
-}
+}))
 
 async function handleSubmit() {
   if (!formRef.value) return
@@ -81,12 +83,12 @@ async function handleSubmit() {
     try {
       await forgotPassword(form.email.trim())
       success.value = true
-      ElMessage.success('重置链接已发送至您的邮箱')
+      ElMessage.success(t('forgotPassword.sentMsg'))
       setTimeout(() => {
         router.push('/login')
       }, 3000)
     } catch (e) {
-      ElMessage.error((e as { response?: { data?: { message?: string } } })?.response?.data?.message || '发送失败，请稍后重试')
+      ElMessage.error((e as { response?: { data?: { message?: string } } })?.response?.data?.message || t('forgotPassword.sendFailed'))
     } finally {
       loading.value = false
     }
