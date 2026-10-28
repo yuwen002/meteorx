@@ -2,8 +2,8 @@
   <div class="register-page">
     <div class="register-box">
       <div class="register-title">
-        <h2>用户注册</h2>
-        <p>加入已有租户</p>
+        <h2>{{ t('registerUser.title') }}</h2>
+        <p>{{ t('registerUser.subtitle') }}</p>
       </div>
 
       <el-form
@@ -13,63 +13,63 @@
         label-position="top"
         class="register-form"
       >
-        <el-form-item label="租户 ID" prop="tenant_id">
+        <el-form-item :label="t('registerUser.tenantId')" prop="tenant_id">
           <el-input
             v-model="form.tenant_id"
-            placeholder="请输入您的租户 ID"
+            :placeholder="t('registerUser.tenantIdPlaceholder')"
             prefix-icon="OfficeBuilding"
             clearable
             size="large"
           />
-          <div class="form-tip">请联系管理员获取您的租户 ID</div>
+          <div class="form-tip">{{ t('registerUser.tenantIdTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="用户名" prop="username">
+        <el-form-item :label="t('auth.username')" prop="username">
           <el-input
             v-model="form.username"
-            placeholder="请输入用户名（4-20个字符）"
+            :placeholder="t('register.usernamePlaceholder')"
             prefix-icon="User"
             clearable
             size="large"
           />
         </el-form-item>
 
-        <el-form-item label="昵称" prop="nickname">
+        <el-form-item :label="t('register.nickname')" prop="nickname">
           <el-input
             v-model="form.nickname"
-            placeholder="请输入昵称"
+            :placeholder="t('register.nicknamePlaceholder')"
             prefix-icon="Avatar"
             clearable
             size="large"
           />
         </el-form-item>
 
-        <el-form-item label="邮箱" prop="email">
+        <el-form-item :label="t('common.email')" prop="email">
           <el-input
             v-model="form.email"
-            placeholder="请输入邮箱"
+            :placeholder="t('register.emailPlaceholder')"
             prefix-icon="Message"
             clearable
             size="large"
           />
         </el-form-item>
 
-        <el-form-item label="密码" prop="password">
+        <el-form-item :label="t('auth.password')" prop="password">
           <el-input
             v-model="form.password"
             type="password"
-            placeholder="请输入密码（至少6个字符）"
+            :placeholder="t('register.passwordPlaceholder')"
             prefix-icon="Lock"
             show-password
             size="large"
           />
         </el-form-item>
 
-        <el-form-item label="确认密码" prop="confirm_password">
+        <el-form-item :label="t('auth.confirmPassword')" prop="confirm_password">
           <el-input
             v-model="form.confirm_password"
             type="password"
-            placeholder="请再次输入密码"
+            :placeholder="t('register.confirmPlaceholder')"
             prefix-icon="Lock"
             show-password
             size="large"
@@ -84,21 +84,21 @@
             style="width: 100%"
             @click="handleRegister"
           >
-            立即注册
+            {{ t('register.submit') }}
           </el-button>
         </el-form-item>
 
         <div class="form-footer">
-          <span>已有账号？</span>
+          <span>{{ t('register.haveAccount') }}</span>
           <el-link type="primary" :underline="false" @click="goLogin">
-            立即登录
+            {{ t('register.goLogin') }}
           </el-link>
         </div>
 
         <div class="register-switch">
-          <span>需要创建新租户？</span>
+          <span>{{ t('registerUser.needTenant') }}</span>
           <el-link type="primary" :underline="false" @click="goTenantRegister">
-            租户注册
+            {{ t('registerUser.tenantRegister') }}
           </el-link>
         </div>
       </el-form>
@@ -107,11 +107,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { registerUser } from '@/api/auth'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const formRef = ref<FormInstance>()
@@ -128,36 +131,36 @@ const form = reactive({
 
 const validateConfirmPassword = (_rule: unknown, value: string, callback: (error?: string | Error) => void) => {
   if (value !== form.password) {
-    callback(new Error('两次输入的密码不一致'))
+    callback(new Error(t('register.passwordMismatch')))
   } else {
     callback()
   }
 }
 
-const formRules: FormRules = {
+const formRules = computed<FormRules>(() => ({
   tenant_id: [
-    { required: true, message: '请输入租户 ID', trigger: 'blur' },
+    { required: true, message: t('registerUser.tenantIdRequired'), trigger: 'blur' },
   ],
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 4, max: 20, message: '长度在 4 到 20 个字符', trigger: 'blur' },
+    { required: true, message: t('register.usernameRequired'), trigger: 'blur' },
+    { min: 4, max: 20, message: t('register.usernameLength'), trigger: 'blur' },
   ],
   nickname: [
-    { required: true, message: '请输入昵称', trigger: 'blur' },
+    { required: true, message: t('register.nicknameRequired'), trigger: 'blur' },
   ],
   email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' },
+    { required: true, message: t('register.emailRequired'), trigger: 'blur' },
+    { type: 'email', message: t('register.emailInvalid'), trigger: 'blur' },
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 32, message: '长度在 6 到 32 个字符', trigger: 'blur' },
+    { required: true, message: t('register.passwordRequired'), trigger: 'blur' },
+    { min: 6, max: 32, message: t('register.passwordLength'), trigger: 'blur' },
   ],
   confirm_password: [
-    { required: true, message: '请再次输入密码', trigger: 'blur' },
+    { required: true, message: t('register.confirmRequired'), trigger: 'blur' },
     { validator: validateConfirmPassword, trigger: 'blur' },
   ],
-}
+}))
 
 const handleRegister = async () => {
   if (!formRef.value) return
@@ -169,7 +172,7 @@ const handleRegister = async () => {
     const { confirm_password: _confirm_password, ...registerData } = form
     await registerUser(registerData)
 
-    ElMessage.success('注册成功，请登录')
+    ElMessage.success(t('register.successMsg'))
     router.push('/login')
   } catch (error) {
     const err = error as { message?: string }

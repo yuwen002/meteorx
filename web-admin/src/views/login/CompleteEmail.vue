@@ -1,8 +1,8 @@
 <template>
   <div class="complete-email-page">
     <div class="complete-email-box">
-      <h2>补全邮箱</h2>
-      <p class="tip">当前第三方账号未提供邮箱，请填写邮箱以完成登录。</p>
+      <h2>{{ t('completeEmail.title') }}</h2>
+      <p class="tip">{{ t('completeEmail.tip') }}</p>
 
       <el-form
         ref="formRef"
@@ -11,12 +11,12 @@
         label-position="top"
         @keyup.enter="handleSubmit"
       >
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="form.email" placeholder="请输入邮箱" size="large" clearable />
+        <el-form-item :label="t('common.email')" prop="email">
+          <el-input v-model="form.email" :placeholder="t('register.emailPlaceholder')" size="large" clearable />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="submitting" size="large" style="width: 100%" @click="handleSubmit">
-            完成登录
+            {{ t('completeEmail.submit') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -25,12 +25,15 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { useUserStore } from '@/stores/user'
 import { completeOAuthEmail } from '@/api/modules/oauth'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const route = useRoute()
 const router = useRouter()
@@ -51,15 +54,15 @@ const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const form = reactive<{ email: string }>({ email: '' })
 
-const rules = reactive<FormRules>({
+const rules = computed<FormRules>(() => ({
   email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '邮箱格式不正确', trigger: 'blur' }
+    { required: true, message: t('completeEmail.emailRequired'), trigger: 'blur' },
+    { type: 'email', message: t('completeEmail.emailInvalid'), trigger: 'blur' }
   ]
-})
+}))
 
 if (!token) {
-  ElMessage.error('登录状态已失效，请重新登录')
+  ElMessage.error(t('completeEmail.sessionExpired'))
   router.replace('/login')
 }
 
@@ -68,7 +71,7 @@ async function handleSubmit() {
   await formRef.value.validate(async (valid) => {
     if (!valid) return
     if (!token) {
-      ElMessage.error('登录状态已失效，请重新登录')
+      ElMessage.error(t('completeEmail.sessionExpired'))
       router.replace('/login')
       return
     }
@@ -90,10 +93,10 @@ async function handleSubmit() {
         permissions: pendingPerms ? JSON.parse(pendingPerms) : []
       })
 
-      ElMessage.success('登录成功')
+      ElMessage.success(t('completeEmail.success'))
       router.replace(redirect)
     } catch (e) {
-      ElMessage.error((e as Error)?.message || '补全邮箱失败')
+      ElMessage.error((e as Error)?.message || t('completeEmail.failed'))
     } finally {
       submitting.value = false
     }

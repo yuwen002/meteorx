@@ -3,15 +3,15 @@
     <!-- 租户选择对话框 -->
     <el-dialog
       v-model="showTenantDialog"
-      title="选择租户"
+      :title="t('oauthCallback.tenantTitle')"
       width="400px"
       :close-on-click-modal="false"
       :close-on-press-escape="false"
     >
-      <p class="dialog-tip">请选择您要登录的租户</p>
+      <p class="dialog-tip">{{ t('oauthCallback.tenantTip') }}</p>
       <el-select
         v-model="selectedTenantId"
-        placeholder="请选择租户"
+        :placeholder="t('oauthCallback.tenantPlaceholder')"
         size="large"
         style="width: 100%"
         filterable
@@ -25,7 +25,7 @@
       </el-select>
       <template #footer>
         <el-button type="primary" :loading="submitting" @click="handleTenantSelect">
-          确认登录
+          {{ t('oauthCallback.confirmLogin') }}
         </el-button>
       </template>
     </el-dialog>
@@ -46,12 +46,15 @@ import { ElMessage } from 'element-plus/es/components/message/index'
 import { Loading } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { oauthLogin, getOAuthTenants, bindOAuth } from '@/api/auth'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-const statusMessage = ref('正在处理第三方登录...')
+const statusMessage = ref(t('oauthCallback.processing'))
 const errorMessage = ref('')
 const showTenantDialog = ref(false)
 const submitting = ref(false)
@@ -77,8 +80,8 @@ onMounted(async () => {
   const state = route.query.state as string
 
   if (!provider || !code) {
-    statusMessage.value = '登录失败'
-    errorMessage.value = '缺少必要的认证参数'
+    statusMessage.value = t('oauthCallback.loginFailed')
+    errorMessage.value = t('oauthCallback.missingParams')
     setTimeout(() => router.push('/login'), 3000)
     return
   }
@@ -90,13 +93,13 @@ onMounted(async () => {
   const isBindMode = sessionStorage.getItem('oauth_bind_mode') === 'true'
   if (isBindMode) {
     sessionStorage.removeItem('oauth_bind_mode')
-    statusMessage.value = '正在绑定第三方账号...'
+    statusMessage.value = t('oauthCallback.binding')
     try {
       await bindOAuth(provider, code, state)
-      ElMessage.success('绑定成功')
+      ElMessage.success(t('oauthCallback.bindSuccess'))
       router.push('/profile')
     } catch (e) {
-      ElMessage.error((e as Error)?.message || '绑定失败')
+      ElMessage.error((e as Error)?.message || t('oauthCallback.bindFailed'))
       router.push('/profile')
     }
     return
@@ -126,23 +129,23 @@ onMounted(async () => {
       } else {
         // 多个租户，显示选择对话框
         showTenantDialog.value = true
-        statusMessage.value = '请选择租户'
+        statusMessage.value = t('oauthCallback.selectTenant')
       }
     } else {
-      statusMessage.value = '登录失败'
-      errorMessage.value = '没有可用的租户，请联系管理员'
+      statusMessage.value = t('oauthCallback.loginFailed')
+      errorMessage.value = t('oauthCallback.noTenant')
       setTimeout(() => router.push('/login'), 3000)
     }
   } catch (e) {
-    statusMessage.value = '登录失败'
-    errorMessage.value = (e as Error)?.message || '获取租户列表失败'
+    statusMessage.value = t('oauthCallback.loginFailed')
+    errorMessage.value = (e as Error)?.message || t('oauthCallback.fetchTenantsFailed')
     setTimeout(() => router.push('/login'), 3000)
   }
 })
 
 async function handleTenantSelect() {
   if (!selectedTenantId.value) {
-    ElMessage.warning('请选择租户')
+    ElMessage.warning(t('oauthCallback.selectTenant'))
     return
   }
 
@@ -179,11 +182,11 @@ async function handleTenantSelect() {
       permissions: data.permissions || []
     })
 
-    ElMessage.success('登录成功')
+    ElMessage.success(t('completeEmail.success'))
     const redirect = sanitizeRedirect(route.query.redirect as string)
     router.push(redirect)
   } catch (e) {
-    ElMessage.error((e as Error)?.message || '登录失败')
+    ElMessage.error((e as Error)?.message || t('auth.loginFailed'))
     router.push('/login')
   } finally {
     submitting.value = false

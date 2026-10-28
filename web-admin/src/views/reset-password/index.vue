@@ -2,8 +2,8 @@
   <div class="reset-password-page">
     <div class="reset-password-box">
       <div class="header">
-        <h2>重置密码</h2>
-        <p>请设置您的新密码</p>
+        <h2>{{ t('auth.resetPassword') }}</h2>
+        <p>{{ t('resetPassword.subtitle') }}</p>
       </div>
 
       <el-form
@@ -14,22 +14,22 @@
         class="form"
         @keyup.enter="handleSubmit"
       >
-        <el-form-item label="新密码" prop="new_password">
+        <el-form-item :label="t('auth.newPassword')" prop="new_password">
           <el-input
             v-model="form.new_password"
             type="password"
-            placeholder="请输入新密码（至少8位）"
+            :placeholder="t('resetPassword.newPasswordPlaceholder')"
             prefix-icon="Lock"
             show-password
             size="large"
           />
         </el-form-item>
 
-        <el-form-item label="确认密码" prop="confirm_password">
+        <el-form-item :label="t('auth.confirmPassword')" prop="confirm_password">
           <el-input
             v-model="form.confirm_password"
             type="password"
-            placeholder="请再次输入新密码"
+            :placeholder="t('resetPassword.confirmPlaceholder')"
             prefix-icon="Lock"
             show-password
             size="large"
@@ -43,11 +43,11 @@
           style="width: 100%"
           @click="handleSubmit"
         >
-          确认重置
+          {{ t('resetPassword.submit') }}
         </el-button>
 
         <div class="footer-links">
-          <router-link to="/login">返回登录</router-link>
+          <router-link to="/login">{{ t('auth.backToLogin') }}</router-link>
         </div>
       </el-form>
     </div>
@@ -55,11 +55,14 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { resetPassword } from '@/api/auth'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const route = useRoute()
@@ -74,27 +77,27 @@ const form = reactive({
 
 const validateConfirmPassword = (_rule: unknown, value: string, callback: (error?: string | Error) => void) => {
   if (value !== form.new_password) {
-    callback(new Error('两次输入的密码不一致'))
+    callback(new Error(t('resetPassword.passwordMismatch')))
   } else {
     callback()
   }
 }
 
-const formRules: FormRules = {
+const formRules = computed<FormRules>(() => ({
   new_password: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 8, max: 32, message: '密码长度应在 8-32 位之间', trigger: 'blur' }
+    { required: true, message: t('resetPassword.newRequired'), trigger: 'blur' },
+    { min: 8, max: 32, message: t('resetPassword.lengthRange'), trigger: 'blur' }
   ],
   confirm_password: [
-    { required: true, message: '请再次输入密码', trigger: 'blur' },
+    { required: true, message: t('resetPassword.confirmRequired'), trigger: 'blur' },
     { validator: validateConfirmPassword, trigger: 'blur' }
   ]
-}
+}))
 
 onMounted(() => {
   const tokenParam = route.query.token as string
   if (!tokenParam) {
-    ElMessage.error('无效的重置链接')
+    ElMessage.error(t('resetPassword.invalidLink'))
     setTimeout(() => {
       router.push('/login')
     }, 2000)
@@ -106,7 +109,7 @@ onMounted(() => {
 async function handleSubmit() {
   if (!formRef.value) return
   if (!token.value) {
-    ElMessage.error('无效的重置链接')
+    ElMessage.error(t('resetPassword.invalidLink'))
     router.push('/login')
     return
   }
@@ -116,12 +119,12 @@ async function handleSubmit() {
     loading.value = true
     try {
       await resetPassword(token.value, form.new_password)
-      ElMessage.success('密码重置成功，请使用新密码登录')
+      ElMessage.success(t('resetPassword.successMsg'))
       setTimeout(() => {
         router.push('/login')
       }, 2000)
     } catch (e) {
-      ElMessage.error((e as { response?: { data?: { message?: string } } })?.response?.data?.message || '重置密码失败')
+      ElMessage.error((e as { response?: { data?: { message?: string } } })?.response?.data?.message || t('resetPassword.failed'))
     } finally {
       loading.value = false
     }
