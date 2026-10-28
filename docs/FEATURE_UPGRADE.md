@@ -1785,3 +1785,81 @@ client:
 - ✅ 变异检验：`FoldRecordHashes` 去累加（只折叠末行）令「丢弃前缀行」断言转红；`canonical` 去 `CreatedAt` 令「改动 CreatedAt」断言转红；
   job 封口 `PrevAnchorHash` 恒空令「第二条须链向第一条」断言转红，逐条归因，还原后全绿。
 - ℹ️ 两卡均**默认关闭**，零配置变更即零行为变化；开启前对既有审计读写完全无感。
+
+---
+
+## 四十九、协作即时消息（IM）模块——私聊、加固与群聊
+
+### 49.1 背景与缺口
+
+站内协作 IM 是「协作评论深化」冲刺的核心黏性功能，此前项目完全没有实时消息能力。按落地节奏分三批推进：**1:1 私聊 foundation**（后端 `e98c02c` + 前端 `3c21bf9`）、**私聊加固**（后端 `b07c471` + 前端 `4dad2ea`：消息撤回 / 输入中提示 / 在线状态）、**群聊**（后端 `97d0209` + 前端 `3249ee1`：群会话模型 / 成员管理 / REST 与前端抽屉）。
+
+### 49.2 后端
+
+- 新增 `internal/modules/chat` 模块，分层 `model → dto → repository → service → handler → module`。
+- **模型**（`model/chat.go`）：`Conversation`（`Type` 取 `direct`/`group`，`direct` 为首版唯一类型、`group` 为扩展位）、`ConversationMember`（`Role` 取 `owner`/`member`，携带每成员读水位与未读计数）、`ChatMessage`。全部登记进 repository `Models()` 单一迁移来源，AutoMigrate 自动生效。
+- **路由**（`module.go`，`/chat` 前缀）：
+  - `POST /chat/conversations/direct`（打开或创建 1:1 会话）、`POST /chat/conversations/group`（建群）、`GET /chat/conversations`（列表）、`PUT /chat/conversations/{id}`（群改名）
+  - `GET`/`POST /chat/conversations/{id}/messages`（历史 / 发送）、`DELETE /chat/conversations/{id}/messages/{msgId}`（撤回）
+  - `GET`/`POST /chat/conversations/{id}/members`（成员列表 / 加成员）、`DELETE /chat/conversations/{id}/members/{userId}`（移除）、`POST /chat/conversations/{id}/leave`（退群）
+  - `POST /chat/conversations/{id}/read`（标记已读）、`POST /chat/conversations/{id}/typing`（输入中）、`GET /chat/presence`（在线状态）
+  - **静态段 `/conversations/direct` 必须先于 `/conversations/{id}` 注册**，避免路径参数吞掉静态段。
+- **实时通道**：复用 `internal/ws` Hub，`MsgTypeChat` 投递消息，`MsgTypeChatConversation` 推送会话元信息（群名 / 成员数变化）驱动前端刷新；撤回、输入中、在线状态经 WS 广播。
+- **群聊规则**：成员去重与角色约束，末位成员离开时会话软删除。
+
+### 49.3 前端
+
+- `web-admin/src/api/modules/chat.ts` + `stores/chat.ts`（会话/消息/成员状态）+ `composables/useWebSocket.ts` 集成。
+- `views/chat/index.vue`：会话列表 + 聊天面板 + 群成员管理抽屉 + 在线状态点、输入中提示、消息撤回入口。
+- 单测 `stores/chat.test.ts`（9 个群聊用例：建群插入/原位替换、加减成员刷新列表、退群清 activeId、改名同步展示名、loadMembers、会话元信息推送保留本地未读/回源），`beforeEach` 用 `vi.resetAllMocks()` 清实现避免 mock 跨用例残留。
+
+### 49.4 验证状态
+
+- ✅ `go build ./...`、`go test ./internal/... ./pkg/...` 全量绿（chat 模型/仓储/service 单测通过）。
+- ✅ 前端 `vue-tsc --noEmit` 退出 0；`vitest run` 全绿；改动文件中文硬编码扫描 `HITS=0`。
+
+---
+
+## 五十、Wiki 评论深化——表情回应、解决/重开、编辑与 @提及
+
+### 50.1 背景与缺口
+
+Wiki 评论基线已具备根评论 + 一级回复（`parent_id`）、@提及（`mention_ids`）、状态位（`Status`：1=Active / 2=Resolved / 3=Deleted）与软删除，但缺少**表情回应（reactions）**与**解决/重开（resolve）API**，前端也未暴露相应交互。分两批补齐：后端 `f6ceafa`、前端 `f611332`。
+
+### 50.2 后端
+
+- **新模型** `CommentReaction`（表 `wiki_comment_reactions`，`(comment_id, user_id, emoji)` 复合唯一索引 `uk_wiki_comment_reaction`），登记进 repository `Models()` 与测试 `sqlite_helper.go`。
+- **DTO**：`ReactionItem{emoji,count,mine}`、`ToggleReactionReq`、`ToggleReactionResp`、`ResolveCommentReq`；`CommentResp` 增 `Reactions`。
+- **Repository**：`SetCommentStatus`、`ToggleCommentReaction`（幂等切换：命中则删、未命中则建）、`ListReactionsByCommentIDs`（批量取，避免 N+1）、`DeleteReactionsByComment`。列表过滤由 `status = Active` 改为 **`status <> Deleted`**，使已解决评论仍可见。
+- **Service**：`ToggleCommentReaction`（需节点 `read` 权限、表情非空校验）、`ResolveComment`（仅根评论；作者或具节点 `delete` 权限者可操作）、纯函数 `aggregateReactions`（按 emoji 归组计数、保留首次出现顺序、命中当前用户置 `mine`）；`buildCommentResp` 附加 reactions 聚合；`DeleteComment` 级联物理清理评论及其回复的 reactions。
+- **Handler**：`POST /wiki/documents/comments/{id}/reactions`、`POST /wiki/documents/comments/{id}/resolve`。
+- **关键坑**：`db.Delete(&CommentReaction{}, existing.ID)` 会把 ULID 字符串当作**裸 SQL 条件**拼接，SQLite 报 `unrecognized token`；改为 `db.Where("id = ?", existing.ID).Delete(&CommentReaction{})`。
+- **测试**：service 纯函数测试 `wiki_comment_reaction_test.go`（聚合计数/顺序/mine/nil）、仓储集成测试（幂等切换/两用户同 emoji/nil 短路/级联删除/解决态可见性）、handler 用例（成功/缺 emoji 400/resolve）。
+
+### 50.3 前端
+
+- `api/wiki.ts`：`Comment` 增 `reactions`、新增 `ReactionItem`、`toggleCommentReaction`、`resolveComment`。
+- `CommentSection.vue`（整体重写）：表情回应 chip（`mine` 高亮、点击切换）+ `el-popover` 快捷表情面板；解决/重开按钮与状态徽标；作者可见的编辑（`ElMessageBox.prompt` 预填原文，走 `PUT /comments/{id}`）；@提及（同租户成员 `el-select` 远程多选，提交时逗号拼接填 `mention_ids`）；`canModerate` 由父组件按节点管理权限传入控制删除他人评论入口。
+- locale 补 `wiki.comment.*` 共 12 个 key（zh/en 对称）。
+
+---
+
+## 五十一、前端 i18n 全站铺开（业务页文案迁移到 locale key）
+
+### 51.1 背景与缺口
+
+i18n 此前只铺了全局外壳（`App.vue`、`DefaultLayout.vue`），`web-admin/src/views/` 下约 30 个业务页面全部硬编码中文——这是路线图中「前端 i18n」未还的最大债项。本冲刺按「纯前端、低风险、可视化收益大」优先把它一次性铺开。
+
+### 51.2 范式与约束
+
+- **范式**：`stores/i18n.ts` 维护扁平点分 key 的 zh/en 两个 MessageMap → 页面 `import { useI18n }` → 模板/处理器统一用 `t()`。
+- **约束**：locale key 必须 **zh/en 对称**（由 vitest 对称校验用例兜底）；`t` 为变参 `t(key, ...args)`、占位符 `{0}`；含中文的 rules / 选项数组改用 `computed`；业务整行注释可中文、行尾开发者注释用英文；改动文件以中文硬编码扫描脚本验证 `HITS=0`。
+
+### 51.3 分批落地
+
+按批次 1–7 逐页迁移：认证公开页/认证类、用户/租户/邀请、任务/告警/健康/导出/文件、RBAC 与套餐、系统管理员 OAuth/注销申请、审计六页、公告与租户设置、登录页与看板、消息中心、个人中心、Wiki（基础组件 / 交互组件 / 页面 / 空间页），最后收口全站运行期文案与注释。
+
+### 51.4 收尾验证（s2b）
+
+- 租户端批量操作路径为文档登记的「已知未验证」项：本地以 miniredis + 真实后端/前端栈启动后做浏览器目视验证，5 项检查全部 PASS（中/英路由标题、面包屑、批量条文案完全本地化）。
+- ✅ 全站改动：`vue-tsc --noEmit` 退出 0；`vitest run` 全绿；中文硬编码扫描 `HITS=0`。

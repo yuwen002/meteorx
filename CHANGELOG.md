@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+### 新增
+- **协作即时消息（IM）模块**：全新 `internal/modules/chat` 模块（`model→dto→repository→service→handler→module`），基于 `internal/ws` Hub 实时投递。首版落地 **1:1 私聊**（打开/创建会话、发送、历史、已读水位与未读）；**加固批次**新增消息撤回、输入中提示、在线状态（`GET /chat/presence`）；**群聊批次**新增 `Conversation.Type=group` 与 `ConversationMember.Role=owner/member` 成员规则（建群/改名/加减成员/退群，末位离开软删会话），会话元信息经 `MsgTypeChatConversation` 推送驱动前端刷新。前端新增会话列表、聊天面板、群成员管理抽屉与在线/输入中/撤回交互，补 `stores/chat.test.ts`（9 用例）。
+- **Wiki 评论深化**：在既有「根评论 + 一级回复 + @提及 + 状态位」基线上补齐**表情回应**与**解决/重开**。新增 `CommentReaction` 模型（`(comment_id, user_id, emoji)` 复合唯一）与 `POST /wiki/documents/comments/{id}/reactions`（幂等切换，返回最新聚合）、`.../resolve`（仅根评论，作者或具删除权限者可操作）；批量聚合避免 N+1，评论删除级联清理 reactions，列表过滤由 `status = Active` 改为 `status <> Deleted` 使已解决评论仍可见。前端 `CommentSection.vue` 重写，新增表情回应 chip + 快捷面板、解决/重开徽标、作者编辑、@提及远程多选。
+- **前端 i18n 全站铺开**：将约 30 个硬编码中文业务页迁移到 `stores/i18n.ts` 扁平点分 locale key（`import useI18n` + `t()` 范式，locale key zh/en 对称由 vitest 校验），覆盖认证、用户/租户/邀请、任务/告警/健康/导出/文件、RBAC/套餐、系统管理、审计、公告/设置、登录/看板、消息/个人中心、Wiki 等，并收口全站运行期文案与注释；租户端批量操作路径以真实栈浏览器目视验证 5 项全 PASS。
+
 ## [1.5.0] - 2026-10-28
 
 ### 新增
