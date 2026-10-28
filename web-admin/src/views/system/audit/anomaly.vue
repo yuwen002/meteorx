@@ -3,17 +3,17 @@
     <!-- 检测参数 -->
     <el-card shadow="never" class="search-card">
       <div class="search-bar">
-        <span class="label">检测窗口：</span>
+        <span class="label">{{ t('anomalyPage.windowLabel') }}</span>
         <el-select v-model="windowMinutes" style="width: 160px">
-          <el-option label="10 分钟" :value="10" />
-          <el-option label="30 分钟" :value="30" />
-          <el-option label="1 小时" :value="60" />
-          <el-option label="2 小时" :value="120" />
+          <el-option :label="t('anomalyPage.win10')" :value="10" />
+          <el-option :label="t('anomalyPage.win30')" :value="30" />
+          <el-option :label="t('anomalyPage.win1h')" :value="60" />
+          <el-option :label="t('anomalyPage.win2h')" :value="120" />
         </el-select>
-        <span class="label" style="margin-left: 16px;">失败阈值：</span>
+        <span class="label" style="margin-left: 16px;">{{ t('anomalyPage.thresholdLabel') }}</span>
         <el-input-number v-model="threshold" :min="3" :max="100" style="width: 120px" />
         <el-button type="primary" :loading="loading" @click="detectAnomalies">
-          <el-icon><Search /></el-icon>开始检测
+          <el-icon><Search /></el-icon>{{ t('anomalyPage.detect') }}
         </el-button>
       </div>
     </el-card>
@@ -25,7 +25,7 @@
           <div class="stat-content">
             <div class="stat-icon alert-icon"><el-icon><Warning /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">异常总数</div>
+              <div class="stat-label">{{ t('anomalyPage.stat.total') }}</div>
               <div class="stat-value">{{ anomalies.length }}</div>
             </div>
           </div>
@@ -36,7 +36,7 @@
           <div class="stat-content">
             <div class="stat-icon high-icon"><el-icon><CircleClose /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">高风险</div>
+              <div class="stat-label">{{ t('anomalyPage.stat.high') }}</div>
               <div class="stat-value">{{ highRiskCount }}</div>
             </div>
           </div>
@@ -47,7 +47,7 @@
           <div class="stat-content">
             <div class="stat-icon medium-icon"><el-icon><Warning /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">中风险</div>
+              <div class="stat-label">{{ t('anomalyPage.stat.medium') }}</div>
               <div class="stat-value">{{ mediumRiskCount }}</div>
             </div>
           </div>
@@ -58,7 +58,7 @@
           <div class="stat-content">
             <div class="stat-icon user-icon"><el-icon><User /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">涉及用户</div>
+              <div class="stat-label">{{ t('anomalyPage.stat.users') }}</div>
               <div class="stat-value">{{ uniqueUserCount }}</div>
             </div>
           </div>
@@ -70,52 +70,52 @@
     <el-card v-if="anomalies.length > 0" shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
-          <span>异常检测结果</span>
-          <el-tag type="warning" size="small">窗口 {{ windowMinutes }} 分钟 | 阈值 {{ threshold }} 次</el-tag>
+          <span>{{ t('anomalyPage.resultTitle') }}</span>
+          <el-tag type="warning" size="small">{{ t('anomalyPage.windowTag', windowMinutes, threshold) }}</el-tag>
         </div>
       </template>
       <el-table :data="anomalies" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="50" />
-        <el-table-column prop="username" label="用户" width="120" />
-        <el-table-column prop="anomaly_label" label="异常类型" width="140">
+        <el-table-column prop="username" :label="t('anomalyPage.col.user')" width="120" />
+        <el-table-column prop="anomaly_label" :label="t('anomalyPage.col.anomalyType')" width="140">
           <template #default="{ row }">
             <el-tag :type="getAnomalyTagType(row.anomaly_type)" size="small">
               {{ row.anomaly_label }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="risk_level" label="风险等级" width="100">
+        <el-table-column prop="risk_level" :label="t('auditPage.col.risk')" width="100">
           <template #default="{ row }">
             <el-tag size="small" :type="getRiskLevelType(row.risk_level)">
               {{ getRiskLevelLabel(row.risk_level) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="total_count" label="总操作" width="80" />
-        <el-table-column prop="failure_count" label="失败次数" width="100">
+        <el-table-column prop="total_count" :label="t('anomalyPage.col.total')" width="80" />
+        <el-table-column prop="failure_count" :label="t('anomalyPage.col.failureCount')" width="100">
           <template #default="{ row }">
             <span style="color: #f56c6c; font-weight: bold;">{{ row.failure_count }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="失败率" width="100">
+        <el-table-column :label="t('anomalyPage.col.failureRate')" width="100">
           <template #default="{ row }">
             <span :style="{ color: row.total_count > 0 && row.failure_count / row.total_count > 0.5 ? '#f56c6c' : '#faad14' }">
               {{ row.total_count > 0 ? (row.failure_count / row.total_count * 100).toFixed(1) + '%' : '0%' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="window_minutes" label="检测窗口" width="100">
-          <template #default="{ row }">{{ row.window_minutes }} 分钟</template>
+        <el-table-column prop="window_minutes" :label="t('anomalyPage.col.window')" width="100">
+          <template #default="{ row }">{{ t('anomalyPage.durationUnit', row.window_minutes) }}</template>
         </el-table-column>
-        <el-table-column prop="first_seen" label="首次出现" width="170" />
-        <el-table-column prop="last_seen" label="最后出现" width="170" />
-        <el-table-column prop="details" label="详情" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="first_seen" :label="t('anomalyPage.col.firstSeen')" width="170" />
+        <el-table-column prop="last_seen" :label="t('anomalyPage.col.lastSeen')" width="170" />
+        <el-table-column prop="details" :label="t('anomalyPage.col.detail')" min-width="200" show-overflow-tooltip />
       </el-table>
     </el-card>
 
     <!-- 空状态 -->
-    <el-empty v-if="!loading && anomalies.length === 0 && hasDetected" description="未检测到异常操作" />
-    <el-empty v-if="!hasDetected" description='设置检测参数后点击"开始检测"' />
+    <el-empty v-if="!loading && anomalies.length === 0 && hasDetected" :description="t('anomalyPage.empty.none')" />
+    <el-empty v-if="!hasDetected" :description="t('anomalyPage.empty.hint')" />
   </div>
 </template>
 
@@ -124,6 +124,9 @@ import { ref, computed } from 'vue'
 import { Search, Warning, CircleClose, User } from '@element-plus/icons-vue'
 import { getAnomalyLogs } from '@/api/modules/audit'
 import type { AnomalyLogItem } from '@/api/modules/audit'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const anomalies = ref<AnomalyLogItem[]>([])
 const loading = ref(false)
@@ -148,7 +151,7 @@ async function detectAnomalies() {
     })
     anomalies.value = res || []
   } catch (error) {
-    console.error('异常检测失败', error)
+    console.error('failed to detect anomalies', error)
   } finally {
     loading.value = false
   }
@@ -169,7 +172,7 @@ function getRiskLevelType(level: string): string {
 }
 
 function getRiskLevelLabel(level: string): string {
-  const map: Record<string, string> = { low: '低', medium: '中', high: '高', critical: '严重' }
+  const map: Record<string, string> = { low: t('auditPage.riskLevel.low'), medium: t('auditPage.riskLevel.medium'), high: t('auditPage.riskLevel.high'), critical: t('auditPage.riskLevel.critical') }
   return map[level] || level
 }
 </script>

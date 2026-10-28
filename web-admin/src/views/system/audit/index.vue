@@ -9,7 +9,7 @@
               <el-icon><Document /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">总日志数</div>
+              <div class="stat-label">{{ t('auditPage.stat.total') }}</div>
               <div class="stat-value">{{ dashboard.total_count }}</div>
             </div>
           </div>
@@ -22,7 +22,7 @@
               <el-icon><Calendar /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">今日日志</div>
+              <div class="stat-label">{{ t('auditPage.stat.today') }}</div>
               <div class="stat-value">{{ dashboard.today_count }}</div>
             </div>
           </div>
@@ -35,7 +35,7 @@
               <el-icon><CircleCheck /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">成功操作</div>
+              <div class="stat-label">{{ t('auditPage.stat.success') }}</div>
               <div class="stat-value">{{ dashboard.result_stats?.success || 0 }}</div>
             </div>
           </div>
@@ -48,7 +48,7 @@
               <el-icon><CircleClose /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">失败操作</div>
+              <div class="stat-label">{{ t('auditPage.stat.failure') }}</div>
               <div class="stat-value">{{ dashboard.result_stats?.failure || 0 }}</div>
             </div>
           </div>
@@ -63,11 +63,11 @@
         <el-card shadow="hover" class="chart-card">
           <template #header>
             <div class="chart-header">
-              <span>操作趋势（近{{ trendDays }}天）</span>
+              <span>{{ t('auditPage.chart.trend', trendDays) }}</span>
               <el-radio-group v-model="trendDays" size="small" @change="loadDashboard">
-                <el-radio-button :label="7">7天</el-radio-button>
-                <el-radio-button :label="14">14天</el-radio-button>
-                <el-radio-button :label="30">30天</el-radio-button>
+                <el-radio-button :label="7">{{ t('auditPage.chart.dayCount', 7) }}</el-radio-button>
+                <el-radio-button :label="14">{{ t('auditPage.chart.dayCount', 14) }}</el-radio-button>
+                <el-radio-button :label="30">{{ t('auditPage.chart.dayCount', 30) }}</el-radio-button>
               </el-radio-group>
             </div>
           </template>
@@ -87,20 +87,20 @@
                   <div
                     class="bar bar-failure"
                     :style="{ height: trendMax > 0 ? (point.failure / trendMax * 100) + '%' : '0%' }"
-                    :title="`失败: ${point.failure}`"
+                    :title="t('auditPage.chart.barFailureTip', point.failure)"
                   ></div>
                   <div
                     class="bar bar-success"
                     :style="{ height: trendMax > 0 ? (point.success / trendMax * 100) + '%' : '0%' }"
-                    :title="`成功: ${point.success}`"
+                    :title="t('auditPage.chart.barSuccessTip', point.success)"
                   ></div>
                 </div>
                 <div class="bar-label">{{ formatDateLabel(point.date) }}</div>
               </div>
             </div>
             <div class="trend-legend">
-              <span class="legend-item"><i class="dot success"></i>成功</span>
-              <span class="legend-item"><i class="dot failure"></i>失败</span>
+              <span class="legend-item"><i class="dot success"></i>{{ t('auditPage.result.success') }}</span>
+              <span class="legend-item"><i class="dot failure"></i>{{ t('auditPage.result.failure') }}</span>
             </div>
           </div>
         </el-card>
@@ -111,7 +111,7 @@
         <el-card shadow="hover" class="chart-card">
           <template #header>
             <div class="chart-header">
-              <span>模块分布</span>
+              <span>{{ t('auditPage.chart.module') }}</span>
             </div>
           </template>
           <div class="pie-chart-container">
@@ -121,7 +121,7 @@
             ></div>
             <div class="pie-center">
               <div class="pie-total">{{ totalModuleCount }}</div>
-              <div class="pie-label">总操作</div>
+              <div class="pie-label">{{ t('auditPage.chart.totalOps') }}</div>
             </div>
           </div>
           <div class="pie-legend">
@@ -146,7 +146,7 @@
         <el-card shadow="hover" class="chart-card">
           <template #header>
             <div class="chart-header">
-              <span>操作类型统计</span>
+              <span>{{ t('auditPage.chart.actionStats') }}</span>
             </div>
           </template>
           <div class="action-stats">
@@ -173,7 +173,7 @@
         <el-card shadow="hover" class="chart-card">
           <template #header>
             <div class="chart-header">
-              <span>结果分布</span>
+              <span>{{ t('auditPage.chart.resultDist') }}</span>
             </div>
           </template>
           <div class="result-stats">
@@ -197,18 +197,18 @@
               </svg>
               <div class="ring-center-text">
                 <span class="ring-percent">{{ successRate }}%</span>
-                <span class="ring-label">成功率</span>
+                <span class="ring-label">{{ t('auditPage.chart.successRate') }}</span>
               </div>
             </div>
             <div class="result-details">
               <div class="result-item success">
                 <span class="result-dot"></span>
-                <span class="result-name">成功</span>
+                <span class="result-name">{{ t('auditPage.result.success') }}</span>
                 <span class="result-count">{{ dashboard.result_stats?.success || 0 }}</span>
               </div>
               <div class="result-item failure">
                 <span class="result-dot"></span>
-                <span class="result-name">失败</span>
+                <span class="result-name">{{ t('auditPage.result.failure') }}</span>
                 <span class="result-count">{{ dashboard.result_stats?.failure || 0 }}</span>
               </div>
             </div>
@@ -222,118 +222,118 @@
       <div class="search-bar">
         <el-input
           v-model="query.keyword"
-          placeholder="搜索路径/用户名"
+          :placeholder="t('auditPage.search.pathUser')"
           clearable
           style="width: 200px"
           @keyup.enter="loadList"
         />
-        <el-select v-model="query.module" placeholder="模块" clearable style="width: 140px">
-          <el-option label="认证" value="auth" />
-          <el-option label="用户" value="user" />
-          <el-option label="租户" value="tenant" />
-          <el-option label="权限" value="rbac" />
-          <el-option label="审计" value="audit" />
+        <el-select v-model="query.module" :placeholder="t('auditPage.filter.module')" clearable style="width: 140px">
+          <el-option :label="t('auditPage.module.auth')" value="auth" />
+          <el-option :label="t('auditPage.module.user')" value="user" />
+          <el-option :label="t('auditPage.module.tenant')" value="tenant" />
+          <el-option :label="t('auditPage.module.rbac')" value="rbac" />
+          <el-option :label="t('auditPage.module.audit')" value="audit" />
         </el-select>
-        <el-select v-model="query.action" placeholder="操作类型" clearable style="width: 140px">
-          <el-option label="创建" value="create" />
-          <el-option label="更新" value="update" />
-          <el-option label="删除" value="delete" />
-          <el-option label="查询" value="query" />
-          <el-option label="登录" value="login" />
-          <el-option label="登出" value="logout" />
-          <el-option label="其他" value="other" />
+        <el-select v-model="query.action" :placeholder="t('auditPage.filter.action')" clearable style="width: 140px">
+          <el-option :label="t('auditPage.action.create')" value="create" />
+          <el-option :label="t('auditPage.action.update')" value="update" />
+          <el-option :label="t('auditPage.action.delete')" value="delete" />
+          <el-option :label="t('auditPage.action.query')" value="query" />
+          <el-option :label="t('auditPage.action.login')" value="login" />
+          <el-option :label="t('auditPage.action.logout')" value="logout" />
+          <el-option :label="t('auditPage.action.other')" value="other" />
         </el-select>
-        <el-select v-model="query.result" placeholder="结果" clearable style="width: 120px">
-          <el-option label="成功" value="success" />
-          <el-option label="失败" value="failure" />
+        <el-select v-model="query.result" :placeholder="t('auditPage.filter.result')" clearable style="width: 120px">
+          <el-option :label="t('auditPage.result.success')" value="success" />
+          <el-option :label="t('auditPage.result.failure')" value="failure" />
         </el-select>
-        <el-select v-model="query.risk_level" placeholder="风险等级" clearable style="width: 140px">
-          <el-option label="低风险" value="low" />
-          <el-option label="中风险" value="medium" />
-          <el-option label="高风险" value="high" />
-          <el-option label="严重风险" value="critical" />
+        <el-select v-model="query.risk_level" :placeholder="t('auditPage.filter.risk')" clearable style="width: 140px">
+          <el-option :label="t('auditPage.riskOption.low')" value="low" />
+          <el-option :label="t('auditPage.riskOption.medium')" value="medium" />
+          <el-option :label="t('auditPage.riskOption.high')" value="high" />
+          <el-option :label="t('auditPage.riskOption.critical')" value="critical" />
         </el-select>
         <el-date-picker
           v-model="query.dateRange"
           type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
+          :range-separator="t('auditPage.date.rangeSeparator')"
+          :start-placeholder="t('auditPage.date.start')"
+          :end-placeholder="t('auditPage.date.end')"
           value-format="YYYY-MM-DD"
           style="width: 240px"
         />
         <el-button type="primary" @click="loadList">
-          <el-icon><Search /></el-icon>查询
+          <el-icon><Search /></el-icon>{{ t('common.query') }}
         </el-button>
-        <el-button @click="resetSearch">重置</el-button>
+        <el-button @click="resetSearch">{{ t('common.reset') }}</el-button>
         <el-button type="success" @click="handleExport">
-          <el-icon><Download /></el-icon>导出
+          <el-icon><Download /></el-icon>{{ t('auditPage.action.export') }}
         </el-button>
         <div class="flex-1"></div>
         <el-button-group>
           <el-button :type="query.action === 'login' ? 'primary' : 'default'" @click="quickFilter('login')">
-            <el-icon><User /></el-icon>登录日志
+            <el-icon><User /></el-icon>{{ t('auditPage.quick.login') }}
           </el-button>
           <el-button :type="query.action === 'logout' ? 'primary' : 'default'" @click="quickFilter('logout')">
-            <el-icon><SwitchButton /></el-icon>登出日志
+            <el-icon><SwitchButton /></el-icon>{{ t('auditPage.quick.logout') }}
           </el-button>
           <el-button :type="query.action === '' ? 'primary' : 'default'" @click="quickFilter('')">
-            <el-icon><Document /></el-icon>全部
+            <el-icon><Document /></el-icon>{{ t('auditPage.quick.all') }}
           </el-button>
         </el-button-group>
         <el-button type="danger" style="margin-left: 10px;" @click="handleCleanup">
-          <el-icon><Delete /></el-icon>清理日志
+          <el-icon><Delete /></el-icon>{{ t('auditPage.action.cleanup') }}
         </el-button>
       </div>
 
       <!-- 列表 -->
       <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="60" :index="(i: number) => (page - 1) * pageSize + i + 1" />
-        <el-table-column prop="username" label="操作用户" width="120" />
-        <el-table-column prop="module" label="模块" width="100">
+        <el-table-column prop="username" :label="t('auditPage.col.user')" width="120" />
+        <el-table-column prop="module" :label="t('auditPage.col.module')" width="100">
           <template #default="{ row }">
             <el-tag size="small" type="info">{{ row.module }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="action" label="操作" width="100">
+        <el-table-column prop="action" :label="t('auditPage.col.action')" width="100">
           <template #default="{ row }">
             <el-tag size="small" :type="getActionType(row.action)">{{ getActionLabel(row.action) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="risk_level" label="风险等级" width="100">
+        <el-table-column prop="risk_level" :label="t('auditPage.col.risk')" width="100">
           <template #default="{ row }">
             <el-tag size="small" :type="getRiskLevelType(row.risk_level)">{{ getRiskLevelLabel(row.risk_level) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="method" label="方法" width="80">
+        <el-table-column prop="method" :label="t('auditPage.col.method')" width="80">
           <template #default="{ row }">
             <el-tag size="small" :type="getMethodType(row.method)">{{ row.method }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="path" label="路径" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="status_code" label="状态码" width="90">
+        <el-table-column prop="path" :label="t('auditPage.col.path')" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="status_code" :label="t('auditPage.col.statusCode')" width="90">
           <template #default="{ row }">
             <el-tag size="small" :type="row.status_code >= 400 ? 'danger' : 'success'">{{ row.status_code }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="result" label="结果" width="90">
+        <el-table-column prop="result" :label="t('auditPage.col.result')" width="90">
           <template #default="{ row }">
             <el-tag size="small" :type="row.result === 'success' ? 'success' : 'danger'">
-              {{ row.result === 'success' ? '成功' : '失败' }}
+              {{ row.result === 'success' ? t('auditPage.result.success') : t('auditPage.result.failure') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="client_ip" label="客户端IP" width="140" />
-        <el-table-column prop="device_info" label="设备" width="140" show-overflow-tooltip />
-        <el-table-column prop="duration" label="耗时(ms)" width="100">
+        <el-table-column prop="client_ip" :label="t('auditPage.col.clientIp')" width="140" />
+        <el-table-column prop="device_info" :label="t('auditPage.col.device')" width="140" show-overflow-tooltip />
+        <el-table-column prop="duration" :label="t('auditPage.col.durationMs')" width="100">
           <template #default="{ row }">
             <span :class="getDurationClass(row.duration)">{{ row.duration }}ms</span>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="操作时间" width="180" />
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column prop="created_at" :label="t('auditPage.col.time')" width="180" />
+        <el-table-column :label="t('auditPage.col.operation')" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">详情</el-button>
+            <el-button link type="primary" @click="openDetail(row)">{{ t('auditPage.action.detail') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -352,14 +352,14 @@
     </el-card>
 
     <!-- 详情弹窗 -->
-    <el-dialog v-model="detailVisible" v-loading="detailLoading" title="日志详情" width="900px" destroy-on-close>
+    <el-dialog v-model="detailVisible" v-loading="detailLoading" :title="t('auditPage.detail.title')" width="900px" destroy-on-close>
       <el-descriptions v-if="currentLog" :column="2" border>
-        <el-descriptions-item label="日志ID">{{ currentLog.id }}</el-descriptions-item>
-        <el-descriptions-item label="请求ID">{{ currentLog.request_id || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="操作用户">{{ currentLog.username }} ({{ currentLog.user_id }})</el-descriptions-item>
-        <el-descriptions-item label="租户ID">{{ currentLog.tenant_id || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="会话ID">{{ currentLog.session_id || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="链路ID">
+        <el-descriptions-item :label="t('auditPage.detail.id')">{{ currentLog.id }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.detail.requestId')">{{ currentLog.request_id || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.detail.user')">{{ currentLog.username }} ({{ currentLog.user_id }})</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.detail.tenantId')">{{ currentLog.tenant_id || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.detail.sessionId')">{{ currentLog.session_id || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.detail.traceId')">
           <el-link
             v-if="buildTraceUrl(currentLog.trace_id)"
             :href="buildTraceUrl(currentLog.trace_id)"
@@ -369,63 +369,63 @@
           >{{ currentLog.trace_id }}</el-link>
           <span v-else>{{ currentLog.trace_id || '-' }}</span>
         </el-descriptions-item>
-        <el-descriptions-item label="模块">{{ currentLog.module }}</el-descriptions-item>
-        <el-descriptions-item label="操作类型">{{ getActionLabel(currentLog.action) }}</el-descriptions-item>
-        <el-descriptions-item label="风险等级">
+        <el-descriptions-item :label="t('auditPage.col.module')">{{ currentLog.module }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.detail.actionType')">{{ getActionLabel(currentLog.action) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.col.risk')">
           <el-tag size="small" :type="getRiskLevelType(currentLog.risk_level)">{{ getRiskLevelLabel(currentLog.risk_level) }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="HTTP方法">{{ currentLog.method }}</el-descriptions-item>
-        <el-descriptions-item label="请求路径" :span="2">{{ currentLog.path }}</el-descriptions-item>
-        <el-descriptions-item label="来源页面" :span="2">{{ currentLog.referer || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="资源">{{ currentLog.resource || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="资源ID">{{ currentLog.resource_id || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="状态码">
+        <el-descriptions-item :label="t('auditPage.detail.httpMethod')">{{ currentLog.method }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.detail.reqPath')" :span="2">{{ currentLog.path }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.detail.referer')" :span="2">{{ currentLog.referer || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.detail.resource')">{{ currentLog.resource || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.detail.resourceId')">{{ currentLog.resource_id || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.col.statusCode')">
           <el-tag size="small" :type="currentLog.status_code >= 400 ? 'danger' : 'success'">{{ currentLog.status_code }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="结果">
+        <el-descriptions-item :label="t('auditPage.col.result')">
           <el-tag size="small" :type="currentLog.result === 'success' ? 'success' : 'danger'">
-            {{ currentLog.result === 'success' ? '成功' : '失败' }}
+            {{ currentLog.result === 'success' ? t('auditPage.result.success') : t('auditPage.result.failure') }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="客户端IP">{{ currentLog.client_ip }}</el-descriptions-item>
-        <el-descriptions-item label="IP位置">{{ currentLog.ip_location || '未知' }}</el-descriptions-item>
-        <el-descriptions-item label="用户代理" :span="2">{{ currentLog.user_agent }}</el-descriptions-item>
-        <el-descriptions-item label="设备信息" :span="2">{{ currentLog.device_info || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="耗时">{{ currentLog.duration }}ms</el-descriptions-item>
-        <el-descriptions-item label="操作时间">{{ currentLog.created_at }}</el-descriptions-item>
-        <el-descriptions-item v-if="currentLog.tags" label="标签" :span="2">
+        <el-descriptions-item :label="t('auditPage.col.clientIp')">{{ currentLog.client_ip }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.detail.ipLocation')">{{ currentLog.ip_location || t('auditPage.detail.unknown') }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.detail.userAgent')" :span="2">{{ currentLog.user_agent }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.detail.deviceInfo')" :span="2">{{ currentLog.device_info || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.detail.duration')">{{ currentLog.duration }}ms</el-descriptions-item>
+        <el-descriptions-item :label="t('auditPage.col.time')">{{ currentLog.created_at }}</el-descriptions-item>
+        <el-descriptions-item v-if="currentLog.tags" :label="t('auditPage.detail.tags')" :span="2">
           <el-tag v-for="tag in parseTags(currentLog.tags)" :key="tag" size="small" style="margin-right: 4px;">{{ tag }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item v-if="currentLog.error_message" label="错误信息" :span="2">
+        <el-descriptions-item v-if="currentLog.error_message" :label="t('auditPage.detail.error')" :span="2">
           <span style="color: #f56c6c">{{ currentLog.error_message }}</span>
         </el-descriptions-item>
-        <el-descriptions-item v-if="currentLog.request_body" label="请求参数" :span="2">
+        <el-descriptions-item v-if="currentLog.request_body" :label="t('auditPage.detail.reqParams')" :span="2">
           <pre class="json-pre">{{ formatJson(currentLog.request_body) }}</pre>
         </el-descriptions-item>
-        <el-descriptions-item v-if="currentLog.response_body" label="响应结果" :span="2">
+        <el-descriptions-item v-if="currentLog.response_body" :label="t('auditPage.detail.respResult')" :span="2">
           <pre class="json-pre">{{ formatJson(currentLog.response_body) }}</pre>
         </el-descriptions-item>
       </el-descriptions>
       <el-empty
         v-if="!detailLoading && !currentLog"
-        description="日志不存在或已被清理"
+        :description="t('auditPage.detail.notFound')"
         :image-size="60"
       />
     </el-dialog>
 
     <!-- 清理弹窗 -->
-    <el-dialog v-model="cleanupVisible" title="清理审计日志" width="400px">
+    <el-dialog v-model="cleanupVisible" :title="t('auditPage.cleanup.title')" width="400px">
       <el-form :model="cleanupForm" label-width="120px">
-        <el-form-item label="保留天数">
+        <el-form-item :label="t('auditPage.cleanup.keepDays')">
           <el-input-number v-model="cleanupForm.days" :min="1" :max="365" />
         </el-form-item>
         <p style="color: #f56c6c; font-size: 13px; margin-left: 120px;">
-          将永久删除 {{ cleanupForm.days }} 天前的所有审计日志，此操作不可恢复！
+          {{ t('auditPage.cleanup.warn', cleanupForm.days) }}
         </p>
       </el-form>
       <template #footer>
-        <el-button @click="cleanupVisible = false">取消</el-button>
-        <el-button type="danger" @click="confirmCleanup">确认清理</el-button>
+        <el-button @click="cleanupVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="danger" @click="confirmCleanup">{{ t('auditPage.cleanup.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -442,6 +442,9 @@ import type { AuditLogItem, AuditDashboardData } from '@/api/modules/audit'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
 import { buildTraceUrl } from '@/utils/trace'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const trendDays = ref(7)
 
@@ -567,7 +570,7 @@ async function loadDashboard() {
     const res = await getAuditDashboard(trendDays.value)
     dashboard.value = res
   } catch (error) {
-    console.error('加载看板数据失败', error)
+    console.error('failed to load audit dashboard', error)
   }
 }
 
@@ -620,31 +623,31 @@ function handleCleanup() {
 async function confirmCleanup() {
   try {
     await ElMessageBox.confirm(
-      `确定要清理 ${cleanupForm.days} 天前的审计日志吗？此操作不可恢复！`,
-      '警告',
-      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+      t('auditPage.cleanup.confirmMsg', cleanupForm.days),
+      t('auditPage.cleanup.warnTitle'),
+      { confirmButtonText: t('common.confirm'), cancelButtonText: t('common.cancel'), type: 'warning' }
     )
     const res = await cleanupAuditLogs(cleanupForm.days)
-    ElMessage.success(`已清理 ${res.deleted_count} 条日志`)
+    ElMessage.success(t('auditPage.cleanup.done', res.deleted_count))
     cleanupVisible.value = false
     loadList()
     loadDashboard()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('清理失败')
+      ElMessage.error(t('auditPage.cleanup.failed'))
     }
   }
 }
 
 function getActionLabel(action: string): string {
   const map: Record<string, string> = {
-    create: '创建',
-    update: '更新',
-    delete: '删除',
-    query: '查询',
-    login: '登录',
-    logout: '登出',
-    other: '其他'
+    create: t('auditPage.action.create'),
+    update: t('auditPage.action.update'),
+    delete: t('auditPage.action.delete'),
+    query: t('auditPage.action.query'),
+    login: t('auditPage.action.login'),
+    logout: t('auditPage.action.logout'),
+    other: t('auditPage.action.other')
   }
   return map[action] || action
 }
@@ -694,12 +697,12 @@ function getDurationClass(duration: number): string {
 
 function getModuleLabel(module: string): string {
   const map: Record<string, string> = {
-    auth: '认证',
-    user: '用户',
-    tenant: '租户',
-    rbac: '权限',
-    audit: '审计',
-    system: '系统'
+    auth: t('auditPage.module.auth'),
+    user: t('auditPage.module.user'),
+    tenant: t('auditPage.module.tenant'),
+    rbac: t('auditPage.module.rbac'),
+    audit: t('auditPage.module.audit'),
+    system: t('auditPage.module.system')
   }
   return map[module] || module
 }
@@ -747,10 +750,10 @@ function getRiskLevelType(level: string): string {
 
 function getRiskLevelLabel(level: string): string {
   const map: Record<string, string> = {
-    low: '低',
-    medium: '中',
-    high: '高',
-    critical: '严重'
+    low: t('auditPage.riskLevel.low'),
+    medium: t('auditPage.riskLevel.medium'),
+    high: t('auditPage.riskLevel.high'),
+    critical: t('auditPage.riskLevel.critical')
   }
   return map[level] || level
 }
@@ -783,7 +786,7 @@ function handleExport() {
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
-  ElMessage.success('开始导出审计日志')
+  ElMessage.success(t('auditPage.export.start'))
 }
 </script>
 

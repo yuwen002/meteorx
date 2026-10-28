@@ -5,7 +5,7 @@
       <div class="search-bar">
         <el-input
           v-model="searchUserID"
-          placeholder="输入用户ID或用户名"
+          :placeholder="t('timelinePage.search.placeholder')"
           clearable
           style="width: 200px"
           @keyup.enter="loadTimeline"
@@ -13,18 +13,18 @@
         <el-date-picker
           v-model="dateRange"
           type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
+          :range-separator="t('auditPage.date.rangeSeparator')"
+          :start-placeholder="t('auditPage.date.start')"
+          :end-placeholder="t('auditPage.date.end')"
           value-format="YYYY-MM-DD"
           style="width: 240px"
         />
         <el-button type="primary" @click="loadTimeline">
-          <el-icon><Search /></el-icon>查询
+          <el-icon><Search /></el-icon>{{ t('common.query') }}
         </el-button>
-        <el-button @click="resetSearch">重置</el-button>
+        <el-button @click="resetSearch">{{ t('common.reset') }}</el-button>
         <span v-if="currentUser" class="user-info">
-          当前用户：<strong>{{ currentUser }}</strong>
+          {{ t('timelinePage.currentUserLabel') }}<strong>{{ currentUser }}</strong>
         </span>
       </div>
     </el-card>
@@ -36,7 +36,7 @@
           <div class="stat-content">
             <div class="stat-icon total-icon"><el-icon><Document /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">操作总数</div>
+              <div class="stat-label">{{ t('timelinePage.stat.total') }}</div>
               <div class="stat-value">{{ totalStats.total }}</div>
             </div>
           </div>
@@ -47,7 +47,7 @@
           <div class="stat-content">
             <div class="stat-icon days-icon"><el-icon><Calendar /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">覆盖天数</div>
+              <div class="stat-label">{{ t('timelinePage.stat.days') }}</div>
               <div class="stat-value">{{ timelineData.length }}</div>
             </div>
           </div>
@@ -58,7 +58,7 @@
           <div class="stat-content">
             <div class="stat-icon success-icon"><el-icon><CircleCheck /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">成功操作</div>
+              <div class="stat-label">{{ t('timelinePage.stat.success') }}</div>
               <div class="stat-value">{{ totalStats.success }}</div>
             </div>
           </div>
@@ -69,7 +69,7 @@
           <div class="stat-content">
             <div class="stat-icon fail-icon"><el-icon><CircleClose /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">失败操作</div>
+              <div class="stat-label">{{ t('timelinePage.stat.failure') }}</div>
               <div class="stat-value">{{ totalStats.failure }}</div>
             </div>
           </div>
@@ -82,9 +82,9 @@
       <div v-for="group in timelineData" :key="group.date" class="timeline-year">
         <div class="timeline-date-header">
           <span class="date-badge">{{ group.date }}</span>
-          <span class="date-count">共 {{ group.count }} 条操作</span>
-          <span class="date-success">成功 {{ group.success }}</span>
-          <span class="date-failure">失败 {{ group.failure }}</span>
+          <span class="date-count">{{ t('timelinePage.dayTotal', group.count) }}</span>
+          <span class="date-success">{{ t('timelinePage.daySuccess', group.success) }}</span>
+          <span class="date-failure">{{ t('timelinePage.dayFailure', group.failure) }}</span>
         </div>
         <div class="timeline-items">
           <div
@@ -108,7 +108,7 @@
                 <span v-if="log.ip_location"> | {{ log.ip_location }}</span>
                 <span> | {{ log.duration }}ms</span>
                 <el-tag size="small" :type="log.result === 'success' ? 'success' : 'danger'" style="margin-left: 4px;">
-                  {{ log.result === 'success' ? '成功' : '失败' }}
+                  {{ log.result === 'success' ? t('auditPage.result.success') : t('auditPage.result.failure') }}
                 </el-tag>
               </div>
             </div>
@@ -130,47 +130,47 @@
     </div>
 
     <!-- 未选择用户提示 -->
-    <el-empty v-else description="输入用户ID或用户名查询操作时间线" />
+    <el-empty v-else :description="t('timelinePage.empty')" />
 
     <!-- 详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="日志详情" width="960px" destroy-on-close>
+    <el-dialog v-model="detailVisible" :title="t('auditPage.detail.title')" width="960px" destroy-on-close>
       <template v-if="currentLog">
         <el-tabs type="border-card">
-          <el-tab-pane label="基本信息">
+          <el-tab-pane :label="t('timelinePage.tab.basic')">
             <el-descriptions :column="2" border>
-              <el-descriptions-item label="日志ID">{{ currentLog.id }}</el-descriptions-item>
-              <el-descriptions-item label="请求ID">{{ currentLog.request_id || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="操作用户">{{ currentLog.username }} ({{ currentLog.user_id }})</el-descriptions-item>
-              <el-descriptions-item label="模块">{{ currentLog.module }}</el-descriptions-item>
-              <el-descriptions-item label="操作类型">{{ getActionLabel(currentLog.action) }}</el-descriptions-item>
-              <el-descriptions-item label="风险等级">
+              <el-descriptions-item :label="t('auditPage.detail.id')">{{ currentLog.id }}</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.detail.requestId')">{{ currentLog.request_id || '-' }}</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.detail.user')">{{ currentLog.username }} ({{ currentLog.user_id }})</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.col.module')">{{ currentLog.module }}</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.detail.actionType')">{{ getActionLabel(currentLog.action) }}</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.col.risk')">
                 <el-tag size="small" :type="getRiskLevelType(currentLog.risk_level)">{{ getRiskLevelLabel(currentLog.risk_level) }}</el-tag>
               </el-descriptions-item>
-              <el-descriptions-item label="HTTP方法">{{ currentLog.method }}</el-descriptions-item>
-              <el-descriptions-item label="请求路径" :span="2">{{ currentLog.path }}</el-descriptions-item>
-              <el-descriptions-item label="来源页面">{{ currentLog.referer || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="资源ID">{{ currentLog.resource_id || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="状态码">
+              <el-descriptions-item :label="t('auditPage.detail.httpMethod')">{{ currentLog.method }}</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.detail.reqPath')" :span="2">{{ currentLog.path }}</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.detail.referer')">{{ currentLog.referer || '-' }}</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.detail.resourceId')">{{ currentLog.resource_id || '-' }}</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.col.statusCode')">
                 <el-tag size="small" :type="currentLog.status_code >= 400 ? 'danger' : 'success'">{{ currentLog.status_code }}</el-tag>
               </el-descriptions-item>
-              <el-descriptions-item label="结果">
+              <el-descriptions-item :label="t('auditPage.col.result')">
                 <el-tag size="small" :type="currentLog.result === 'success' ? 'success' : 'danger'">
-                  {{ currentLog.result === 'success' ? '成功' : '失败' }}
+                  {{ currentLog.result === 'success' ? t('auditPage.result.success') : t('auditPage.result.failure') }}
                 </el-tag>
               </el-descriptions-item>
-              <el-descriptions-item label="客户端IP">{{ currentLog.client_ip }}</el-descriptions-item>
-              <el-descriptions-item label="IP位置">{{ currentLog.ip_location || '未知' }}</el-descriptions-item>
-              <el-descriptions-item label="耗时">{{ currentLog.duration }}ms</el-descriptions-item>
-              <el-descriptions-item label="操作时间">{{ currentLog.created_at }}</el-descriptions-item>
-              <el-descriptions-item v-if="currentLog.error_message" label="错误信息" :span="2">
+              <el-descriptions-item :label="t('auditPage.col.clientIp')">{{ currentLog.client_ip }}</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.detail.ipLocation')">{{ currentLog.ip_location || t('auditPage.detail.unknown') }}</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.detail.duration')">{{ currentLog.duration }}ms</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.col.time')">{{ currentLog.created_at }}</el-descriptions-item>
+              <el-descriptions-item v-if="currentLog.error_message" :label="t('auditPage.detail.error')" :span="2">
                 <span style="color: #f56c6c">{{ currentLog.error_message }}</span>
               </el-descriptions-item>
             </el-descriptions>
           </el-tab-pane>
-          <el-tab-pane label="详细信息">
+          <el-tab-pane :label="t('timelinePage.tab.detail')">
             <el-descriptions :column="2" border>
-              <el-descriptions-item label="会话ID">{{ currentLog.session_id || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="链路追踪ID">
+              <el-descriptions-item :label="t('auditPage.detail.sessionId')">{{ currentLog.session_id || '-' }}</el-descriptions-item>
+              <el-descriptions-item :label="t('timelinePage.detail.traceId')">
                 <el-link
                   v-if="buildTraceUrl(currentLog.trace_id)"
                   :href="buildTraceUrl(currentLog.trace_id)"
@@ -180,28 +180,28 @@
                 >{{ currentLog.trace_id }}</el-link>
                 <span v-else>{{ currentLog.trace_id || '-' }}</span>
               </el-descriptions-item>
-              <el-descriptions-item label="用户代理" :span="2">
+              <el-descriptions-item :label="t('auditPage.detail.userAgent')" :span="2">
                 <span style="word-break: break-all; font-size: 12px;">{{ currentLog.user_agent || '-' }}</span>
               </el-descriptions-item>
-              <el-descriptions-item label="设备信息" :span="2">{{ currentLog.device_info || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="标签" :span="2">{{ currentLog.tags || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="租户ID" :span="2">{{ currentLog.tenant_id || '-' }}</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.detail.deviceInfo')" :span="2">{{ currentLog.device_info || '-' }}</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.detail.tags')" :span="2">{{ currentLog.tags || '-' }}</el-descriptions-item>
+              <el-descriptions-item :label="t('auditPage.detail.tenantId')" :span="2">{{ currentLog.tenant_id || '-' }}</el-descriptions-item>
             </el-descriptions>
           </el-tab-pane>
-          <el-tab-pane label="请求参数">
+          <el-tab-pane :label="t('timelinePage.tab.reqParams')">
             <div class="body-viewer">
               <div v-if="currentLog.request_body" class="body-content">
                 <pre><code>{{ formatJSON(currentLog.request_body) }}</code></pre>
               </div>
-              <el-empty v-else description="无请求参数" />
+              <el-empty v-else :description="t('timelinePage.emptyReqParams')" />
             </div>
           </el-tab-pane>
-          <el-tab-pane label="响应内容">
+          <el-tab-pane :label="t('timelinePage.tab.respContent')">
             <div class="body-viewer">
               <div v-if="currentLog.response_body" class="body-content">
                 <pre><code>{{ formatJSON(currentLog.response_body) }}</code></pre>
               </div>
-              <el-empty v-else description="无响应内容" />
+              <el-empty v-else :description="t('timelinePage.emptyRespContent')" />
             </div>
           </el-tab-pane>
         </el-tabs>
@@ -218,6 +218,9 @@ import { getUserTimeline } from '@/api/modules/audit'
 import type { TimelineItem, AuditLogItem } from '@/api/modules/audit'
 import { useUserStore } from '@/stores/user'
 import { buildTraceUrl } from '@/utils/trace'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const route = useRoute()
 const userStore = useUserStore()
@@ -275,7 +278,7 @@ async function loadTimeline() {
     timelineData.value = res.items || []
     total.value = res.total || 0
   } catch (error) {
-    console.error('加载时间线失败', error)
+    console.error('failed to load timeline', error)
   } finally {
     loading.value = false
   }
@@ -310,7 +313,7 @@ function getDotClass(log: AuditLogItem): string {
 }
 
 function getActionLabel(action: string): string {
-  const map: Record<string, string> = { create: '创建', update: '更新', delete: '删除', query: '查询', login: '登录', logout: '登出', other: '其他' }
+  const map: Record<string, string> = { create: t('auditPage.action.create'), update: t('auditPage.action.update'), delete: t('auditPage.action.delete'), query: t('auditPage.action.query'), login: t('auditPage.action.login'), logout: t('auditPage.action.logout'), other: t('auditPage.action.other') }
   return map[action] || action
 }
 
@@ -325,7 +328,7 @@ function getRiskLevelType(level: string): string {
 }
 
 function getRiskLevelLabel(level: string): string {
-  const map: Record<string, string> = { low: '低', medium: '中', high: '高', critical: '严重' }
+  const map: Record<string, string> = { low: t('auditPage.riskLevel.low'), medium: t('auditPage.riskLevel.medium'), high: t('auditPage.riskLevel.high'), critical: t('auditPage.riskLevel.critical') }
   return map[level] || level
 }
 

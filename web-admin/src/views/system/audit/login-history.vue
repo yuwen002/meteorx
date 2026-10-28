@@ -7,7 +7,7 @@
           <div class="stat-content">
             <div class="stat-icon total-icon"><el-icon><User /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">登录总次数</div>
+              <div class="stat-label">{{ t('loginPage.stat.total') }}</div>
               <div class="stat-value">{{ loginStats.total }}</div>
             </div>
           </div>
@@ -18,7 +18,7 @@
           <div class="stat-content">
             <div class="stat-icon success-icon"><el-icon><CircleCheck /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">登录成功</div>
+              <div class="stat-label">{{ t('loginPage.stat.success') }}</div>
               <div class="stat-value">{{ loginStats.success }}</div>
             </div>
           </div>
@@ -29,7 +29,7 @@
           <div class="stat-content">
             <div class="stat-icon fail-icon"><el-icon><CircleClose /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">登录失败</div>
+              <div class="stat-label">{{ t('loginPage.stat.failure') }}</div>
               <div class="stat-value">{{ loginStats.failure }}</div>
             </div>
           </div>
@@ -40,7 +40,7 @@
           <div class="stat-content">
             <div class="stat-icon ip-icon"><el-icon><Monitor /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">独立IP数</div>
+              <div class="stat-label">{{ t('loginPage.stat.uniqueIps') }}</div>
               <div class="stat-value">{{ loginStats.uniqueIPs }}</div>
             </div>
           </div>
@@ -51,57 +51,57 @@
     <el-card shadow="never" class="table-card">
       <!-- 搜索栏 -->
       <div class="search-bar">
-        <el-input v-model="query.username" placeholder="用户名" clearable style="width: 160px" @keyup.enter="loadList" />
-        <el-select v-model="query.result" placeholder="结果" clearable style="width: 120px">
-          <el-option label="成功" value="success" />
-          <el-option label="失败" value="failure" />
+        <el-input v-model="query.username" :placeholder="t('loginPage.search.username')" clearable style="width: 160px" @keyup.enter="loadList" />
+        <el-select v-model="query.result" :placeholder="t('auditPage.filter.result')" clearable style="width: 120px">
+          <el-option :label="t('auditPage.result.success')" value="success" />
+          <el-option :label="t('auditPage.result.failure')" value="failure" />
         </el-select>
         <el-date-picker
           v-model="query.dateRange"
           type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
+          :range-separator="t('auditPage.date.rangeSeparator')"
+          :start-placeholder="t('auditPage.date.start')"
+          :end-placeholder="t('auditPage.date.end')"
           value-format="YYYY-MM-DD"
           style="width: 240px"
         />
-        <el-button type="primary" @click="loadList"><el-icon><Search /></el-icon>查询</el-button>
-        <el-button @click="resetSearch">重置</el-button>
+        <el-button type="primary" @click="loadList"><el-icon><Search /></el-icon>{{ t('common.query') }}</el-button>
+        <el-button @click="resetSearch">{{ t('common.reset') }}</el-button>
       </div>
 
       <!-- 登录日志列表 -->
       <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="50" :index="(i: number) => (page - 1) * pageSize + i + 1" />
-        <el-table-column prop="username" label="用户" width="120" />
-        <el-table-column prop="action" label="类型" width="100">
+        <el-table-column prop="username" :label="t('loginPage.col.user')" width="120" />
+        <el-table-column prop="action" :label="t('loginPage.col.type')" width="100">
           <template #default="{ row }">
             <el-tag size="small" :type="row.action === 'login' ? 'primary' : 'info'">
-              {{ row.action === 'login' ? '登录' : '登出' }}
+              {{ row.action === 'login' ? t('auditPage.action.login') : t('auditPage.action.logout') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="result" label="结果" width="80">
+        <el-table-column prop="result" :label="t('auditPage.col.result')" width="80">
           <template #default="{ row }">
             <el-tag size="small" :type="row.result === 'success' ? 'success' : 'danger'">
-              {{ row.result === 'success' ? '成功' : '失败' }}
+              {{ row.result === 'success' ? t('auditPage.result.success') : t('auditPage.result.failure') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="risk_level" label="风险" width="80">
+        <el-table-column prop="risk_level" :label="t('loginPage.col.risk')" width="80">
           <template #default="{ row }">
             <el-tag size="small" :type="getRiskLevelType(row.risk_level)">{{ getRiskLevelLabel(row.risk_level) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="client_ip" label="客户端IP" width="140" />
-        <el-table-column prop="ip_location" label="地理位置" width="150" show-overflow-tooltip />
-        <el-table-column prop="device_info" label="设备信息" width="160" show-overflow-tooltip />
+        <el-table-column prop="client_ip" :label="t('auditPage.col.clientIp')" width="140" />
+        <el-table-column prop="ip_location" :label="t('loginPage.col.ipLocation')" width="150" show-overflow-tooltip />
+        <el-table-column prop="device_info" :label="t('loginPage.col.deviceInfo')" width="160" show-overflow-tooltip />
         <el-table-column prop="user_agent" label="User-Agent" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="error_message" label="错误信息" width="160" show-overflow-tooltip>
+        <el-table-column prop="error_message" :label="t('auditPage.detail.error')" width="160" show-overflow-tooltip>
           <template #default="{ row }">
             <span style="color: #f56c6c">{{ row.error_message || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="操作时间" width="180" />
+        <el-table-column prop="created_at" :label="t('auditPage.col.time')" width="180" />
       </el-table>
 
       <div class="pagination">
@@ -126,6 +126,9 @@ import { getAuditLogList } from '@/api/modules/audit'
 import type { AuditLogItem } from '@/api/modules/audit'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const {
   list,
@@ -189,7 +192,7 @@ function getRiskLevelType(level: string): string {
 }
 
 function getRiskLevelLabel(level: string): string {
-  const map: Record<string, string> = { low: '低', medium: '中', high: '高', critical: '严重' }
+  const map: Record<string, string> = { low: t('auditPage.riskLevel.low'), medium: t('auditPage.riskLevel.medium'), high: t('auditPage.riskLevel.high'), critical: t('auditPage.riskLevel.critical') }
   return map[level] || level
 }
 </script>

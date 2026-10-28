@@ -4,17 +4,16 @@
     <el-card shadow="never" class="intro-card">
       <div class="intro-bar">
         <div class="intro-text">
-          <div class="intro-title">审计日志防篡改完整性校验</div>
+          <div class="intro-title">{{ t('integrityPage.intro.title') }}</div>
           <div class="intro-desc">
-            对每行审计日志重算 HMAC 行摘要，并沿锚点链逐段核对窗口折叠摘要，检出内容篡改、删行、插行、重序与断链。
-            校验为只读操作，不修改任何数据。
+            {{ t('integrityPage.intro.desc') }}
           </div>
         </div>
         <el-button type="primary" :loading="loading" @click="runVerify">
-          <el-icon><CircleCheck /></el-icon>开始校验
+          <el-icon><CircleCheck /></el-icon>{{ t('integrityPage.verify.start') }}
         </el-button>
         <el-button v-if="canRehash" type="warning" :loading="rehashing" @click="runRehash">
-          <el-icon><Refresh /></el-icon>密钥重算（rehash）
+          <el-icon><Refresh /></el-icon>{{ t('integrityPage.rehash.btn') }}
         </el-button>
       </div>
     </el-card>
@@ -26,8 +25,8 @@
       show-icon
       :closable="false"
       class="state-alert"
-      title="完整性校验未启用"
-      description="服务端未配置完整性密钥（audit.integrity.secret_key / METEORX_AUDIT_INTEGRITY_SECRET_KEY）。历史与新写入的审计日志均不含行摘要，无法进行防篡改校验。"
+      :title="t('integrityPage.alert.disabledTitle')"
+      :description="t('integrityPage.alert.disabledDesc')"
     />
 
     <!-- 结论横幅 -->
@@ -48,7 +47,7 @@
           <div class="stat-content">
             <div class="stat-icon checked-icon"><el-icon><Document /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">重算行数</div>
+              <div class="stat-label">{{ t('integrityPage.stat.checked') }}</div>
               <div class="stat-value">{{ result.checked_rows }}</div>
             </div>
           </div>
@@ -59,7 +58,7 @@
           <div class="stat-content">
             <div class="stat-icon legacy-icon"><el-icon><Clock /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">旧数据（无摘要）</div>
+              <div class="stat-label">{{ t('integrityPage.stat.legacy') }}</div>
               <div class="stat-value">{{ result.legacy_rows }}</div>
             </div>
           </div>
@@ -70,7 +69,7 @@
           <div class="stat-content">
             <div class="stat-icon tampered-icon"><el-icon><CircleClose /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">篡改行数</div>
+              <div class="stat-label">{{ t('integrityPage.stat.tampered') }}</div>
               <div class="stat-value" :class="{ danger: result.tampered_rows > 0 }">{{ result.tampered_rows }}</div>
             </div>
           </div>
@@ -81,7 +80,7 @@
           <div class="stat-content">
             <div class="stat-icon anchor-icon"><el-icon><Connection /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-label">校验锚点</div>
+              <div class="stat-label">{{ t('integrityPage.stat.anchors') }}</div>
               <div class="stat-value">{{ result.anchors_checked }}</div>
             </div>
           </div>
@@ -92,8 +91,8 @@
     <!-- 覆盖范围 -->
     <el-card v-if="result && result.enabled && (result.covered_from || result.covered_to)" shadow="never" class="cover-card">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="锚点链覆盖起始">{{ result.covered_from || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="锚点链覆盖结束">{{ result.covered_to || '—' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('integrityPage.cover.from')">{{ result.covered_from || '—' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('integrityPage.cover.to')">{{ result.covered_to || '—' }}</el-descriptions-item>
       </el-descriptions>
     </el-card>
 
@@ -105,14 +104,14 @@
     >
       <template #header>
         <div class="card-header">
-          <span>待密钥重算</span>
-          <el-tag type="warning" size="small">可执行 rehash</el-tag>
+          <span>{{ t('integrityPage.pending.title') }}</span>
+          <el-tag type="warning" size="small">{{ t('integrityPage.pending.tag') }}</el-tag>
         </div>
       </template>
       <div class="anomaly-block">
         <div class="block-title">
           <el-icon><Warning /></el-icon>
-          仅匹配旧 pepper、待重算到新密钥的历史行：{{ result.pending_rehash_rows }}
+          {{ t('integrityPage.pending.blockTitle', result.pending_rehash_rows) }}
         </div>
         <div v-if="result.pending_rehash_samples.length > 0" class="tag-wrap">
           <el-tag v-for="id in result.pending_rehash_samples" :key="'p' + id" type="warning" size="small" class="id-tag">
@@ -126,20 +125,20 @@
     <el-card v-if="result && result.enabled && hasAnomaly" shadow="never" class="anomaly-card">
       <template #header>
         <div class="card-header">
-          <span>异常明细</span>
-          <el-tag type="danger" size="small">需排查</el-tag>
+          <span>{{ t('integrityPage.anomaly.title') }}</span>
+          <el-tag type="danger" size="small">{{ t('integrityPage.anomaly.tag') }}</el-tag>
         </div>
       </template>
 
       <div v-if="result.anomalies.length > 0" class="anomaly-block">
-        <div class="block-title">异常描述</div>
+        <div class="block-title">{{ t('integrityPage.anomaly.descTitle') }}</div>
         <ul class="anomaly-list">
           <li v-for="(a, i) in result.anomalies" :key="'a' + i">{{ a }}</li>
         </ul>
       </div>
 
       <div v-if="result.tampered_samples.length > 0" class="anomaly-block">
-        <div class="block-title">篡改行样本 ID（最多若干条）</div>
+        <div class="block-title">{{ t('integrityPage.anomaly.samplesTitle') }}</div>
         <div class="tag-wrap">
           <el-tag v-for="id in result.tampered_samples" :key="'t' + id" type="danger" size="small" class="id-tag">
             {{ id }}
@@ -148,7 +147,7 @@
       </div>
 
       <div v-if="result.anomaly_anchor_ids.length > 0" class="anomaly-block">
-        <div class="block-title">异常锚点 ID</div>
+        <div class="block-title">{{ t('integrityPage.anomaly.anchorTitle') }}</div>
         <div class="tag-wrap">
           <el-tag v-for="id in result.anomaly_anchor_ids" :key="'n' + id" type="warning" size="small" class="id-tag">
             {{ id }}
@@ -158,7 +157,7 @@
     </el-card>
 
     <!-- 首次进入空状态 -->
-    <el-empty v-if="!loading && !result" description='点击"开始校验"检查审计日志是否被篡改' />
+    <el-empty v-if="!loading && !result" :description="t('integrityPage.empty.hint')" />
   </div>
 </template>
 
@@ -170,6 +169,9 @@ import {
 } from '@element-plus/icons-vue'
 import { verifyAuditIntegrity, rehashAuditIntegrity } from '@/api/modules/audit'
 import type { IntegrityVerifyResult } from '@/api/modules/audit'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const result = ref<IntegrityVerifyResult | null>(null)
 const loading = ref(false)
@@ -200,24 +202,24 @@ const verdictAlertType = computed<'success' | 'error' | 'warning' | 'info'>(() =
 const verdictTitle = computed(() => {
   switch (result.value?.verdict) {
     case 'verified':
-      return '校验通过：未发现篡改'
+      return t('integrityPage.verdict.verified.title')
     case 'tampered':
-      return '警告：检测到数据被篡改'
+      return t('integrityPage.verdict.tampered.title')
     case 'pending_rehash':
-      return '提示：检测到待密钥重算数据'
+      return t('integrityPage.verdict.pending.title')
     default:
-      return '未知校验结果'
+      return t('integrityPage.verdict.unknown.title')
   }
 })
 
 const verdictDesc = computed(() => {
   switch (result.value?.verdict) {
     case 'verified':
-      return '所有参与校验的审计日志行摘要与锚点链均自洽。'
+      return t('integrityPage.verdict.verified.desc')
     case 'tampered':
-      return '存在行摘要重算不符或锚点链断裂，请结合下方异常明细排查。'
+      return t('integrityPage.verdict.tampered.desc')
     case 'pending_rehash':
-      return '存在仅在旧 pepper 下可验证的历史行（密钥轮换所致，非篡改），可执行密钥重算迁移到新密钥并重建锚点链。'
+      return t('integrityPage.verdict.pending.desc')
     default:
       return ''
   }
@@ -228,14 +230,14 @@ async function runVerify() {
   try {
     result.value = await verifyAuditIntegrity()
     if (result.value.enabled && result.value.verdict === 'tampered') {
-      ElMessage.error('检测到审计日志被篡改，请排查异常明细')
+      ElMessage.error(t('integrityPage.msg.tampered'))
     } else if (result.value.enabled && result.value.verdict === 'verified') {
-      ElMessage.success('完整性校验通过')
+      ElMessage.success(t('integrityPage.msg.verified'))
     } else if (result.value.enabled && result.value.verdict === 'pending_rehash') {
-      ElMessage.warning('检测到待密钥重算的历史行，可执行密钥重算')
+      ElMessage.warning(t('integrityPage.msg.pending'))
     }
   } catch (error) {
-    console.error('完整性校验失败', error)
+    console.error('failed to verify integrity', error)
   } finally {
     loading.value = false
   }
@@ -244,9 +246,9 @@ async function runVerify() {
 async function runRehash() {
   try {
     await ElMessageBox.confirm(
-      '将把仅匹配旧 pepper 的历史行重算到新 pepper，并清空重建整条锚点链。此操作会修改审计日志的行摘要列，请确认已完成密钥轮换配置。',
-      '确认执行密钥重算（rehash）？',
-      { type: 'warning', confirmButtonText: '执行', cancelButtonText: '取消' }
+      t('integrityPage.rehash.confirmMsg'),
+      t('integrityPage.rehash.confirmTitle'),
+      { type: 'warning', confirmButtonText: t('integrityPage.rehash.confirmBtn'), cancelButtonText: t('common.cancel') }
     )
   } catch {
     return
@@ -254,11 +256,11 @@ async function runRehash() {
   rehashing.value = true
   try {
     const res = await rehashAuditIntegrity()
-    ElMessage.success(res.message || '密钥重算完成')
+    ElMessage.success(res.message || t('integrityPage.rehash.done'))
     // 重算后立即复检，预期回到 verified
     await runVerify()
   } catch (error) {
-    console.error('密钥重算失败', error)
+    console.error('failed to rehash integrity', error)
   } finally {
     rehashing.value = false
   }

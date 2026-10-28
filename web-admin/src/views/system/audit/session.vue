@@ -2,51 +2,51 @@
   <div class="page">
     <el-card shadow="never" class="search-card">
       <div class="search-bar">
-        <el-input v-model="query.user_id" placeholder="用户ID" clearable style="width: 200px" />
+        <el-input v-model="query.user_id" :placeholder="t('sessionPage.search.userId')" clearable style="width: 200px" />
         <el-button type="primary" @click="loadSessions">
-          <el-icon><Search /></el-icon>查询
+          <el-icon><Search /></el-icon>{{ t('common.query') }}
         </el-button>
-        <el-button @click="resetSearch">重置</el-button>
+        <el-button @click="resetSearch">{{ t('common.reset') }}</el-button>
       </div>
     </el-card>
 
     <el-card shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
-          <span>会话分析</span>
+          <span>{{ t('sessionPage.title') }}</span>
           <el-button @click="loadSessions">
-            <el-icon><Refresh /></el-icon>刷新
+            <el-icon><Refresh /></el-icon>{{ t('common.refresh') }}
           </el-button>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="sessions" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="60" />
-        <el-table-column prop="session_id" label="会话ID" width="280" show-overflow-tooltip />
-        <el-table-column prop="user_id" label="用户ID" width="150" />
-        <el-table-column prop="username" label="用户名" width="120" />
-        <el-table-column prop="total_requests" label="请求次数" width="100" />
-        <el-table-column prop="success_count" label="成功次数" width="100">
+        <el-table-column prop="session_id" :label="t('auditPage.detail.sessionId')" width="280" show-overflow-tooltip />
+        <el-table-column prop="user_id" :label="t('sessionPage.col.userId')" width="150" />
+        <el-table-column prop="username" :label="t('sessionPage.col.username')" width="120" />
+        <el-table-column prop="total_requests" :label="t('sessionPage.col.requests')" width="100" />
+        <el-table-column prop="success_count" :label="t('sessionPage.col.successCount')" width="100">
           <template #default="{ row }">
             <span style="color: #52c41a">{{ row.success_count }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="failure_count" label="失败次数" width="100">
+        <el-table-column prop="failure_count" :label="t('sessionPage.col.failureCount')" width="100">
           <template #default="{ row }">
             <span style="color: #f56c6c">{{ row.failure_count }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="avg_duration" label="平均耗时(ms)" width="120">
+        <el-table-column prop="avg_duration" :label="t('sessionPage.col.avgDuration')" width="120">
           <template #default="{ row }">
             <span :class="getDurationClass(row.avg_duration)">{{ row.avg_duration }}ms</span>
           </template>
         </el-table-column>
-        <el-table-column prop="first_request" label="首次请求" width="180" />
-        <el-table-column prop="last_request" label="最后请求" width="180" />
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column prop="first_request" :label="t('sessionPage.col.firstRequest')" width="180" />
+        <el-table-column prop="last_request" :label="t('sessionPage.col.lastRequest')" width="180" />
+        <el-table-column :label="t('auditPage.col.operation')" width="100" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openSessionDetail(row.session_id)">
-              查看详情
+              {{ t('sessionPage.action.viewDetail') }}
             </el-button>
           </template>
         </el-table-column>
@@ -65,25 +65,25 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="detailVisible" title="会话详情" width="1200px" destroy-on-close>
+    <el-dialog v-model="detailVisible" :title="t('sessionPage.detail.title')" width="1200px" destroy-on-close>
       <div v-if="sessionDetail" class="session-detail">
         <el-descriptions :column="3" border class="session-summary">
-          <el-descriptions-item label="会话ID">{{ sessionDetail.session_id }}</el-descriptions-item>
-          <el-descriptions-item label="用户">{{ sessionDetail.username }} ({{ sessionDetail.user_id }})</el-descriptions-item>
-          <el-descriptions-item label="总请求数">{{ sessionDetail.total_requests }}</el-descriptions-item>
-          <el-descriptions-item label="成功次数">
+          <el-descriptions-item :label="t('auditPage.detail.sessionId')">{{ sessionDetail.session_id }}</el-descriptions-item>
+          <el-descriptions-item :label="t('sessionPage.detail.user')">{{ sessionDetail.username }} ({{ sessionDetail.user_id }})</el-descriptions-item>
+          <el-descriptions-item :label="t('sessionPage.detail.totalRequests')">{{ sessionDetail.total_requests }}</el-descriptions-item>
+          <el-descriptions-item :label="t('sessionPage.col.successCount')">
             <span style="color: #52c41a">{{ sessionDetail.success_count }}</span>
           </el-descriptions-item>
-          <el-descriptions-item label="失败次数">
+          <el-descriptions-item :label="t('sessionPage.col.failureCount')">
             <span style="color: #f56c6c">{{ sessionDetail.failure_count }}</span>
           </el-descriptions-item>
-          <el-descriptions-item label="平均耗时">{{ sessionDetail.avg_duration }}ms</el-descriptions-item>
-          <el-descriptions-item label="首次请求">{{ sessionDetail.first_request }}</el-descriptions-item>
-          <el-descriptions-item label="最后请求">{{ sessionDetail.last_request }}</el-descriptions-item>
-          <el-descriptions-item label="会话时长">{{ sessionDetail.duration_minutes }}分钟</el-descriptions-item>
+          <el-descriptions-item :label="t('sessionPage.detail.avgDuration')">{{ sessionDetail.avg_duration }}ms</el-descriptions-item>
+          <el-descriptions-item :label="t('sessionPage.col.firstRequest')">{{ sessionDetail.first_request }}</el-descriptions-item>
+          <el-descriptions-item :label="t('sessionPage.col.lastRequest')">{{ sessionDetail.last_request }}</el-descriptions-item>
+          <el-descriptions-item :label="t('sessionPage.detail.duration')">{{ t('sessionPage.durationUnit', sessionDetail.duration_minutes) }}</el-descriptions-item>
         </el-descriptions>
 
-        <h3 style="margin: 20px 0 12px">操作时间线</h3>
+        <h3 style="margin: 20px 0 12px">{{ t('sessionPage.timelineTitle') }}</h3>
         <el-timeline>
           <el-timeline-item
             v-for="log in sessionDetail.logs"
@@ -106,11 +106,11 @@
                 <div class="timeline-body">
                   <div class="timeline-info">
                     <span>IP: {{ log.client_ip }}</span>
-                    <span v-if="log.ip_location">位置: {{ log.ip_location }}</span>
-                    <span>耗时: {{ log.duration }}ms</span>
+                    <span v-if="log.ip_location">{{ t('sessionPage.lbl.location') }}: {{ log.ip_location }}</span>
+                    <span>{{ t('sessionPage.lbl.duration') }}: {{ log.duration }}ms</span>
                   </div>
                   <div v-if="log.error_message" class="timeline-result">
-                    <span style="color: #f56c6c">错误: {{ log.error_message }}</span>
+                    <span style="color: #f56c6c">{{ t('sessionPage.lbl.error') }}: {{ log.error_message }}</span>
                   </div>
                 </div>
               </div>
@@ -128,6 +128,9 @@ import { Search, Refresh } from '@element-plus/icons-vue'
 import { get } from '@/api/request'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 interface SessionSummary {
   session_id: string
@@ -198,19 +201,19 @@ async function openSessionDetail(sessionId: string) {
     sessionDetail.value = res
     detailVisible.value = true
   } catch (error) {
-    console.error('加载会话详情失败', error)
+    console.error('failed to load session detail', error)
   }
 }
 
 function getActionLabel(action: string): string {
   const map: Record<string, string> = {
-    create: '创建',
-    update: '更新',
-    delete: '删除',
-    query: '查询',
-    login: '登录',
-    logout: '登出',
-    other: '其他'
+    create: t('auditPage.action.create'),
+    update: t('auditPage.action.update'),
+    delete: t('auditPage.action.delete'),
+    query: t('auditPage.action.query'),
+    login: t('auditPage.action.login'),
+    logout: t('auditPage.action.logout'),
+    other: t('auditPage.action.other')
   }
   return map[action] || action
 }
