@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import {
   openDirectConversation,
+  createGroupConversation,
   listConversations,
   sendChatMessage,
   listChatMessages,
@@ -9,8 +10,14 @@ import {
   recallChatMessage,
   sendTyping,
   getPresence,
+  listConversationMembers,
+  addConversationMembers,
+  removeConversationMember,
+  leaveGroup as apiLeaveGroup,
+  renameGroup as apiRenameGroup,
   type ConversationItem,
-  type ChatMessageItem
+  type ChatMessageItem,
+  type MemberItem
 } from '@/api/modules/chat'
 import { toPageResult } from '@/types/pagination'
 
@@ -73,11 +80,22 @@ export const useChatStore = defineStore('chat', () => {
   /** 发起/复用与 peerId 的私聊会话，返回会话对象 */
   async function openWith(peerId: string): Promise<ConversationItem> {
     const conv = await openDirectConversation(peerId)
-    // 若列表已有该会话则原位替换，否则前置插入
+    upsertConversation(conv)
+    return conv
+  }
+
+  /** 创建群聊会话（memberIds 不含创建人），返回列表富化后的会话 */
+  async function createGroup(name: string, memberIds: string[]): Promise<ConversationItem> {
+    const conv = await createGroupConversation(name, memberIds)
+    upsertConversation(conv)
+    return conv
+  }
+
+  /** 将会话原位替换或前置插入列表 */
+  function upsertConversation(conv: ConversationItem) {
     const idx = conversations.value.findIndex((c) => c.id === conv.id)
     if (idx >= 0) conversations.value[idx] = conv
     else conversations.value = [conv, ...conversations.value]
-    return conv
   }
 
   /** 选中会话并加载历史、标记已读 */
@@ -159,6 +177,55 @@ export const useChatStore = defineStore('chat', () => {
     setTyping(payload.conversation_id, payload.user_id, payload.typing)
   }
 
+  /** 处理 WS 推送来的会话元信息变更（群名/成员数等）：原位刷新或直接回拉列表 */
+  function receiveConversationPush(conv: ConversationItem) {
+    if (!conv?.id) return
+    const idx = conversations.value.findIndex((c) => c.id === conv.id)
+    if (idx >= 0) {
+      // 保留本地已清零的未读（正看着该会话时不应被推送重新点亮）
+      conversations.value[idx] = { ...conv, unread_count: conversations.value[idx].unread_count }
+    } else {
+      void loadConversations()
+    }
+  }
+
+  // ---- 群成员管理 ----
+
+  /** 拉取指定会话成员列表 */
+  async function loadMembers(conversationId: string): Promise<MemberItem[]> {
+    return (await listConversationMembers(conversationId)) || []
+  }
+
+  /** 向群添加成员，成功后刷新会话列表以更新成员数 */
+  async function addMembers(conversationId: string, userIds: string[]) {
+    await addConversationMembers(conversationId, userIds)
+    await loadConversations()
+  }
+
+  /** 群主移除成员，成功后刷新会话列表 */
+  async function removeMember(conversationId: string, userId: string) {
+    await removeConversationMember(conversationId, userId)
+    await loadConversations()
+  }
+
+  /** 退出群聊；若退出的是当前会话则清空选中，列表移除该会话（空群后端已软删） */
+  async function leaveConversation(conversationId: string) {
+    await apiLeaveGroup(conversationId)
+    conversations.value = conversations.value.filter((c) => c.id !== conversationId)
+    if (activeId.value === conversationId) {
+      activeId.value = ''
+      messages.value = []
+    }
+    await loadConversations()
+  }
+
+  /** 群改名，成功后同步本地会话展示名 */
+  async function rename(conversationId: string, name: string) {
+    await apiRenameGroup(conversationId, name)
+    const conv = conversations.value.find((c) => c.id === conversationId)
+    if (conv) conv.peer_name = name
+  }
+
   /** 维护某会话内某成员的输入中状态，带 TTL 自动消退 */
   function setTyping(convId: string, userId: string, typing: boolean) {
     const key = `${convId}:${userId}`
@@ -233,6 +300,7 @@ export const useChatStore = defineStore('chat', () => {
     loadPresence,
     loadConversations,
     openWith,
+    createGroup,
     selectConversation,
     send,
     recall,
@@ -240,6 +308,12 @@ export const useChatStore = defineStore('chat', () => {
     receiveChatPush,
     receiveRecallPush,
     receiveTypingPush,
+    receiveConversationPush,
+    loadMembers,
+    addMembers,
+    removeMember,
+    leaveConversation,
+    rename,
     reset
   }
 })

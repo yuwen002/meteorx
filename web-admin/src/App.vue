@@ -103,6 +103,11 @@ onMessage((msg: WSMessage) => {
       chatStore.receiveTypingPush(msg.payload)
       break
 
+    case 'chat_conversation':
+      // 会话元信息变更（群名/成员数等）：刷新会话列表对应项
+      chatStore.receiveConversationPush(msg.payload)
+      break
+
     case 'pong':
       // 心跳响应，无需处理
       break

@@ -1,7 +1,7 @@
 import { ref, onUnmounted, type Ref } from 'vue'
 import { useUserStore } from '@/stores/user'
 import type { AlertNotification } from '@/stores/notification'
-import type { ChatMessageItem } from '@/api/modules/chat'
+import type { ChatMessageItem, ConversationItem } from '@/api/modules/chat'
 
 // 公告/任务提醒负载
 export interface AnnouncementPayload {
@@ -32,6 +32,7 @@ export type WSMessage =
   | { type: 'chat'; payload: ChatMessageItem; time: number }
   | { type: 'chat_recall'; payload: ChatRecallPayload; time: number }
   | { type: 'chat_typing'; payload: ChatTypingPayload; time: number }
+  | { type: 'chat_conversation'; payload: ConversationItem; time: number }
 
 // 重连配置
 const RECONNECT_BASE_DELAY = 1000 // base delay 1s

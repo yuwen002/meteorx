@@ -24,7 +24,10 @@
           <el-avatar :size="38" class="conv-avatar">{{ (conv.peer_name || '?').charAt(0) }}</el-avatar>
           <div class="conv-main">
             <div class="conv-line1">
-              <span class="conv-name">{{ conv.peer_name || conv.peer_user_id }}</span>
+              <span class="conv-name">
+                {{ conv.peer_name || conv.peer_user_id }}
+                <el-tag v-if="conv.type === 'group'" size="small" type="info" class="conv-tag">{{ t('chat.groupTag') }}</el-tag>
+              </span>
               <span class="conv-time">{{ formatTime(conv.last_at) }}</span>
             </div>
             <div class="conv-line2">
@@ -42,8 +45,21 @@
         <header class="msg-header">
           <el-avatar :size="32">{{ (chatStore.activeConversation.peer_name || '?').charAt(0) }}</el-avatar>
           <span class="msg-peer">{{ chatStore.activeConversation.peer_name || chatStore.activeConversation.peer_user_id }}</span>
-          <span v-if="peerOnline" class="presence-dot online" :title="t('chat.online')"></span>
-          <span v-else class="presence-dot offline" :title="t('chat.offline')"></span>
+
+          <!-- 群聊：成员数 + 成员管理/改名(群主)/退群 -->
+          <template v-if="isActiveGroup">
+            <el-tag size="small" type="info" class="head-tag">{{ t('chat.memberCount', chatStore.activeConversation.member_count ?? 0) }}</el-tag>
+            <el-button link size="small" :icon="UserFilled" @click="openMemberDrawer">{{ t('chat.manageMembers') }}</el-button>
+            <el-button v-if="isOwner" link size="small" :icon="EditPen" @click="doRename">{{ t('chat.rename') }}</el-button>
+            <el-button link size="small" type="danger" @click="doLeave">{{ t('chat.leave') }}</el-button>
+          </template>
+
+          <!-- 私聊：对方在线状态点 -->
+          <template v-else>
+            <span v-if="peerOnline" class="presence-dot online" :title="t('chat.online')"></span>
+            <span v-else class="presence-dot offline" :title="t('chat.offline')"></span>
+          </template>
+
           <span v-if="activeTypingNames" class="typing-hint">{{ activeTypingNames }} {{ t('chat.typing') }}</span>
         </header>
 
@@ -93,9 +109,23 @@
       <el-empty v-else :description="t('chat.selectHint')" class="msg-placeholder" />
     </section>
 
-    <!-- 发起私聊：选择同租户成员 -->
-    <el-dialog v-model="memberDialogVisible" :title="t('chat.pickMember')" width="420px">
+    <!-- 发起会话：选择同租户成员（私聊单选 / 群聊多选） -->
+    <el-dialog v-model="memberDialogVisible" :title="t('chat.newChat')" width="460px">
+      <el-radio-group v-model="startMode" class="start-mode">
+        <el-radio-button value="direct">{{ t('chat.chatTypeDirect') }}</el-radio-button>
+        <el-radio-button value="group">{{ t('chat.chatTypeGroup') }}</el-radio-button>
+      </el-radio-group>
+
+      <el-input
+        v-if="startMode === 'group'"
+        v-model="groupName"
+        :placeholder="t('chat.groupNamePlaceholder')"
+        maxlength="50"
+        class="start-field"
+      />
+
       <el-select
+        v-if="startMode === 'direct'"
         v-model="pickedUserId"
         filterable
         remote
@@ -112,26 +142,91 @@
           :value="m.id"
         />
       </el-select>
+      <el-select
+        v-else
+        v-model="pickedMemberIds"
+        multiple
+        filterable
+        remote
+        reserve-keyword
+        :remote-method="searchMembers"
+        :loading="memberLoading"
+        :placeholder="t('chat.pickMembers')"
+        style="width: 100%"
+      >
+        <el-option
+          v-for="m in memberOptions"
+          :key="m.id"
+          :label="m.nickname || m.username"
+          :value="m.id"
+        />
+      </el-select>
+
       <template #footer>
         <el-button @click="memberDialogVisible = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" :disabled="!pickedUserId" :loading="starting" @click="startChat">
+        <el-button type="primary" :disabled="!canStart" :loading="starting" @click="doStart">
           {{ t('common.confirm') }}
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 群成员管理抽屉 -->
+    <el-drawer v-model="memberDrawerVisible" :title="t('chat.membersTitle')" size="380px">
+      <div class="member-toolbar">
+        <el-select
+          v-model="addPickedIds"
+          multiple
+          filterable
+          remote
+          reserve-keyword
+          collapse-tags
+          :remote-method="searchMembers"
+          :loading="memberLoading"
+          :placeholder="t('chat.addMembers')"
+          class="member-add-select"
+        >
+          <el-option
+            v-for="m in memberOptions"
+            :key="m.id"
+            :label="m.nickname || m.username"
+            :value="m.id"
+          />
+        </el-select>
+        <el-button type="primary" size="small" :disabled="!addPickedIds.length" :loading="addingMember" @click="doAddMembers">
+          {{ t('chat.addMembers') }}
+        </el-button>
+      </div>
+      <div class="member-list" v-loading="loadingMembers">
+        <div v-for="m in activeMembers" :key="m.user_id" class="member-row">
+          <el-avatar :size="28">{{ (m.name || m.user_id).charAt(0) }}</el-avatar>
+          <span class="member-name">{{ m.name || m.user_id }}</span>
+          <el-tag v-if="m.role === 'owner'" size="small" type="warning">{{ t('chat.roleOwner') }}</el-tag>
+          <el-button
+            v-if="canRemove(m)"
+            link
+            size="small"
+            type="danger"
+            class="member-remove"
+            @click="doRemoveMember(m)"
+          >
+            {{ t('chat.removeMember') }}
+          </el-button>
+        </div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref, computed } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, UserFilled, EditPen } from '@element-plus/icons-vue'
 import { useI18n } from '@/composables/useI18n'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { getUserList, type UserItem } from '@/api/modules/user'
-import type { ChatMessageItem } from '@/api/modules/chat'
+import type { ChatMessageItem, MemberItem } from '@/api/modules/chat'
 
 const { t } = useI18n()
 const chatStore = useChatStore()
@@ -155,17 +250,43 @@ const peerOnline = computed(() => {
   return !!peer && chatStore.isOnline(peer)
 })
 
+// 当前会话是否为群聊
+const isActiveGroup = computed(() => chatStore.activeConversation?.type === 'group')
+// 当前用户是否为该群群主
+const isOwner = computed(() => chatStore.activeConversation?.my_role === 'owner')
+
+// 群成员缓存（userId -> 展示名），供输入中提示与成员抽屉复用
+const activeMembers = ref<MemberItem[]>([])
+const loadingMembers = ref(false)
+const memberNameMap = computed<Record<string, string>>(() => {
+  const map: Record<string, string> = {}
+  for (const m of activeMembers.value) map[m.user_id] = m.name || m.user_id
+  return map
+})
+
 // 当前会话内正在输入的成员展示名（逗号分隔）
 const activeTypingNames = computed(() => {
   const ids = chatStore.typingUsers[chatStore.activeId] || []
   if (!ids.length) return ''
   return ids
     .map((id) => {
-      const conv = chatStore.activeConversation
-      return (conv?.peer_user_id === id ? conv?.peer_name : undefined) || id
+      if (!isActiveGroup.value) {
+        const conv = chatStore.activeConversation
+        return (conv?.peer_user_id === id ? conv?.peer_name : undefined) || id
+      }
+      return memberNameMap.value[id] || id
     })
     .join(', ')
 })
+
+// 选中群会话时拉取成员（同时为输入中提示提供名字）
+watch(
+  () => chatStore.activeId,
+  (id) => {
+    if (id && isActiveGroup.value) void refreshMembers()
+    else activeMembers.value = []
+  }
+)
 
 // ---- 消息撤回 ----
 // 与后端 service.RecallWindow 保持一致：发送后 5 分钟内可撤回
@@ -269,15 +390,28 @@ function scrollToBottom() {
   })
 }
 
-// ---- 发起私聊：成员选择 ----
+// ---- 发起会话：成员选择（私聊/群聊） ----
 const memberDialogVisible = ref(false)
 const memberLoading = ref(false)
 const memberOptions = ref<UserItem[]>([])
+const startMode = ref<'direct' | 'group'>('direct')
 const pickedUserId = ref('')
+const pickedMemberIds = ref<string[]>([])
+const groupName = ref('')
 const starting = ref(false)
 
+// 发起按钮可用条件：私聊需选中一人；群聊需群名 + 至少一名成员
+const canStart = computed(() =>
+  startMode.value === 'direct'
+    ? !!pickedUserId.value
+    : !!groupName.value.trim() && pickedMemberIds.value.length > 0
+)
+
 function openMemberDialog() {
+  startMode.value = 'direct'
   pickedUserId.value = ''
+  pickedMemberIds.value = []
+  groupName.value = ''
   memberOptions.value = []
   memberDialogVisible.value = true
   void searchMembers('')
@@ -296,18 +430,119 @@ async function searchMembers(keyword: string) {
   }
 }
 
-async function startChat() {
-  if (!pickedUserId.value) return
+async function doStart() {
+  if (!canStart.value) return
   starting.value = true
   try {
-    const conv = await chatStore.openWith(pickedUserId.value)
+    const conv =
+      startMode.value === 'direct'
+        ? await chatStore.openWith(pickedUserId.value)
+        : await chatStore.createGroup(groupName.value.trim(), pickedMemberIds.value)
     memberDialogVisible.value = false
     await chatStore.selectConversation(conv.id)
     scrollToBottom()
   } catch {
-    ElMessage.error(t('chat.createFailed'))
+    ElMessage.error(startMode.value === 'direct' ? t('chat.createFailed') : t('chat.createGroupFailed'))
   } finally {
     starting.value = false
+  }
+}
+
+// ---- 群成员管理 ----
+const memberDrawerVisible = ref(false)
+const addPickedIds = ref<string[]>([])
+const addingMember = ref(false)
+
+// 拉取当前群成员列表（选中群会话与增删后刷新）
+async function refreshMembers() {
+  const id = chatStore.activeId
+  if (!id) return
+  loadingMembers.value = true
+  try {
+    activeMembers.value = await chatStore.loadMembers(id)
+  } catch {
+    /* 忽略：成员列表为辅助信息，拉取失败不打断聊天主流程 */
+  } finally {
+    loadingMembers.value = false
+  }
+}
+
+function openMemberDrawer() {
+  addPickedIds.value = []
+  memberDrawerVisible.value = true
+  void refreshMembers()
+}
+
+// 可移除判定：仅群主，且不能移除 owner（含创建人自己）
+function canRemove(m: MemberItem): boolean {
+  return isOwner.value && m.role !== 'owner'
+}
+
+async function doAddMembers() {
+  if (!addPickedIds.value.length) return
+  addingMember.value = true
+  try {
+    await chatStore.addMembers(chatStore.activeId, addPickedIds.value)
+    addPickedIds.value = []
+    ElMessage.success(t('chat.addSuccess'))
+    await refreshMembers()
+  } catch {
+    ElMessage.error(t('chat.addFailed'))
+  } finally {
+    addingMember.value = false
+  }
+}
+
+async function doRemoveMember(m: MemberItem) {
+  try {
+    await ElMessageBox.confirm(t('chat.removeConfirm'), t('common.tip'), { type: 'warning' })
+  } catch {
+    return // cancelled
+  }
+  try {
+    await chatStore.removeMember(chatStore.activeId, m.user_id)
+    ElMessage.success(t('chat.removeSuccess'))
+    await refreshMembers()
+  } catch {
+    ElMessage.error(t('chat.removeFailed'))
+  }
+}
+
+async function doLeave() {
+  const id = chatStore.activeId
+  if (!id) return
+  try {
+    await ElMessageBox.confirm(t('chat.leaveConfirm'), t('common.tip'), { type: 'warning' })
+  } catch {
+    return // cancelled
+  }
+  try {
+    await chatStore.leaveConversation(id)
+    ElMessage.success(t('chat.leaveSuccess'))
+  } catch {
+    ElMessage.error(t('chat.leaveFailed'))
+  }
+}
+
+async function doRename() {
+  const id = chatStore.activeId
+  if (!id) return
+  let value = ''
+  try {
+    const r = await ElMessageBox.prompt(t('chat.renameTitle'), t('chat.rename'), {
+      inputValue: chatStore.activeConversation?.peer_name || '',
+      inputValidator: (v: string) => (v && v.trim() ? true : t('chat.groupNameRequired'))
+    })
+    value = ((r as { value: string }).value || '').trim()
+  } catch {
+    return // cancelled
+  }
+  if (!value) return
+  try {
+    await chatStore.rename(id, value)
+    ElMessage.success(t('chat.renameSuccess'))
+  } catch {
+    ElMessage.error(t('chat.renameFailed'))
   }
 }
 
@@ -500,5 +735,49 @@ onUnmounted(() => {
 }
 .msg-placeholder {
   margin: auto;
+}
+.conv-tag {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.head-tag {
+  margin-left: 4px;
+}
+.start-mode {
+  margin-bottom: 12px;
+}
+.start-field {
+  margin-bottom: 12px;
+}
+.member-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.member-add-select {
+  flex: 1;
+}
+.member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--mx-header-border);
+}
+.member-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--mx-text-strong);
+}
+.member-remove {
+  flex-shrink: 0;
 }
 </style>
