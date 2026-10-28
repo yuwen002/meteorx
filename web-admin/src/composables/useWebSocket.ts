@@ -19,13 +19,13 @@ export type WSMessage =
   | { type: 'chat'; payload: ChatMessageItem; time: number }
 
 // 重连配置
-const RECONNECT_BASE_DELAY = 1000 // 基础延迟 1s
-const RECONNECT_MAX_DELAY = 30000 // 最大延迟 30s
-const RECONNECT_MAX_ATTEMPTS = 10 // 最大重连次数
-const HEARTBEAT_INTERVAL = 25000 // 心跳间隔 25s
-const HEARTBEAT_TIMEOUT = 10000 // 心跳超时 10s
-const OFFLINE_QUEUE_MAX = 100 // 离线消息队列最大长度
-const STORAGE_KEY = 'ws_offline_messages' // localStorage 存储键
+const RECONNECT_BASE_DELAY = 1000 // base delay 1s
+const RECONNECT_MAX_DELAY = 30000 // max delay 30s
+const RECONNECT_MAX_ATTEMPTS = 10 // max reconnect attempts
+const HEARTBEAT_INTERVAL = 25000 // heartbeat interval 25s
+const HEARTBEAT_TIMEOUT = 10000 // heartbeat timeout 10s
+const OFFLINE_QUEUE_MAX = 100 // offline message queue max length
+const STORAGE_KEY = 'ws_offline_messages' // localStorage key
 
 export function useWebSocket() {
   const userStore = useUserStore()
@@ -199,7 +199,7 @@ export function useWebSocket() {
   // 离线消息队列
   function enqueueOffline(msg: WSMessage) {
     if (offlineQueue.length >= OFFLINE_QUEUE_MAX) {
-      offlineQueue.shift() // 移除最旧的消息
+      offlineQueue.shift() // drop the oldest message
     }
     offlineQueue.push(msg)
     saveOfflineQueue()

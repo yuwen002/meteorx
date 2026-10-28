@@ -3,9 +3,9 @@ import { ref } from 'vue'
 import { getTenantSettings } from '@/api/modules/tenant'
 
 export interface BrandConfig {
-  name: string // 显示名称（浏览器标题、侧边栏 Logo 文案）
-  logo: string // Logo 图片 URL，留空则回退到名称首字母
-  primaryColor: string // 品牌主色（覆盖 Element Plus 主色）
+  name: string // display name (browser title, sidebar logo text)
+  logo: string // logo image URL, falls back to the first letter of the name when empty
+  primaryColor: string // brand primary color (overrides Element Plus main color)
 }
 
 // 服务端下发的租户品牌配置（对齐 TenantSettingsResp 的相关字段）

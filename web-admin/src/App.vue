@@ -19,7 +19,7 @@ import { useI18n } from '@/composables/useI18n'
 import { useTheme } from '@/composables/useTheme'
 import { useBrand } from '@/composables/useBrand'
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const elLocale = computed(() => (locale.value === 'en-US' ? enUs : zhCn))
 
 // 确保主题与白标品牌在挂载时应用到位
@@ -70,7 +70,7 @@ onMessage((msg: WSMessage) => {
       // 后端 WS 站内信统一以 announcement 消息下发，靠 payload.type 区分
       if (msg.payload?.type === 'task_assigned' || msg.payload?.type === 'task_due') {
         ElNotification({
-          title: msg.payload.title || '任务提醒',
+          title: msg.payload.title || t('ws.taskReminderTitle'),
           message: msg.payload.content || '',
           type: msg.payload.type === 'task_due' ? 'warning' : 'info',
           duration: 6000

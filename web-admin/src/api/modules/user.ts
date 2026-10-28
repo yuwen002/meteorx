@@ -23,9 +23,9 @@ export interface UserItem {
   status?: number
   is_master?: boolean
   last_login_at?: string
-  roles?: string[]        // 角色编码列表（兼容旧版）
-  role_ids?: string[]     // 角色ID列表
-  role_list?: UserRoleInfo[]  // 角色详细信息列表
+  roles?: string[]        // role code list (legacy compatibility)
+  role_ids?: string[]     // role ID list
+  role_list?: UserRoleInfo[]  // detailed role list
   deleted_at?: string
   created_at?: string
   updated_at?: string
@@ -60,7 +60,7 @@ export interface MasterAdminCreateParams {
   nickname?: string
   email?: string
   remark?: string
-  role_id?: string  // 单个角色ID
+  role_id?: string  // single role ID
 }
 
 // 系统管理员更新参数（单角色）
@@ -72,7 +72,7 @@ export interface MasterAdminUpdateParams {
   remark?: string
   status?: number
   password?: string
-  role_id?: string  // 单个角色ID
+  role_id?: string  // single role ID
 }
 
 export interface UserListParams {
@@ -80,11 +80,11 @@ export interface UserListParams {
   page_size?: number
   keyword?: string
   status?: number
-  role?: string            // 按角色ID筛选（仅 /users 租户内列表生效）
-  sort?: string            // 排序列：created_at/updated_at/username/status/email/last_login_at
-  order?: 'asc' | 'desc'   // 排序方向
-  created_from?: string    // 注册时间下限 YYYY-MM-DD
-  created_to?: string      // 注册时间上限 YYYY-MM-DD
+  role?: string            // filter by role ID (only applies to the /users tenant-scoped list)
+  sort?: string            // sort column: created_at/updated_at/username/status/email/last_login_at
+  order?: 'asc' | 'desc'   // sort direction
+  created_from?: string    // registration time lower bound YYYY-MM-DD
+  created_to?: string      // registration time upper bound YYYY-MM-DD
 }
 
 // ==================== 普通用户接口 ====================

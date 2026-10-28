@@ -251,7 +251,7 @@ async function handleDelete(row: ExportJobItem) {
     await deleteExport(row.id)
     ElMessage.success(t('exportPage.deleted'))
     loadList()
-  } catch { /* 用户取消，或请求失败（失败提示由 request.ts 拦截器统一弹出） */ }
+  } catch { /* user cancelled, or the request failed (error toast is shown centrally by the request.ts interceptor) */ }
 }
 
 onMounted(loadList)

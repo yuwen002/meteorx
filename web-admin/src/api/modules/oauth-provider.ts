@@ -45,16 +45,16 @@ export interface OAuthProviderSaveParams {
   scopes?: string[]
 }
 
-// 类型选项（供新建/编辑对话框下拉）
+// 类型选项（供新建/编辑对话框下拉）；label 存 locale key，由消费方用 t() 解析
 export const providerKindOptions: Array<{ value: OAuthProviderKind; label: string; fixed: boolean }> = [
-  { value: 'google', label: 'Google', fixed: true },
-  { value: 'github', label: 'GitHub', fixed: true },
-  { value: 'wechat', label: '微信', fixed: true },
-  { value: 'feishu', label: '飞书', fixed: true },
-  { value: 'dingtalk', label: '钉钉', fixed: true },
-  { value: 'qq', label: 'QQ', fixed: true },
-  { value: 'microsoft', label: 'Microsoft Entra ID', fixed: true },
-  { value: 'oidc', label: '通用 OIDC（企业自建）', fixed: false }
+  { value: 'google', label: 'providerKind.google', fixed: true },
+  { value: 'github', label: 'providerKind.github', fixed: true },
+  { value: 'wechat', label: 'providerKind.wechat', fixed: true },
+  { value: 'feishu', label: 'providerKind.feishu', fixed: true },
+  { value: 'dingtalk', label: 'providerKind.dingtalk', fixed: true },
+  { value: 'qq', label: 'providerKind.qq', fixed: true },
+  { value: 'microsoft', label: 'providerKind.microsoft', fixed: true },
+  { value: 'oidc', label: 'providerKind.oidc', fixed: false }
 ]
 
 // 查询全部第三方登录配置

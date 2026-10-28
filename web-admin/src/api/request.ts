@@ -2,6 +2,7 @@ import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse,
 import { ElMessage } from 'element-plus/es/components/message/index'
 import router from '@/router'
 import { useUserStore } from '@/stores/user'
+import { useI18nStore } from '@/stores/i18n'
 
 const service: AxiosInstance = axios.create({
   baseURL: '/api/v1',
@@ -32,7 +33,7 @@ service.interceptors.response.use(
       if (res.code === 401 || res.code === 40001) {
         handleLogoutSync()
       } else {
-        ElMessage.error(res.message || '请求失败')
+        ElMessage.error(res.message || useI18nStore().t('requestError.failed'))
       }
       return Promise.reject(new Error(res.message || 'Error'))
     }
@@ -53,7 +54,7 @@ service.interceptors.response.use(
         ElMessage.error(msg)
       }
     } else {
-      ElMessage.error(error.message || '网络请求失败')
+      ElMessage.error(error.message || useI18nStore().t('requestError.network'))
     }
     return Promise.reject(error)
   }
@@ -68,7 +69,7 @@ function handleLogoutSync() {
   } else {
     userStore.logout()
   }
-  ElMessage.warning('登录状态已过期，请重新登录')
+  ElMessage.warning(useI18nStore().t('auth.sessionExpired'))
   router.push('/login')
 }
 

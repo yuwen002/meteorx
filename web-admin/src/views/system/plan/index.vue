@@ -181,7 +181,7 @@ const form = reactive({
   name: '',
   code: '',
   user_limit: -1,
-  storage_limit: -1, // 表单内以 GB 为单位存储，-1 表示不限
+  storage_limit: -1, // storage in GB within the form, -1 means unlimited
   api_rate_limit: -1,
   wiki_space_limit: -1,
   price: 0,

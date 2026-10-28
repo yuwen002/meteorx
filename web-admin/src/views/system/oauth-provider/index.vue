@@ -77,7 +77,7 @@
       <el-form ref="formRef" :model="form" :rules="rules" label-width="120px">
         <el-form-item :label="t('oauthPage.form.kindLabel')" prop="kind">
           <el-select v-model="form.kind" :disabled="dialogMode === 'edit'" style="width: 100%" @change="onKindChange">
-            <el-option v-for="opt in providerKindOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+            <el-option v-for="opt in providerKindOptions" :key="opt.value" :label="t(opt.label)" :value="opt.value" />
           </el-select>
         </el-form-item>
         <el-form-item :label="t('oauthPage.form.codeLabel')" prop="code">
@@ -199,7 +199,8 @@ const rules = computed<FormRules>(() => ({
 }))
 
 function kindLabel(kind: string) {
-  return providerKindOptions.find((o) => o.value === kind)?.label ?? kind
+  const key = providerKindOptions.find((o) => o.value === kind)?.label
+  return key ? t(key) : kind
 }
 
 function resetForm(next: Partial<OAuthProviderSaveParams> = {}) {

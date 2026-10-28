@@ -179,7 +179,7 @@ const { t } = useI18n()
 const userStore = useUserStore()
 
 // 常量
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 与后端 config.yaml 对齐
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // aligned with backend config.yaml
 const MAX_UPLOAD_COUNT = 10
 
 const isRecycleBin = ref(false)

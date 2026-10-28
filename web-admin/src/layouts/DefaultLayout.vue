@@ -185,8 +185,8 @@
           </button>
           <el-breadcrumb separator="/">
             <el-breadcrumb-item :to="{ path: '/dashboard' }">{{ t('nav.dashboard') }}</el-breadcrumb-item>
-            <el-breadcrumb-item v-if="currentRoute.meta.title && currentRoute.path !== '/dashboard'">{{
-              currentRoute.meta.title
+            <el-breadcrumb-item v-if="currentRoute.meta.titleKey && currentRoute.path !== '/dashboard'">{{
+              t(currentRoute.meta.titleKey as string)
             }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>

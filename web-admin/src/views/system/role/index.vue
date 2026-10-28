@@ -247,7 +247,7 @@ const selectedPermIds = ref<string[]>([])
 async function loadAllPermissions() {
   const res = await getPermissionList({ page: 1, page_size: 500 }) as unknown as { data?: PermissionItem[] }
   const perms = (res.data || []) as PermissionItem[]
-  allPermissions.value = perms  // 存储所有权限
+  allPermissions.value = perms  // store all permissions
   allPermIds.value = perms.map((p) => p.id)
   // 按 resource 分组（简单实现：resource 作为父节点，权限作为子节点）
   const groups = new Map<string, PermTreeNode>()

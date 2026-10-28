@@ -3,17 +3,17 @@
     <el-popover v-model:visible="visible" placement="bottom-end" :width="380" trigger="click" @show="handleShow">
       <template #reference>
         <el-badge :value="messageStore.total" :hidden="!messageStore.hasUnread" :max="99" class="bell-badge">
-          <el-tooltip content="消息中心" placement="bottom">
-            <el-button :icon="Message" circle :type="messageStore.hasUnread ? 'primary' : 'default'" aria-label="消息中心" />
+          <el-tooltip :content="t('messageBell.tooltip')" placement="bottom">
+            <el-button :icon="Message" circle :type="messageStore.hasUnread ? 'primary' : 'default'" :aria-label="t('messageBell.tooltip')" />
           </el-tooltip>
         </el-badge>
       </template>
 
       <div class="panel">
         <div class="panel-header">
-          <h3>消息中心</h3>
+          <h3>{{ t('messageBell.heading') }}</h3>
           <el-button v-if="items.length > 0" link type="primary" size="small" @click="handleMarkAll">
-            全部已读
+            {{ t('messageBell.markAll') }}
           </el-button>
         </div>
 
@@ -35,10 +35,10 @@
           </div>
         </div>
 
-        <el-empty v-if="!loading && items.length === 0" description="暂无消息" :image-size="60" />
+        <el-empty v-if="!loading && items.length === 0" :description="t('messageBell.empty')" :image-size="60" />
 
         <div class="panel-footer">
-          <el-button link type="primary" size="small" @click="goToInbox">查看全部消息</el-button>
+          <el-button link type="primary" size="small" @click="goToInbox">{{ t('messageBell.viewAll') }}</el-button>
         </div>
       </div>
     </el-popover>
@@ -51,11 +51,13 @@ import { useRouter } from 'vue-router'
 import { Message } from '@element-plus/icons-vue'
 import { listMessages, markAllMessagesRead, markMessageRead, type MessageItem } from '@/api/modules/message'
 import { useMessageStore } from '@/stores/message'
+import { useI18n } from '@/composables/useI18n'
 import { toPageResult } from '@/types/pagination'
 import { clearMessageCategory } from '@/utils/messageCategory'
 
 const router = useRouter()
 const messageStore = useMessageStore()
+const { t, locale } = useI18n()
 
 const visible = ref(false)
 const loading = ref(false)
@@ -79,11 +81,11 @@ function formatTime(value: string | null | undefined): string {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return ''
   const diff = Date.now() - d.getTime()
-  if (diff < 60000) return '刚刚'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`
-  if (diff < 604800000) return `${Math.floor(diff / 86400000)} 天前`
-  return d.toLocaleDateString('zh-CN')
+  if (diff < 60000) return t('time.justNow')
+  if (diff < 3600000) return t('time.minutesAgo', Math.floor(diff / 60000))
+  if (diff < 86400000) return t('time.hoursAgo', Math.floor(diff / 3600000))
+  if (diff < 604800000) return t('time.daysAgo', Math.floor(diff / 86400000))
+  return d.toLocaleDateString(locale.value)
 }
 
 async function loadPreview() {

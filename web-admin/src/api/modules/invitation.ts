@@ -12,26 +12,26 @@ import type { PageResult } from '@/types/pagination'
 export interface InvitationItem {
   id: string
   tenant_id: string
-  tenant_name?: string        // 租户名称（仅查询时填充）
-  email: string               // 被邀请人邮箱
-  role_ids: string[]          // 分配的角色 ID 列表
-  status: string              // 状态：pending / accepted / cancelled / expired
-  invited_by: string          // 邀请人用户 ID
-  expires_at: string          // 过期时间
-  accepted_at?: string        // 接受时间（仅已接受时有值）
-  created_at: string          // 创建时间
+  tenant_name?: string        // tenant name (filled only on query)
+  email: string               // invitee email
+  role_ids: string[]          // assigned role ID list
+  status: string              // status: pending / accepted / cancelled / expired
+  invited_by: string          // inviter user ID
+  expires_at: string          // expiration time
+  accepted_at?: string        // accepted time (only set when accepted)
+  created_at: string          // created time
 }
 
 /** 创建邀请参数 */
 export interface CreateInvitationParams {
-  email: string               // 被邀请人邮箱
-  role_ids: string[]          // 分配的角色 ID 列表
+  email: string               // invitee email
+  role_ids: string[]          // assigned role ID list
 }
 
 /** 批量创建邀请参数：多个邮箱共享同一组角色（上限 50） */
 export interface BatchCreateInvitationParams {
-  emails: string[]            // 被邀请人邮箱列表
-  role_ids: string[]          // 分配的角色 ID 列表
+  emails: string[]            // invitee email list
+  role_ids: string[]          // assigned role ID list
 }
 
 /** 批量邀请中被跳过或失败的单个邮箱 */
@@ -42,16 +42,16 @@ export interface SkippedEmail {
 
 /** 批量创建邀请结果 */
 export interface BatchCreateInvitationResult {
-  created: number             // 成功创建数量
-  skipped: SkippedEmail[]     // 被跳过/失败的邮箱及原因
+  created: number             // number successfully created
+  skipped: SkippedEmail[]     // skipped/failed emails with reasons
 }
 
 /** 接受邀请参数 */
 export interface AcceptInvitationParams {
-  token: string               // 邀请令牌（邮件链接中携带）
-  username: string            // 设置的登录用户名
-  password: string            // 设置的密码
-  nickname: string            // 设置的昵称
+  token: string               // invitation token (carried in the email link)
+  username: string            // login username to set
+  password: string            // password to set
+  nickname: string            // nickname to set
 }
 
 /** 可分配角色选项 */
@@ -63,10 +63,10 @@ export interface RoleOption {
 
 /** 邀请列表查询参数 */
 export interface InvitationListParams {
-  page?: number               // 页码
-  page_size?: number          // 每页条数
-  keyword?: string            // 按邮箱搜索
-  status?: string             // 按状态筛选
+  page?: number               // page number
+  page_size?: number          // page size
+  keyword?: string            // search by email
+  status?: string             // filter by status
 }
 
 /** 获取当前租户的邀请列表 */

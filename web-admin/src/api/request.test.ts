@@ -20,6 +20,7 @@ const h = vi.hoisted(() => {
 vi.mock('axios', () => ({ default: { create: () => h.service } }))
 vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: h.ElMessage }))
 vi.mock('@/stores/user', () => ({ useUserStore: () => h.userStore }))
+vi.mock('@/stores/i18n', () => ({ useI18nStore: () => ({ t: (key: string) => key }) }))
 vi.mock('@/router', () => ({ default: h.router }))
 
 import { get, post, put, del, request } from './request'

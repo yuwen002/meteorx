@@ -273,8 +273,8 @@ function onExceed(files: File[]) {
 }
 
 function downloadTemplate() {
-  // 前置 UTF-8 BOM，避免 Excel 直接打开中文表头出现乱码
-  const csv = '\uFEFF' + 'username,nickname,email,department,position,roles\n' + 'alice,张三,alice@example.com,产品部,产品经理,member\n'
+  // Prepend a UTF-8 BOM so Excel opens the header row without garbled characters
+  const csv = '\uFEFF' + 'username,nickname,email,department,position,roles\n' + 'alice,Alice Li,alice@example.com,Product,Product Manager,member\n'
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')

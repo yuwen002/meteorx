@@ -1338,7 +1338,7 @@ async function loadLoginLogs() {
       page: loginLogsPage.value,
       page_size: loginLogsPageSize.value,
       user_id: loginLogsUser.value.id,
-      action: 'login'  // 只查询登录相关的日志
+      action: 'login'  // only query login-related logs
     })
     loginLogsList.value = res.items
     loginLogsTotal.value = res.total
