@@ -30,6 +30,7 @@ func setupSQLiteMemory() (*gorm.DB, error) {
 		&model.Tag{},
 		&model.DocumentTag{},
 		&model.Comment{},
+		&model.CommentReaction{},
 		&model.ShareLink{},
 		&model.DocumentTemplate{},
 		&model.DocumentAccessLog{},

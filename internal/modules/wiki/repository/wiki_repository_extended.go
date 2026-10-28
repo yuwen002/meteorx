@@ -35,6 +35,12 @@ type WikiRepositoryExtended interface {
 	UpdateComment(ctx context.Context, comment *model.Comment) error
 	DeleteComment(ctx context.Context, id string) error
 	GetComment(ctx context.Context, id string) (*model.Comment, error)
+	SetCommentStatus(ctx context.Context, id string, status int) error
+
+	// ToggleCommentReaction 幂等切换表情回应：已存在则删除，返回 added=false；不存在则新增，返回 added=true
+	ToggleCommentReaction(ctx context.Context, reaction *model.CommentReaction) (bool, error)
+	ListReactionsByCommentIDs(ctx context.Context, commentIDs []string) ([]*model.CommentReaction, error)
+	DeleteReactionsByComment(ctx context.Context, commentID string) error
 
 	CreateShareLink(ctx context.Context, link *model.ShareLink) error
 	GetShareLinkByToken(ctx context.Context, token string) (*model.ShareLink, error)
@@ -205,6 +211,52 @@ func (r *wikiRepositoryExtended) GetComment(ctx context.Context, id string) (*mo
 		return nil, err
 	}
 	return &comment, nil
+}
+
+// SetCommentStatus 更新评论状态（用于解决/重开）
+func (r *wikiRepositoryExtended) SetCommentStatus(ctx context.Context, id string, status int) error {
+	return r.getDB(ctx).Model(&model.Comment{}).Where("id = ?", id).UpdateColumn("status", status).Error
+}
+
+// ToggleCommentReaction 幂等切换表情回应：已存在则删除（added=false），否则新增（added=true）
+func (r *wikiRepositoryExtended) ToggleCommentReaction(ctx context.Context, reaction *model.CommentReaction) (bool, error) {
+	if reaction.TenantID == "" {
+		reaction.TenantID = tenantctx.TenantID(ctx)
+	}
+	db := r.getDB(ctx)
+	var existing model.CommentReaction
+	err := db.Where("comment_id = ? AND user_id = ? AND emoji = ?", reaction.CommentID, reaction.UserID, reaction.Emoji).First(&existing).Error
+	if err == nil {
+		// 已表态 → 取消
+		if err := db.Where("id = ?", existing.ID).Delete(&model.CommentReaction{}).Error; err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, err
+	}
+	reaction.ID = idgen.NewULID()
+	reaction.CreatedAt = time.Now()
+	if err := db.Create(reaction).Error; err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// ListReactionsByCommentIDs 批量拉取多个评论的表情回应行（供列表聚合，避免逐条 N+1）
+func (r *wikiRepositoryExtended) ListReactionsByCommentIDs(ctx context.Context, commentIDs []string) ([]*model.CommentReaction, error) {
+	if len(commentIDs) == 0 {
+		return nil, nil
+	}
+	var list []*model.CommentReaction
+	err := r.getDB(ctx).Where("comment_id IN ?", commentIDs).Find(&list).Error
+	return list, err
+}
+
+// DeleteReactionsByComment 物理删除指定评论的全部表情回应（评论删除时级联清理）
+func (r *wikiRepositoryExtended) DeleteReactionsByComment(ctx context.Context, commentID string) error {
+	return r.getDB(ctx).Where("comment_id = ?", commentID).Delete(&model.CommentReaction{}).Error
 }
 
 // CreateShareLink 创建分享链接
@@ -554,18 +606,18 @@ func (r *wikiRepositoryExtended) ListDocumentTagsWithDetails(ctx context.Context
 	return docTags, err
 }
 
-// ListCommentsByDocument 列出指定文档的活跃评论（按创建时间正序）。
+// ListCommentsByDocument 列出指定文档的可见评论（含已解决，排除已删除；按创建时间正序）。
 func (r *wikiRepositoryExtended) ListCommentsByDocument(ctx context.Context, documentID string) ([]*model.Comment, error) {
 	var comments []*model.Comment
-	err := r.getDB(ctx).Where("document_id = ? AND status = ?", documentID, model.CommentStatusActive).
+	err := r.getDB(ctx).Where("document_id = ? AND status <> ?", documentID, model.CommentStatusDeleted).
 		Order("created_at ASC").Find(&comments).Error
 	return comments, err
 }
 
-// ListRepliesByParentID 列出指定父评论下的活跃回复。
+// ListRepliesByParentID 列出指定父评论下的可见回复（含已解决，排除已删除）。
 func (r *wikiRepositoryExtended) ListRepliesByParentID(ctx context.Context, parentID string) ([]*model.Comment, error) {
 	var comments []*model.Comment
-	err := r.getDB(ctx).Where("parent_id = ? AND status = ?", parentID, model.CommentStatusActive).
+	err := r.getDB(ctx).Where("parent_id = ? AND status <> ?", parentID, model.CommentStatusDeleted).
 		Order("created_at ASC").Find(&comments).Error
 	return comments, err
 }

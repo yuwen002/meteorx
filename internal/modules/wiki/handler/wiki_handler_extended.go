@@ -153,6 +153,37 @@ func (h *WikiHandlerExtended) DeleteComment(w http.ResponseWriter, r *http.Reque
 	response.Success(w, nil)
 }
 
+// ToggleCommentReaction 切换评论表情回应 POST /wiki/documents/comments/{id}/reactions
+func (h *WikiHandlerExtended) ToggleCommentReaction(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req dto.ToggleReactionReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	resp, err := h.svc.ToggleCommentReaction(r.Context(), id, &req)
+	if err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, resp)
+}
+
+// ResolveComment 解决/重开根评论 POST /wiki/documents/comments/{id}/resolve
+func (h *WikiHandlerExtended) ResolveComment(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req dto.ResolveCommentReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	if err := h.svc.ResolveComment(r.Context(), id, &req); err != nil {
+		response.FailError(w, err)
+		return
+	}
+	response.Success(w, nil)
+}
+
 // CreateShareLink 创建分享链接 POST /wiki/documents/{id}/share
 func (h *WikiHandlerExtended) CreateShareLink(w http.ResponseWriter, r *http.Request) {
 	var req dto.ShareLinkReq
@@ -704,6 +735,8 @@ func (h *WikiHandlerExtended) RegisterExtendedRoutes(r chi.Router) {
 			r.Get("/{id}/comments", h.ListComments)
 			r.Put("/comments/{id}", h.UpdateComment)
 			r.Delete("/comments/{id}", h.DeleteComment)
+			r.Post("/comments/{id}/reactions", h.ToggleCommentReaction)
+			r.Post("/comments/{id}/resolve", h.ResolveComment)
 
 			r.Post("/{id}/share", h.CreateShareLink)
 			r.Get("/{id}/shares", h.ListShareLinks)

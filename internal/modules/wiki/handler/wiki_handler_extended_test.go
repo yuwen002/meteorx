@@ -85,6 +85,19 @@ func (s *stubWikiService) DeleteComment(_ context.Context, id string) error {
 	return s.err
 }
 
+func (s *stubWikiService) ToggleCommentReaction(_ context.Context, commentID string, req *dto.ToggleReactionReq) (*dto.ToggleReactionResp, error) {
+	s.rec("ToggleCommentReaction", commentID, req.Emoji)
+	if s.err != nil {
+		return nil, s.err
+	}
+	return &dto.ToggleReactionResp{CommentID: commentID, Reactions: []dto.ReactionItem{{Emoji: req.Emoji, Count: 1, Mine: true}}}, nil
+}
+
+func (s *stubWikiService) ResolveComment(_ context.Context, id string, req *dto.ResolveCommentReq) error {
+	s.rec("ResolveComment", id, strconv.FormatBool(req.Resolved))
+	return s.err
+}
+
 func (s *stubWikiService) CreateShareLink(_ context.Context, req *dto.ShareLinkReq) (*dto.ShareLinkResp, error) {
 	s.rec("CreateShareLink", req.DocumentID)
 	if s.err != nil {
@@ -414,6 +427,37 @@ func TestWikiDeleteComment_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, []string{"c-1"}, stub.params["DeleteComment"])
+}
+
+func TestWikiToggleCommentReaction_Success(t *testing.T) {
+	stub := newStubWiki()
+	router := newWikiExtendedRouter(stub)
+
+	w := doWiki(t, router, http.MethodPost, "/wiki/documents/comments/c-1/reactions", `{"emoji":"👍"}`, nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assertDataContains(t, w, `"emoji":"👍"`)
+	assert.Equal(t, []string{"c-1", "👍"}, stub.params["ToggleCommentReaction"])
+}
+
+func TestWikiToggleCommentReaction_MissingEmoji_Returns400(t *testing.T) {
+	stub := newStubWiki()
+	router := newWikiExtendedRouter(stub)
+
+	w := doWiki(t, router, http.MethodPost, "/wiki/documents/comments/c-1/reactions", `{"emoji":""}`, nil)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Empty(t, stub.calls)
+}
+
+func TestWikiResolveComment_Success(t *testing.T) {
+	stub := newStubWiki()
+	router := newWikiExtendedRouter(stub)
+
+	w := doWiki(t, router, http.MethodPost, "/wiki/documents/comments/c-1/resolve", `{"resolved":true}`, nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, []string{"c-1", "true"}, stub.params["ResolveComment"])
 }
 
 // ================= 分享 =================

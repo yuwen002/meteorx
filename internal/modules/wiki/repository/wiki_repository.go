@@ -141,6 +141,7 @@ func Models() []interface{} {
 		&model.Tag{},
 		&model.DocumentTag{},
 		&model.Comment{},
+		&model.CommentReaction{},
 		&model.ShareLink{},
 		&model.DocumentTemplate{},
 		&model.DocumentAccessLog{},

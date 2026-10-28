@@ -35,6 +35,8 @@ type WikiServiceExtended interface {
 	ListComments(ctx context.Context, documentID string) ([]*dto.CommentResp, error)
 	UpdateComment(ctx context.Context, id string, req *dto.UpdateCommentReq) error
 	DeleteComment(ctx context.Context, id string) error
+	ToggleCommentReaction(ctx context.Context, commentID string, req *dto.ToggleReactionReq) (*dto.ToggleReactionResp, error)
+	ResolveComment(ctx context.Context, id string, req *dto.ResolveCommentReq) error
 
 	CreateShareLink(ctx context.Context, req *dto.ShareLinkReq) (*dto.ShareLinkResp, error)
 	GetShareLink(ctx context.Context, token, password string) (*dto.ShareLinkResp, error)
@@ -345,6 +347,9 @@ func (s *wikiServiceExtended) DeleteComment(ctx context.Context, id string) erro
 		return err
 	}
 
+	// 评论删除时物理清理其表情回应（回应无需保留审计，随评论消亡）
+	_ = s.getExtendedRepo().DeleteReactionsByComment(ctx, id)
+
 	// 删除父评论时级联软删其子回复，避免出现不可见且无法管理的孤儿数据
 	if comment.ParentID == "" {
 		replies, err := s.getExtendedRepo().ListRepliesByParentID(ctx, id)
@@ -355,6 +360,7 @@ func (s *wikiServiceExtended) DeleteComment(ctx context.Context, id string) erro
 			if err := s.getExtendedRepo().DeleteComment(ctx, reply.ID); err != nil {
 				return err
 			}
+			_ = s.getExtendedRepo().DeleteReactionsByComment(ctx, reply.ID)
 		}
 	}
 
@@ -385,7 +391,102 @@ func (s *wikiServiceExtended) buildCommentResp(ctx context.Context, comment *mod
 		}
 	}
 
+	// 聚合表情回应（mine 基于当前登录用户）
+	if rows, err := s.getExtendedRepo().ListReactionsByCommentIDs(ctx, []string{comment.ID}); err == nil {
+		resp.Reactions = aggregateReactions(rows, contextx.GetUserID(ctx))
+	}
+
 	return resp, nil
+}
+
+// aggregateReactions 将回应行按 emoji 聚合为计数列表，保留首次出现顺序。
+func aggregateReactions(rows []*model.CommentReaction, userID string) []dto.ReactionItem {
+	if len(rows) == 0 {
+		return nil
+	}
+	type agg struct {
+		count int64
+		mine  bool
+	}
+	stats := make(map[string]*agg)
+	order := make([]string, 0, len(rows))
+	for _, r := range rows {
+		a, ok := stats[r.Emoji]
+		if !ok {
+			a = &agg{}
+			stats[r.Emoji] = a
+			order = append(order, r.Emoji)
+		}
+		a.count++
+		if r.UserID == userID {
+			a.mine = true
+		}
+	}
+	items := make([]dto.ReactionItem, 0, len(order))
+	for _, e := range order {
+		items = append(items, dto.ReactionItem{Emoji: e, Count: stats[e].count, Mine: stats[e].mine})
+	}
+	return items
+}
+
+// ToggleCommentReaction 切换评论表情回应（需节点 read 权限），回切换后该评论的全量聚合。
+func (s *wikiServiceExtended) ToggleCommentReaction(ctx context.Context, commentID string, req *dto.ToggleReactionReq) (*dto.ToggleReactionResp, error) {
+	userID := contextx.GetUserID(ctx)
+
+	comment, err := s.getExtendedRepo().GetComment(ctx, commentID)
+	if err != nil {
+		return nil, apperrors.ErrNotFound("评论不存在")
+	}
+
+	if err := s.CheckNodePermission(ctx, comment.NodeID, userID, "read"); err != nil {
+		return nil, err
+	}
+
+	emoji := strings.TrimSpace(req.Emoji)
+	if emoji == "" {
+		return nil, apperrors.ErrBadRequest("表情不能为空")
+	}
+
+	if _, err := s.getExtendedRepo().ToggleCommentReaction(ctx, &model.CommentReaction{
+		CommentID: commentID,
+		UserID:    userID,
+		Emoji:     emoji,
+	}); err != nil {
+		return nil, err
+	}
+
+	rows, err := s.getExtendedRepo().ListReactionsByCommentIDs(ctx, []string{commentID})
+	if err != nil {
+		return nil, err
+	}
+	return &dto.ToggleReactionResp{CommentID: commentID, Reactions: aggregateReactions(rows, userID)}, nil
+}
+
+// ResolveComment 解决/重开根评论：仅作者或具备节点 delete 权限者可操作。
+func (s *wikiServiceExtended) ResolveComment(ctx context.Context, id string, req *dto.ResolveCommentReq) error {
+	userID := contextx.GetUserID(ctx)
+
+	comment, err := s.getExtendedRepo().GetComment(ctx, id)
+	if err != nil {
+		return apperrors.ErrNotFound("评论不存在")
+	}
+
+	// 解决/重开仅作用于根评论，回复跟随父线程状态
+	if comment.ParentID != "" {
+		return apperrors.ErrBadRequest("仅可解决或重开根评论")
+	}
+
+	if comment.CreatedBy != userID {
+		if err := s.CheckNodePermission(ctx, comment.NodeID, userID, "delete"); err != nil {
+			return err
+		}
+	}
+
+	status := model.CommentStatusActive
+	if req.Resolved {
+		status = model.CommentStatusResolved
+	}
+	return s.getExtendedRepo().SetCommentStatus(ctx, id, status)
 }
 
 // CreateShareLink 为文档创建分享链接（需 read 权限），可设置密码/过期/最大访问次数并记录分享日志。

@@ -268,6 +268,21 @@ func (Comment) TableName() string {
 	return "wiki_comments"
 }
 
+// CommentReaction 评论表情回应，同一用户对同一评论的同一表情仅一条（唯一索引），再点即取消。
+type CommentReaction struct {
+	ID        string    `gorm:"primaryKey"`
+	TenantID  string    `gorm:"index;size:26;not null"`
+	CommentID string    `gorm:"uniqueIndex:uk_wiki_comment_reaction,priority:1;size:26;not null"`
+	UserID    string    `gorm:"uniqueIndex:uk_wiki_comment_reaction,priority:2;index;size:26;not null"`
+	Emoji     string    `gorm:"uniqueIndex:uk_wiki_comment_reaction,priority:3;size:16;not null"`
+	CreatedAt time.Time `gorm:"index"`
+}
+
+// TableName 返回评论表情回应表名 wiki_comment_reactions。
+func (CommentReaction) TableName() string {
+	return "wiki_comment_reactions"
+}
+
 // ShareLink 文档分享链接，支持密码、过期与浏览次数限制。
 type ShareLink struct {
 	ID            string     `gorm:"primaryKey"`

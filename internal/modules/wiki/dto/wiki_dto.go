@@ -251,18 +251,42 @@ type DocumentTagResp struct {
 
 // CommentResp 评论响应（支持嵌套回复）
 type CommentResp struct {
-	ID         string        `json:"id"`
-	DocumentID string        `json:"document_id"`
-	NodeID     string        `json:"node_id"`
-	ParentID   string        `json:"parent_id"`
-	Content    string        `json:"content"`
-	CreatedBy  string        `json:"created_by"`
-	UserName   string        `json:"user_name"`
-	MentionIDs string        `json:"mention_ids"`
-	Status     int           `json:"status"`
-	Replies    []CommentResp `json:"replies,omitempty"`
-	CreatedAt  time.Time     `json:"created_at"`
-	UpdatedAt  time.Time     `json:"updated_at"`
+	ID         string         `json:"id"`
+	DocumentID string         `json:"document_id"`
+	NodeID     string         `json:"node_id"`
+	ParentID   string         `json:"parent_id"`
+	Content    string         `json:"content"`
+	CreatedBy  string         `json:"created_by"`
+	UserName   string         `json:"user_name"`
+	MentionIDs string         `json:"mention_ids"`
+	Status     int            `json:"status"`
+	Replies    []CommentResp  `json:"replies,omitempty"`
+	Reactions  []ReactionItem `json:"reactions,omitempty"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+}
+
+// ReactionItem 评论表情回应的聚合计数（mine 标识当前登录用户是否已表态）
+type ReactionItem struct {
+	Emoji string `json:"emoji"`
+	Count int64  `json:"count"`
+	Mine  bool   `json:"mine"`
+}
+
+// ToggleReactionReq 切换评论表情回应请求（幂等：已存在则取消）
+type ToggleReactionReq struct {
+	Emoji string `json:"emoji" validate:"required,max=16"`
+}
+
+// ToggleReactionResp 切换后的该评论全部表情聚合
+type ToggleReactionResp struct {
+	CommentID string         `json:"comment_id"`
+	Reactions []ReactionItem `json:"reactions"`
+}
+
+// ResolveCommentReq 解决/重开根评论请求
+type ResolveCommentReq struct {
+	Resolved bool `json:"resolved"`
 }
 
 // CreateCommentReq 创建评论请求
