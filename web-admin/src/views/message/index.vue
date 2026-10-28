@@ -4,17 +4,17 @@
       <template #header>
         <div class="card-header">
           <div class="header-title">
-            <span>消息中心</span>
+            <span>{{ t('messagePage.title') }}</span>
             <el-tag v-if="messageStore.total > 0" type="danger" size="small" round>
-              {{ messageStore.total }} 条未读
+              {{ t('messagePage.unreadCount', messageStore.total) }}
             </el-tag>
           </div>
           <div class="header-actions">
-            <el-button @click="openPreferences">偏好设置</el-button>
+            <el-button @click="openPreferences">{{ t('messagePage.preferences') }}</el-button>
             <el-button :disabled="unreadOf(activeCategory) === 0" @click="handleMarkAll">
-              {{ activeCategory ? '本分类全部已读' : '全部标为已读' }}
+              {{ activeCategory ? t('messagePage.markAllCategory') : t('messagePage.markAll') }}
             </el-button>
-            <el-button :loading="loading" @click="reload">刷新</el-button>
+            <el-button :loading="loading" @click="reload">{{ t('common.refresh') }}</el-button>
           </div>
         </div>
       </template>
@@ -38,13 +38,13 @@
       <div class="filter-bar">
         <el-input
           v-model="keyword"
-          placeholder="搜索标题或内容"
+          :placeholder="t('messagePage.searchPlaceholder')"
           clearable
           style="width: 260px; margin-right: 12px;"
           @keyup.enter="handleSearch"
           @clear="handleSearch"
         />
-        <el-checkbox v-model="unreadOnly" style="margin-right: 12px;" @change="handleSearch">仅看未读</el-checkbox>
+        <el-checkbox v-model="unreadOnly" style="margin-right: 12px;" @change="handleSearch">{{ t('messagePage.unreadOnly') }}</el-checkbox>
         <el-checkbox
           :model-value="allSelected"
           :indeterminate="someSelected"
@@ -52,19 +52,19 @@
           style="margin-right: 12px;"
           @change="toggleSelectAll"
         >
-          全选本页
+          {{ t('messagePage.selectAll') }}
         </el-checkbox>
-        <el-button type="primary" @click="handleSearch">查询</el-button>
+        <el-button type="primary" @click="handleSearch">{{ t('common.query') }}</el-button>
       </div>
 
       <div v-loading="loading" class="message-list">
         <div v-if="selected.length > 0" class="batch-bar">
-          <span class="batch-count">已选 {{ selected.length }} 条</span>
-          <el-button size="small" :loading="batchLoading" @click="handleBatchRead">批量已读</el-button>
+          <span class="batch-count">{{ t('messagePage.selectedCount', selected.length) }}</span>
+          <el-button size="small" :loading="batchLoading" @click="handleBatchRead">{{ t('messagePage.batchRead') }}</el-button>
           <el-button size="small" type="danger" plain :loading="batchLoading" @click="handleBatchDelete">
-            批量删除
+            {{ t('messagePage.batchDelete') }}
           </el-button>
-          <el-button size="small" link @click="clearSelection">取消选择</el-button>
+          <el-button size="small" link @click="clearSelection">{{ t('messagePage.clearSelection') }}</el-button>
         </div>
 
         <el-checkbox-group v-model="selected">
@@ -88,21 +88,21 @@
               <div class="item-content">{{ item.content }}</div>
               <div class="item-meta">
                 <span>{{ formatTime(item.created_at) }}</span>
-                <span v-if="item.link" class="item-link" @click="openLink(item)">查看详情</span>
+                <span v-if="item.link" class="item-link" @click="openLink(item)">{{ t('messagePage.viewDetail') }}</span>
               </div>
             </div>
             <div class="item-actions">
               <el-button v-if="!item.read_at" link type="primary" size="small" @click="handleRead(item)">
-                标为已读
+                {{ t('messagePage.markRead') }}
               </el-button>
-              <el-button link type="danger" size="small" @click="handleDelete(item)">删除</el-button>
+              <el-button link type="danger" size="small" @click="handleDelete(item)">{{ t('common.delete') }}</el-button>
             </div>
           </div>
         </el-checkbox-group>
 
         <el-empty
           v-if="!loading && list.length === 0"
-          :description="unreadOnly ? '没有未读消息' : '暂无消息'"
+          :description="unreadOnly ? t('messagePage.emptyUnread') : t('messagePage.empty')"
         />
       </div>
 
@@ -119,13 +119,13 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="prefVisible" title="消息偏好设置" width="480px">
+    <el-dialog v-model="prefVisible" :title="t('messagePage.prefTitle')" width="480px">
       <div v-loading="prefLoading" class="pref-list">
         <div v-for="item in preferences" :key="item.category" class="pref-row">
           <div class="pref-text">
             <span class="pref-label">{{ categoryLabel(item.category) }}</span>
             <span class="pref-desc">
-              {{ item.mandatory ? '安全告警强制接收，不可关闭' : '关闭后该类新消息不再进入收件箱' }}
+              {{ item.mandatory ? t('messagePage.prefMandatory') : t('messagePage.prefMutedDesc') }}
             </span>
           </div>
           <el-switch
@@ -134,10 +134,10 @@
             @change="handleToggle(item, $event)"
           />
         </div>
-        <el-empty v-if="!prefLoading && preferences.length === 0" description="暂无偏好数据" />
+        <el-empty v-if="!prefLoading && preferences.length === 0" :description="t('messagePage.prefEmpty')" />
       </div>
       <template #footer>
-        <el-button @click="prefVisible = false">关闭</el-button>
+        <el-button @click="prefVisible = false">{{ t('messagePage.close') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -162,27 +162,22 @@ import {
 import { useMessageStore } from '@/stores/message'
 import { toPageResult } from '@/types/pagination'
 import { readMessageCategory, saveMessageCategory } from '@/utils/messageCategory'
+import { useI18n } from '@/composables/useI18n'
+
+const { t, locale } = useI18n()
 
 const router = useRouter()
 const messageStore = useMessageStore()
 
 /** 分类页签：value 为空表示不过滤（后端以空 category 表示全部） */
-const categoryTabs = [
-  { label: '全部', value: '' },
-  { label: '系统', value: 'system' },
-  { label: '公告', value: 'announcement' },
-  { label: '任务', value: 'task' },
-  { label: '套餐', value: 'plan' },
-  { label: '告警', value: 'audit' }
-] as const
+const CATEGORY_TAB_VALUES = ['', 'system', 'announcement', 'task', 'plan', 'audit'] as const
 
-const CATEGORY_LABELS: Record<string, string> = {
-  system: '系统',
-  announcement: '公告',
-  task: '任务',
-  plan: '套餐',
-  audit: '告警'
-}
+const categoryTabs = computed(() =>
+  CATEGORY_TAB_VALUES.map((value) => ({
+    label: value === '' ? t('messagePage.cat.all') : categoryLabel(value),
+    value
+  }))
+)
 
 const CATEGORY_COLORS: Record<string, string> = {
   announcement: '#409eff',
@@ -193,7 +188,14 @@ const CATEGORY_COLORS: Record<string, string> = {
 }
 
 function categoryLabel(category: string): string {
-  return CATEGORY_LABELS[category] || category
+  const map: Record<string, string> = {
+    system: t('messagePage.cat.system'),
+    announcement: t('messagePage.cat.announcement'),
+    task: t('messagePage.cat.task'),
+    plan: t('messagePage.cat.plan'),
+    audit: t('messagePage.cat.audit')
+  }
+  return map[category] || category
 }
 
 function categoryColor(category: string): string {
@@ -212,7 +214,7 @@ function formatTime(value: string | null | undefined): string {
   if (!value) return ''
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleString('zh-CN')
+  return d.toLocaleString(locale.value)
 }
 
 const loading = ref(false)
@@ -225,7 +227,7 @@ const pageSize = ref(10)
  * 分类页签跨会话记住：用户常按「任务」「告警」定点看消息，刷新一次就回到「全部」等于每次重选。
  * 只存页签值，关键词与「仅看未读」属于一次性筛选，不跨会话保留。
  */
-const activeCategory = ref<string>(readMessageCategory(categoryTabs.map(tab => tab.value)))
+const activeCategory = ref<string>(readMessageCategory([...CATEGORY_TAB_VALUES]))
 const unreadOnly = ref(false)
 const keyword = ref('')
 
@@ -322,15 +324,15 @@ async function handleMarkAll() {
   const category = activeCategory.value || undefined
   const unread = unreadOf(activeCategory.value)
   // 已读不可撤回，一次清空整类前先把范围与条数说清楚
-  const scope = category ? `「${categoryLabel(category)}」分类` : '全部'
+  const scope = category ? t('messagePage.markAll.scopeCategory', categoryLabel(category)) : t('messagePage.cat.all')
   try {
     await ElMessageBox.confirm(
-      `确定把${scope}的 ${unread} 条未读消息全部标为已读？`,
-      '标记已读',
+      t('messagePage.markAll.confirm', scope, unread),
+      t('messagePage.markAll.title'),
       { type: 'info' }
     )
   } catch {
-    return // 用户取消
+    return // user cancelled
   }
 
   try {
@@ -338,7 +340,7 @@ async function handleMarkAll() {
     // 按服务端返回的 updated 扣减：分类明细可能已被 WS 总数覆盖而过期
     messageStore.clearUnread(category, res?.updated)
     messageStore.refreshUnreadSoon()
-    ElMessage.success(res?.updated ? `已标记 ${res.updated} 条为已读` : '当前没有未读消息')
+    ElMessage.success(res?.updated ? t('messagePage.markAll.done', res.updated) : t('messagePage.markAll.none'))
     loadList()
   } catch {
     // 失败提示由拦截器统一处理
@@ -347,13 +349,13 @@ async function handleMarkAll() {
 
 async function handleDelete(item: MessageItem) {
   try {
-    await ElMessageBox.confirm('确定删除这条消息？', '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('messagePage.deleteConfirm'), t('messagePage.deleteTitle'), { type: 'warning' })
     await deleteMessage(item.id)
     if (!item.read_at) {
       messageStore.decrementUnread(item.category)
       messageStore.refreshUnreadSoon()
     }
-    ElMessage.success('已删除')
+    ElMessage.success(t('messagePage.deleted'))
     // 删除后当前页可能已空，回退一页避免看到空列表
     if (list.value.length === 1 && page.value > 1) {
       page.value -= 1
@@ -376,7 +378,7 @@ async function handleBatchRead() {
   try {
     const res = await markMessagesRead(ids)
     messageStore.refreshUnread()
-    ElMessage.success(res?.updated ? `已标记 ${res.updated} 条为已读` : '选中消息已是已读状态')
+    ElMessage.success(res?.updated ? t('messagePage.markAll.done', res.updated) : t('messagePage.batchRead.allRead'))
     loadList()
   } catch {
     // 失败提示由拦截器统一处理
@@ -389,9 +391,9 @@ async function handleBatchDelete() {
   const ids = [...selected.value]
   if (ids.length === 0) return
   try {
-    await ElMessageBox.confirm(`确定删除选中的 ${ids.length} 条消息？`, '批量删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('messagePage.batchDelete.confirm', ids.length), t('messagePage.batchDelete.title'), { type: 'warning' })
   } catch {
-    return // 用户取消
+    return // user cancelled
   }
 
   batchLoading.value = true
@@ -399,7 +401,7 @@ async function handleBatchDelete() {
     const res = await deleteMessages(ids)
     // 删掉的可能包含未读，条数与分类都无法从前端推算，直接以服务端读数为准
     messageStore.refreshUnread()
-    ElMessage.success(res?.deleted ? `已删除 ${res.deleted} 条` : '选中消息已不存在')
+    ElMessage.success(res?.deleted ? t('messagePage.batchDelete.done', res.deleted) : t('messagePage.batchDelete.gone'))
     // 整页被删空时回退一页，避免停在空列表
     if (list.value.length === ids.length && page.value > 1) {
       page.value -= 1
@@ -444,7 +446,7 @@ async function handleToggle(item: MessagePreferenceItem, value: string | number 
     const res = await updateMessagePreference(item.category, !receive)
     preferences.value = res?.items ?? preferences.value
     const label = categoryLabel(item.category)
-    ElMessage.success(receive ? `已开启「${label}」接收` : `已关闭「${label}」接收`)
+    ElMessage.success(receive ? t('messagePage.pref.enabled', label) : t('messagePage.pref.disabled', label))
     messageStore.refreshUnread()
   } catch {
     // 失败保持原状态（后端拒绝时前端不能显示已生效）
