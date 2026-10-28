@@ -6,31 +6,31 @@
         <div class="search-left">
           <el-input
             v-model="query.keyword"
-            placeholder="搜索用户名/昵称"
+            :placeholder="t('masterAdminPage.searchPlaceholder')"
             clearable
             style="width: 220px"
             @keyup.enter="loadList"
           />
           <el-select
             v-model="query.status"
-            placeholder="状态"
+            :placeholder="t('masterAdminPage.statusFilter')"
             clearable
             style="width: 120px"
           >
-            <el-option label="启用" :value="1" />
-            <el-option label="禁用" :value="0" />
+            <el-option :label="t('masterAdminPage.status.enabled')" :value="1" />
+            <el-option :label="t('masterAdminPage.status.disabled')" :value="0" />
           </el-select>
           <el-button type="primary" @click="loadList">
-            <el-icon><Search /></el-icon>查询
+            <el-icon><Search /></el-icon>{{ t('common.query') }}
           </el-button>
-          <el-button @click="resetSearch">重置</el-button>
+          <el-button @click="resetSearch">{{ t('common.reset') }}</el-button>
         </div>
         <div class="search-right">
           <el-button type="info" @click="goToRecycle">
-            <el-icon><DeleteFilled /></el-icon>回收站
+            <el-icon><DeleteFilled /></el-icon>{{ t('masterAdminPage.recycleBin') }}
           </el-button>
           <el-button type="success" @click="openCreateDialog">
-            <el-icon><Plus /></el-icon>新增系统管理员
+            <el-icon><Plus /></el-icon>{{ t('masterAdminPage.create') }}
           </el-button>
         </div>
       </div>
@@ -38,15 +38,15 @@
       <!-- 批量操作 -->
       <div v-if="selectedIds.length > 0" class="batch-bar">
         <el-alert
-          :title="`已选择 ${selectedIds.length} 项`"
+          :title="t('masterAdminPage.selected', selectedIds.length)"
           type="info"
           :closable="false"
           show-icon
         >
           <template #default>
-            <el-button link type="primary" @click="handleBatchEnable">批量启用</el-button>
-            <el-button link type="warning" @click="handleBatchDisable">批量禁用</el-button>
-            <el-button link type="danger" @click="handleBatchDelete">批量删除</el-button>
+            <el-button link type="primary" @click="handleBatchEnable">{{ t('masterAdminPage.batchEnable') }}</el-button>
+            <el-button link type="warning" @click="handleBatchDisable">{{ t('masterAdminPage.batchDisable') }}</el-button>
+            <el-button link type="danger" @click="handleBatchDelete">{{ t('masterAdminPage.batchDelete') }}</el-button>
           </template>
         </el-alert>
       </div>
@@ -59,12 +59,12 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" />
-        <el-table-column label="用户名" prop="username" min-width="120" />
-        <el-table-column label="昵称" prop="nickname" min-width="120" />
-        <el-table-column label="邮箱" prop="email" min-width="180" />
-        <el-table-column label="角色" min-width="200">
+        <el-table-column :label="t('masterAdminPage.col.username')" prop="username" min-width="120" />
+        <el-table-column :label="t('masterAdminPage.col.nickname')" prop="nickname" min-width="120" />
+        <el-table-column :label="t('masterAdminPage.col.email')" prop="email" min-width="180" />
+        <el-table-column :label="t('masterAdminPage.col.role')" min-width="200">
           <template #default="{ row }">
-            <div v-if="row.role_ids && row.role_ids.length > 0">，
+            <div v-if="row.role_ids && row.role_ids.length > 0">
               <el-tag
                 v-for="(roleId, index) in row.role_ids"
                 :key="roleId"
@@ -76,28 +76,28 @@
                 {{ row.roles[index] || roleId }}
               </el-tag>
             </div>
-            <el-tag v-else type="info" size="small">未分配角色</el-tag>
+            <el-tag v-else type="info" size="small">{{ t('masterAdminPage.noRole') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="80">
+        <el-table-column :label="t('masterAdminPage.col.status')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'danger'">
-              {{ row.status === 1 ? '启用' : '禁用' }}
+              {{ row.status === 1 ? t('masterAdminPage.status.enabled') : t('masterAdminPage.status.disabled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="最后登录" prop="last_login_at" min-width="160">
+        <el-table-column :label="t('masterAdminPage.col.lastLogin')" prop="last_login_at" min-width="160">
           <template #default="{ row }">
             <span v-if="row.last_login_at">{{ row.last_login_at }}</span>
-            <span v-else style="color: #9ca3af">未登录</span>
+            <span v-else style="color: #9ca3af">{{ t('masterAdminPage.notLogin') }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="创建时间" prop="created_at" min-width="160" />
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column :label="t('masterAdminPage.col.createdAt')" prop="created_at" min-width="160" />
+        <el-table-column :label="t('masterAdminPage.col.operation')" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
+            <el-button link type="primary" @click="openEditDialog(row)">{{ t('masterAdminPage.action.edit') }}</el-button>
             <el-button link type="warning" @click="toggleStatus(row)">
-              {{ row.status === 1 ? '禁用' : '启用' }}
+              {{ row.status === 1 ? t('masterAdminPage.status.disabled') : t('masterAdminPage.status.enabled') }}
             </el-button>
             <el-button
               v-if="!isProtectedUser(row)"
@@ -105,9 +105,9 @@
               type="danger"
               @click="handleDelete(row)"
             >
-              删除
+              {{ t('masterAdminPage.action.delete') }}
             </el-button>
-            <el-tag v-else type="info" size="small">系统保护</el-tag>
+            <el-tag v-else type="info" size="small">{{ t('masterAdminPage.protectedTag') }}</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -128,7 +128,7 @@
     <!-- 新增/编辑弹窗 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="dialogMode === 'create' ? '新增系统管理员' : '编辑系统管理员'"
+      :title="dialogMode === 'create' ? t('masterAdminPage.dialog.createTitle') : t('masterAdminPage.dialog.editTitle')"
       width="520px"
       :close-on-click-modal="false"
     >
@@ -138,46 +138,46 @@
         :rules="rules"
         label-width="100px"
       >
-        <el-form-item label="用户名" prop="username">
+        <el-form-item :label="t('masterAdminPage.form.usernameLabel')" prop="username">
           <el-input
             v-model="form.username"
-            placeholder="请输入用户名"
+            :placeholder="t('masterAdminPage.form.usernamePlaceholder')"
             :disabled="dialogMode === 'edit'"
           />
         </el-form-item>
-        <el-form-item v-if="dialogMode === 'create'" label="密码" prop="password">
+        <el-form-item v-if="dialogMode === 'create'" :label="t('masterAdminPage.form.passwordLabel')" prop="password">
           <el-input
             v-model="form.password"
             type="password"
-            placeholder="请输入密码"
+            :placeholder="t('masterAdminPage.form.passwordPlaceholder')"
             show-password
           />
         </el-form-item>
-        <el-form-item v-else label="密码" prop="password">
+        <el-form-item v-else :label="t('masterAdminPage.form.passwordLabel')" prop="password">
           <el-input
             v-model="form.password"
             type="password"
-            placeholder="不修改请留空"
+            :placeholder="t('masterAdminPage.form.passwordKeepPlaceholder')"
             show-password
           />
         </el-form-item>
-        <el-form-item label="昵称" prop="nickname">
-          <el-input v-model="form.nickname" placeholder="请输入昵称" />
+        <el-form-item :label="t('masterAdminPage.form.nicknameLabel')" prop="nickname">
+          <el-input v-model="form.nickname" :placeholder="t('masterAdminPage.form.nicknamePlaceholder')" />
         </el-form-item>
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="form.email" placeholder="请输入邮箱" />
+        <el-form-item :label="t('masterAdminPage.form.emailLabel')" prop="email">
+          <el-input v-model="form.email" :placeholder="t('masterAdminPage.form.emailPlaceholder')" />
         </el-form-item>
-        <el-form-item v-if="dialogMode === 'edit'" label="部门" prop="department">
-          <el-input v-model="form.department" placeholder="请输入部门" maxlength="100" />
+        <el-form-item v-if="dialogMode === 'edit'" :label="t('masterAdminPage.form.departmentLabel')" prop="department">
+          <el-input v-model="form.department" :placeholder="t('masterAdminPage.form.departmentPlaceholder')" maxlength="100" />
         </el-form-item>
-        <el-form-item v-if="dialogMode === 'edit'" label="岗位" prop="position">
-          <el-input v-model="form.position" placeholder="请输入岗位" maxlength="100" />
+        <el-form-item v-if="dialogMode === 'edit'" :label="t('masterAdminPage.form.positionLabel')" prop="position">
+          <el-input v-model="form.position" :placeholder="t('masterAdminPage.form.positionPlaceholder')" maxlength="100" />
         </el-form-item>
-        <el-form-item label="备注" prop="remark">
-          <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="管理员备注" maxlength="255" />
+        <el-form-item :label="t('masterAdminPage.form.remarkLabel')" prop="remark">
+          <el-input v-model="form.remark" type="textarea" :rows="2" :placeholder="t('masterAdminPage.form.remarkPlaceholder')" maxlength="255" />
         </el-form-item>
-        <el-form-item label="角色" prop="role_id">
-          <el-select v-model="form.role_id" placeholder="请选择角色" style="width: 100%">
+        <el-form-item :label="t('masterAdminPage.form.roleLabel')" prop="role_id">
+          <el-select v-model="form.role_id" :placeholder="t('masterAdminPage.form.rolePlaceholder')" style="width: 100%">
             <el-option
               v-for="role in roleOptions"
               :key="role.id"
@@ -188,19 +188,20 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="handleSubmit">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules } from 'element-plus'
+import { useI18n } from '@/composables/useI18n'
 import { Search, Plus, DeleteFilled } from '@element-plus/icons-vue'
 import {
   getMasterAdminList,
@@ -220,6 +221,7 @@ import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
 
 const router = useRouter()
+const { t } = useI18n()
 
 const {
   list,
@@ -269,24 +271,24 @@ const form = reactive({
   role_id: ''
 })
 
-const rules: FormRules = {
+const rules = computed<FormRules>(() => ({
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 3, max: 50, message: '长度在 3 到 50 个字符', trigger: 'blur' }
+    { required: true, message: t('masterAdminPage.form.usernameRequired'), trigger: 'blur' },
+    { min: 3, max: 50, message: t('masterAdminPage.form.usernameLength'), trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur', validator: (rule, value, callback) => {
+    { required: true, message: t('masterAdminPage.form.passwordRequired'), trigger: 'blur', validator: (rule, value, callback) => {
       if (dialogMode.value === 'create' && !value) {
-        callback(new Error('请输入密码'))
+        callback(new Error(t('masterAdminPage.form.passwordRequired')))
       } else {
         callback()
       }
     }}
   ],
-  nickname: [{ max: 50, message: '最多 50 个字符', trigger: 'blur' }],
-  email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }],
-  role_id: [{ required: true, message: '请选择角色', trigger: 'change' }]
-}
+  nickname: [{ max: 50, message: t('masterAdminPage.form.nicknameMax'), trigger: 'blur' }],
+  email: [{ type: 'email', message: t('masterAdminPage.form.emailInvalid'), trigger: 'blur' }],
+  role_id: [{ required: true, message: t('masterAdminPage.form.roleRequired'), trigger: 'change' }]
+}))
 
 function resetSearch() {
   reset()
@@ -347,7 +349,7 @@ function handleSubmit() {
           role_id: form.role_id
         }
         await createMasterAdmin(data)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('masterAdminPage.created'))
       } else {
         const data: MasterAdminUpdateParams = {
           nickname: form.nickname,
@@ -361,41 +363,44 @@ function handleSubmit() {
           data.password = form.password
         }
         await updateMasterAdmin(editingId.value!, data)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('masterAdminPage.updated'))
       }
       dialogVisible.value = false
       loadList()
     } catch (e) {
-      ElMessage.error((e as { response?: { data?: { message?: string } } })?.response?.data?.message || '操作失败')
+      ElMessage.error((e as { response?: { data?: { message?: string } } })?.response?.data?.message || t('masterAdminPage.opFailed'))
     }
   })
 }
 
 function toggleStatus(row: UserItem) {
   const newStatus = row.status === 1 ? 0 : 1
-  const action = newStatus === 1 ? '启用' : '禁用'
-  ElMessageBox.confirm(`确定要${action}系统管理员 "${row.username}" 吗？`, '确认', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  })
+  ElMessageBox.confirm(
+    newStatus === 1 ? t('masterAdminPage.enableConfirm', row.username) : t('masterAdminPage.disableConfirm', row.username),
+    t('masterAdminPage.confirmTitle'),
+    {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
+      type: 'warning'
+    }
+  )
     .then(async () => {
       await updateMasterAdminStatus(row.id, newStatus)
-      ElMessage.success(`${action}成功`)
+      ElMessage.success(newStatus === 1 ? t('masterAdminPage.enableSuccess') : t('masterAdminPage.disableSuccess'))
       loadList()
     })
     .catch(() => {})
 }
 
 function handleDelete(row: UserItem) {
-  ElMessageBox.confirm(`确定要删除系统管理员 "${row.username}" 吗？`, '确认删除', {
+  ElMessageBox.confirm(t('masterAdminPage.deleteConfirm', row.username), t('masterAdminPage.deleteTitle'), {
     type: 'error',
-    confirmButtonText: '确定删除',
-    cancelButtonText: '取消'
+    confirmButtonText: t('masterAdminPage.confirmDeleteBtn'),
+    cancelButtonText: t('common.cancel')
   })
     .then(async () => {
       await deleteMasterAdmin(row.id)
-      ElMessage.success('删除成功')
+      ElMessage.success(t('masterAdminPage.deleted'))
       loadList()
     })
     .catch(() => {})
@@ -404,31 +409,31 @@ function handleDelete(row: UserItem) {
 // 解绑角色
 function handleUnbindRole(row: UserItem, roleId: string, roleName: string) {
   ElMessageBox.confirm(
-    `确定要解除用户 "${row.username}" 的角色 "${roleName || roleId}" 吗？`,
-    '确认解绑角色',
+    t('masterAdminPage.unbindRoleConfirm', row.username, roleName || roleId),
+    t('masterAdminPage.unbindRoleTitle'),
     {
       type: 'warning',
-      confirmButtonText: '确定解绑',
-      cancelButtonText: '取消'
+      confirmButtonText: t('masterAdminPage.confirmUnbindBtn'),
+      cancelButtonText: t('common.cancel')
     }
   )
     .then(async () => {
       await unbindUserRole(row.id, roleId)
-      ElMessage.success('角色解绑成功')
+      ElMessage.success(t('masterAdminPage.roleUnbindSuccess'))
       loadList()
     })
     .catch(() => {})
 }
 
 function handleBatchEnable() {
-  ElMessageBox.confirm(`确定要启用选中的 ${selectedIds.value.length} 个系统管理员吗？`, '批量启用', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
+  ElMessageBox.confirm(t('masterAdminPage.batchEnableConfirm', selectedIds.value.length), t('masterAdminPage.batchEnable'), {
+    confirmButtonText: t('common.confirm'),
+    cancelButtonText: t('common.cancel'),
     type: 'warning'
   })
     .then(async () => {
       await batchUpdateMasterAdminStatus(selectedIds.value, 1)
-      ElMessage.success('批量启用成功')
+      ElMessage.success(t('masterAdminPage.batchEnabled'))
       selectedIds.value = []
       loadList()
     })
@@ -436,14 +441,14 @@ function handleBatchEnable() {
 }
 
 function handleBatchDisable() {
-  ElMessageBox.confirm(`确定要禁用选中的 ${selectedIds.value.length} 个系统管理员吗？`, '批量禁用', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
+  ElMessageBox.confirm(t('masterAdminPage.batchDisableConfirm', selectedIds.value.length), t('masterAdminPage.batchDisable'), {
+    confirmButtonText: t('common.confirm'),
+    cancelButtonText: t('common.cancel'),
     type: 'warning'
   })
     .then(async () => {
       await batchUpdateMasterAdminStatus(selectedIds.value, 0)
-      ElMessage.success('批量禁用成功')
+      ElMessage.success(t('masterAdminPage.batchDisabled'))
       selectedIds.value = []
       loadList()
     })
@@ -456,23 +461,23 @@ function handleBatchDelete() {
   const protectedCount = selectedIds.value.length - deletableIds.length
 
   if (deletableIds.length === 0) {
-    ElMessage.warning('选中的用户中包含系统保护用户，无法删除')
+    ElMessage.warning(t('masterAdminPage.batchDeleteProtectedWarn'))
     return
   }
 
-  let confirmMessage = `确定要删除选中的 ${deletableIds.length} 个系统管理员吗？此操作不可恢复`
+  let confirmMessage = t('masterAdminPage.batchDeleteConfirm', deletableIds.length)
   if (protectedCount > 0) {
-    confirmMessage += `（已自动跳过 ${protectedCount} 个系统保护用户）`
+    confirmMessage += t('masterAdminPage.batchDeleteSkipSuffix', protectedCount)
   }
 
-  ElMessageBox.confirm(confirmMessage, '危险操作', {
+  ElMessageBox.confirm(confirmMessage, t('masterAdminPage.dangerTitle'), {
     type: 'error',
-    confirmButtonText: '确定删除',
-    cancelButtonText: '取消'
+    confirmButtonText: t('masterAdminPage.confirmDeleteBtn'),
+    cancelButtonText: t('common.cancel')
   })
     .then(async () => {
       await batchDeleteMasterAdmins(deletableIds)
-      ElMessage.success('批量删除成功')
+      ElMessage.success(t('masterAdminPage.batchDeleted'))
       selectedIds.value = []
       loadList()
     })

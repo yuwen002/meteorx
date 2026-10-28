@@ -6,11 +6,11 @@
         <div class="card-header">
           <div class="header-left">
             <el-button link @click="goBack">
-              <el-icon><ArrowLeft /></el-icon>返回
+              <el-icon><ArrowLeft /></el-icon>{{ t('masterAdminRecycle.back') }}
             </el-button>
-            <span class="title">系统管理员回收站</span>
+            <span class="title">{{ t('masterAdminRecycle.title') }}</span>
           </div>
-          <el-tag type="info">已删除的管理员可以恢复或永久删除</el-tag>
+          <el-tag type="info">{{ t('masterAdminRecycle.tip') }}</el-tag>
         </div>
       </template>
 
@@ -18,28 +18,28 @@
       <div class="search-bar">
         <el-input
           v-model="query.keyword"
-          placeholder="搜索用户名/昵称"
+          :placeholder="t('masterAdminRecycle.searchPlaceholder')"
           clearable
           style="width: 220px"
           @keyup.enter="loadList"
         />
         <el-button type="primary" @click="loadList">
-          <el-icon><Search /></el-icon>查询
+          <el-icon><Search /></el-icon>{{ t('common.query') }}
         </el-button>
-        <el-button @click="resetSearch">重置</el-button>
+        <el-button @click="resetSearch">{{ t('common.reset') }}</el-button>
       </div>
 
       <!-- 批量操作 -->
       <div v-if="selectedIds.length > 0" class="batch-bar">
         <el-alert
-          :title="`已选择 ${selectedIds.length} 项`"
+          :title="t('masterAdminRecycle.selected', selectedIds.length)"
           type="info"
           :closable="false"
           show-icon
         >
           <template #default>
-            <el-button link type="success" @click="handleBatchRestore">批量恢复</el-button>
-            <el-button link type="danger" @click="handleBatchPermanentDelete">批量永久删除</el-button>
+            <el-button link type="success" @click="handleBatchRestore">{{ t('masterAdminRecycle.batchRestore') }}</el-button>
+            <el-button link type="danger" @click="handleBatchPermanentDelete">{{ t('masterAdminRecycle.batchPermanentDelete') }}</el-button>
           </template>
         </el-alert>
       </div>
@@ -52,21 +52,21 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" />
-        <el-table-column label="用户名" prop="username" min-width="120" />
-        <el-table-column label="昵称" prop="nickname" min-width="120" />
-        <el-table-column label="邮箱" prop="email" min-width="180" />
-        <el-table-column label="删除时间" prop="deleted_at" min-width="160">
+        <el-table-column :label="t('masterAdminRecycle.col.username')" prop="username" min-width="120" />
+        <el-table-column :label="t('masterAdminRecycle.col.nickname')" prop="nickname" min-width="120" />
+        <el-table-column :label="t('masterAdminRecycle.col.email')" prop="email" min-width="180" />
+        <el-table-column :label="t('masterAdminRecycle.col.deletedAt')" prop="deleted_at" min-width="160">
           <template #default="{ row }">
             {{ formatDate(row.deleted_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column :label="t('masterAdminRecycle.col.operation')" width="200" fixed="right">
           <template #default="{ row }">
             <el-button link type="success" @click="handleRestore(row)">
-              <el-icon><RefreshLeft /></el-icon>恢复
+              <el-icon><RefreshLeft /></el-icon>{{ t('masterAdminRecycle.restore') }}
             </el-button>
             <el-button link type="danger" @click="handlePermanentDelete(row)">
-              <el-icon><Delete /></el-icon>永久删除
+              <el-icon><Delete /></el-icon>{{ t('masterAdminRecycle.permanentDelete') }}
             </el-button>
           </template>
         </el-table-column>
@@ -102,8 +102,10 @@ import {
 } from '@/api/modules/user'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
+import { useI18n } from '@/composables/useI18n'
 
 const router = useRouter()
+const { t, locale } = useI18n()
 
 const {
   list,
@@ -132,7 +134,7 @@ function goBack() {
 function formatDate(dateStr?: string) {
   if (!dateStr) return '-'
   const date = new Date(dateStr)
-  return date.toLocaleString('zh-CN')
+  return date.toLocaleString(locale.value)
 }
 
 function resetSearch() {
@@ -146,17 +148,17 @@ function handleSelectionChange(selection: UserItem[]) {
 // 恢复单个
 function handleRestore(row: UserItem) {
   ElMessageBox.confirm(
-    `确定要恢复系统管理员 "${row.username}" 吗？`,
-    '确认恢复',
+    t('masterAdminRecycle.restoreConfirm', row.username),
+    t('masterAdminRecycle.restoreTitle'),
     {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+      confirmButtonText: t('masterAdminRecycle.confirmBtn'),
+      cancelButtonText: t('masterAdminRecycle.cancelBtn'),
       type: 'success'
     }
   )
     .then(async () => {
       await restoreMasterAdmin(row.id)
-      ElMessage.success('恢复成功')
+      ElMessage.success(t('masterAdminRecycle.restored'))
       loadList()
     })
     .catch(() => {})
@@ -165,15 +167,15 @@ function handleRestore(row: UserItem) {
 // 批量恢复
 function handleBatchRestore() {
   if (selectedIds.value.length === 0) {
-    ElMessage.warning('请选择要恢复的管理员')
+    ElMessage.warning(t('masterAdminRecycle.selectToRestore'))
     return
   }
   ElMessageBox.confirm(
-    `确定要恢复选中的 ${selectedIds.value.length} 个系统管理员吗？`,
-    '批量恢复',
+    t('masterAdminRecycle.batchRestoreConfirm', selectedIds.value.length),
+    t('masterAdminRecycle.batchRestore'),
     {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+      confirmButtonText: t('masterAdminRecycle.confirmBtn'),
+      cancelButtonText: t('masterAdminRecycle.cancelBtn'),
       type: 'success'
     }
   )
@@ -182,7 +184,7 @@ function handleBatchRestore() {
       for (const id of selectedIds.value) {
         await restoreMasterAdmin(id)
       }
-      ElMessage.success('批量恢复成功')
+      ElMessage.success(t('masterAdminRecycle.batchRestored'))
       selectedIds.value = []
       loadList()
     })
@@ -192,17 +194,17 @@ function handleBatchRestore() {
 // 永久删除单个
 function handlePermanentDelete(row: UserItem) {
   ElMessageBox.confirm(
-    `确定要永久删除系统管理员 "${row.username}" 吗？此操作不可恢复！`,
-    '危险操作',
+    t('masterAdminRecycle.permanentDeleteConfirm', row.username),
+    t('masterAdminRecycle.dangerTitle'),
     {
-      confirmButtonText: '确定永久删除',
-      cancelButtonText: '取消',
+      confirmButtonText: t('masterAdminRecycle.confirmPermanentBtn'),
+      cancelButtonText: t('masterAdminRecycle.cancelBtn'),
       type: 'error'
     }
   )
     .then(async () => {
       await permanentDeleteMasterAdmin(row.id)
-      ElMessage.success('永久删除成功')
+      ElMessage.success(t('masterAdminRecycle.permanentDeleted'))
       loadList()
     })
     .catch(() => {})
@@ -211,15 +213,15 @@ function handlePermanentDelete(row: UserItem) {
 // 批量永久删除
 function handleBatchPermanentDelete() {
   if (selectedIds.value.length === 0) {
-    ElMessage.warning('请选择要永久删除的管理员')
+    ElMessage.warning(t('masterAdminRecycle.selectToPermanentDelete'))
     return
   }
   ElMessageBox.confirm(
-    `确定要永久删除选中的 ${selectedIds.value.length} 个系统管理员吗？此操作不可恢复！`,
-    '危险操作',
+    t('masterAdminRecycle.batchPermanentDeleteConfirm', selectedIds.value.length),
+    t('masterAdminRecycle.batchPermanentDelete'),
     {
-      confirmButtonText: '确定永久删除',
-      cancelButtonText: '取消',
+      confirmButtonText: t('masterAdminRecycle.confirmPermanentBtn'),
+      cancelButtonText: t('masterAdminRecycle.cancelBtn'),
       type: 'error'
     }
   )
@@ -228,7 +230,7 @@ function handleBatchPermanentDelete() {
       for (const id of selectedIds.value) {
         await permanentDeleteMasterAdmin(id)
       }
-      ElMessage.success('批量永久删除成功')
+      ElMessage.success(t('masterAdminRecycle.batchPermanentDeleted'))
       selectedIds.value = []
       loadList()
     })

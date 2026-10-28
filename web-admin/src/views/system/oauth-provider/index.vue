@@ -5,63 +5,63 @@
       :closable="false"
       show-icon
       style="margin-bottom: 16px"
-      title="配置即时生效，无需重启服务"
-      description="在此新增或修改第三方登录提供商后，登录页按钮会立即更新（最多 30 秒内同步至全部副本）。client_secret 以 AES-256-GCM 加密后存储，页面仅展示脱敏值。"
+      :title="t('oauthPage.alertTitle')"
+      :description="t('oauthPage.alertDesc')"
     />
 
     <el-card shadow="never">
       <div class="toolbar">
         <div class="flex-1"></div>
-        <el-button type="success" @click="openCreateDialog"><el-icon><Plus /></el-icon>新增登录方式</el-button>
+        <el-button type="success" @click="openCreateDialog"><el-icon><Plus /></el-icon>{{ t('oauthPage.create') }}</el-button>
       </div>
 
       <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
-        <el-table-column prop="display_name" label="登录方式" min-width="130">
+        <el-table-column prop="display_name" :label="t('oauthPage.col.provider')" min-width="130">
           <template #default="{ row }">
             <span class="provider-name" :style="{ color: providerColor(row.code) }">{{ row.display_name }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="code" label="标识" min-width="120">
+        <el-table-column prop="code" :label="t('oauthPage.col.code')" min-width="120">
           <template #default="{ row }">
             <el-tag effect="plain" size="small">{{ row.code }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="kind" label="类型" width="150">
+        <el-table-column prop="kind" :label="t('oauthPage.col.kind')" width="150">
           <template #default="{ row }">
             {{ kindLabel(row.kind) }}
           </template>
         </el-table-column>
         <el-table-column prop="client_id" label="Client ID" min-width="160" show-overflow-tooltip />
-        <el-table-column label="Client Secret" min-width="140">
+        <el-table-column :label="t('oauthPage.col.clientSecret')" min-width="140">
           <template #default="{ row }">
             <span v-if="row.has_secret" class="secret-mask">{{ row.client_secret_mask }}</span>
-            <el-tag v-else type="warning" size="small" effect="plain">未设置</el-tag>
+            <el-tag v-else type="warning" size="small" effect="plain">{{ t('oauthPage.notSet') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="redirect_url" label="回调地址" min-width="220" show-overflow-tooltip />
-        <el-table-column label="状态" width="90">
+        <el-table-column prop="redirect_url" :label="t('oauthPage.col.redirectUrl')" min-width="220" show-overflow-tooltip />
+        <el-table-column :label="t('oauthPage.col.status')" width="90">
           <template #default="{ row }">
-            <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '已启用' : '已停用' }}</el-tag>
+            <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? t('oauthPage.status.enabled') : t('oauthPage.status.disabled') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="updated_at" label="更新时间" width="170" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column prop="updated_at" :label="t('oauthPage.col.updatedAt')" width="170" />
+        <el-table-column :label="t('oauthPage.col.operation')" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
+            <el-button link type="primary" @click="openEditDialog(row)">{{ t('oauthPage.action.edit') }}</el-button>
             <el-button link :type="row.enabled ? 'warning' : 'success'" @click="handleToggleStatus(row)">
-              {{ row.enabled ? '停用' : '启用' }}
+              {{ row.enabled ? t('oauthPage.action.disable') : t('oauthPage.action.enable') }}
             </el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button link type="danger" @click="handleDelete(row)">{{ t('oauthPage.action.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
 
-      <el-empty v-if="!loading && list.length === 0" description="尚未配置任何第三方登录方式，点击右上角「新增登录方式」开始配置" />
+      <el-empty v-if="!loading && list.length === 0" :description="t('oauthPage.empty')" />
     </el-card>
 
     <el-dialog
       v-model="dialogVisible"
-      :title="dialogMode === 'create' ? '新增第三方登录方式' : `编辑 ${form.code}`"
+      :title="dialogMode === 'create' ? t('oauthPage.dialog.createTitle') : t('oauthPage.dialog.editTitle', form.code)"
       width="620px"
       :close-on-click-modal="false"
     >
@@ -71,80 +71,79 @@
         :closable="false"
         show-icon
         style="margin-bottom: 12px"
-        title="服务端未配置加密主密钥（oauth.secret_key）"
-        description="此时无法保存 client_secret。请先在服务端配置 METEORX_OAUTH_SECRET_KEY（openssl rand -base64 32）后重启，再回来配置。"
+        :title="t('oauthPage.noSecretTitle')"
+        :description="t('oauthPage.noSecretDesc')"
       />
       <el-form ref="formRef" :model="form" :rules="rules" label-width="120px">
-        <el-form-item label="类型" prop="kind">
+        <el-form-item :label="t('oauthPage.form.kindLabel')" prop="kind">
           <el-select v-model="form.kind" :disabled="dialogMode === 'edit'" style="width: 100%" @change="onKindChange">
             <el-option v-for="opt in providerKindOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="标识" prop="code">
-          <el-input v-model="form.code" :disabled="dialogMode === 'edit'" placeholder="如 wechat / oidc_acme" />
-          <div class="field-tip">
-            内置类型的标识固定不可改；通用 OIDC 需形如 <code>oidc_&lt;企业名&gt;</code>，最终作为登录回调路径的一部分。
-          </div>
+        <el-form-item :label="t('oauthPage.form.codeLabel')" prop="code">
+          <el-input v-model="form.code" :disabled="dialogMode === 'edit'" :placeholder="t('oauthPage.form.codePlaceholder')" />
+          <div class="field-tip" v-html="t('oauthPage.form.codeTip')"></div>
         </el-form-item>
-        <el-form-item label="展示名称" prop="display_name">
-          <el-input v-model="form.display_name" placeholder="留空则使用内置名称（如 微信）" />
+        <el-form-item :label="t('oauthPage.form.displayNameLabel')" prop="display_name">
+          <el-input v-model="form.display_name" :placeholder="t('oauthPage.form.displayNamePlaceholder')" />
         </el-form-item>
         <el-form-item label="Client ID" prop="client_id">
-          <el-input v-model="form.client_id" placeholder="开放平台应用的 AppID / Client ID" />
+          <el-input v-model="form.client_id" :placeholder="t('oauthPage.form.clientIdPlaceholder')" />
         </el-form-item>
-        <el-form-item label="Client Secret" prop="client_secret">
+        <el-form-item :label="t('oauthPage.col.clientSecret')" prop="client_secret">
           <el-input
             v-model="form.client_secret"
             type="password"
             show-password
-            :placeholder="dialogMode === 'edit' ? '留空表示保持原值不变' : '开放平台应用的 AppSecret'"
+            :placeholder="dialogMode === 'edit' ? t('oauthPage.form.secretEditPlaceholder') : t('oauthPage.form.secretCreatePlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="回调地址" prop="redirect_url">
-          <el-input v-model="form.redirect_url" placeholder="如 http://localhost:5173/auth/wechat/callback" />
+        <el-form-item :label="t('oauthPage.form.redirectUrlLabel')" prop="redirect_url">
+          <el-input v-model="form.redirect_url" :placeholder="t('oauthPage.form.redirectUrlPlaceholder')" />
         </el-form-item>
 
         <template v-if="form.kind === 'microsoft'">
-          <el-form-item label="目录租户" prop="tenant">
-            <el-input v-model="form.tenant" placeholder="common / organizations / 目录(租户) ID" />
-            <div class="field-tip">多租户应用填 <code>common</code>，仅本组织填 <code>organizations</code> 或具体租户 ID。</div>
+          <el-form-item :label="t('oauthPage.form.tenantLabel')" prop="tenant">
+            <el-input v-model="form.tenant" :placeholder="t('oauthPage.form.tenantPlaceholder')" />
+            <div class="field-tip" v-html="t('oauthPage.form.tenantTip')"></div>
           </el-form-item>
         </template>
 
         <template v-if="form.kind === 'oidc'">
-          <el-form-item label="授权端点" prop="auth_url">
+          <el-form-item :label="t('oauthPage.form.authUrlLabel')" prop="auth_url">
             <el-input v-model="form.auth_url" placeholder="https://idp.example.com/oauth2/authorize" />
           </el-form-item>
-          <el-form-item label="令牌端点" prop="token_url">
+          <el-form-item :label="t('oauthPage.form.tokenUrlLabel')" prop="token_url">
             <el-input v-model="form.token_url" placeholder="https://idp.example.com/oauth2/token" />
           </el-form-item>
-          <el-form-item label="用户信息端点" prop="userinfo_url">
+          <el-form-item :label="t('oauthPage.form.userinfoUrlLabel')" prop="userinfo_url">
             <el-input v-model="form.userinfo_url" placeholder="https://idp.example.com/oauth2/userinfo" />
           </el-form-item>
-          <el-form-item label="授权范围" prop="scopes">
-            <el-input v-model="scopesText" placeholder="openid email profile（空格或逗号分隔）" />
+          <el-form-item :label="t('oauthPage.form.scopesLabel')" prop="scopes">
+            <el-input v-model="scopesText" :placeholder="t('oauthPage.form.scopesPlaceholder')" />
           </el-form-item>
         </template>
 
-        <el-form-item label="启用" prop="enabled">
-          <el-switch v-model="form.enabled" active-text="启用" inactive-text="停用" />
-          <div class="field-tip">停用后登录页不再展示该按钮，已绑定用户仍可正常登录。</div>
+        <el-form-item :label="t('oauthPage.form.enabledLabel')" prop="enabled">
+          <el-switch v-model="form.enabled" :active-text="t('oauthPage.status.enabled')" :inactive-text="t('oauthPage.status.disabled')" />
+          <div class="field-tip">{{ t('oauthPage.form.enabledTip') }}</div>
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">保存</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">{{ t('common.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
+import { useI18n } from '@/composables/useI18n'
 import {
   listOAuthProviderConfigs,
   createOAuthProviderConfig,
@@ -157,6 +156,8 @@ import {
   type OAuthProviderSaveParams
 } from '@/api/modules/oauth-provider'
 import { providerColor } from '@/providers'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const list = ref<OAuthProviderItem[]>([])
@@ -187,15 +188,15 @@ const emptyForm = (): OAuthProviderSaveParams => ({
 
 const form = reactive<OAuthProviderSaveParams>(emptyForm())
 
-const rules = reactive<FormRules>({
-  kind: [{ required: true, message: '请选择类型', trigger: 'change' }],
-  code: [{ required: true, message: '请输入标识', trigger: 'blur' }],
-  client_id: [{ required: true, message: '请输入 Client ID', trigger: 'blur' }],
-  redirect_url: [{ required: true, message: '请输入回调地址', trigger: 'blur' }],
-  auth_url: [{ required: true, message: '请输入授权端点', trigger: 'blur' }],
-  token_url: [{ required: true, message: '请输入令牌端点', trigger: 'blur' }],
-  userinfo_url: [{ required: true, message: '请输入用户信息端点', trigger: 'blur' }]
-})
+const rules = computed<FormRules>(() => ({
+  kind: [{ required: true, message: t('oauthPage.form.kindRequired'), trigger: 'change' }],
+  code: [{ required: true, message: t('oauthPage.form.codeRequired'), trigger: 'blur' }],
+  client_id: [{ required: true, message: t('oauthPage.form.clientIdRequired'), trigger: 'blur' }],
+  redirect_url: [{ required: true, message: t('oauthPage.form.redirectUrlRequired'), trigger: 'blur' }],
+  auth_url: [{ required: true, message: t('oauthPage.form.authUrlRequired'), trigger: 'blur' }],
+  token_url: [{ required: true, message: t('oauthPage.form.tokenUrlRequired'), trigger: 'blur' }],
+  userinfo_url: [{ required: true, message: t('oauthPage.form.userinfoUrlRequired'), trigger: 'blur' }]
+}))
 
 function kindLabel(kind: string) {
   return providerKindOptions.find((o) => o.value === kind)?.label ?? kind
@@ -277,10 +278,10 @@ async function handleSubmit() {
       }
       if (dialogMode.value === 'create') {
         await createOAuthProviderConfig(payload)
-        ElMessage.success('新增成功，配置已即时生效')
+        ElMessage.success(t('oauthPage.createdSuccess'))
       } else {
         await updateOAuthProviderConfig(form.code, payload)
-        ElMessage.success('保存成功，配置已即时生效')
+        ElMessage.success(t('oauthPage.savedSuccess'))
       }
       dialogVisible.value = false
       await loadList()
@@ -288,9 +289,9 @@ async function handleSubmit() {
       const err = e as { response?: { status?: number }; message?: string }
       if (err.response?.status === 422) {
         hasSecretKey.value = false
-        ElMessage.error('服务端未配置加密主密钥，无法保存 client_secret')
+        ElMessage.error(t('oauthPage.noSecretError'))
       } else {
-        ElMessage.error(err.message || '保存失败')
+        ElMessage.error(err.message || t('oauthPage.saveFailed'))
       }
     } finally {
       submitting.value = false
@@ -302,18 +303,18 @@ async function handleToggleStatus(row: OAuthProviderItem) {
   const next = !row.enabled
   try {
     await setOAuthProviderStatus(row.code, next)
-    ElMessage.success(next ? '已启用' : '已停用')
+    ElMessage.success(next ? t('oauthPage.status.enabled') : t('oauthPage.status.disabled'))
     await loadList()
   } catch (e) {
-    ElMessage.error((e as Error)?.message || '操作失败')
+    ElMessage.error((e as Error)?.message || t('oauthPage.opFailed'))
   }
 }
 
 async function handleDelete(row: OAuthProviderItem) {
   try {
-    await ElMessageBox.confirm(`确定删除「${row.display_name}」的第三方登录配置吗？已绑定该账号的用户将无法再通过它登录。`, '删除确认', {
+    await ElMessageBox.confirm(t('oauthPage.deleteConfirm', row.display_name), t('oauthPage.deleteTitle'), {
       type: 'warning',
-      confirmButtonText: '删除',
+      confirmButtonText: t('common.delete'),
       confirmButtonClass: 'el-button--danger'
     })
   } catch {
@@ -322,10 +323,10 @@ async function handleDelete(row: OAuthProviderItem) {
 
   try {
     await deleteOAuthProviderConfig(row.code)
-    ElMessage.success('已删除')
+    ElMessage.success(t('oauthPage.deleted'))
     await loadList()
   } catch (e) {
-    ElMessage.error((e as Error)?.message || '删除失败')
+    ElMessage.error((e as Error)?.message || t('oauthPage.deleteFailed'))
   }
 }
 
