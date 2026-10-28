@@ -6,30 +6,30 @@
         <el-card shadow="never">
           <template #header>
             <div class="card-header">
-              <span>个人信息</span>
+              <span>{{ t('profile.title') }}</span>
               <el-button type="primary" @click="openEditDialog">
-                <el-icon><Edit /></el-icon>编辑资料
+                <el-icon><Edit /></el-icon>{{ t('profile.editProfile') }}
               </el-button>
             </div>
           </template>
           <div v-loading="loading" class="profile-info">
             <div class="info-item">
-              <label>用户ID：</label>
+              <label>{{ t('profile.info.userId') }}</label>
               <span>{{ userInfo.id }}</span>
             </div>
             <div class="info-item">
-              <label>用户名：</label>
+              <label>{{ t('profile.info.username') }}</label>
               <span>{{ userInfo.username }}</span>
             </div>
             <div class="info-item">
-              <label>昵称：</label>
+              <label>{{ t('profile.info.nickname') }}</label>
               <span>{{ userInfo.nickname || '-' }}</span>
             </div>
             <div class="info-item">
-              <label>邮箱：</label>
+              <label>{{ t('profile.info.email') }}</label>
               <span>{{ userInfo.email || '-' }}</span>
               <el-tag v-if="userInfo.email" :type="userInfo.email_verified ? 'success' : 'warning'" size="small" style="margin-left: 8px;">
-                {{ userInfo.email_verified ? '已验证' : '未验证' }}
+                {{ userInfo.email_verified ? t('profile.info.verified') : t('profile.info.unverified') }}
               </el-tag>
               <el-button
                 v-if="userInfo.email && !userInfo.email_verified"
@@ -40,43 +40,43 @@
                 style="margin-left: 4px;"
                 @click="handleSendEmailVerification"
               >
-                发送验证邮件
+                {{ t('profile.info.sendVerifyEmail') }}
               </el-button>
             </div>
             <div class="info-item">
-              <label>手机号：</label>
+              <label>{{ t('profile.info.phone') }}</label>
               <span>{{ userInfo.phone || '-' }}</span>
             </div>
             <div class="info-item">
-              <label>部门：</label>
+              <label>{{ t('profile.info.department') }}</label>
               <span>{{ userInfo.department || '-' }}</span>
             </div>
             <div class="info-item">
-              <label>岗位：</label>
+              <label>{{ t('profile.info.position') }}</label>
               <span>{{ userInfo.position || '-' }}</span>
             </div>
             <div class="info-item">
-              <label>租户ID：</label>
+              <label>{{ t('profile.info.tenantId') }}</label>
               <el-tag v-if="userInfo.tenant_id" size="small" type="info">{{ userInfo.tenant_id }}</el-tag>
               <span v-else>-</span>
             </div>
             <div class="info-item">
-              <label>状态：</label>
+              <label>{{ t('profile.info.status') }}</label>
               <el-tag :type="userInfo.status === 1 ? 'success' : 'info'">
-                {{ userInfo.status === 1 ? '启用' : '禁用' }}
+                {{ userInfo.status === 1 ? t('common.status.enabled') : t('common.status.disabled') }}
               </el-tag>
             </div>
             <div class="info-item">
-              <label>主管理员：</label>
+              <label>{{ t('profile.info.master') }}</label>
               <el-tag v-if="userInfo.is_master" type="danger" size="small">MASTER</el-tag>
               <span v-else style="color: #9ca3af">-</span>
             </div>
             <div class="info-item">
-              <label>最后登录：</label>
-              <span>{{ userInfo.last_login_at || '未登录' }}</span>
+              <label>{{ t('profile.info.lastLogin') }}</label>
+              <span>{{ userInfo.last_login_at || t('profile.info.neverLogin') }}</span>
             </div>
             <div class="info-item">
-              <label>创建时间：</label>
+              <label>{{ t('profile.info.createdAt') }}</label>
               <span>{{ userInfo.created_at }}</span>
             </div>
           </div>
@@ -88,7 +88,7 @@
         <el-card shadow="never">
           <template #header>
             <div class="card-header">
-              <span>修改密码</span>
+              <span>{{ t('profile.changePassword') }}</span>
             </div>
           </template>
           <el-form
@@ -98,33 +98,33 @@
             label-width="100px"
             style="max-width: 400px;"
           >
-            <el-form-item label="原密码" prop="old_password">
+            <el-form-item :label="t('auth.oldPassword')" prop="old_password">
               <el-input
                 v-model="pwdForm.old_password"
                 type="password"
                 show-password
-                placeholder="请输入原密码"
+                :placeholder="t('profile.pwd.oldPlaceholder')"
               />
             </el-form-item>
-            <el-form-item label="新密码" prop="new_password">
+            <el-form-item :label="t('auth.newPassword')" prop="new_password">
               <el-input
                 v-model="pwdForm.new_password"
                 type="password"
                 show-password
-                placeholder="6-32位，包含字母和数字"
+                :placeholder="t('profile.pwd.newPlaceholder')"
               />
             </el-form-item>
-            <el-form-item label="确认密码" prop="confirm_password">
+            <el-form-item :label="t('auth.confirmPassword')" prop="confirm_password">
               <el-input
                 v-model="pwdForm.confirm_password"
                 type="password"
                 show-password
-                placeholder="请再次输入新密码"
+                :placeholder="t('profile.pwd.confirmPlaceholder')"
               />
             </el-form-item>
             <el-form-item>
               <el-button type="primary" :loading="pwdLoading" @click="submitPassword">
-                修改密码
+                {{ t('profile.changePassword') }}
               </el-button>
             </el-form-item>
           </el-form>
@@ -134,7 +134,7 @@
         <el-card shadow="never" style="margin-top: 20px;">
           <template #header>
             <div class="card-header">
-              <span>我的角色</span>
+              <span>{{ t('profile.myRoles') }}</span>
             </div>
           </template>
           <div v-loading="rolesLoading">
@@ -146,7 +146,7 @@
             >
               {{ role.name }}
             </el-tag>
-            <el-empty v-if="userRoles.length === 0" description="暂无角色" :image-size="60" />
+            <el-empty v-if="userRoles.length === 0" :description="t('profile.roles.empty')" :image-size="60" />
           </div>
         </el-card>
       </el-col>
@@ -156,32 +156,32 @@
     <el-card shadow="never" style="margin-top: 20px;">
       <template #header>
         <div class="card-header">
-          <span>第三方账号绑定</span>
+          <span>{{ t('profile.oauth.title') }}</span>
           <el-button type="primary" @click="bindOAuthDialogVisible = true">
-            <el-icon><Link /></el-icon>绑定账号
+            <el-icon><Link /></el-icon>{{ t('profile.oauth.bind') }}
           </el-button>
         </div>
       </template>
       <el-table v-loading="oauthLoading" :data="oauthAccounts" stripe style="width: 100%;">
-        <el-table-column label="提供商" min-width="120">
+        <el-table-column :label="t('profile.oauth.provider')" min-width="120">
           <template #default="{ row }">
             <el-tag size="small">{{ row.provider }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="email" label="邮箱" min-width="200" />
-        <el-table-column prop="created_at" label="绑定时间" min-width="160" />
-        <el-table-column label="操作" width="100" align="center">
+        <el-table-column prop="email" :label="t('profile.oauth.email')" min-width="200" />
+        <el-table-column prop="created_at" :label="t('profile.oauth.boundAt')" min-width="160" />
+        <el-table-column :label="t('common.actions')" width="100" align="center">
           <template #default="{ row }">
-            <el-button type="danger" link size="small" @click="handleUnbindOAuth(row)">解绑</el-button>
+            <el-button type="danger" link size="small" @click="handleUnbindOAuth(row)">{{ t('profile.oauth.unbind') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!oauthLoading && oauthAccounts.length === 0" description="暂无绑定的第三方账号" :image-size="60" />
+      <el-empty v-if="!oauthLoading && oauthAccounts.length === 0" :description="t('profile.oauth.empty')" :image-size="60" />
     </el-card>
 
     <!-- 绑定第三方账号弹窗 -->
-    <el-dialog v-model="bindOAuthDialogVisible" title="绑定第三方账号" width="400px">
-      <p style="color: #606266; margin-bottom: 16px;">选择要绑定的第三方账号，将跳转至对应平台进行授权。</p>
+    <el-dialog v-model="bindOAuthDialogVisible" :title="t('profile.oauth.bindDialogTitle')" width="400px">
+      <p style="color: #606266; margin-bottom: 16px;">{{ t('profile.oauth.bindHint') }}</p>
       <div class="oauth-bind-buttons">
         <div
           v-for="p in oauthProviders"
@@ -196,7 +196,7 @@
       </div>
       <div v-if="bindOAuthLoading" style="text-align: center; margin-top: 12px;">
         <el-icon class="is-loading"><Loading /></el-icon>
-        <span style="margin-left: 4px; color: #909399;">正在跳转...</span>
+        <span style="margin-left: 4px; color: #909399;">{{ t('profile.oauth.redirecting') }}</span>
       </div>
     </el-dialog>
 
@@ -204,40 +204,40 @@
     <el-card shadow="never" style="margin-top: 20px;">
       <template #header>
         <div class="card-header">
-          <span>API 令牌</span>
+          <span>{{ t('profile.token.title') }}</span>
           <el-button type="primary" @click="openCreateTokenDialog">
-            <el-icon><Plus /></el-icon>创建令牌
+            <el-icon><Plus /></el-icon>{{ t('profile.token.create') }}
           </el-button>
         </div>
       </template>
       <el-table v-loading="tokensLoading" :data="apiTokens" stripe style="width: 100%">
-        <el-table-column prop="name" label="名称" min-width="120" />
-        <el-table-column label="可访问路径" min-width="200">
+        <el-table-column prop="name" :label="t('common.name')" min-width="120" />
+        <el-table-column :label="t('profile.token.allowedPaths')" min-width="200">
           <template #default="{ row }">
             <template v-if="row.allowed_paths && row.allowed_paths.length > 0">
               <el-tag v-for="p in row.allowed_paths" :key="p" size="small" type="info" style="margin-right: 4px; margin-bottom: 2px;">{{ p }}</el-tag>
             </template>
-            <span v-else style="color: #9ca3af;">不限制</span>
+            <span v-else style="color: #9ca3af;">{{ t('profile.token.unlimited') }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" min-width="160" />
-        <el-table-column label="过期时间" min-width="160">
+        <el-table-column prop="created_at" :label="t('common.createdAt')" min-width="160" />
+        <el-table-column :label="t('profile.token.expiresAt')" min-width="160">
           <template #default="{ row }">
-            {{ row.expires_at || '永不过期' }}
+            {{ row.expires_at || t('profile.token.neverExpire') }}
           </template>
         </el-table-column>
-        <el-table-column label="最后使用" min-width="160">
+        <el-table-column :label="t('profile.token.lastUsed')" min-width="160">
           <template #default="{ row }">
-            {{ row.last_used_at || '从未使用' }}
+            {{ row.last_used_at || t('profile.token.neverUsed') }}
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column :label="t('common.status')" width="100" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.revoked" type="info" size="small">已撤销</el-tag>
-            <el-tag v-else type="success" size="small">有效</el-tag>
+            <el-tag v-if="row.revoked" type="info" size="small">{{ t('profile.token.revoked') }}</el-tag>
+            <el-tag v-else type="success" size="small">{{ t('profile.token.active') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100" align="center">
+        <el-table-column :label="t('common.actions')" width="100" align="center">
           <template #default="{ row }">
             <el-button
               v-if="!row.revoked"
@@ -246,25 +246,25 @@
               size="small"
               @click="handleRevokeToken(row)"
             >
-              撤销
+              {{ t('profile.token.revoke') }}
             </el-button>
             <span v-else style="color: #c0c4cc; font-size: 12px;">—</span>
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!tokensLoading && apiTokens.length === 0" description="暂无 API 令牌" :image-size="60" />
+      <el-empty v-if="!tokensLoading && apiTokens.length === 0" :description="t('profile.token.empty')" :image-size="60" />
     </el-card>
 
     <!-- 创建 API Token 弹窗 -->
     <el-dialog
       v-model="createTokenDialogVisible"
-      title="创建 API 令牌"
+      :title="t('profile.token.createDialogTitle')"
       width="480px"
       :close-on-click-modal="false"
     >
       <el-alert
         v-if="newTokenValue"
-        title="请立即复制令牌，关闭后将无法再次查看！"
+        :title="t('profile.token.copyWarning')"
         type="warning"
         :closable="false"
         show-icon
@@ -279,12 +279,12 @@
             style="margin-top: 8px; min-width: 120px;"
             @click="copyToken"
           >
-            {{ tokenCopied ? '已复制' : '复制令牌' }}
+            {{ tokenCopied ? t('profile.token.copied') : t('profile.token.copy') }}
           </el-button>
         </div>
         <div class="token-hint">
           <el-icon><InfoFilled /></el-icon>
-          <span>建议将令牌保存到密码管理器中，如 1Password / Bitwarden 等</span>
+          <span>{{ t('profile.token.saveHint') }}</span>
         </div>
       </div>
       <el-form
@@ -294,26 +294,26 @@
         :rules="createTokenRules"
         label-width="80px"
       >
-        <el-form-item label="名称" prop="name">
-          <el-input v-model="createTokenForm.name" placeholder="如：CI/CD 部署令牌" maxlength="64" show-word-limit />
+        <el-form-item :label="t('common.name')" prop="name">
+          <el-input v-model="createTokenForm.name" :placeholder="t('profile.token.namePlaceholder')" maxlength="64" show-word-limit />
         </el-form-item>
-        <el-form-item label="有效期" prop="expires_in">
-          <el-select v-model="createTokenForm.expires_in" placeholder="选择有效期（可选）" clearable>
-            <el-option label="30 天" value="720h" />
-            <el-option label="60 天" value="1440h" />
-            <el-option label="90 天" value="2160h" />
-            <el-option label="180 天" value="4320h" />
-            <el-option label="1 年" value="8760h" />
+        <el-form-item :label="t('profile.token.expires')" prop="expires_in">
+          <el-select v-model="createTokenForm.expires_in" :placeholder="t('profile.token.expiresPlaceholder')" clearable>
+            <el-option :label="t('profile.token.days', 30)" value="720h" />
+            <el-option :label="t('profile.token.days', 60)" value="1440h" />
+            <el-option :label="t('profile.token.days', 90)" value="2160h" />
+            <el-option :label="t('profile.token.days', 180)" value="4320h" />
+            <el-option :label="t('profile.token.oneYear')" value="8760h" />
           </el-select>
         </el-form-item>
-        <el-form-item label="可访问路径" prop="allowed_paths">
+        <el-form-item :label="t('profile.token.allowedPaths')" prop="allowed_paths">
           <el-select
             v-model="createTokenForm.allowed_paths"
             multiple
             filterable
             allow-create
             default-first-option
-            placeholder="输入路径前缀后回车添加，留空则不限制"
+            :placeholder="t('profile.token.pathsPlaceholder')"
             style="width: 100%;"
           >
             <el-option label="/users" value="/users" />
@@ -322,12 +322,12 @@
             <el-option label="/dashboard" value="/dashboard" />
             <el-option label="/audit" value="/audit" />
           </el-select>
-          <div style="color: #909399; font-size: 12px; margin-top: 4px;">路径前缀匹配，如 /files 可访问 /files/upload 等；不填则拥有默认权限</div>
+          <div style="color: #909399; font-size: 12px; margin-top: 4px;">{{ t('profile.token.pathsHint') }}</div>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="closeCreateTokenDialog">关闭</el-button>
-        <el-button v-if="!newTokenValue" type="primary" :loading="createTokenLoading" @click="submitCreateToken">创建</el-button>
+        <el-button @click="closeCreateTokenDialog">{{ t('common.close') }}</el-button>
+        <el-button v-if="!newTokenValue" type="primary" :loading="createTokenLoading" @click="submitCreateToken">{{ t('profile.token.submit') }}</el-button>
       </template>
     </el-dialog>
 
@@ -335,60 +335,60 @@
     <el-card shadow="never" style="margin-top: 20px;">
       <template #header>
         <div class="card-header">
-          <span>双因素认证 (2FA)</span>
-          <el-button v-if="!userInfo.totp_enabled" type="primary" @click="open2FASetup">开启保护</el-button>
-          <el-button v-else type="danger" @click="open2FADisable">关闭</el-button>
+          <span>{{ t('profile.totp.title') }}</span>
+          <el-button v-if="!userInfo.totp_enabled" type="primary" @click="open2FASetup">{{ t('profile.totp.enable') }}</el-button>
+          <el-button v-else type="danger" @click="open2FADisable">{{ t('profile.totp.disableBtn') }}</el-button>
         </div>
       </template>
       <div>
         <el-tag :type="userInfo.totp_enabled ? 'success' : 'info'" size="small">
-          {{ userInfo.totp_enabled ? '已启用' : '未启用' }}
+          {{ userInfo.totp_enabled ? t('profile.totp.enabled') : t('profile.totp.disabled') }}
         </el-tag>
         <p style="color:#6b7280;font-size:13px;margin:12px 0 0;">
-          启用后登录时除密码外，还需输入验证器 App（如 Google Authenticator、Microsoft Authenticator）生成的 6 位动态验证码，为账号增加一层防护。
+          {{ t('profile.totp.desc') }}
         </p>
       </div>
     </el-card>
 
     <!-- 2FA 绑定弹窗 -->
-    <el-dialog v-model="twoFASetupVisible" title="开启双因素认证" width="480px" :close-on-click-modal="false">
+    <el-dialog v-model="twoFASetupVisible" :title="t('profile.totp.setupTitle')" width="480px" :close-on-click-modal="false">
       <el-alert type="info" :closable="false" show-icon style="margin-bottom:16px;">
-        <template #title>请用验证器 App 添加下方密钥，再输入 App 显示的 6 位验证码完成绑定。</template>
+        <template #title>{{ t('profile.totp.setupHint') }}</template>
       </el-alert>
       <div class="info-item">
-        <label>密钥：</label>
+        <label>{{ t('profile.totp.secret') }}</label>
         <span class="totp-secret">{{ twoFASecret }}</span>
-        <el-button link type="primary" size="small" @click="copy2FASecret">复制</el-button>
+        <el-button link type="primary" size="small" @click="copy2FASecret">{{ t('common.copy') }}</el-button>
       </div>
       <div class="info-item" style="margin-top:8px;">
-        <label>配置链接：</label>
+        <label>{{ t('profile.totp.setupUrl') }}</label>
         <span style="word-break:break-all;color:#909399;font-size:12px;">{{ twoFAUrl }}</span>
       </div>
       <el-form style="margin-top:16px;">
-        <el-form-item label="验证码">
-          <el-input v-model="twoFACode" placeholder="输入 6 位动态验证码" maxlength="6" />
+        <el-form-item :label="t('profile.totp.code')">
+          <el-input v-model="twoFACode" :placeholder="t('profile.totp.codePlaceholder')" maxlength="6" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="twoFASetupVisible = false">取消</el-button>
-        <el-button type="primary" :loading="twoFAEnableLoading" @click="submitEnable2FA">确认启用</el-button>
+        <el-button @click="twoFASetupVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="twoFAEnableLoading" @click="submitEnable2FA">{{ t('profile.totp.confirmEnable') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 2FA 关闭弹窗 -->
-    <el-dialog v-model="twoFADisableVisible" title="关闭双因素认证" width="400px">
-      <p style="color:#606266;">关闭后登录将不再需要动态验证码。请输入当前验证码以确认身份。</p>
-      <el-input v-model="twoFADisableCode" placeholder="输入 6 位动态验证码" maxlength="6" style="margin-top:12px;" />
+    <el-dialog v-model="twoFADisableVisible" :title="t('profile.totp.disableTitle')" width="400px">
+      <p style="color:#606266;">{{ t('profile.totp.disableHint') }}</p>
+      <el-input v-model="twoFADisableCode" :placeholder="t('profile.totp.codePlaceholder')" maxlength="6" style="margin-top:12px;" />
       <template #footer>
-        <el-button @click="twoFADisableVisible = false">取消</el-button>
-        <el-button type="danger" :loading="twoFADisableLoading" @click="submitDisable2FA">确认关闭</el-button>
+        <el-button @click="twoFADisableVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="danger" :loading="twoFADisableLoading" @click="submitDisable2FA">{{ t('profile.totp.confirmDisable') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 编辑资料弹窗 -->
     <el-dialog
       v-model="editDialogVisible"
-      title="编辑个人资料"
+      :title="t('profile.edit.title')"
       width="480px"
       :close-on-click-modal="false"
     >
@@ -398,26 +398,26 @@
         :rules="editRules"
         label-width="80px"
       >
-        <el-form-item label="昵称" prop="nickname">
-          <el-input v-model="editForm.nickname" placeholder="请输入昵称" />
+        <el-form-item :label="t('profile.edit.nickname')" prop="nickname">
+          <el-input v-model="editForm.nickname" :placeholder="t('profile.edit.nicknamePlaceholder')" />
         </el-form-item>
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="editForm.email" placeholder="请输入邮箱" />
+        <el-form-item :label="t('profile.edit.email')" prop="email">
+          <el-input v-model="editForm.email" :placeholder="t('profile.edit.emailPlaceholder')" />
         </el-form-item>
-        <el-form-item label="手机号" prop="phone">
-          <el-input v-model="editForm.phone" placeholder="请输入手机号" maxlength="20" />
+        <el-form-item :label="t('profile.edit.phone')" prop="phone">
+          <el-input v-model="editForm.phone" :placeholder="t('profile.edit.phonePlaceholder')" maxlength="20" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="editLoading" @click="submitEdit">确定</el-button>
+        <el-button @click="editDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="editLoading" @click="submitEdit">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Edit, Plus, Link, CopyDocument, Check, InfoFilled, Connection, Loading } from '@element-plus/icons-vue'
@@ -427,7 +427,9 @@ import { getUserRoles } from '@/api/modules/role'
 import { createAPIToken, listAPITokens, revokeAPIToken, type APITokenItem, listOAuthAccounts, unbindOAuth, type OAuthAccountItem, getOAuthRedirectURL, sendEmailVerification, setup2FA, enable2FA, disable2FA } from '@/api/auth'
 import { listOAuthProviders, type ProviderMeta } from '@/api/modules/oauth'
 import { providerColor } from '@/providers'
+import { useI18n } from '@/composables/useI18n'
 
+const { t } = useI18n()
 const userStore = useUserStore()
 
 // 用户信息
@@ -463,9 +465,9 @@ const editForm = reactive({
   email: '',
   phone: ''
 })
-const editRules: FormRules = {
-  email: [{ type: 'email', message: '请输入正确的邮箱', trigger: 'blur' }]
-}
+const editRules = computed<FormRules>(() => ({
+  email: [{ type: 'email', message: t('profile.edit.emailInvalid'), trigger: 'blur' }]
+}))
 
 // 修改密码
 const pwdFormRef = ref<FormInstance>()
@@ -478,24 +480,24 @@ const pwdForm = reactive({
 
 const validateConfirmPassword = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
   if (value !== pwdForm.new_password) {
-    callback(new Error('两次输入的密码不一致'))
+    callback(new Error(t('profile.pwd.mismatch')))
   } else {
     callback()
   }
 }
 
-const pwdRules: FormRules = {
-  old_password: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
+const pwdRules = computed<FormRules>(() => ({
+  old_password: [{ required: true, message: t('profile.pwd.oldRequired'), trigger: 'blur' }],
   new_password: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, max: 32, message: '密码长度 6-32 位', trigger: 'blur' },
-    { pattern: /^(?=.*[A-Za-z])(?=.*\d)/, message: '密码必须包含字母和数字', trigger: 'blur' }
+    { required: true, message: t('profile.pwd.newRequired'), trigger: 'blur' },
+    { min: 6, max: 32, message: t('profile.pwd.lengthRange'), trigger: 'blur' },
+    { pattern: /^(?=.*[A-Za-z])(?=.*\d)/, message: t('profile.pwd.pattern'), trigger: 'blur' }
   ],
   confirm_password: [
-    { required: true, message: '请确认新密码', trigger: 'blur' },
+    { required: true, message: t('profile.pwd.confirmRequired'), trigger: 'blur' },
     { validator: validateConfirmPassword, trigger: 'blur' }
   ]
-}
+}))
 
 // 加载用户信息
 async function loadUserInfo() {
@@ -506,7 +508,7 @@ async function loadUserInfo() {
     // 同时更新 store
     userStore.updateUserInfo(data)
   } catch (e) {
-    ElMessage.error('获取用户信息失败')
+    ElMessage.error(t('profile.getInfoFailed'))
   } finally {
     loading.value = false
   }
@@ -520,7 +522,7 @@ async function loadUserRoles() {
     const data = await getUserRoles(userInfo.id)
     userRoles.value = data || []
   } catch (e) {
-    console.error('加载角色失败', e)
+    console.error('failed to load user roles', e)
   } finally {
     rolesLoading.value = false
   }
@@ -544,33 +546,33 @@ async function open2FASetup() {
     twoFACode.value = ''
     twoFASetupVisible.value = true
   } catch (e) {
-    ElMessage.error('初始化双因素认证失败')
+    ElMessage.error(t('profile.totp.initFailed'))
   }
 }
 
 async function copy2FASecret() {
   try {
     await navigator.clipboard.writeText(twoFASecret.value)
-    ElMessage.success('密钥已复制')
+    ElMessage.success(t('profile.totp.secretCopied'))
   } catch {
-    ElMessage.warning('复制失败，请手动选中密钥')
+    ElMessage.warning(t('profile.totp.copyManual'))
   }
 }
 
 async function submitEnable2FA() {
   if (!/^\d{6}$/.test(twoFACode.value)) {
-    ElMessage.warning('请输入 6 位动态验证码')
+    ElMessage.warning(t('profile.totp.codeInvalid'))
     return
   }
   twoFAEnableLoading.value = true
   try {
     await enable2FA(twoFACode.value.trim())
-    ElMessage.success('双因素认证已启用')
+    ElMessage.success(t('profile.totp.enableSuccess'))
     twoFASetupVisible.value = false
     userInfo.totp_enabled = true
   } catch (e) {
     const err = e as { response?: { data?: { message?: string } } }
-    ElMessage.error(err.response?.data?.message || '启用失败，请确认验证码是否正确')
+    ElMessage.error(err.response?.data?.message || t('profile.totp.enableFailed'))
   } finally {
     twoFAEnableLoading.value = false
   }
@@ -583,18 +585,18 @@ function open2FADisable() {
 
 async function submitDisable2FA() {
   if (!/^\d{6}$/.test(twoFADisableCode.value)) {
-    ElMessage.warning('请输入 6 位动态验证码')
+    ElMessage.warning(t('profile.totp.codeInvalid'))
     return
   }
   twoFADisableLoading.value = true
   try {
     await disable2FA(twoFADisableCode.value.trim())
-    ElMessage.success('双因素认证已关闭')
+    ElMessage.success(t('profile.totp.disableSuccess'))
     twoFADisableVisible.value = false
     userInfo.totp_enabled = false
   } catch (e) {
     const err = e as { response?: { data?: { message?: string } } }
-    ElMessage.error(err.response?.data?.message || '关闭失败，请确认验证码是否正确')
+    ElMessage.error(err.response?.data?.message || t('profile.totp.disableFailed'))
   } finally {
     twoFADisableLoading.value = false
   }
@@ -607,9 +609,9 @@ async function handleSendEmailVerification() {
   sendVerifyLoading.value = true
   try {
     await sendEmailVerification(userInfo.email)
-    ElMessage.success('验证邮件已发送，请检查您的邮箱')
+    ElMessage.success(t('profile.info.verifySent'))
   } catch (e) {
-    ElMessage.error((e as Error).message || '发送验证邮件失败')
+    ElMessage.error((e as Error).message || t('profile.info.verifySendFailed'))
   } finally {
     sendVerifyLoading.value = false
   }
@@ -631,14 +633,14 @@ async function submitEdit() {
     editLoading.value = true
     try {
       await updateProfile(editForm)
-      ElMessage.success('更新成功')
+      ElMessage.success(t('profile.edit.updateSuccess'))
       userInfo.nickname = editForm.nickname
       userInfo.email = editForm.email
       userInfo.phone = editForm.phone
       userStore.updateUserInfo({ nickname: editForm.nickname, email: editForm.email, phone: editForm.phone })
       editDialogVisible.value = false
     } catch (e) {
-      ElMessage.error((e as Error).message || '更新失败')
+      ElMessage.error((e as Error).message || t('profile.edit.updateFailed'))
     } finally {
       editLoading.value = false
     }
@@ -657,7 +659,7 @@ async function submitPassword() {
         new_password: pwdForm.new_password
       })
       
-      ElMessage.success('密码修改成功，请重新登录')
+      ElMessage.success(t('profile.pwd.updateSuccess'))
       // 清空表单
       pwdForm.old_password = ''
       pwdForm.new_password = ''
@@ -667,7 +669,7 @@ async function submitPassword() {
         userStore.logout()
       }, 1500)
     } catch (e) {
-      ElMessage.error((e as Error).message || '密码修改失败')
+      ElMessage.error((e as Error).message || t('profile.pwd.updateFailed'))
     } finally {
       pwdLoading.value = false
     }
@@ -697,7 +699,7 @@ async function loadOAuthAccounts() {
     const data = await listOAuthAccounts()
     oauthAccounts.value = data?.accounts || []
   } catch (e) {
-    console.error('加载第三方账号失败', e)
+    console.error('failed to load oauth accounts', e)
   } finally {
     oauthLoading.value = false
   }
@@ -715,10 +717,10 @@ async function handleBindOAuth(provider: string) {
     if (data?.url) {
       window.location.href = data.url
     } else {
-      ElMessage.error('获取授权链接失败')
+      ElMessage.error(t('profile.oauth.getUrlFailed'))
     }
   } catch (e) {
-    ElMessage.error('获取授权链接失败，请稍后重试')
+    ElMessage.error(t('profile.oauth.getUrlRetry'))
   } finally {
     bindOAuthLoading.value = false
   }
@@ -726,13 +728,13 @@ async function handleBindOAuth(provider: string) {
 
 async function handleUnbindOAuth(row: OAuthAccountItem) {
   try {
-    await ElMessageBox.confirm(`确定要解绑 ${row.provider} 账号吗？`, '解绑确认', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('profile.oauth.unbindConfirm', row.provider), t('profile.oauth.unbindTitle'), {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning'
     })
     await unbindOAuth(row.provider)
-    ElMessage.success('解绑成功')
+    ElMessage.success(t('profile.oauth.unbindSuccess'))
     await loadOAuthAccounts()
   } catch {
     // 用户取消
@@ -751,12 +753,12 @@ const createTokenForm = reactive({
   expires_in: '',
   allowed_paths: [] as string[]
 })
-const createTokenRules: FormRules = {
+const createTokenRules = computed<FormRules>(() => ({
   name: [
-    { required: true, message: '请输入令牌名称', trigger: 'blur' },
-    { min: 1, max: 64, message: '名称长度 1-64 位', trigger: 'blur' }
+    { required: true, message: t('profile.token.nameRequired'), trigger: 'blur' },
+    { min: 1, max: 64, message: t('profile.token.nameLength'), trigger: 'blur' }
   ]
-}
+}))
 
 async function loadAPITokens() {
   tokensLoading.value = true
@@ -764,7 +766,7 @@ async function loadAPITokens() {
     const data = await listAPITokens()
     apiTokens.value = data?.tokens || []
   } catch (e) {
-    console.error('加载 API 令牌失败', e)
+    console.error('failed to load api tokens', e)
   } finally {
     tokensLoading.value = false
   }
@@ -796,10 +798,10 @@ async function submitCreateToken() {
         allowed_paths: createTokenForm.allowed_paths.length > 0 ? createTokenForm.allowed_paths : undefined
       })
       newTokenValue.value = data.token
-      ElMessage.success('令牌创建成功')
+      ElMessage.success(t('profile.token.createSuccess'))
       loadAPITokens()
     } catch (e) {
-      ElMessage.error((e as Error).message || '创建令牌失败')
+      ElMessage.error((e as Error).message || t('profile.token.createFailed'))
     } finally {
       createTokenLoading.value = false
     }
@@ -811,22 +813,22 @@ const tokenCopied = ref(false)
 function copyToken() {
   navigator.clipboard.writeText(newTokenValue.value).then(() => {
     tokenCopied.value = true
-    ElMessage.success('已复制到剪贴板')
+    ElMessage.success(t('profile.token.copiedClipboard'))
     setTimeout(() => { tokenCopied.value = false }, 3000)
   }).catch(() => {
-    ElMessage.error('复制失败，请手动复制')
+    ElMessage.error(t('profile.token.copyFailed'))
   })
 }
 
 async function handleRevokeToken(row: APITokenItem) {
   try {
-    await ElMessageBox.confirm(`确定撤销令牌「${row.name}」？撤销后使用该令牌的请求将被拒绝。`, '撤销确认', {
-      confirmButtonText: '确定撤销',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('profile.token.revokeConfirm', row.name), t('profile.token.revokeTitle'), {
+      confirmButtonText: t('profile.token.revokeOk'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning'
     })
     await revokeAPIToken({ id: row.id })
-    ElMessage.success('令牌已撤销')
+    ElMessage.success(t('profile.token.revokeSuccess'))
     loadAPITokens()
   } catch {
     // 用户取消
