@@ -26,6 +26,7 @@ import (
 	authHandler "meteorx/internal/modules/auth/handler"
 	authRepo "meteorx/internal/modules/auth/repository"
 	authSvc "meteorx/internal/modules/auth/service"
+	"meteorx/internal/modules/chat"
 	"meteorx/internal/modules/file"
 	"meteorx/internal/modules/invitation"
 	"meteorx/internal/modules/message"
@@ -286,6 +287,10 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			if m := notify.GetGlobalManager(); m != nil {
 				m.SetInbox(msgSvc)
 			}
+
+			// 4.12 协作即时消息（同租户内 1:1 私聊，仅需登录，访问控制以会话成员归属为准）。
+			// 复用上方 msgHub：WS 启用时发送的消息实时投递给在线成员，未启用时仅落库、下次拉历史补齐。
+			chat.InitModule(r, db, msgHub)
 
 			// ========================================================
 			// 🔥 新增分组三：MaaS 平台运营后台特权接口 (Platform Admin Only)

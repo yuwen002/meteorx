@@ -17,6 +17,7 @@ const (
 	MsgTypePing        MessageType = "ping"          // 心跳
 	MsgTypePong        MessageType = "pong"          // 心跳响应
 	MsgTypeUnreadCount MessageType = "unread_count"  // 未读数量更新
+	MsgTypeChat        MessageType = "chat"          // 协作即时消息（1:1 私聊新消息实时投递）
 )
 
 // Message WebSocket 消息结构

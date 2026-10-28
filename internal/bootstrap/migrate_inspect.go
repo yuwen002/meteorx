@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	auditrepo "meteorx/internal/modules/audit/repository"
+	chatrepo "meteorx/internal/modules/chat/repository"
 	exportrepo "meteorx/internal/modules/export/repository"
 	"meteorx/internal/modules/file"
 	invitationrepo "meteorx/internal/modules/invitation/repository"
@@ -42,6 +43,7 @@ func migrationModels() []interface{} {
 	out = append(out, invitationrepo.Models()...)   // invitations
 	out = append(out, oauthrepo.Models()...)        // oauth_accounts / oauth_providers / oauth_provider_meta
 	out = append(out, taskrepo.Models()...)         // tasks
+	out = append(out, chatrepo.Models()...)         // chat_conversations / chat_conversation_members / chat_messages
 	out = append(out, wikirepo.Models()...)         // wiki_* 等 18 张表
 	out = append(out, exportrepo.Models()...)       // export_jobs
 	return out
