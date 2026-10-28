@@ -1,15 +1,15 @@
 <template>
-  <el-dialog v-model="visible" title="标签管理" width="600px">
+  <el-dialog v-model="visible" :title="t('wiki.tag.title')" width="600px">
     <div class="tag-manager">
       <div class="tag-create">
         <el-input
           v-model="newTagName"
-          placeholder="输入标签名称"
+          :placeholder="t('wiki.tag.namePlaceholder')"
           style="width: 200px"
           @keyup.enter="handleCreateTag"
         />
         <el-color-picker v-model="newTagColor" />
-        <el-button type="primary" @click="handleCreateTag">创建标签</el-button>
+        <el-button type="primary" @click="handleCreateTag">{{ t('wiki.tag.create') }}</el-button>
       </div>
 
       <el-divider />
@@ -29,7 +29,7 @@
         >
           {{ tag.name }}
         </el-tag>
-        <el-empty v-if="tags.length === 0" description="暂无标签" />
+        <el-empty v-if="tags.length === 0" :description="t('wiki.tag.empty')" />
       </div>
     </div>
   </el-dialog>
@@ -39,6 +39,9 @@
 import { ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listTags, createTag as apiCreateTag, deleteTag as apiDeleteTag, type Tag } from '@/api/modules/wiki'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const visible = ref(false)
 const tags = ref<Tag[]>([])
@@ -55,13 +58,13 @@ async function loadTags() {
   try {
     tags.value = await listTags()
   } catch (error) {
-    ElMessage.error('加载标签失败')
+    ElMessage.error(t('wiki.tag.loadFailed'))
   }
 }
 
 async function handleCreateTag() {
   if (!newTagName.value.trim()) {
-    ElMessage.warning('请输入标签名称')
+    ElMessage.warning(t('wiki.tag.nameRequired'))
     return
   }
 
@@ -70,11 +73,11 @@ async function handleCreateTag() {
       name: newTagName.value,
       color: newTagColor.value
     })
-    ElMessage.success('创建成功')
+    ElMessage.success(t('wiki.tag.createSuccess'))
     newTagName.value = ''
     await loadTags()
   } catch (error) {
-    ElMessage.error('创建失败')
+    ElMessage.error(t('wiki.tag.createFailed'))
   }
 }
 
@@ -88,12 +91,12 @@ function getContrastColor(hex: string) {
 }
 
 function handleDeleteTag(id: string) {
-  ElMessageBox.confirm('确定要删除此标签吗？', '提示', {
+  ElMessageBox.confirm(t('wiki.tag.deleteConfirm'), t('common.tip'), {
     type: 'warning'
   })
     .then(async () => {
       await apiDeleteTag(id)
-      ElMessage.success('删除成功')
+      ElMessage.success(t('wiki.tag.deleteSuccess'))
       await loadTags()
     })
     .catch(() => {})

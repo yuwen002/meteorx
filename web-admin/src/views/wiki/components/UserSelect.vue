@@ -8,7 +8,7 @@
     reserve-keyword
     :remote-method="searchUsers"
     :loading="loading"
-    placeholder="输入用户名搜索"
+    :placeholder="t('wiki.userSel.placeholder')"
     style="width: 100%"
     @update:model-value="(v: string) => emit('update:modelValue', v)"
   >
@@ -22,7 +22,7 @@
       <span v-if="u.email" class="sub">{{ u.email }}</span>
     </el-option>
     <template #empty>
-      <span style="color: #9ca3af">无匹配用户</span>
+      <span style="color: #9ca3af">{{ t('wiki.userSel.empty') }}</span>
     </template>
   </el-select>
 </template>
@@ -31,6 +31,9 @@
 import { ref } from 'vue'
 import { getUserList, type UserItem } from '@/api/modules/user'
 import { toPageResult } from '@/types/pagination'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 defineProps<{ modelValue: string; disabled?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()

@@ -1,13 +1,13 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="成员管理"
+    :title="t('wiki.member.title')"
     width="640px"
     @update:model-value="(v: boolean) => emit('update:modelValue', v)"
     @open="load"
   >
     <div v-if="canManage && canListUsers" class="member-toolbar">
-      <span class="tip">添加协作者：</span>
+      <span class="tip">{{ t('wiki.member.addLabel') }}</span>
       <UserSelect ref="userSelectRef" v-model="newUserId" class="user-picker" />
       <el-select v-model="newRole" class="role-picker">
         <el-option
@@ -18,7 +18,7 @@
         />
       </el-select>
       <el-button type="primary" :disabled="!newUserId" :loading="submitting" @click="addUser">
-        添加成员
+        {{ t('wiki.member.add') }}
       </el-button>
     </div>
     <el-alert
@@ -27,17 +27,17 @@
       :closable="false"
       style="margin-bottom: 12px"
     >
-      当前账号缺少用户管理（user:list）权限，无法搜索用户添加新成员。
+      {{ t('wiki.member.noUserPerm') }}
     </el-alert>
 
     <el-table v-loading="loading" :data="members" size="small">
-      <el-table-column label="用户" min-width="200">
+      <el-table-column :label="t('wiki.member.colUser')" min-width="200">
         <template #default="{ row }">
           <div>{{ displayName(row) }}</div>
           <div class="sub">{{ row.user_email || row.user_id }}</div>
         </template>
       </el-table-column>
-      <el-table-column label="角色" width="150">
+      <el-table-column :label="t('wiki.member.colRole')" width="150">
         <template #default="{ row }">
           <el-select
             v-if="canManage"
@@ -56,12 +56,12 @@
           <span v-else>{{ roleLabel(row.role) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="90" align="center">
+      <el-table-column :label="t('common.actions')" width="90" align="center">
         <template #default="{ row }">
           <el-tooltip
             v-if="canManage"
             :disabled="!isSelfOwner(row)"
-            content="所有者不能移除自己，请先提升其他人为所有者"
+            :content="t('wiki.member.ownerTip')"
           >
             <span>
               <el-button
@@ -70,7 +70,7 @@
                 :disabled="isSelfOwner(row)"
                 @click="removeUser(row)"
               >
-                移除
+                {{ t('wiki.member.remove') }}
               </el-button>
             </span>
           </el-tooltip>
@@ -78,9 +78,9 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-if="!loading && members.length === 0" description="暂无成员" :image-size="60" />
+    <el-empty v-if="!loading && members.length === 0" :description="t('wiki.member.empty')" :image-size="60" />
     <template #footer>
-      <el-button @click="emit('update:modelValue', false)">关闭</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{ t('common.close') }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -97,6 +97,9 @@ import {
 } from '@/api/modules/wiki'
 import { useUserStore } from '@/stores/user'
 import UserSelect from './UserSelect.vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   modelValue: boolean
@@ -110,13 +113,13 @@ const userStore = useUserStore()
 const canListUsers = userStore.hasPermission('user:list')
 const canManage = computed(() => props.myRole === 'owner' || props.myRole === 'admin')
 
-const roleOptions = [
-  { value: 'owner', label: '所有者' },
-  { value: 'admin', label: '管理员' },
-  { value: 'editor', label: '编辑者' },
-  { value: 'viewer', label: '访客（只读）' }
-]
-const roleLabel = (r: string) => roleOptions.find((o) => o.value === r)?.label || r
+const roleOptions = computed(() => [
+  { value: 'owner', label: t('wiki.member.role.owner') },
+  { value: 'admin', label: t('wiki.member.role.admin') },
+  { value: 'editor', label: t('wiki.member.role.editor') },
+  { value: 'viewer', label: t('wiki.member.role.viewer') }
+])
+const roleLabel = (r: string) => roleOptions.value.find((o) => o.value === r)?.label || r
 
 const members = ref<WikiSpaceMember[]>([])
 const loading = ref(false)
@@ -144,7 +147,7 @@ async function addUser() {
   submitting.value = true
   try {
     await addMember(props.spaceId, { user_id: newUserId.value, role: newRole.value as never })
-    ElMessage.success('已添加成员')
+    ElMessage.success(t('wiki.member.addSuccess'))
     newUserId.value = ''
     await load()
     emit('changed')
@@ -156,7 +159,7 @@ async function addUser() {
 async function changeRole(row: WikiSpaceMember, role: string) {
   try {
     await addMember(props.spaceId, { user_id: row.user_id, role: role as never })
-    ElMessage.success('角色已更新')
+    ElMessage.success(t('wiki.member.roleUpdated'))
     await load()
     emit('changed')
   } catch {
@@ -165,12 +168,12 @@ async function changeRole(row: WikiSpaceMember, role: string) {
 }
 
 async function removeUser(row: WikiSpaceMember) {
-  await ElMessageBox.confirm(`确定将 ${displayName(row)} 移出该知识库吗？`, '提示', {
+  await ElMessageBox.confirm(t('wiki.member.removeConfirm', displayName(row)), t('common.tip'), {
     type: 'warning'
   }).catch(() => Promise.reject(new Error('canceled')))
   try {
     await removeMember(props.spaceId, row.user_id)
-    ElMessage.success('已移除')
+    ElMessage.success(t('wiki.member.removeSuccess'))
     await load()
     emit('changed')
   } catch (e) {

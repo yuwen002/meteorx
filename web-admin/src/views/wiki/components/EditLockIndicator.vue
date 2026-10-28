@@ -2,17 +2,17 @@
   <div class="edit-lock-indicator">
     <el-alert
       v-if="isLocked && !isMyLock"
-      :title="`文档正在被 ${lockInfo.user_name || '其他用户'} 编辑`"
+      :title="t('wiki.lock.lockedBy', lockInfo.user_name || t('wiki.lock.otherUser'))"
       type="warning"
       :closable="false"
       show-icon
     >
       <template #default>
         <div class="lock-details">
-          <p>锁定时间: {{ formatTime(lockInfo.locked_at) }}</p>
-          <p>过期时间: {{ formatTime(lockInfo.expires_at) }}</p>
+          <p>{{ t('wiki.lock.lockedAt') }}: {{ formatTime(lockInfo.locked_at) }}</p>
+          <p>{{ t('wiki.lock.expiresAt') }}: {{ formatTime(lockInfo.expires_at) }}</p>
           <el-button size="small" type="primary" @click="handleForceLock">
-            强制获取编辑权
+            {{ t('wiki.lock.force') }}
           </el-button>
         </div>
       </template>
@@ -20,20 +20,20 @@
 
     <el-alert
       v-else-if="isLocked && isMyLock"
-      title="您正在编辑此文档"
+      :title="t('wiki.lock.myLock')"
       type="success"
       :closable="false"
       show-icon
     >
       <template #default>
         <div class="lock-details">
-          <p>锁定时间: {{ formatTime(lockInfo.locked_at) }}</p>
-          <p>过期时间: {{ formatTime(lockInfo.expires_at) }}</p>
+          <p>{{ t('wiki.lock.lockedAt') }}: {{ formatTime(lockInfo.locked_at) }}</p>
+          <p>{{ t('wiki.lock.expiresAt') }}: {{ formatTime(lockInfo.expires_at) }}</p>
           <el-button size="small" type="danger" @click="handleRelease">
-            释放编辑权
+            {{ t('wiki.lock.release') }}
           </el-button>
           <el-button size="small" @click="handleRefresh">
-            刷新锁定时间
+            {{ t('wiki.lock.refresh') }}
           </el-button>
         </div>
       </template>
@@ -46,7 +46,7 @@
       @click="handleAcquire"
     >
       <el-icon><Edit /></el-icon>
-      开始编辑
+      {{ t('wiki.lock.start') }}
     </el-button>
   </div>
 </template>
@@ -62,6 +62,12 @@ import {
   type EditLock
 } from '@/api/modules/wiki'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useI18n } from '@/composables/useI18n'
+
+const { t, locale } = useI18n()
+
+// Backend rejects with a Chinese message; match by code points to keep this source ASCII
+const LOCKED_KEYWORD = /\u9501\u5b9a\u6587\u6863|\u5df2\u88ab\u9501\u5b9a/
 
 const props = defineProps<{
   documentId: string
@@ -117,14 +123,14 @@ async function checkLockStatus() {
 async function handleAcquire() {
   try {
     lockInfo.value = await acquireEditLock(props.documentId)
-    ElMessage.success('已获取编辑权')
+    ElMessage.success(t('wiki.lock.acquireSuccess'))
     emit('locked')
   } catch (error) {
     const msg = (error as { response?: { data?: { message?: string } } }).response?.data?.message
-    if (msg?.includes('已被锁定')) {
-      ElMessage.warning('文档已被其他用户锁定')
+    if (msg && LOCKED_KEYWORD.test(msg)) {
+      ElMessage.warning(t('wiki.lock.lockedByOther'))
     } else {
-      ElMessage.error('获取编辑权失败')
+      ElMessage.error(t('wiki.lock.acquireFailed'))
     }
   }
 }
@@ -139,10 +145,10 @@ async function handleRelease() {
       expires_at: '',
       can_edit: true
     }
-    ElMessage.success('已释放编辑权')
+    ElMessage.success(t('wiki.lock.releaseSuccess'))
     emit('unlocked')
   } catch (error) {
-    ElMessage.error('释放编辑权失败')
+    ElMessage.error(t('wiki.lock.releaseFailed'))
   }
 }
 
@@ -150,34 +156,34 @@ async function handleRefresh() {
   try {
     await refreshEditLock(props.documentId)
     await checkLockStatus()
-    ElMessage.success('已刷新锁定时间')
+    ElMessage.success(t('wiki.lock.refreshSuccess'))
   } catch (error) {
-    ElMessage.error('刷新锁定时间失败')
+    ElMessage.error(t('wiki.lock.refreshFailed'))
   }
 }
 
 async function handleForceLock() {
   try {
     await ElMessageBox.confirm(
-      '强制获取编辑权将中断其他用户的编辑，确定要继续吗？',
-      '强制编辑',
+      t('wiki.lock.forceConfirm'),
+      t('wiki.lock.forceTitle'),
       {
         type: 'warning'
       }
     )
     lockInfo.value = await acquireEditLock(props.documentId)
-    ElMessage.success('已强制获取编辑权')
+    ElMessage.success(t('wiki.lock.forceSuccess'))
     emit('locked')
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('强制获取编辑权失败')
+      ElMessage.error(t('wiki.lock.forceFailed'))
     }
   }
 }
 
 function formatTime(time: string) {
   const date = new Date(time)
-  return date.toLocaleString('zh-CN')
+  return date.toLocaleString(locale.value)
 }
 </script>
 

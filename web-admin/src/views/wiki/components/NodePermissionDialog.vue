@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="`节点权限 — ${title || '未命名'}`"
+    :title="t('wiki.perm.title', title || t('wiki.perm.untitled'))"
     width="600px"
     @update:model-value="(v: boolean) => emit('update:modelValue', v)"
     @open="load"
@@ -17,7 +17,7 @@
         />
       </el-select>
       <el-button type="primary" :disabled="!newUserId" :loading="submitting" @click="addPermission">
-        添加授权
+        {{ t('wiki.perm.add') }}
       </el-button>
     </div>
     <el-alert
@@ -26,38 +26,38 @@
       :closable="false"
       style="margin-bottom: 12px"
     >
-      当前账号缺少用户管理（user:list）权限，无法搜索用户添加授权。
+      {{ t('wiki.perm.noUserPerm') }}
     </el-alert>
     <el-alert type="info" :closable="false" style="margin-bottom: 12px">
-      节点级授权可精确控制单个文档/目录的可见与可编辑范围，优先级高于空间默认权限。
+      {{ t('wiki.perm.hint') }}
     </el-alert>
 
     <el-table v-loading="loading" :data="permissions" size="small">
-      <el-table-column label="用户" min-width="200">
+      <el-table-column :label="t('wiki.perm.colUser')" min-width="200">
         <template #default="{ row }">
           <div>{{ displayName(row) }}</div>
         </template>
       </el-table-column>
-      <el-table-column label="权限" width="120">
+      <el-table-column :label="t('wiki.perm.colPerm')" width="120">
         <template #default="{ row }">
           {{ permissionLabel(row.permission) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="80" align="center">
+      <el-table-column :label="t('common.actions')" width="80" align="center">
         <template #default="{ row }">
-          <el-button link type="danger" @click="remove(row)">取消</el-button>
+          <el-button link type="danger" @click="remove(row)">{{ t('wiki.perm.revoke') }}</el-button>
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-if="!loading && permissions.length === 0" description="暂无单独授权" :image-size="60" />
+    <el-empty v-if="!loading && permissions.length === 0" :description="t('wiki.perm.empty')" :image-size="60" />
     <template #footer>
-      <el-button @click="emit('update:modelValue', false)">关闭</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{ t('common.close') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import {
   listNodePermissions,
@@ -67,6 +67,9 @@ import {
 } from '@/api/modules/wiki'
 import { useUserStore } from '@/stores/user'
 import UserSelect from './UserSelect.vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   modelValue: boolean
@@ -79,13 +82,13 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean]; changed: [] }>
 const userStore = useUserStore()
 const canListUsers = userStore.hasPermission('user:list')
 
-const permissionOptions = [
-  { value: 'view', label: '可查看' },
-  { value: 'edit', label: '可编辑' },
-  { value: 'delete', label: '可删除' }
-]
+const permissionOptions = computed(() => [
+  { value: 'view', label: t('wiki.perm.opt.view') },
+  { value: 'edit', label: t('wiki.perm.opt.edit') },
+  { value: 'delete', label: t('wiki.perm.opt.delete') }
+])
 const permissionLabel = (p: string) =>
-  permissionOptions.find((o) => o.value === p)?.label || p
+  permissionOptions.value.find((o) => o.value === p)?.label || p
 
 const permissions = ref<NodePermission[]>([])
 const loading = ref(false)
@@ -117,7 +120,7 @@ async function addPermission() {
       user_id: newUserId.value,
       permission: newPermission.value
     })
-    ElMessage.success('授权成功')
+    ElMessage.success(t('wiki.perm.grantSuccess'))
     newUserId.value = ''
     newPermission.value = 'view'
     await load()
@@ -135,11 +138,11 @@ async function remove(row: NodePermission) {
       row.user_id,
       row.permission
     )
-    ElMessage.success('已取消授权')
+    ElMessage.success(t('wiki.perm.revokeSuccess'))
     await load()
     emit('changed')
   } catch {
-    /* 拦截器已提示 */
+    /* interceptor already reported the error */
   }
 }
 </script>

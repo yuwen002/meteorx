@@ -1,16 +1,16 @@
 <template>
-  <el-dialog v-model="visible" title="选择文档模板" width="900px">
+  <el-dialog v-model="visible" :title="t('wiki.tpl.title')" width="900px">
     <div class="template-selector">
       <div class="filter-bar">
         <el-input
           v-model="searchKeyword"
-          placeholder="搜索模板..."
+          :placeholder="t('wiki.tpl.searchPlaceholder')"
           style="width: 240px"
           clearable
         />
         <el-select
           v-model="selectedCategory"
-          placeholder="选择分类"
+          :placeholder="t('wiki.tpl.categoryPlaceholder')"
           clearable
           style="width: 160px"
         >
@@ -30,17 +30,17 @@
               <el-icon :size="24"><Document /></el-icon>
               <span class="template-name">{{ template.name }}</span>
             </div>
-            <div class="template-desc">{{ template.description || '暂无描述' }}</div>
+            <div class="template-desc">{{ template.description || t('wiki.tpl.noDesc') }}</div>
             <div class="template-footer">
               <el-tag size="small">{{ template.category }}</el-tag>
-              <el-tag v-if="template.is_public" size="small" type="success">公开</el-tag>
-              <el-tag v-else size="small" type="info">私有</el-tag>
+              <el-tag v-if="template.is_public" size="small" type="success">{{ t('wiki.tpl.public') }}</el-tag>
+              <el-tag v-else size="small" type="info">{{ t('wiki.tpl.private') }}</el-tag>
             </div>
           </el-card>
         </el-col>
       </el-row>
 
-      <el-empty v-if="filteredTemplates.length === 0" description="暂无模板" />
+      <el-empty v-if="filteredTemplates.length === 0" :description="t('wiki.tpl.empty')" />
     </div>
   </el-dialog>
 </template>
@@ -50,6 +50,9 @@ import { ref, computed, watch } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import { listTemplates, type DocumentTemplate } from '@/api/modules/wiki'
 import { ElMessage } from 'element-plus'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const emit = defineEmits<{
   select: [template: DocumentTemplate]
@@ -61,7 +64,7 @@ const searchKeyword = ref('')
 const selectedCategory = ref('')
 
 const categories = computed(() => {
-  const cats = new Set(templates.value.map((t) => t.category))
+  const cats = new Set(templates.value.map((tpl) => tpl.category))
   return Array.from(cats)
 })
 
@@ -69,15 +72,15 @@ const filteredTemplates = computed(() => {
   let result = templates.value
 
   if (selectedCategory.value) {
-    result = result.filter((t) => t.category === selectedCategory.value)
+    result = result.filter((tpl) => tpl.category === selectedCategory.value)
   }
 
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
     result = result.filter(
-      (t) =>
-        t.name.toLowerCase().includes(keyword) ||
-        (t.description && t.description.toLowerCase().includes(keyword))
+      (tpl) =>
+        tpl.name.toLowerCase().includes(keyword) ||
+        (tpl.description && tpl.description.toLowerCase().includes(keyword))
     )
   }
 
@@ -94,7 +97,7 @@ async function loadTemplates() {
   try {
     templates.value = await listTemplates()
   } catch (error) {
-    ElMessage.error('加载模板失败')
+    ElMessage.error(t('wiki.tpl.loadFailed'))
   }
 }
 
