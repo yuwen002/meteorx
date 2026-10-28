@@ -468,8 +468,16 @@ export interface Comment {
   mention_ids?: string
   status?: number
   replies?: Comment[]
+  reactions?: ReactionItem[]
   created_at: string
   updated_at: string
+}
+
+// 表情回应聚合项
+export interface ReactionItem {
+  emoji: string
+  count: number
+  mine: boolean
 }
 
 export interface CreateCommentReq {
@@ -502,6 +510,19 @@ export function updateComment(id: string, content: string) {
 // 删除评论
 export function deleteComment(id: string) {
   return request.delete<unknown, void>(`/wiki/documents/comments/${id}`)
+}
+
+// 切换评论表情回应（幂等：再次点击同表情即取消），返回该评论的最新聚合
+export function toggleCommentReaction(id: string, emoji: string) {
+  return request.post<unknown, { comment_id: string; reactions: ReactionItem[] }>(
+    `/wiki/documents/comments/${id}/reactions`,
+    { emoji }
+  )
+}
+
+// 解决/重开根评论
+export function resolveComment(id: string, resolved: boolean) {
+  return request.post<unknown, void>(`/wiki/documents/comments/${id}/resolve`, { resolved })
 }
 
 // 分享链接

@@ -9,6 +9,27 @@
         :rows="3"
         :placeholder="t('wiki.comment.inputPlaceholder')"
       />
+      <el-select
+        v-model="mentionPicked"
+        multiple
+        filterable
+        remote
+        reserve-keyword
+        collapse-tags
+        collapse-tags-tooltip
+        :multiple-limit="10"
+        :remote-method="searchMentionables"
+        :loading="mentionLoading"
+        :placeholder="t('wiki.comment.mentionPlaceholder')"
+        class="mention-select"
+      >
+        <el-option
+          v-for="u in mentionOptions"
+          :key="u.id"
+          :label="u.nickname || u.username"
+          :value="u.id"
+        />
+      </el-select>
       <el-button type="primary" :loading="submitting" @click="submitComment">
         {{ t('wiki.comment.submit') }}
       </el-button>
@@ -17,15 +38,47 @@
     <el-divider />
 
     <div class="comment-list">
-      <div v-for="comment in rootComments" :key="comment.id" class="comment-item">
+      <div
+        v-for="comment in rootComments"
+        :key="comment.id"
+        class="comment-item"
+        :class="{ resolved: isResolved(comment) }"
+      >
         <div class="comment-header">
           <span class="user-name">{{ comment.user_name || t('wiki.comment.anonymous') }}</span>
           <span class="comment-time">{{ formatTime(comment.created_at) }}</span>
+          <el-tag v-if="isResolved(comment)" type="success" size="small" effect="light">
+            {{ t('wiki.comment.resolved') }}
+          </el-tag>
         </div>
         <div class="comment-content">{{ comment.content }}</div>
+
+        <!-- 表情回应 -->
+        <div class="reactions">
+          <span
+            v-for="r in comment.reactions || []"
+            :key="r.emoji"
+            class="rchip"
+            :class="{ mine: r.mine }"
+            @click="toggleReaction(comment, r.emoji)"
+          >{{ r.emoji }} {{ r.count }}</span>
+          <el-popover trigger="click" placement="top" :width="200">
+            <template #reference>
+              <button class="radd" :title="t('wiki.comment.addReaction')">＋😊</button>
+            </template>
+            <div class="emoji-picker">
+              <span v-for="e in EMOJIS" :key="e" class="emoji" @click="toggleReaction(comment, e)">{{ e }}</span>
+            </div>
+          </el-popover>
+        </div>
+
         <div class="comment-actions">
           <el-button link type="primary" @click="replyTo(comment)">{{ t('wiki.comment.reply') }}</el-button>
-          <el-button link type="danger" @click="handleDelete(comment.id)">{{ t('common.delete') }}</el-button>
+          <el-button v-if="isAuthor(comment)" link type="primary" @click="handleEdit(comment)">{{ t('wiki.comment.edit') }}</el-button>
+          <el-button link type="success" @click="toggleResolve(comment)">
+            {{ isResolved(comment) ? t('wiki.comment.reopen') : t('wiki.comment.resolve') }}
+          </el-button>
+          <el-button v-if="isAuthor(comment) || canModerate" link type="danger" @click="handleDelete(comment.id)">{{ t('common.delete') }}</el-button>
         </div>
 
         <!-- 回复列表：后端以 replies 嵌套返回 -->
@@ -35,8 +88,28 @@
             <span class="comment-time">{{ formatTime(reply.created_at) }}</span>
           </div>
           <div class="comment-content">{{ reply.content }}</div>
+
+          <div class="reactions">
+            <span
+              v-for="r in reply.reactions || []"
+              :key="r.emoji"
+              class="rchip"
+              :class="{ mine: r.mine }"
+              @click="toggleReaction(reply, r.emoji)"
+            >{{ r.emoji }} {{ r.count }}</span>
+            <el-popover trigger="click" placement="top" :width="200">
+              <template #reference>
+                <button class="radd" :title="t('wiki.comment.addReaction')">＋😊</button>
+              </template>
+              <div class="emoji-picker">
+                <span v-for="e in EMOJIS" :key="e" class="emoji" @click="toggleReaction(reply, e)">{{ e }}</span>
+              </div>
+            </el-popover>
+          </div>
+
           <div class="comment-actions">
-            <el-button link type="danger" @click="handleDelete(reply.id)">{{ t('common.delete') }}</el-button>
+            <el-button v-if="isAuthor(reply)" link type="primary" @click="handleEdit(reply)">{{ t('wiki.comment.edit') }}</el-button>
+            <el-button v-if="isAuthor(reply) || canModerate" link type="danger" @click="handleDelete(reply.id)">{{ t('common.delete') }}</el-button>
           </div>
         </div>
 
@@ -67,21 +140,44 @@ import {
   listComments,
   createComment,
   deleteComment,
-  type Comment
+  updateComment,
+  toggleCommentReaction,
+  resolveComment,
+  type Comment,
+  type ReactionItem
 } from '@/api/modules/wiki'
+import { getUserList, type UserItem } from '@/api/modules/user'
+import { useUserStore } from '@/stores/user'
 import { useI18n } from '@/composables/useI18n'
 
 const { t, locale } = useI18n()
 
 const props = defineProps<{
   documentId: string
+  // 具备节点管理权限（可解决/删除他人评论）时由父组件置为 true
+  canModerate?: boolean
 }>()
+
+const userStore = useUserStore()
+const currentUserId = computed(() => userStore.userInfo?.id || '')
+
+// 评论状态与后端 model 常量对齐
+const STATUS_ACTIVE = 1
+const STATUS_RESOLVED = 2
+
+// 快捷表情集合（中性 Unicode，无需翻译）
+const EMOJIS = ['👍', '❤️', '🎉', '😄', '🚀', '👀']
 
 const comments = ref<Comment[]>([])
 const newComment = ref('')
 const replyContent = ref('')
 const replyingTo = ref<string | null>(null)
 const submitting = ref(false)
+
+// @提及选择器
+const mentionPicked = ref<string[]>([])
+const mentionOptions = ref<UserItem[]>([])
+const mentionLoading = ref(false)
 
 watch(
   () => props.documentId,
@@ -92,15 +188,34 @@ watch(
 )
 
 // 后端 ListComments 仅返回顶层评论，回复嵌套在顶层评论的 replies 中
-const rootComments = computed(() =>
-  comments.value.filter((c) => !c.parent_id)
-)
+const rootComments = computed(() => comments.value.filter((c) => !c.parent_id))
+
+function isAuthor(c: Comment): boolean {
+  return !!currentUserId.value && c.created_by === currentUserId.value
+}
+
+function isResolved(c: Comment): boolean {
+  return c.status === STATUS_RESOLVED
+}
 
 async function loadComments() {
   try {
     comments.value = await listComments(props.documentId)
-  } catch (error) {
+  } catch {
     ElMessage.error(t('wiki.comment.loadFailed'))
+  }
+}
+
+async function searchMentionables(keyword: string) {
+  mentionLoading.value = true
+  try {
+    const res = await getUserList({ page: 1, page_size: 50, keyword: keyword || undefined })
+    const self = currentUserId.value
+    mentionOptions.value = (res.list || []).filter((u) => u.id !== self)
+  } catch {
+    mentionOptions.value = []
+  } finally {
+    mentionLoading.value = false
   }
 }
 
@@ -114,12 +229,14 @@ async function submitComment() {
   try {
     await createComment({
       document_id: props.documentId,
-      content: newComment.value
+      content: newComment.value,
+      mention_ids: mentionPicked.value.join(',')
     })
     ElMessage.success(t('wiki.comment.success'))
     newComment.value = ''
+    mentionPicked.value = []
     await loadComments()
-  } catch (error) {
+  } catch {
     ElMessage.error(t('wiki.comment.failed'))
   } finally {
     submitting.value = false
@@ -153,7 +270,7 @@ async function submitReply(parentId: string) {
     replyContent.value = ''
     replyingTo.value = null
     await loadComments()
-  } catch (error) {
+  } catch {
     ElMessage.error(t('wiki.comment.replyFailed'))
   } finally {
     submitting.value = false
@@ -170,6 +287,50 @@ function handleDelete(id: string) {
       await loadComments()
     })
     .catch(() => {})
+}
+
+// 编辑仅作者可见：弹出输入框预填原内容，提交后回拉列表
+async function handleEdit(comment: Comment) {
+  let value = ''
+  try {
+    const r = await ElMessageBox.prompt(t('wiki.comment.editTitle'), t('wiki.comment.edit'), {
+      inputValue: comment.content,
+      inputType: 'textarea',
+      inputValidator: (v: string) => (v && v.trim() ? true : t('wiki.comment.contentRequired'))
+    })
+    value = ((r as { value: string }).value || '').trim()
+  } catch {
+    return // cancelled
+  }
+  if (!value) return
+  try {
+    await updateComment(comment.id, value)
+    ElMessage.success(t('wiki.comment.editSuccess'))
+    await loadComments()
+  } catch {
+    ElMessage.error(t('wiki.comment.editFailed'))
+  }
+}
+
+// 幂等切换表情回应：以后端返回的全量聚合覆盖本地，避免前端二次计算计数
+async function toggleReaction(comment: Comment, emoji: string) {
+  try {
+    const res = await toggleCommentReaction(comment.id, emoji)
+    comment.reactions = (res?.reactions || []) as ReactionItem[]
+  } catch {
+    /* 反应为轻量交互，失败静默回退，不阻断阅读 */
+  }
+}
+
+async function toggleResolve(comment: Comment) {
+  const next = !isResolved(comment)
+  try {
+    await resolveComment(comment.id, next)
+    comment.status = next ? STATUS_RESOLVED : STATUS_ACTIVE
+    ElMessage.success(t('wiki.comment.resolveSuccess'))
+  } catch {
+    ElMessage.error(t('wiki.comment.resolveFailed'))
+  }
 }
 
 function formatTime(time: string) {
@@ -203,6 +364,10 @@ function formatTime(time: string) {
   gap: 8px;
 }
 
+.mention-select {
+  width: 100%;
+}
+
 .comment-list {
   display: flex;
   flex-direction: column;
@@ -216,8 +381,14 @@ function formatTime(time: string) {
   border-radius: 4px;
 }
 
+.comment-item.resolved {
+  background: #f6ffed;
+  border-color: #b7eb8f;
+}
+
 .comment-header {
   display: flex;
+  align-items: center;
   gap: 12px;
   margin-bottom: 8px;
 }
@@ -236,6 +407,62 @@ function formatTime(time: string) {
   margin-bottom: 8px;
   color: #374151;
   line-height: 1.6;
+}
+
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.rchip {
+  cursor: pointer;
+  padding: 2px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 13px;
+  background: #f9fafb;
+  user-select: none;
+}
+
+.rchip.mine {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.radd {
+  cursor: pointer;
+  padding: 2px 8px;
+  border: 1px dashed #d1d5db;
+  border-radius: 12px;
+  font-size: 13px;
+  background: transparent;
+  color: #6b7280;
+}
+
+.radd:hover {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+}
+
+.emoji-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.emoji-picker .emoji {
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.emoji-picker .emoji:hover {
+  background: #f3f4f6;
 }
 
 .comment-actions {
