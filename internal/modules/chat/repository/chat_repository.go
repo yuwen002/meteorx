@@ -44,13 +44,15 @@ func (ConversationMemberPO) TableName() string { return "chat_conversation_membe
 
 // ChatMessagePO 聊天消息持久化对象，映射 chat_messages 表。
 type ChatMessagePO struct {
-	ID             string    `gorm:"primaryKey;size:26;comment:消息ID"`
-	ConversationID string    `gorm:"size:26;not null;index:idx_chat_msg_conv;comment:会话ID"`
-	TenantID       string    `gorm:"size:26;not null;index;comment:租户ID"`
-	SenderID       string    `gorm:"column:user_id;size:26;not null;comment:发送人ID"`
-	Content        string    `gorm:"type:text;comment:消息正文"`
-	Type           string    `gorm:"size:20;default:text;comment:消息类型"`
-	CreatedAt      time.Time `gorm:"autoCreateTime;index:idx_chat_msg_conv;comment:发送时间"`
+	ID             string     `gorm:"primaryKey;size:26;comment:消息ID"`
+	ConversationID string     `gorm:"size:26;not null;index:idx_chat_msg_conv;comment:会话ID"`
+	TenantID       string     `gorm:"size:26;not null;index;comment:租户ID"`
+	SenderID       string     `gorm:"column:user_id;size:26;not null;comment:发送人ID"`
+	Content        string     `gorm:"type:text;comment:消息正文（撤回后置空）"`
+	Type           string     `gorm:"size:20;default:text;comment:消息类型"`
+	Deleted        bool       `gorm:"default:false;comment:是否已撤回"`
+	DeletedAt      *time.Time `gorm:"comment:撤回时间"`
+	CreatedAt      time.Time  `gorm:"autoCreateTime;index:idx_chat_msg_conv;comment:发送时间"`
 }
 
 // TableName 返回消息表名。
@@ -88,6 +90,8 @@ func (p ChatMessagePO) toDomain() *model.ChatMessage {
 		SenderID:       p.SenderID,
 		Content:        p.Content,
 		Type:           p.Type,
+		Deleted:        p.Deleted,
+		DeletedAt:      p.DeletedAt,
 		CreatedAt:      p.CreatedAt,
 	}
 }
@@ -291,6 +295,24 @@ func (r *chatRepository) SendMessage(ctx context.Context, msg *model.ChatMessage
 		CreatedAt:      msg.CreatedAt,
 	}
 	return r.db.WithContext(ctx).Create(&p).Error
+}
+
+// GetMessage 按会话与消息 ID 查询一条消息（限未软删除行）。
+func (r *chatRepository) GetMessage(ctx context.Context, conversationID, messageID string) (*model.ChatMessage, error) {
+	var p ChatMessagePO
+	if err := r.db.WithContext(ctx).
+		Where("id = ? AND conversation_id = ?", messageID, conversationID).
+		First(&p).Error; err != nil {
+		return nil, err
+	}
+	return p.toDomain(), nil
+}
+
+// RecallMessage 软撤回消息：仅对 deleted=false 的行生效，重复撤回不命中（RowsAffected=0）。
+func (r *chatRepository) RecallMessage(ctx context.Context, conversationID, messageID string, at time.Time) error {
+	return r.db.WithContext(ctx).Model(&ChatMessagePO{}).
+		Where("id = ? AND conversation_id = ? AND deleted = ?", messageID, conversationID, false).
+		Updates(map[string]interface{}{"deleted": true, "deleted_at": at, "content": ""}).Error
 }
 
 // ListMessages 分页查询会话历史消息：按时间倒序取分页，再将页内反转为升序返回。

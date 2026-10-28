@@ -26,7 +26,18 @@ var (
 	ErrParticipantInvalid = errors.New("participant is not a member of this tenant")
 	// ErrEmptyContent 消息内容为空
 	ErrEmptyContent = errors.New("message content is empty")
+	// ErrMessageNotFound 消息不存在或不属于该会话
+	ErrMessageNotFound = errors.New("message not found")
+	// ErrNotMessageOwner 只能撤回自己发送的消息
+	ErrNotMessageOwner = errors.New("can only recall your own message")
+	// ErrRecallWindowClosed 超出可撤回时限
+	ErrRecallWindowClosed = errors.New("recall window has closed")
+	// ErrAlreadyRecalled 消息已被撤回
+	ErrAlreadyRecalled = errors.New("message already recalled")
 )
+
+// RecallWindow 发送人可撤回自身消息的时间窗口，超时后拒绝撤回。
+const RecallWindow = 5 * time.Minute
 
 // UserNameResolver 批量解析用户展示名，供会话/消息响应富化姓名。
 type UserNameResolver interface {
@@ -45,6 +56,9 @@ type ChatServiceInterface interface {
 	SendMessage(ctx context.Context, tenantID, userID, conversationID, content string) (*model.ChatMessage, error)
 	ListMessages(ctx context.Context, tenantID, userID, conversationID string, page, pageSize int) ([]*model.ChatMessage, int64, error)
 	MarkRead(ctx context.Context, tenantID, userID, conversationID string) error
+	RecallMessage(ctx context.Context, tenantID, userID, conversationID, messageID string) error
+	NotifyTyping(ctx context.Context, tenantID, userID, conversationID string, typing bool) error
+	PresenceUsers(ctx context.Context) []string
 }
 
 // ChatService 聊天模块业务服务。
@@ -131,19 +145,25 @@ func (s *ChatService) SendMessage(ctx context.Context, tenantID, userID, convers
 	s.enrichMessageNames(ctx, []*model.ChatMessage{msg})
 
 	// 实时投递给会话其他成员（排除发送人本人）；hub 为 nil 时跳过（离线用户下次拉历史即可）
-	if s.pusher != nil {
-		members, err := s.repo.ListMembers(ctx, conversationID)
-		if err == nil {
-			resp := ToMessageResp(msg)
-			for _, m := range members {
-				if m.UserID == userID {
-					continue
-				}
-				s.pusher.SendToUser(m.UserID, ws.NewMessage(ws.MsgTypeChat, resp))
-			}
-		}
-	}
+	s.pushToOthers(ctx, conversationID, userID, ws.NewMessage(ws.MsgTypeChat, ToMessageResp(msg)))
 	return msg, nil
+}
+
+// pushToOthers 向会话内除 excludeUserID 外的全部成员投递一条 WS 消息；hub 为 nil 时直接返回。
+func (s *ChatService) pushToOthers(ctx context.Context, conversationID, excludeUserID string, msg *ws.Message) {
+	if s.pusher == nil {
+		return
+	}
+	members, err := s.repo.ListMembers(ctx, conversationID)
+	if err != nil {
+		return
+	}
+	for _, m := range members {
+		if m.UserID == excludeUserID {
+			continue
+		}
+		s.pusher.SendToUser(m.UserID, msg)
+	}
 }
 
 // ListMessages 分页查询会话历史消息，并校验调用者为会话成员。
@@ -165,6 +185,55 @@ func (s *ChatService) MarkRead(ctx context.Context, tenantID, userID, conversati
 		return err
 	}
 	return s.repo.MarkRead(ctx, conversationID, userID, time.Now())
+}
+
+// RecallMessage 撤回自己发送的消息：软撤回（置标记、清空正文）后向其他成员投递撤回事件。
+func (s *ChatService) RecallMessage(ctx context.Context, tenantID, userID, conversationID, messageID string) error {
+	if err := s.ensureMember(ctx, conversationID, tenantID, userID); err != nil {
+		return err
+	}
+	msg, err := s.repo.GetMessage(ctx, conversationID, messageID)
+	if err != nil {
+		return ErrMessageNotFound
+	}
+	if msg.Deleted {
+		return ErrAlreadyRecalled
+	}
+	if msg.SenderID != userID {
+		return ErrNotMessageOwner
+	}
+	if time.Since(msg.CreatedAt) > RecallWindow {
+		return ErrRecallWindowClosed
+	}
+	if err := s.repo.RecallMessage(ctx, conversationID, messageID, time.Now()); err != nil {
+		return err
+	}
+	s.pushToOthers(ctx, conversationID, userID, ws.NewMessage(ws.MsgTypeChatRecall, dto.RecallPush{
+		ConversationID: conversationID,
+		MessageID:      messageID,
+	}))
+	return nil
+}
+
+// NotifyTyping 输入中提示：无状态转发给会话其他成员，不落库、不存储。
+func (s *ChatService) NotifyTyping(ctx context.Context, tenantID, userID, conversationID string, typing bool) error {
+	if err := s.ensureMember(ctx, conversationID, tenantID, userID); err != nil {
+		return err
+	}
+	s.pushToOthers(ctx, conversationID, userID, ws.NewMessage(ws.MsgTypeChatTyping, dto.TypingPush{
+		ConversationID: conversationID,
+		UserID:         userID,
+		Typing:         typing,
+	}))
+	return nil
+}
+
+// PresenceUsers 返回当前持有 WS 连接的用户 ID；hub 未启用时返回空列表。
+func (s *ChatService) PresenceUsers(ctx context.Context) []string {
+	if s.pusher == nil {
+		return []string{}
+	}
+	return s.pusher.OnlineUserIDs()
 }
 
 // ensureMember 校验用户为指定会话（同租户）成员，否则返回 ErrConversationNotFound。
@@ -236,13 +305,19 @@ func ToConversationResp(c *model.Conversation) *dto.ConversationResp {
 
 // ToMessageResp 将领域消息转换为响应对象。
 func ToMessageResp(m *model.ChatMessage) *dto.ChatMessageResp {
-	return &dto.ChatMessageResp{
+	resp := &dto.ChatMessageResp{
 		ID:             m.ID,
 		ConversationID: m.ConversationID,
 		SenderID:       m.SenderID,
 		SenderName:     m.SenderName,
 		Content:        m.Content,
 		Type:           m.Type,
+		Recalled:       m.Deleted,
 		CreatedAt:      m.CreatedAt.Format("2006-01-02 15:04:05"),
 	}
+	// 已撤回的消息不外泄正文（正文已在软撤回时清空，此处再防一层存量脏数据）
+	if resp.Recalled {
+		resp.Content = ""
+	}
+	return resp
 }

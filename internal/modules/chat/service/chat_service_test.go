@@ -7,6 +7,8 @@ import (
 
 	"meteorx/internal/modules/chat/model"
 	"meteorx/internal/modules/chat/repository"
+
+	"gorm.io/gorm"
 )
 
 // ---- 假仓储：仅记录调用，满足接口，便于聚焦服务层逻辑 ----
@@ -17,10 +19,12 @@ type fakeRepo struct {
 	sent      []*model.ChatMessage
 	markRead  []string
 	ensureKey string // EnsureDirectConversation 生成/复用会话记录的 key
+	msgs      map[string]*model.ChatMessage // messageID -> 消息，供撤回用例定位
+	recalled  []string                      // 已调用 RecallMessage 的 "convID:msgID"
 }
 
 func newFakeRepo() *fakeRepo {
-	return &fakeRepo{convs: map[string]*model.Conversation{}}
+	return &fakeRepo{convs: map[string]*model.Conversation{}, msgs: map[string]*model.ChatMessage{}}
 }
 
 func (f *fakeRepo) EnsureDirectConversation(ctx context.Context, tenantID, userA, userB string) (*model.Conversation, error) {
@@ -54,6 +58,23 @@ func (f *fakeRepo) SendMessage(ctx context.Context, msg *model.ChatMessage) erro
 
 func (f *fakeRepo) ListMessages(ctx context.Context, conversationID string, page, pageSize int) ([]*model.ChatMessage, int64, error) {
 	return nil, 0, nil
+}
+
+func (f *fakeRepo) GetMessage(ctx context.Context, conversationID, messageID string) (*model.ChatMessage, error) {
+	m, ok := f.msgs[messageID]
+	if !ok || m.ConversationID != conversationID {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return m, nil
+}
+
+func (f *fakeRepo) RecallMessage(ctx context.Context, conversationID, messageID string, at time.Time) error {
+	f.recalled = append(f.recalled, conversationID+":"+messageID)
+	if m, ok := f.msgs[messageID]; ok {
+		m.Deleted = true
+		m.Content = ""
+	}
+	return nil
 }
 
 func (f *fakeRepo) MarkRead(ctx context.Context, conversationID, userID string, at time.Time) error {
@@ -175,5 +196,110 @@ func TestMarkRead_NonMember(t *testing.T) {
 	}
 	if len(repo.markRead) != 1 {
 		t.Fatalf("应调用仓储标记 1 次, got %d", len(repo.markRead))
+	}
+}
+
+// ---- 消息撤回 ----
+
+// putMsg 向假仓储放入一条属于 c1、由 sender 在 offset 前发送的消息。
+func putMsg(repo *fakeRepo, id, sender string, offset time.Duration) {
+	repo.msgs[id] = &model.ChatMessage{
+		ID: id, ConversationID: "c1", TenantID: "t1", SenderID: sender,
+		Content: "hi", Type: model.MessageTypeText, CreatedAt: time.Now().Add(-offset),
+	}
+}
+
+func TestRecallMessage_NonMember(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = false
+	putMsg(repo, "m1", "u1", time.Minute)
+	if err := svc.RecallMessage(context.Background(), "t1", "u1", "c1", "m1"); err != ErrConversationNotFound {
+		t.Fatalf("非成员期望 ErrConversationNotFound, got %v", err)
+	}
+}
+
+func TestRecallMessage_NotFound(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = true
+	if err := svc.RecallMessage(context.Background(), "t1", "u1", "c1", "missing"); err != ErrMessageNotFound {
+		t.Fatalf("期望 ErrMessageNotFound, got %v", err)
+	}
+}
+
+func TestRecallMessage_OtherUsersMessage(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = true
+	putMsg(repo, "m1", "u2", time.Minute) // 对方发的消息
+	if err := svc.RecallMessage(context.Background(), "t1", "u1", "c1", "m1"); err != ErrNotMessageOwner {
+		t.Fatalf("期望 ErrNotMessageOwner, got %v", err)
+	}
+	if len(repo.recalled) != 0 {
+		t.Fatalf("撤回他人消息不应命中仓储, got %v", repo.recalled)
+	}
+}
+
+func TestRecallMessage_WindowClosed(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = true
+	putMsg(repo, "m1", "u1", RecallWindow+time.Minute) // 6 分钟前
+	if err := svc.RecallMessage(context.Background(), "t1", "u1", "c1", "m1"); err != ErrRecallWindowClosed {
+		t.Fatalf("期望 ErrRecallWindowClosed, got %v", err)
+	}
+}
+
+func TestRecallMessage_AlreadyRecalled(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = true
+	putMsg(repo, "m1", "u1", time.Minute)
+	repo.msgs["m1"].Deleted = true
+	if err := svc.RecallMessage(context.Background(), "t1", "u1", "c1", "m1"); err != ErrAlreadyRecalled {
+		t.Fatalf("期望 ErrAlreadyRecalled, got %v", err)
+	}
+}
+
+func TestRecallMessage_HappyPath(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = true
+	putMsg(repo, "m1", "u1", time.Minute)
+	if err := svc.RecallMessage(context.Background(), "t1", "u1", "c1", "m1"); err != nil {
+		t.Fatalf("期望成功, got %v", err)
+	}
+	if len(repo.recalled) != 1 || repo.recalled[0] != "c1:m1" {
+		t.Fatalf("应撤回 c1:m1 一次, got %v", repo.recalled)
+	}
+}
+
+func TestToMessageResp_RecalledHidesContent(t *testing.T) {
+	resp := ToMessageResp(&model.ChatMessage{
+		ID: "m1", ConversationID: "c1", SenderID: "u1", Content: "secret",
+		Type: model.MessageTypeText, Deleted: true, CreatedAt: time.Now(),
+	})
+	if !resp.Recalled {
+		t.Fatal("期望 recalled=true")
+	}
+	if resp.Content != "" {
+		t.Fatalf("已撤回消息不应外泄正文, got %q", resp.Content)
+	}
+}
+
+// ---- 输入中 / 在线状态（hub 为 nil 不得 panic） ----
+
+func TestNotifyTyping_NilHubNoPanic(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = true
+	if err := svc.NotifyTyping(context.Background(), "t1", "u1", "c1", true); err != nil {
+		t.Fatalf("成员上报输入状态应成功, got %v", err)
+	}
+	repo.memberOK = false
+	if err := svc.NotifyTyping(context.Background(), "t1", "u1", "c1", true); err != ErrConversationNotFound {
+		t.Fatalf("非成员期望 ErrConversationNotFound, got %v", err)
+	}
+}
+
+func TestPresenceUsers_NilHubEmpty(t *testing.T) {
+	svc, _, _ := newService()
+	got := svc.PresenceUsers(context.Background())
+	if len(got) != 0 {
+		t.Fatalf("hub 未启用时应返回空列表, got %v", got)
 	}
 }

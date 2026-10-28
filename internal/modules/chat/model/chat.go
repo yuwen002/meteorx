@@ -1,6 +1,7 @@
 // Package model 定义协作即时消息（Chat）模块的领域模型。
-// 首版仅支持同租户内的 1:1 私聊（direct 会话），会话由参与者唯一确定，
-// 消息按会话线性存储，成员各自维护已读水位以计算未读数。
+// 当前支持同租户内的 1:1 私聊（direct 会话），消息按会话线性存储，
+// 成员各自维护已读水位以计算未读数；发送人可在时限内软撤回自己的消息。
+// Conversation.Type 与 Message.Type 均为扩展位，后续群聊/富媒体消息只需新增取值。
 package model
 
 import "time"
@@ -50,13 +51,15 @@ type ConversationMember struct {
 
 // ChatMessage 聊天消息领域模型。
 type ChatMessage struct {
-	ID             string    // 消息唯一标识（ULID）
-	ConversationID string    // 所属会话 ID
-	TenantID       string    // 所属租户 ID（多租户隔离）
-	SenderID       string    // 发送人用户 ID
-	Content        string    // 消息正文
-	Type           string    // 消息类型：text
-	CreatedAt      time.Time // 发送时间
+	ID             string     // 消息唯一标识（ULID）
+	ConversationID string     // 所属会话 ID
+	TenantID       string     // 所属租户 ID（多租户隔离）
+	SenderID       string     // 发送人用户 ID
+	Content        string     // 消息正文（撤回后置空）
+	Type           string     // 消息类型：text
+	Deleted        bool       // 是否已撤回（软撤回标记，保留行以维持审计可追溯）
+	DeletedAt      *time.Time // 撤回时间
+	CreatedAt      time.Time  // 发送时间
 
 	SenderName string // 发送人展示名（富化字段，不持久化）
 }

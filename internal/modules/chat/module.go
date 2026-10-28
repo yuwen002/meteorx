@@ -31,6 +31,9 @@ func RegisterRoutes(r chi.Router, h *handler.ChatHandler) {
 		r.Get("/conversations", h.ListConversations)
 		r.Get("/conversations/{id}/messages", h.ListMessages)
 		r.Post("/conversations/{id}/messages", h.SendMessage)
+		r.Delete("/conversations/{id}/messages/{msgId}", h.RecallMessage)
 		r.Post("/conversations/{id}/read", h.MarkRead)
+		r.Post("/conversations/{id}/typing", h.Typing)
+		r.Get("/presence", h.Presence)
 	})
 }

@@ -171,6 +171,27 @@ func TestMessageTypes(t *testing.T) {
 	assert.Equal(t, MessageType("ping"), MsgTypePing)
 	assert.Equal(t, MessageType("pong"), MsgTypePong)
 	assert.Equal(t, MessageType("unread_count"), MsgTypeUnreadCount)
+	assert.Equal(t, MessageType("chat"), MsgTypeChat)
+	assert.Equal(t, MessageType("chat_typing"), MsgTypeChatTyping)
+	assert.Equal(t, MessageType("chat_recall"), MsgTypeChatRecall)
+}
+
+// TestHubOnlineUserIDs 在线集合只包含持有连接的用户，空 Hub 返回空切片而非 nil 面板。
+func TestHubOnlineUserIDs(t *testing.T) {
+	hub := NewHub()
+	assert.Empty(t, hub.OnlineUserIDs())
+
+	c1 := &Client{UserID: "u1"}
+	c2 := &Client{UserID: "u2"}
+	c3 := &Client{UserID: "u2"}
+	hub.mu.Lock()
+	hub.clients["u1"] = map[*Client]bool{c1: true}
+	hub.clients["u2"] = map[*Client]bool{c2: true, c3: true} // 多端连接只计一次
+	hub.clients["u3"] = map[*Client]bool{}                   // 无连接不应计入
+	hub.mu.Unlock()
+
+	got := hub.OnlineUserIDs()
+	assert.ElementsMatch(t, []string{"u1", "u2"}, got)
 }
 
 func TestMessageStruct(t *testing.T) {

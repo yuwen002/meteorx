@@ -18,6 +18,10 @@ const (
 	MsgTypePong        MessageType = "pong"          // 心跳响应
 	MsgTypeUnreadCount MessageType = "unread_count"  // 未读数量更新
 	MsgTypeChat        MessageType = "chat"          // 协作即时消息（1:1 私聊新消息实时投递）
+	// MsgTypeChatTyping 输入中提示：瞬态事件，不落库、不补偿，离线用户无需感知
+	MsgTypeChatTyping MessageType = "chat_typing"
+	// MsgTypeChatRecall 消息撤回事件：接收方据此把已在屏上的消息原位替换为已撤回态
+	MsgTypeChatRecall MessageType = "chat_recall"
 )
 
 // Message WebSocket 消息结构
@@ -171,6 +175,22 @@ func (h *Hub) CountByUser(userID string) int {
 	defer h.mu.RUnlock()
 
 	return len(h.clients[userID])
+}
+
+// OnlineUserIDs 返回当前持有至少一条活跃连接的用户 ID。
+// 用于聊天在线状态：调用方一次拉取全量在线集合，前端据此本地判定对方/群成员是否在线，
+// 避免逐用户探测产生的 N 次请求。顺序不保证稳定，调用方按需自行排序。
+func (h *Hub) OnlineUserIDs() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	ids := make([]string, 0, len(h.clients))
+	for userID, clients := range h.clients {
+		if len(clients) > 0 {
+			ids = append(ids, userID)
+		}
+	}
+	return ids
 }
 
 // cleanup 清理已断开的连接

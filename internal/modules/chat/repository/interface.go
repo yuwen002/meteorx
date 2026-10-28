@@ -23,6 +23,10 @@ type ChatRepository interface {
 	ListConversations(ctx context.Context, tenantID, userID string) ([]*model.Conversation, error)
 	// SendMessage 落库一条消息。
 	SendMessage(ctx context.Context, msg *model.ChatMessage) error
+	// GetMessage 按会话与消息 ID 查询一条消息；不存在或已软删除时返回 gorm.ErrRecordNotFound。
+	GetMessage(ctx context.Context, conversationID, messageID string) (*model.ChatMessage, error)
+	// RecallMessage 软撤回消息：仅对未撤回的消息置 deleted 标记并清空正文。
+	RecallMessage(ctx context.Context, conversationID, messageID string, at time.Time) error
 	// ListMessages 分页查询会话历史消息（按时间升序返回，便于前端顺序渲染）。
 	ListMessages(ctx context.Context, conversationID string, page, pageSize int) ([]*model.ChatMessage, int64, error)
 	// MarkRead 将会话中某成员的已读水位更新为 at。

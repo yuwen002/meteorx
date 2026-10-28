@@ -127,6 +127,51 @@ func (h *ChatHandler) MarkRead(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, map[string]bool{"ok": true})
 }
 
+// RecallMessage 撤回自己发送的消息。DELETE /api/v1/chat/conversations/{id}/messages/{msgId}
+func (h *ChatHandler) RecallMessage(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := currentIdentity(r)
+	id := chi.URLParam(r, "id")
+	msgID := chi.URLParam(r, "msgId")
+	if tenantID == "" || userID == "" || id == "" || msgID == "" {
+		response.BadRequest(w, "参数不完整")
+		return
+	}
+	if err := h.svc.RecallMessage(r.Context(), tenantID, userID, id, msgID); err != nil {
+		h.writeErr(w, err, "撤回消息失败")
+		return
+	}
+	response.Success(w, map[string]bool{"ok": true})
+}
+
+// Typing 上报输入中状态（无状态转发）。POST /api/v1/chat/conversations/{id}/typing
+func (h *ChatHandler) Typing(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := currentIdentity(r)
+	id := chi.URLParam(r, "id")
+	if tenantID == "" || userID == "" || id == "" {
+		response.BadRequest(w, "参数不完整")
+		return
+	}
+	var req dto.TypingReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+	if err := h.svc.NotifyTyping(r.Context(), tenantID, userID, id, req.Typing); err != nil {
+		h.writeErr(w, err, "输入状态上报失败")
+		return
+	}
+	response.Success(w, map[string]bool{"ok": true})
+}
+
+// Presence 返回当前在线用户 ID 集合。GET /api/v1/chat/presence
+func (h *ChatHandler) Presence(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := currentIdentity(r)
+	if tenantID == "" || userID == "" {
+		response.Unauthorized(w, "未获取到用户信息")
+		return
+	}
+	response.Success(w, dto.PresenceResp{OnlineUserIDs: h.svc.PresenceUsers(r.Context())})
+}
+
 // writeErr 将业务错误映射为合适的 HTTP 响应。
 func (h *ChatHandler) writeErr(w http.ResponseWriter, err error, fallback string) {
 	switch {
@@ -138,6 +183,14 @@ func (h *ChatHandler) writeErr(w http.ResponseWriter, err error, fallback string
 		response.BadRequest(w, "对方用户不存在或不属于当前租户")
 	case errors.Is(err, service.ErrEmptyContent):
 		response.BadRequest(w, "消息内容不能为空")
+	case errors.Is(err, service.ErrMessageNotFound):
+		response.NotFound(w, "消息不存在")
+	case errors.Is(err, service.ErrNotMessageOwner):
+		response.BadRequest(w, "只能撤回自己发送的消息")
+	case errors.Is(err, service.ErrRecallWindowClosed):
+		response.BadRequest(w, "已超过可撤回时限")
+	case errors.Is(err, service.ErrAlreadyRecalled):
+		response.BadRequest(w, "消息已被撤回")
 	default:
 		response.Fail(w, http.StatusInternalServerError, fallback)
 	}
