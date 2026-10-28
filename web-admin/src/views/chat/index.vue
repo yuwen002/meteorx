@@ -226,6 +226,7 @@ import { useI18n } from '@/composables/useI18n'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { getUserList, type UserItem } from '@/api/modules/user'
+import { toPageResult } from '@/types/pagination'
 import type { ChatMessageItem, MemberItem } from '@/api/modules/chat'
 
 const { t } = useI18n()
@@ -422,7 +423,8 @@ async function searchMembers(keyword: string) {
   try {
     const res = await getUserList({ page: 1, page_size: 50, keyword: keyword || undefined })
     const self = myId()
-    memberOptions.value = (res.list || []).filter((u) => u.id !== self)
+    // getUserList 返回后端原生分页包裹 { data, pagination }，须经 toPageResult 归一化出 list
+    memberOptions.value = toPageResult<UserItem>(res).list.filter((u) => u.id !== self)
   } catch {
     memberOptions.value = []
   } finally {

@@ -96,10 +96,12 @@ func RegisterRoutes(r chi.Router, h *handler.WikiHandler, extH *handler.WikiHand
 			r.Delete("/{id}/tags/{tagId}", extH.RemoveDocumentTag) // 移除文档标签
 			r.Get("/{id}/tags", extH.ListDocumentTags)             // 获取文档标签列表
 
-			r.Post("/{id}/comments", extH.CreateComment)   // 创建评论
-			r.Get("/{id}/comments", extH.ListComments)     // 获取评论列表
-			r.Put("/comments/{id}", extH.UpdateComment)    // 更新评论
-			r.Delete("/comments/{id}", extH.DeleteComment) // 删除评论
+			r.Post("/{id}/comments", extH.CreateComment)                   // 创建评论
+			r.Get("/{id}/comments", extH.ListComments)                     // 获取评论列表
+			r.Put("/comments/{id}", extH.UpdateComment)                    // 更新评论
+			r.Delete("/comments/{id}", extH.DeleteComment)                 // 删除评论
+			r.Post("/comments/{id}/reactions", extH.ToggleCommentReaction) // 切换评论表情回应
+			r.Post("/comments/{id}/resolve", extH.ResolveComment)          // 解决/重开根评论
 
 			r.Post("/{id}/share", extH.CreateShareLink)    // 创建分享链接
 			r.Get("/{id}/shares", extH.ListShareLinks)     // 获取分享链接列表

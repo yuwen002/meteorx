@@ -147,6 +147,7 @@ import {
   type ReactionItem
 } from '@/api/modules/wiki'
 import { getUserList, type UserItem } from '@/api/modules/user'
+import { toPageResult } from '@/types/pagination'
 import { useUserStore } from '@/stores/user'
 import { useI18n } from '@/composables/useI18n'
 
@@ -211,7 +212,8 @@ async function searchMentionables(keyword: string) {
   try {
     const res = await getUserList({ page: 1, page_size: 50, keyword: keyword || undefined })
     const self = currentUserId.value
-    mentionOptions.value = (res.list || []).filter((u) => u.id !== self)
+    // getUserList 返回后端原生分页包裹 { data, pagination }，须经 toPageResult 归一化出 list
+    mentionOptions.value = toPageResult<UserItem>(res).list.filter((u) => u.id !== self)
   } catch {
     mentionOptions.value = []
   } finally {
