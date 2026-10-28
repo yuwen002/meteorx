@@ -6,11 +6,11 @@
         <div class="card-header">
           <div class="header-left">
             <el-button link @click="goBack">
-              <el-icon><ArrowLeft /></el-icon>返回
+              <el-icon><ArrowLeft /></el-icon>{{ t('tenantPage.back') }}
             </el-button>
-            <span class="title">租户回收站</span>
+            <span class="title">{{ t('tenantPage.recycleTitle') }}</span>
           </div>
-          <el-tag type="info">已删除的租户可以恢复</el-tag>
+          <el-tag type="info">{{ t('tenantPage.recycleHint') }}</el-tag>
         </div>
       </template>
 
@@ -18,27 +18,27 @@
       <div class="search-bar">
         <el-input
           v-model="query.name"
-          placeholder="搜索租户名称"
+          :placeholder="t('tenantPage.searchPlaceholder')"
           clearable
           style="width: 220px"
           @keyup.enter="loadList"
         />
         <el-button type="primary" @click="loadList">
-          <el-icon><Search /></el-icon>查询
+          <el-icon><Search /></el-icon>{{ t('tenantPage.query') }}
         </el-button>
-        <el-button @click="resetSearch">重置</el-button>
+        <el-button @click="resetSearch">{{ t('common.reset') }}</el-button>
       </div>
 
       <!-- 批量操作 -->
       <div v-if="selectedIds.length > 0" class="batch-bar">
         <el-alert
-          :title="`已选择 ${selectedIds.length} 项`"
+          :title="t('tenantPage.selectedCount', selectedIds.length)"
           type="info"
           :closable="false"
           show-icon
         >
           <template #default>
-            <el-button link type="success" @click="handleBatchRestore">批量恢复</el-button>
+            <el-button link type="success" @click="handleBatchRestore">{{ t('tenantPage.batchRestore') }}</el-button>
           </template>
         </el-alert>
       </div>
@@ -51,7 +51,7 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="租户ID" min-width="260" show-overflow-tooltip>
+        <el-table-column prop="id" :label="t('tenantPage.colTenantId')" min-width="260" show-overflow-tooltip>
           <template #default="{ row }">
             <div style="display: flex; align-items: center; gap: 6px;">
               <span style="font-family: monospace; color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ row.id }}</span>
@@ -60,28 +60,28 @@
                 type="primary"
                 size="small"
                 :icon="CopyDocument"
-                title="复制"
+                :title="t('tenantPage.copy')"
                 @click="copyId(row.id)"
               />
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="租户名称" prop="name" min-width="150" />
-        <el-table-column label="域名" prop="domain" min-width="120">
+        <el-table-column :label="t('tenantPage.colName')" prop="name" min-width="150" />
+        <el-table-column :label="t('tenantPage.colDomain')" prop="domain" min-width="120">
           <template #default="{ row }">
             <el-tag size="small" type="info">{{ row.domain }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="联系邮箱" prop="contact_email" min-width="180" />
-        <el-table-column label="删除时间" prop="deleted_at" min-width="160">
+        <el-table-column :label="t('tenantPage.colContactEmail')" prop="contact_email" min-width="180" />
+        <el-table-column :label="t('tenantPage.colDeletedAt')" prop="deleted_at" min-width="160">
           <template #default="{ row }">
             {{ formatDate(row.deleted_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column :label="t('tenantPage.colAction')" width="120" fixed="right">
           <template #default="{ row }">
             <el-button link type="success" @click="handleRestore(row)">
-              <el-icon><RefreshLeft /></el-icon>恢复
+              <el-icon><RefreshLeft /></el-icon>{{ t('tenantPage.restore') }}
             </el-button>
           </template>
         </el-table-column>
@@ -116,8 +116,10 @@ import {
 } from '@/api/modules/tenant'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
+import { useI18n } from '@/composables/useI18n'
 
 const router = useRouter()
+const { t } = useI18n()
 
 const {
   list,
@@ -146,9 +148,9 @@ function goBack() {
 async function copyId(text: string) {
   try {
     await navigator.clipboard.writeText(text)
-    ElMessage.success('已复制到剪贴板')
+    ElMessage.success(t('tenantPage.copied'))
   } catch {
-    ElMessage.error('复制失败')
+    ElMessage.error(t('tenantPage.copyFailed'))
   }
 }
 
@@ -168,14 +170,14 @@ function handleSelectionChange(selection: TenantItem[]) {
 
 // 恢复单个
 function handleRestore(row: TenantItem) {
-  ElMessageBox.confirm(`确定要恢复租户 "${row.name}" 吗？`, '确认恢复', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
+  ElMessageBox.confirm(t('tenantPage.restoreConfirm', row.name), t('tenantPage.restoreTitle'), {
+    confirmButtonText: t('common.confirm'),
+    cancelButtonText: t('common.cancel'),
     type: 'success'
   })
     .then(async () => {
       await restoreTenant(row.id)
-      ElMessage.success('恢复成功')
+      ElMessage.success(t('tenantPage.restoreSuccess'))
       loadList()
     })
     .catch(() => {})
@@ -184,15 +186,15 @@ function handleRestore(row: TenantItem) {
 // 批量恢复
 function handleBatchRestore() {
   if (selectedIds.value.length === 0) {
-    ElMessage.warning('请选择要恢复的租户')
+    ElMessage.warning(t('tenantPage.selectRestoreFirst'))
     return
   }
   ElMessageBox.confirm(
-    `确定要恢复选中的 ${selectedIds.value.length} 个租户吗？`,
-    '批量恢复',
+    t('tenantPage.batchRestoreConfirm', selectedIds.value.length),
+    t('tenantPage.batchRestore'),
     {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
       type: 'success'
     }
   )
@@ -200,7 +202,7 @@ function handleBatchRestore() {
       for (const id of selectedIds.value) {
         await restoreTenant(id)
       }
-      ElMessage.success('批量恢复成功')
+      ElMessage.success(t('tenantPage.batchRestoreSuccess'))
       selectedIds.value = []
       loadList()
     })

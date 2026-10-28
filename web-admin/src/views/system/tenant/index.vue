@@ -5,34 +5,34 @@
       <div class="search-bar">
         <el-input
           v-model="query.name"
-          placeholder="搜索租户名称"
+          :placeholder="t('tenantPage.searchPlaceholder')"
           clearable
           style="width: 220px"
           @keyup.enter="loadList"
         />
-        <el-select v-model="query.status" placeholder="状态" clearable style="width: 120px">
-          <el-option label="启用" :value="1" />
-          <el-option label="禁用" :value="0" />
+        <el-select v-model="query.status" :placeholder="t('tenantPage.filterStatus')" clearable style="width: 120px">
+          <el-option :label="t('common.status.enabled')" :value="1" />
+          <el-option :label="t('common.status.disabled')" :value="0" />
         </el-select>
         <el-button type="primary" @click="loadList">
-          <el-icon><Search /></el-icon>查询
+          <el-icon><Search /></el-icon>{{ t('tenantPage.query') }}
         </el-button>
-        <el-button @click="resetSearch">重置</el-button>
+        <el-button @click="resetSearch">{{ t('common.reset') }}</el-button>
         <div class="flex-1"></div>
         <el-button type="info" @click="openRecycleBin">
-          <el-icon><Delete /></el-icon>回收站
+          <el-icon><Delete /></el-icon>{{ t('tenantPage.recycleBin') }}
         </el-button>
         <el-button type="success" @click="openCreateDialog">
-          <el-icon><Plus /></el-icon>新增租户
+          <el-icon><Plus /></el-icon>{{ t('tenantPage.createTenant') }}
         </el-button>
       </div>
 
       <!-- 批量操作 -->
       <div v-if="selectedIds.length > 0" class="batch-bar">
-        <el-button type="danger" @click="handleBatchDelete">批量删除</el-button>
-        <el-button type="warning" @click="handleBatchDisable">批量暂停</el-button>
-        <el-button type="success" @click="handleBatchEnable">批量启用</el-button>
-        <span style="margin-left: 8px; color: #666">已选择 {{ selectedIds.length }} 项</span>
+        <el-button type="danger" @click="handleBatchDelete">{{ t('tenantPage.batchDelete') }}</el-button>
+        <el-button type="warning" @click="handleBatchDisable">{{ t('tenantPage.batchPause') }}</el-button>
+        <el-button type="success" @click="handleBatchEnable">{{ t('tenantPage.batchEnable') }}</el-button>
+        <span style="margin-left: 8px; color: #666">{{ t('tenantPage.selectedCount', selectedIds.length) }}</span>
       </div>
 
       <!-- 列表 -->
@@ -45,7 +45,7 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="租户ID" min-width="260" show-overflow-tooltip>
+        <el-table-column prop="id" :label="t('tenantPage.colTenantId')" min-width="260" show-overflow-tooltip>
           <template #default="{ row }">
             <div style="display: flex; align-items: center; gap: 6px;">
               <span style="font-family: monospace; color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ row.id }}</span>
@@ -54,60 +54,60 @@
                 type="primary"
                 size="small"
                 :icon="CopyDocument"
-                title="复制"
+                :title="t('tenantPage.copy')"
                 @click="copyId(row.id)"
               />
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="name" label="租户名称" min-width="150" />
-        <el-table-column prop="domain" label="域名" min-width="120">
+        <el-table-column prop="name" :label="t('tenantPage.colName')" min-width="150" />
+        <el-table-column prop="domain" :label="t('tenantPage.colDomain')" min-width="120">
           <template #default="{ row }">
             <el-tag size="small" type="info">{{ row.domain }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="contact_email" label="联系邮箱" min-width="180" />
-        <el-table-column prop="contact_phone" label="联系电话" min-width="140">
+        <el-table-column prop="contact_email" :label="t('tenantPage.colContactEmail')" min-width="180" />
+        <el-table-column prop="contact_phone" :label="t('tenantPage.colContactPhone')" min-width="140">
           <template #default="{ row }">
             <span v-if="row.contact_phone">{{ row.contact_phone }}</span>
             <span v-else style="color: #9ca3af">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="region" label="地区" width="100" />
-        <el-table-column label="用户数" width="90">
+        <el-table-column prop="region" :label="t('tenantPage.colRegion')" width="100" />
+        <el-table-column :label="t('tenantPage.colUserCount')" width="90">
           <template #default="{ row }">
             <span>{{ row.user_count ?? 0 }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100">
+        <el-table-column :label="t('tenantPage.colStatus')" width="100">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'warning'">
-              {{ row.status === 1 ? '启用' : '已暂停' }}
+              {{ row.status === 1 ? t('common.status.enabled') : t('tenantPage.paused') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="套餐" width="140">
+        <el-table-column :label="t('tenantPage.colPlan')" width="140">
           <template #default="{ row }">
             <el-tag v-if="row.plan_name" :type="row.plan_expired ? 'danger' : 'primary'" effect="plain" size="small">
-              {{ row.plan_name }}<template v-if="row.plan_expired">(已过期)</template>
+              {{ row.plan_name }}<template v-if="row.plan_expired">{{ t('tenantPage.expiredTag') }}</template>
             </el-tag>
-            <el-tag v-else type="info" effect="plain" size="small">未开通</el-tag>
+            <el-tag v-else type="info" effect="plain" size="small">{{ t('tenantPage.notActivated') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180" />
-        <el-table-column label="操作" width="400" fixed="right">
+        <el-table-column prop="created_at" :label="t('tenantPage.colCreatedAt')" width="180" />
+        <el-table-column :label="t('tenantPage.colAction')" width="400" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
-            <el-button link type="info" @click="openViewUsers(row)">查看用户</el-button>
-            <el-button link type="warning" @click="openPlanDialog(row)">套餐</el-button>
+            <el-button link type="primary" @click="openEditDialog(row)">{{ t('common.edit') }}</el-button>
+            <el-button link type="info" @click="openViewUsers(row)">{{ t('tenantPage.viewUsers') }}</el-button>
+            <el-button link type="warning" @click="openPlanDialog(row)">{{ t('tenantPage.planBtn') }}</el-button>
             <el-button
               link
               :type="row.status === 1 ? 'warning' : 'success'"
               @click="handleToggleStatus(row)"
             >
-              {{ row.status === 1 ? '暂停' : '恢复' }}
+              {{ row.status === 1 ? t('tenantPage.pause') : t('tenantPage.resume') }}
             </el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button link type="danger" @click="handleDelete(row)">{{ t('common.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -130,7 +130,7 @@
     <!-- 查看用户弹窗 -->
     <el-dialog
       v-model="usersDialogVisible"
-      :title="`租户用户 - ${currentTenant?.name || ''}`"
+      :title="t('tenantPage.tenantUsersTitle', currentTenant?.name || '')"
       width="1000px"
       :close-on-click-modal="false"
     >
@@ -138,30 +138,30 @@
       <div class="search-bar" style="margin-bottom: 16px;">
         <el-input
           v-model="userSearch.keyword"
-          placeholder="搜索用户名/昵称/邮箱"
+          :placeholder="t('tenantPage.userSearchPlaceholder')"
           clearable
           style="width: 220px"
           @keyup.enter="loadTenantUsers"
         />
         <el-button type="primary" @click="loadTenantUsers">
-          <el-icon><Search /></el-icon>查询
+          <el-icon><Search /></el-icon>{{ t('tenantPage.query') }}
         </el-button>
-        <el-button @click="resetUserSearch">重置</el-button>
+        <el-button @click="resetUserSearch">{{ t('common.reset') }}</el-button>
         <div class="flex-1"></div>
         <el-button type="info" @click="toggleUserRecycleBin">
-          <el-icon><Delete /></el-icon>{{ isUserRecycleBin ? '返回列表' : '回收站' }}
+          <el-icon><Delete /></el-icon>{{ isUserRecycleBin ? t('tenantPage.backToList') : t('tenantPage.recycleBin') }}
         </el-button>
         <el-button v-if="!isUserRecycleBin" type="success" @click="openCreateUserDialog">
-          <el-icon><Plus /></el-icon>新增用户
+          <el-icon><Plus /></el-icon>{{ t('tenantPage.createUser') }}
         </el-button>
       </div>
 
       <!-- 批量操作 -->
       <div v-if="userSelectedIds.length > 0 && !isUserRecycleBin" class="batch-bar" style="margin-bottom: 16px;">
-        <el-button type="danger" size="small" @click="handleBatchDeleteUsers">批量删除</el-button>
-        <el-button type="warning" size="small" @click="handleBatchDisableUsers">批量禁用</el-button>
-        <el-button type="success" size="small" @click="handleBatchEnableUsers">批量启用</el-button>
-        <span style="margin-left: 8px; color: #666">已选择 {{ userSelectedIds.length }} 项</span>
+        <el-button type="danger" size="small" @click="handleBatchDeleteUsers">{{ t('tenantPage.batchDelete') }}</el-button>
+        <el-button type="warning" size="small" @click="handleBatchDisableUsers">{{ t('tenantPage.batchDisable') }}</el-button>
+        <el-button type="success" size="small" @click="handleBatchEnableUsers">{{ t('tenantPage.batchEnable') }}</el-button>
+        <span style="margin-left: 8px; color: #666">{{ t('tenantPage.selectedCount', userSelectedIds.length) }}</span>
       </div>
 
       <!-- 用户列表 -->
@@ -173,10 +173,10 @@
         @selection-change="handleUserSelectionChange"
       >
         <el-table-column v-if="!isUserRecycleBin" type="selection" width="55" />
-        <el-table-column prop="username" label="用户名" min-width="120" />
-        <el-table-column prop="nickname" label="昵称" min-width="120" />
-        <el-table-column prop="email" label="邮箱" min-width="180" />
-        <el-table-column label="角色" min-width="150">
+        <el-table-column prop="username" :label="t('auth.username')" min-width="120" />
+        <el-table-column prop="nickname" :label="t('register.nickname')" min-width="120" />
+        <el-table-column prop="email" :label="t('common.email')" min-width="180" />
+        <el-table-column :label="t('tenantPage.colRole')" min-width="150">
           <template #default="{ row }">
             <el-tag
               v-for="role in row.role_list"
@@ -187,37 +187,37 @@
             >
               {{ role.name }}
             </el-tag>
-            <span v-if="!row.role_list || row.role_list.length === 0" style="color: #909399; font-size: 12px;">无角色</span>
+            <span v-if="!row.role_list || row.role_list.length === 0" style="color: #909399; font-size: 12px;">{{ t('tenantPage.noRole') }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="80">
+        <el-table-column :label="t('tenantPage.colStatus')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
-              {{ row.status === 1 ? '启用' : '禁用' }}
+              {{ row.status === 1 ? t('common.status.enabled') : t('common.status.disabled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column v-if="isUserRecycleBin" prop="deleted_at" label="删除时间" width="160" />
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column prop="created_at" :label="t('tenantPage.colCreatedAt')" width="160" />
+        <el-table-column v-if="isUserRecycleBin" prop="deleted_at" :label="t('tenantPage.colDeletedAt')" width="160" />
+        <el-table-column :label="t('tenantPage.colAction')" width="280" fixed="right">
           <template #default="{ row }">
             <template v-if="isUserRecycleBin">
-              <el-button link type="success" @click="handleRestoreUser(row)">恢复</el-button>
-              <el-button link type="danger" @click="handlePermanentDeleteUser(row)">永久删除</el-button>
+              <el-button link type="success" @click="handleRestoreUser(row)">{{ t('tenantPage.restore') }}</el-button>
+              <el-button link type="danger" @click="handlePermanentDeleteUser(row)">{{ t('tenantPage.permanentDelete') }}</el-button>
             </template>
             <template v-else>
-              <el-button link type="primary" @click="openEditUserDialog(row)">编辑</el-button>
-              <el-button link type="warning" @click="openResetPasswordDialog(row)">重置密码</el-button>
-              <el-button link type="info" @click="openViewUserRoles(row)">查看角色</el-button>
-              <el-button link type="primary" @click="openLoginLogs(row)">登录日志</el-button>
+              <el-button link type="primary" @click="openEditUserDialog(row)">{{ t('common.edit') }}</el-button>
+              <el-button link type="warning" @click="openResetPasswordDialog(row)">{{ t('auth.resetPassword') }}</el-button>
+              <el-button link type="info" @click="openViewUserRoles(row)">{{ t('tenantPage.viewRoles') }}</el-button>
+              <el-button link type="primary" @click="openLoginLogs(row)">{{ t('tenantPage.loginLogs') }}</el-button>
               <el-button
                 link
                 :type="row.status === 1 ? 'warning' : 'success'"
                 @click="handleToggleUserStatus(row)"
               >
-                {{ row.status === 1 ? '禁用' : '启用' }}
+                {{ row.status === 1 ? t('common.status.disabled') : t('common.status.enabled') }}
               </el-button>
-              <el-button link type="danger" @click="handleDeleteUser(row)">删除</el-button>
+              <el-button link type="danger" @click="handleDeleteUser(row)">{{ t('common.delete') }}</el-button>
             </template>
           </template>
         </el-table-column>
@@ -237,7 +237,7 @@
           @current-change="loadTenantUsers"
         />
         <div v-else style="text-align: center; color: #909399; font-size: 14px;">
-          共 {{ userTotal }} 条已删除记录
+          {{ t('tenantPage.deletedRecordsCount', userTotal) }}
         </div>
       </div>
     </el-dialog>
@@ -246,67 +246,67 @@
     <!-- 重置密码弹窗 -->
     <el-dialog
       v-model="resetPwdDialogVisible"
-      title="重置密码"
+      :title="t('auth.resetPassword')"
       width="400px"
       :close-on-click-modal="false"
       @close="closeResetPwdDialog"
     >
-      <p style="margin-bottom: 16px;">正在为用户 <strong>{{ resetPwdUser?.username }}</strong> 重置密码</p>
+      <p style="margin-bottom: 16px;">{{ t('tenantPage.resetPwdTip', resetPwdUser?.username || '') }}</p>
       <el-form
         ref="resetPwdFormRef"
         :model="resetPwdForm"
         :rules="resetPwdRules"
         label-width="100px"
       >
-        <el-form-item label="新密码" prop="new_password">
+        <el-form-item :label="t('auth.newPassword')" prop="new_password">
           <el-input
             v-model="resetPwdForm.new_password"
             type="password"
-            placeholder="请输入新密码"
+            :placeholder="t('tenantPage.newPwdPlaceholder')"
             show-password
           />
         </el-form-item>
-        <el-form-item label="确认密码" prop="confirm_password">
+        <el-form-item :label="t('auth.confirmPassword')" prop="confirm_password">
           <el-input
             v-model="resetPwdForm.confirm_password"
             type="password"
-            placeholder="请再次输入新密码"
+            :placeholder="t('tenantPage.confirmPwdPlaceholder')"
             show-password
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="closeResetPwdDialog">取消</el-button>
-        <el-button type="primary" :loading="resetPwdSaving" @click="submitResetPassword">确定</el-button>
+        <el-button @click="closeResetPwdDialog">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="resetPwdSaving" @click="submitResetPassword">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 登录日志弹窗 -->
     <el-dialog
       v-model="loginLogsDialogVisible"
-      :title="`登录日志 - ${loginLogsUser?.username || ''}`"
+      :title="t('tenantPage.loginLogsTitle', loginLogsUser?.username || '')"
       width="900px"
       :close-on-click-modal="false"
     >
       <el-table v-loading="loginLogsLoading" :data="loginLogsList" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="60" :index="(i: number) => (loginLogsPage - 1) * loginLogsPageSize + i + 1" />
-        <el-table-column prop="action" label="操作" width="100">
+        <el-table-column prop="action" :label="t('tenantPage.colAction')" width="100">
           <template #default="{ row }">
             <el-tag size="small" :type="row.action === 'login' ? 'success' : 'info'">
-              {{ row.action === 'login' ? '登录' : '登出' }}
+              {{ row.action === 'login' ? t('tenantPage.actionLogin') : t('tenantPage.actionLogout') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="result" label="结果" width="90">
+        <el-table-column prop="result" :label="t('tenantPage.colResult')" width="90">
           <template #default="{ row }">
             <el-tag size="small" :type="row.result === 'success' ? 'success' : 'danger'">
-              {{ row.result === 'success' ? '成功' : '失败' }}
+              {{ row.result === 'success' ? t('tenantPage.resultSuccess') : t('tenantPage.resultFail') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="client_ip" label="登录IP" width="140" />
-        <el-table-column prop="user_agent" label="用户代理" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="时间" width="180" />
+        <el-table-column prop="client_ip" :label="t('tenantPage.colIp')" width="140" />
+        <el-table-column prop="user_agent" :label="t('tenantPage.colUserAgent')" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="created_at" :label="t('tenantPage.colTime')" width="180" />
       </el-table>
       <div class="pagination" style="margin-top: 16px; display: flex; justify-content: flex-end;">
         <el-pagination
@@ -324,62 +324,62 @@
     <!-- 查看用户角色弹窗 -->
     <el-dialog
       v-model="userRolesDialogVisible"
-      :title="`用户角色 - ${currentUser?.username || ''}`"
+      :title="t('tenantPage.userRolesTitle', currentUser?.username || '')"
       width="500px"
       :close-on-click-modal="false"
     >
       <div v-loading="userRolesLoading">
         <div v-if="currentUserRoles.length > 0">
           <el-table :data="currentUserRoles" border stripe size="small">
-            <el-table-column prop="name" label="角色名称" min-width="120" />
-            <el-table-column prop="code" label="角色编码" min-width="120" />
-            <el-table-column label="操作" width="100" fixed="right">
+            <el-table-column prop="name" :label="t('tenantPage.colRoleName')" min-width="120" />
+            <el-table-column prop="code" :label="t('tenantPage.colRoleCode')" min-width="120" />
+            <el-table-column :label="t('tenantPage.colAction')" width="100" fixed="right">
               <template #default="{ row }">
-                <el-button link type="danger" size="small" @click="handleRemoveUserRole(row)">移除</el-button>
+                <el-button link type="danger" size="small" @click="handleRemoveUserRole(row)">{{ t('tenantPage.remove') }}</el-button>
               </template>
             </el-table-column>
           </el-table>
           <div style="margin-top: 16px; text-align: center;">
-            <el-button type="danger" @click="handleRemoveAllUserRoles">移除所有角色</el-button>
+            <el-button type="danger" @click="handleRemoveAllUserRoles">{{ t('tenantPage.removeAllRoles') }}</el-button>
           </div>
         </div>
-        <el-empty v-else description="该用户暂无角色" />
+        <el-empty v-else :description="t('tenantPage.noRolesForUser')" />
       </div>
     </el-dialog>
 
     <el-dialog
       v-model="userDialogVisible"
-      :title="userDialogMode === 'create' ? '新增用户' : '编辑用户'"
+      :title="userDialogMode === 'create' ? t('tenantPage.createUser') : t('tenantPage.editUser')"
       width="500px"
       :close-on-click-modal="false"
     >
       <el-form ref="userFormRef" :model="userForm" :rules="userRules" label-width="80px">
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="userForm.username" placeholder="请输入用户名" :disabled="userDialogMode === 'edit'" />
+        <el-form-item :label="t('auth.username')" prop="username">
+          <el-input v-model="userForm.username" :placeholder="t('tenantPage.usernamePlaceholder')" :disabled="userDialogMode === 'edit'" />
         </el-form-item>
-        <el-form-item v-if="userDialogMode === 'create'" label="密码" prop="password">
-          <el-input v-model="userForm.password" type="password" show-password placeholder="请输入密码" />
+        <el-form-item v-if="userDialogMode === 'create'" :label="t('auth.password')" prop="password">
+          <el-input v-model="userForm.password" type="password" show-password :placeholder="t('tenantPage.passwordPlaceholder')" />
         </el-form-item>
-        <el-form-item label="昵称" prop="nickname">
-          <el-input v-model="userForm.nickname" placeholder="请输入昵称" />
+        <el-form-item :label="t('register.nickname')" prop="nickname">
+          <el-input v-model="userForm.nickname" :placeholder="t('tenantPage.nicknamePlaceholder')" />
         </el-form-item>
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="userForm.email" placeholder="请输入邮箱" />
+        <el-form-item :label="t('common.email')" prop="email">
+          <el-input v-model="userForm.email" :placeholder="t('tenantPage.emailPlaceholder')" />
         </el-form-item>
-        <el-form-item label="部门" prop="department">
-          <el-input v-model="userForm.department" placeholder="请输入部门" maxlength="100" />
+        <el-form-item :label="t('tenantPage.colDepartment')" prop="department">
+          <el-input v-model="userForm.department" :placeholder="t('tenantPage.departmentPlaceholder')" maxlength="100" />
         </el-form-item>
-        <el-form-item label="岗位" prop="position">
-          <el-input v-model="userForm.position" placeholder="请输入岗位" maxlength="100" />
+        <el-form-item :label="t('tenantPage.colPosition')" prop="position">
+          <el-input v-model="userForm.position" :placeholder="t('tenantPage.positionPlaceholder')" maxlength="100" />
         </el-form-item>
-        <el-form-item v-if="userDialogMode === 'edit'" label="备注" prop="remark">
-          <el-input v-model="userForm.remark" type="textarea" :rows="2" placeholder="管理员备注" maxlength="255" />
+        <el-form-item v-if="userDialogMode === 'edit'" :label="t('tenantPage.colRemark')" prop="remark">
+          <el-input v-model="userForm.remark" type="textarea" :rows="2" :placeholder="t('tenantPage.remarkPlaceholder')" maxlength="255" />
         </el-form-item>
-        <el-form-item label="角色" prop="role_ids">
+        <el-form-item :label="t('tenantPage.colRole')" prop="role_ids">
           <el-select
             v-model="userForm.role_ids"
             multiple
-            placeholder="请选择角色"
+            :placeholder="t('tenantPage.selectRolePlaceholder')"
             style="width: 100%"
             :loading="roleLoading"
           >
@@ -393,143 +393,143 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="userDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="userSaving" @click="submitUserForm">确定</el-button>
+        <el-button @click="userDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="userSaving" @click="submitUserForm">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="dialogMode === 'create' ? '新增租户' : '编辑租户'"
+      :title="dialogMode === 'create' ? t('tenantPage.createTenant') : t('tenantPage.editTenant')"
       width="600px"
       :close-on-click-modal="false"
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-        <el-form-item label="租户名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入租户名称" />
+        <el-form-item :label="t('tenantPage.fieldName')" prop="name">
+          <el-input v-model="form.name" :placeholder="t('tenantPage.namePlaceholder')" />
         </el-form-item>
-        <el-form-item label="域名" prop="domain">
-          <el-input v-model="form.domain" placeholder="请输入域名" :disabled="dialogMode === 'edit'">
+        <el-form-item :label="t('tenantPage.fieldDomain')" prop="domain">
+          <el-input v-model="form.domain" :placeholder="t('tenantPage.domainPlaceholder')" :disabled="dialogMode === 'edit'">
             <template #append>.meteorx.com</template>
           </el-input>
         </el-form-item>
-        <el-form-item label="联系邮箱" prop="contact_email">
-          <el-input v-model="form.contact_email" placeholder="请输入联系邮箱" />
+        <el-form-item :label="t('tenantPage.fieldContactEmail')" prop="contact_email">
+          <el-input v-model="form.contact_email" :placeholder="t('tenantPage.contactEmailPlaceholder')" />
         </el-form-item>
-        <el-form-item label="联系电话" prop="contact_phone">
-          <el-input v-model="form.contact_phone" placeholder="请输入联系电话" maxlength="20" />
+        <el-form-item :label="t('tenantPage.fieldContactPhone')" prop="contact_phone">
+          <el-input v-model="form.contact_phone" :placeholder="t('tenantPage.contactPhonePlaceholder')" maxlength="20" />
         </el-form-item>
-        <el-form-item label="行业" prop="industry">
-          <el-input v-model="form.industry" placeholder="请输入所属行业" maxlength="100" />
+        <el-form-item :label="t('tenantPage.fieldIndustry')" prop="industry">
+          <el-input v-model="form.industry" :placeholder="t('tenantPage.industryPlaceholder')" maxlength="100" />
         </el-form-item>
-        <el-form-item label="地区" prop="region">
-          <el-input v-model="form.region" placeholder="请输入地区" />
+        <el-form-item :label="t('tenantPage.fieldRegion')" prop="region">
+          <el-input v-model="form.region" :placeholder="t('tenantPage.regionPlaceholder')" />
         </el-form-item>
-        <el-form-item label="描述" prop="description">
-          <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入描述" />
+        <el-form-item :label="t('tenantPage.fieldDescription')" prop="description">
+          <el-input v-model="form.description" type="textarea" :rows="3" :placeholder="t('tenantPage.descriptionPlaceholder')" />
         </el-form-item>
         <el-form-item label="Logo" prop="logo">
-          <el-input v-model="form.logo" placeholder="请输入Logo URL" />
+          <el-input v-model="form.logo" :placeholder="t('tenantPage.logoPlaceholder')" />
         </el-form-item>
-        <el-form-item v-if="dialogMode === 'create'" label="状态" prop="status">
+        <el-form-item v-if="dialogMode === 'create'" :label="t('tenantPage.fieldStatus')" prop="status">
           <el-radio-group v-model="form.status">
-            <el-radio :value="1">启用</el-radio>
-            <el-radio :value="0">禁用</el-radio>
+            <el-radio :value="1">{{ t('common.status.enabled') }}</el-radio>
+            <el-radio :value="0">{{ t('common.status.disabled') }}</el-radio>
           </el-radio-group>
         </el-form-item>
 
         <!-- 初始管理员信息（仅创建时显示） -->
         <template v-if="dialogMode === 'create'">
-          <el-divider>初始管理员信息</el-divider>
-          <el-form-item label="用户名" prop="admin_user.username">
-            <el-input v-model="form.admin_user.username" placeholder="请输入管理员用户名" />
+          <el-divider>{{ t('tenantPage.adminSection') }}</el-divider>
+          <el-form-item :label="t('auth.username')" prop="admin_user.username">
+            <el-input v-model="form.admin_user.username" :placeholder="t('tenantPage.adminUsernamePlaceholder')" />
           </el-form-item>
-          <el-form-item label="密码" prop="admin_user.password">
-            <el-input v-model="form.admin_user.password" type="password" show-password placeholder="请输入密码" />
+          <el-form-item :label="t('auth.password')" prop="admin_user.password">
+            <el-input v-model="form.admin_user.password" type="password" show-password :placeholder="t('tenantPage.passwordPlaceholder')" />
           </el-form-item>
-          <el-form-item label="昵称" prop="admin_user.nickname">
-            <el-input v-model="form.admin_user.nickname" placeholder="请输入管理员昵称" />
+          <el-form-item :label="t('register.nickname')" prop="admin_user.nickname">
+            <el-input v-model="form.admin_user.nickname" :placeholder="t('tenantPage.adminNicknamePlaceholder')" />
           </el-form-item>
-          <el-form-item label="邮箱" prop="admin_user.email">
-            <el-input v-model="form.admin_user.email" placeholder="请输入管理员邮箱" />
+          <el-form-item :label="t('common.email')" prop="admin_user.email">
+            <el-input v-model="form.admin_user.email" :placeholder="t('tenantPage.adminEmailPlaceholder')" />
           </el-form-item>
         </template>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submitForm">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="submitForm">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 套餐管理弹窗 -->
     <el-dialog
       v-model="planDialogVisible"
-      :title="`套餐配置 - ${currentPlanTenant?.name || ''}`"
+      :title="t('tenantPage.planConfigTitle', currentPlanTenant?.name || '')"
       width="560px"
       :close-on-click-modal="false"
     >
       <template v-if="currentPlan">
         <div class="plan-info">
           <div class="plan-info-item">
-            <span class="label">当前套餐</span>
+            <span class="label">{{ t('tenantPage.planCurrent') }}</span>
             <el-tag type="primary" effect="plain">{{ currentPlan.plan_name }}</el-tag>
-            <el-tag v-if="currentPlan.status === 2" type="danger" effect="plain" style="margin-left: 6px">已过期</el-tag>
+            <el-tag v-if="currentPlan.status === 2" type="danger" effect="plain" style="margin-left: 6px">{{ t('tenantPage.expired') }}</el-tag>
           </div>
           <div class="plan-info-item">
-            <span class="label">用户用量</span>
+            <span class="label">{{ t('tenantPage.planUserUsage') }}</span>
             <el-progress :percentage="planUsagePercent" :status="planUsagePercent >= 100 ? 'exception' : undefined" style="width: 300px" />
-            <span class="usage-text">{{ currentPlan.current_users }} / {{ currentPlan.user_limit === -1 ? '不限' : currentPlan.user_limit }}</span>
+            <span class="usage-text">{{ currentPlan.current_users }} / {{ currentPlan.user_limit === -1 ? t('tenantPage.planUnlimited') : currentPlan.user_limit }}</span>
           </div>
           <div class="plan-info-item">
-            <span class="label">存储用量</span>
+            <span class="label">{{ t('tenantPage.planStorageUsage') }}</span>
             <el-progress :percentage="planStoragePercent" :status="planStoragePercent >= 100 ? 'exception' : undefined" style="width: 300px" />
-            <span class="usage-text">{{ formatSize(currentPlan.current_storage) }} / {{ currentPlan.storage_limit === -1 ? '不限' : formatSize(currentPlan.storage_limit) }}</span>
+            <span class="usage-text">{{ formatSize(currentPlan.current_storage) }} / {{ currentPlan.storage_limit === -1 ? t('tenantPage.planUnlimited') : formatSize(currentPlan.storage_limit) }}</span>
           </div>
           <div class="plan-info-item">
-            <span class="label">Wiki空间</span>
+            <span class="label">{{ t('tenantPage.planWikiSpace') }}</span>
             <el-progress :percentage="planWikiPercent" :status="planWikiPercent >= 100 ? 'exception' : undefined" style="width: 300px" />
-            <span class="usage-text">{{ currentPlan.current_wiki_spaces }} / {{ currentPlan.wiki_space_limit === -1 ? '不限' : currentPlan.wiki_space_limit }}</span>
+            <span class="usage-text">{{ currentPlan.current_wiki_spaces }} / {{ currentPlan.wiki_space_limit === -1 ? t('tenantPage.planUnlimited') : currentPlan.wiki_space_limit }}</span>
           </div>
           <div class="plan-info-item">
-            <span class="label">生效时间</span>
+            <span class="label">{{ t('tenantPage.planStartedAt') }}</span>
             <span>{{ currentPlan.started_at || '-' }}</span>
           </div>
           <div v-if="currentPlan.expires_at" class="plan-info-item">
-            <span class="label">到期时间</span>
-            <span>{{ currentPlan.expires_at }}（剩余 {{ currentPlan.effective_days ?? 0 }} 天）</span>
+            <span class="label">{{ t('tenantPage.planExpiresAt') }}</span>
+            <span>{{ currentPlan.expires_at }}{{ t('tenantPage.planRemainDays', currentPlan.effective_days ?? 0) }}</span>
           </div>
           <div v-else class="plan-info-item">
-            <span class="label">到期时间</span>
-            <span>长期有效</span>
+            <span class="label">{{ t('tenantPage.planExpiresAt') }}</span>
+            <span>{{ t('tenantPage.planForever') }}</span>
           </div>
         </div>
         <el-divider />
       </template>
-      <el-alert v-else title="该租户尚未开通套餐" type="info" show-icon :closable="false" style="margin-bottom: 16px" />
+      <el-alert v-else :title="t('tenantPage.planNone')" type="info" show-icon :closable="false" style="margin-bottom: 16px" />
       <template v-if="planList.length > 0">
         <div class="plan-info-item">
-          <span class="label">选择套餐</span>
-          <el-select v-model="assignForm.plan_id" placeholder="请选择套餐" style="width: 300px" :loading="planLoading">
-            <el-option v-for="p in planList" :key="p.id" :label="`${p.name}（${p.user_limit === -1 ? '不限' : p.user_limit + ' 人'}）`" :value="p.id" />
+          <span class="label">{{ t('tenantPage.planSelect') }}</span>
+          <el-select v-model="assignForm.plan_id" :placeholder="t('tenantPage.planSelectPlaceholder')" style="width: 300px" :loading="planLoading">
+            <el-option v-for="p in planList" :key="p.id" :label="planOptionLabel(p)" :value="p.id" />
           </el-select>
         </div>
         <div class="plan-info-item">
-          <span class="label">到期时间</span>
+          <span class="label">{{ t('tenantPage.planExpiresAt') }}</span>
           <el-date-picker
             v-model="assignForm.expires_at"
             type="datetime"
-            placeholder="不设置则长期有效"
+            :placeholder="t('tenantPage.planExpiryPlaceholder')"
             value-format="YYYY-MM-DD HH:mm:ss"
             style="width: 300px"
           />
         </div>
       </template>
-      <el-alert v-else title="暂无可用套餐，请先在套餐管理中创建" type="warning" show-icon :closable="false" />
+      <el-alert v-else :title="t('tenantPage.planNoAvailable')" type="warning" show-icon :closable="false" />
       <template #footer>
-        <el-button @click="planDialogVisible = false">关闭</el-button>
+        <el-button @click="planDialogVisible = false">{{ t('tenantPage.close') }}</el-button>
         <el-button type="primary" :loading="planSaving" :disabled="!assignForm.plan_id || planList.length === 0" @click="submitPlanAssign">
-          保存套餐
+          {{ t('tenantPage.planSave') }}
         </el-button>
       </template>
     </el-dialog>
@@ -578,6 +578,9 @@ import { getRolesForSelect, getUserRoles, removeUserRole, removeAllUserRoles, ty
 import { getPlanSelect, getTenantPlan, assignTenantPlan, type PlanItem, type CurrentPlan } from '@/api/modules/plan'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult, type PageResult } from '@/types/pagination'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const route = useRoute()
@@ -639,15 +642,15 @@ const userForm = reactive<UserCreateParams & UserUpdateParams & { role_ids: stri
   remark: '',
   role_ids: []
 })
-const userRules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+const userRules = computed<FormRules>(() => ({
+  username: [{ required: true, message: t('tenantPage.usernamePlaceholder'), trigger: 'blur' }],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 32, message: '密码长度 6-32 位', trigger: 'blur' }
+    { required: true, message: t('tenantPage.passwordPlaceholder'), trigger: 'blur' },
+    { min: 6, max: 32, message: t('tenantPage.pwdLength'), trigger: 'blur' }
   ],
-  nickname: [{ required: true, message: '请输入昵称', trigger: 'blur' }],
-  role_ids: [{ required: true, message: '请选择角色', trigger: 'change', type: 'array' }]
-}
+  nickname: [{ required: true, message: t('tenantPage.nicknamePlaceholder'), trigger: 'blur' }],
+  role_ids: [{ required: true, message: t('tenantPage.selectRolePlaceholder'), trigger: 'change', type: 'array' }]
+}))
 
 // 角色列表
 const roleList = ref<RoleItem[]>([])
@@ -668,16 +671,16 @@ const resetPwdForm = reactive({
   new_password: '',
   confirm_password: ''
 })
-const resetPwdRules: FormRules = {
+const resetPwdRules = computed<FormRules>(() => ({
   new_password: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, max: 32, message: '密码长度 6-32 位', trigger: 'blur' }
+    { required: true, message: t('tenantPage.newPwdPlaceholder'), trigger: 'blur' },
+    { min: 6, max: 32, message: t('tenantPage.pwdLength'), trigger: 'blur' }
   ],
   confirm_password: [
-    { required: true, message: '请确认密码', trigger: 'blur' },
-    { min: 6, max: 32, message: '密码长度 6-32 位', trigger: 'blur' }
+    { required: true, message: t('tenantPage.pwdConfirmRequired'), trigger: 'blur' },
+    { min: 6, max: 32, message: t('tenantPage.pwdLength'), trigger: 'blur' }
   ]
-}
+}))
 
 // 登录日志相关
 const loginLogsDialogVisible = ref(false)
@@ -723,6 +726,12 @@ function formatSize(bytes: number): string {
     i++
   }
   return `${val.toFixed(i === 0 ? 0 : 2)} ${units[i]}`
+}
+
+// planOptionLabel 拼接套餐下拉选项文本
+function planOptionLabel(p: PlanItem): string {
+  const limit = p.user_limit === -1 ? t('tenantPage.planUnlimited') : `${p.user_limit} ${t('tenantPage.planPeopleUnit')}`
+  return t('tenantPage.planOptionLabel', p.name, limit)
 }
 
 // 打开套餐配置弹窗
@@ -780,7 +789,7 @@ async function submitPlanAssign() {
       plan_id: assignForm.plan_id,
       expires_at: assignForm.expires_at || undefined
     })
-    ElMessage.success('套餐保存成功')
+    ElMessage.success(t('tenantPage.planSaveSuccess'))
     planDialogVisible.value = false
     loadList()
   } catch (e) {
@@ -808,16 +817,16 @@ const form = reactive<CreateTenantParams & UpdateTenantParams>({
   }
 })
 
-const rules: FormRules = {
-  name: [{ required: true, message: '请输入租户名称', trigger: 'blur' }],
-  domain: [{ required: true, message: '请输入域名', trigger: 'blur' }],
-  'admin_user.username': [{ required: true, message: '请输入管理员用户名', trigger: 'blur' }],
+const rules = computed<FormRules>(() => ({
+  name: [{ required: true, message: t('tenantPage.namePlaceholder'), trigger: 'blur' }],
+  domain: [{ required: true, message: t('tenantPage.domainPlaceholder'), trigger: 'blur' }],
+  'admin_user.username': [{ required: true, message: t('tenantPage.adminUsernamePlaceholder'), trigger: 'blur' }],
   'admin_user.password': [
-    { required: true, message: '请输入管理员密码', trigger: 'blur' },
-    { min: 6, max: 32, message: '密码长度 6-32 位', trigger: 'blur' }
+    { required: true, message: t('tenantPage.adminPasswordPlaceholder'), trigger: 'blur' },
+    { min: 6, max: 32, message: t('tenantPage.pwdLength'), trigger: 'blur' }
   ],
-  'admin_user.nickname': [{ required: true, message: '请输入管理员昵称', trigger: 'blur' }]
-}
+  'admin_user.nickname': [{ required: true, message: t('tenantPage.adminNicknamePlaceholder'), trigger: 'blur' }]
+}))
 
 function resetSearch() {
   reset()
@@ -830,9 +839,9 @@ function handleSelectionChange(selection: TenantItem[]) {
 async function copyId(text: string) {
   try {
     await navigator.clipboard.writeText(text)
-    ElMessage.success('已复制到剪贴板')
+    ElMessage.success(t('tenantPage.copied'))
   } catch {
-    ElMessage.error('复制失败')
+    ElMessage.error(t('tenantPage.copyFailed'))
   }
 }
 
@@ -874,10 +883,10 @@ async function submitForm() {
     try {
       if (dialogMode.value === 'create') {
         await createTenant(form as CreateTenantParams)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('tenantPage.createSuccess'))
       } else if (editingId.value) {
         await updateTenant(editingId.value, form as UpdateTenantParams)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('tenantPage.updateSuccess'))
       }
       dialogVisible.value = false
       loadList()
@@ -889,21 +898,21 @@ async function submitForm() {
 
 async function handleToggleStatus(row: TenantItem) {
   const newStatus = row.status === 1 ? 0 : 1
-  const actionText = newStatus === 1 ? '恢复' : '暂停'
+  const actionText = newStatus === 1 ? t('tenantPage.resume') : t('tenantPage.pause')
   try {
     if (newStatus === 0) {
       await ElMessageBox.confirm(
-        `确定要暂停租户 "${row.name}" 吗？暂停后该租户成员将无法登录，所有 API 请求返回 403；数据完整保留，随时可恢复。`,
-        '暂停租户（软着陆）',
-        { type: 'warning', confirmButtonText: '确认暂停', confirmButtonClass: 'el-button--warning' }
+        t('tenantPage.pauseConfirm', row.name),
+        t('tenantPage.pauseTitle'),
+        { type: 'warning', confirmButtonText: t('tenantPage.confirmPause'), confirmButtonClass: 'el-button--warning' }
       )
     } else {
-      await ElMessageBox.confirm(`确定要恢复租户 "${row.name}" 吗？恢复后成员可正常登录与访问。`, '提示', {
+      await ElMessageBox.confirm(t('tenantPage.resumeConfirm', row.name), t('common.tip'), {
         type: 'info'
       })
     }
     await updateTenantStatus(row.id, newStatus)
-    ElMessage.success(`${actionText}成功`)
+    ElMessage.success(t('tenantPage.actionSuccess', actionText))
     loadList()
   } catch (e) {
     // 用户取消
@@ -912,9 +921,9 @@ async function handleToggleStatus(row: TenantItem) {
 
 async function handleDelete(row: TenantItem) {
   try {
-    await ElMessageBox.confirm(`确定要删除租户 "${row.name}" 吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(t('tenantPage.deleteConfirm', row.name), t('common.tip'), { type: 'warning' })
     await deleteTenant(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('tenantPage.deleteSuccess'))
     loadList()
   } catch (e) {
     // 用户取消
@@ -924,11 +933,11 @@ async function handleDelete(row: TenantItem) {
 async function handleBatchDelete() {
   if (selectedIds.value.length === 0) return
   try {
-    await ElMessageBox.confirm(`确定要删除选中的 ${selectedIds.value.length} 个租户吗？`, '提示', {
+    await ElMessageBox.confirm(t('tenantPage.batchDeleteConfirm', selectedIds.value.length), t('common.tip'), {
       type: 'warning'
     })
     await batchDeleteTenants({ ids: selectedIds.value })
-    ElMessage.success('批量删除成功')
+    ElMessage.success(t('tenantPage.batchDeleteSuccess'))
     selectedIds.value = []
     loadList()
   } catch (e) {
@@ -939,11 +948,11 @@ async function handleBatchDelete() {
 async function handleBatchEnable() {
   if (selectedIds.value.length === 0) return
   try {
-    await ElMessageBox.confirm(`确定要启用选中的 ${selectedIds.value.length} 个租户吗？`, '提示', {
+    await ElMessageBox.confirm(t('tenantPage.batchEnableConfirm', selectedIds.value.length), t('common.tip'), {
       type: 'warning'
     })
     await batchUpdateTenantStatus({ ids: selectedIds.value, status: 1 })
-    ElMessage.success('批量启用成功')
+    ElMessage.success(t('tenantPage.batchEnableSuccess'))
     selectedIds.value = []
     loadList()
   } catch (e) {
@@ -955,12 +964,12 @@ async function handleBatchDisable() {
   if (selectedIds.value.length === 0) return
   try {
     await ElMessageBox.confirm(
-      `确定要暂停选中的 ${selectedIds.value.length} 个租户吗？暂停后这些租户成员将无法登录，所有 API 请求返回 403；数据完整保留，随时可恢复。`,
-      '批量暂停租户（软着陆）',
-      { type: 'warning', confirmButtonText: '确认暂停', confirmButtonClass: 'el-button--warning' }
+      t('tenantPage.batchPauseConfirm', selectedIds.value.length),
+      t('tenantPage.batchPauseTitle'),
+      { type: 'warning', confirmButtonText: t('tenantPage.confirmPause'), confirmButtonClass: 'el-button--warning' }
     )
     await batchUpdateTenantStatus({ ids: selectedIds.value, status: 0 })
-    ElMessage.success('批量暂停成功')
+    ElMessage.success(t('tenantPage.batchPauseSuccess'))
     selectedIds.value = []
     loadList()
   } catch (e) {
@@ -1090,7 +1099,7 @@ async function submitUserForm() {
           position: userForm.position,
           role_ids: userForm.role_ids
         } as UserCreateParams)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('tenantPage.createSuccess'))
       } else if (editingUserId.value) {
         await updateTenantUser(tenantId, editingUserId.value, {
           nickname: userForm.nickname,
@@ -1100,7 +1109,7 @@ async function submitUserForm() {
           remark: userForm.remark,
           role_ids: userForm.role_ids
         } as UserUpdateParams)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('tenantPage.updateSuccess'))
       }
       userDialogVisible.value = false
       loadTenantUsers()
@@ -1114,13 +1123,13 @@ async function submitUserForm() {
 async function handleToggleUserStatus(row: UserItem) {
   if (!currentTenant.value) return
   const newStatus = row.status === 1 ? 0 : 1
-  const actionText = newStatus === 1 ? '启用' : '禁用'
+  const actionText = newStatus === 1 ? t('common.status.enabled') : t('common.status.disabled')
   try {
-    await ElMessageBox.confirm(`确定要${actionText}用户 "${row.username}" 吗？`, '提示', {
+    await ElMessageBox.confirm(t('tenantPage.toggleUserConfirm', actionText, row.username), t('common.tip'), {
       type: 'warning'
     })
     await updateTenantUserStatus(currentTenant.value.id, row.id, newStatus)
-    ElMessage.success(`${actionText}成功`)
+    ElMessage.success(t('tenantPage.actionSuccess', actionText))
     loadTenantUsers()
   } catch (e) {
     // 用户取消
@@ -1132,9 +1141,9 @@ async function handleDeleteUser(row: UserItem) {
   if (!currentTenant.value) return
 
   try {
-    await ElMessageBox.confirm(`确定要删除用户 "${row.username}" 吗？删除后将自动解除角色绑定。`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(t('tenantPage.deleteUserConfirm', row.username), t('common.tip'), { type: 'warning' })
     await deleteTenantUser(currentTenant.value.id, row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('tenantPage.deleteSuccess'))
     loadTenantUsers()
   } catch (e) {
     // 用户取消或删除失败
@@ -1145,9 +1154,9 @@ async function handleDeleteUser(row: UserItem) {
 async function handleRestoreUser(row: UserItem) {
   if (!row.id || !row.tenant_id) return
   try {
-    await ElMessageBox.confirm(`确定要恢复用户 "${row.username}" 吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(t('tenantPage.restoreUserConfirm', row.username), t('common.tip'), { type: 'warning' })
     await restoreTenantUser(row.tenant_id, row.id)
-    ElMessage.success('恢复成功')
+    ElMessage.success(t('tenantPage.restoreSuccess'))
     loadTenantUsers()
   } catch (e) {
     // 用户取消
@@ -1158,13 +1167,13 @@ async function handleRestoreUser(row: UserItem) {
 async function handlePermanentDeleteUser(row: UserItem) {
   if (!row.id || !row.tenant_id) return
   try {
-    await ElMessageBox.confirm(`确定要永久删除用户 "${row.username}" 吗？此操作不可恢复！`, '危险操作', {
+    await ElMessageBox.confirm(t('tenantPage.permDeleteUserConfirm', row.username), t('tenantPage.dangerOp'), {
       type: 'error',
-      confirmButtonText: '确定永久删除',
-      cancelButtonText: '取消'
+      confirmButtonText: t('tenantPage.confirmPermDelete'),
+      cancelButtonText: t('common.cancel')
     })
     await permanentDeleteTenantUser(row.tenant_id, row.id)
-    ElMessage.success('永久删除成功')
+    ElMessage.success(t('tenantPage.permDeleteSuccess'))
     loadTenantUsers()
   } catch (e) {
     // 用户取消
@@ -1183,7 +1192,7 @@ async function openViewUserRoles(row: UserItem) {
     const roles = await getUserRoles(row.id)
     currentUserRoles.value = roles || []
   } catch (e) {
-    ElMessage.error('获取角色信息失败')
+    ElMessage.error(t('tenantPage.getRolesFailed'))
   } finally {
     userRolesLoading.value = false
   }
@@ -1194,9 +1203,9 @@ async function handleRemoveUserRole(role: RoleItem) {
   if (!currentUser.value || !currentTenant.value) return
 
   try {
-    await ElMessageBox.confirm(`确定要移除角色 "${role.name}" 吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(t('tenantPage.removeRoleConfirm', role.name), t('common.tip'), { type: 'warning' })
     await removeUserRole(currentUser.value.id, role.id)
-    ElMessage.success('移除成功')
+    ElMessage.success(t('tenantPage.removeSuccess'))
     // 刷新角色列表
     const roles = await getUserRoles(currentUser.value.id)
     currentUserRoles.value = roles || []
@@ -1212,9 +1221,9 @@ async function handleRemoveAllUserRoles() {
   if (!currentUser.value || !currentTenant.value) return
 
   try {
-    await ElMessageBox.confirm(`确定要移除该用户的所有角色吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(t('tenantPage.removeAllRolesConfirm'), t('common.tip'), { type: 'warning' })
     await removeAllUserRoles(currentUser.value.id)
-    ElMessage.success('移除成功')
+    ElMessage.success(t('tenantPage.removeSuccess'))
     currentUserRoles.value = []
     // 刷新用户列表（更新角色显示）
     loadTenantUsers()
@@ -1227,11 +1236,11 @@ async function handleRemoveAllUserRoles() {
 async function handleBatchDeleteUsers() {
   if (!currentTenant.value || userSelectedIds.value.length === 0) return
   try {
-    await ElMessageBox.confirm(`确定要删除选中的 ${userSelectedIds.value.length} 个用户吗？`, '提示', {
+    await ElMessageBox.confirm(t('tenantPage.batchDeleteUsersConfirm', userSelectedIds.value.length), t('common.tip'), {
       type: 'warning'
     })
     await batchDeleteTenantUsers(currentTenant.value.id, userSelectedIds.value)
-    ElMessage.success('批量删除成功')
+    ElMessage.success(t('tenantPage.batchDeleteSuccess'))
     userSelectedIds.value = []
     loadTenantUsers()
   } catch (e) {
@@ -1243,11 +1252,11 @@ async function handleBatchDeleteUsers() {
 async function handleBatchEnableUsers() {
   if (!currentTenant.value || userSelectedIds.value.length === 0) return
   try {
-    await ElMessageBox.confirm(`确定要启用选中的 ${userSelectedIds.value.length} 个用户吗？`, '提示', {
+    await ElMessageBox.confirm(t('tenantPage.batchEnableUsersConfirm', userSelectedIds.value.length), t('common.tip'), {
       type: 'warning'
     })
     await batchUpdateTenantUserStatus(currentTenant.value.id, userSelectedIds.value, 1)
-    ElMessage.success('批量启用成功')
+    ElMessage.success(t('tenantPage.batchEnableSuccess'))
     userSelectedIds.value = []
     loadTenantUsers()
   } catch (e) {
@@ -1259,11 +1268,11 @@ async function handleBatchEnableUsers() {
 async function handleBatchDisableUsers() {
   if (!currentTenant.value || userSelectedIds.value.length === 0) return
   try {
-    await ElMessageBox.confirm(`确定要禁用选中的 ${userSelectedIds.value.length} 个用户吗？`, '提示', {
+    await ElMessageBox.confirm(t('tenantPage.batchDisableUsersConfirm', userSelectedIds.value.length), t('common.tip'), {
       type: 'warning'
     })
     await batchUpdateTenantUserStatus(currentTenant.value.id, userSelectedIds.value, 0)
-    ElMessage.success('批量禁用成功')
+    ElMessage.success(t('tenantPage.batchDisableSuccess'))
     userSelectedIds.value = []
     loadTenantUsers()
   } catch (e) {
@@ -1300,7 +1309,7 @@ async function submitResetPassword() {
         new_password: resetPwdForm.new_password,
         confirm_password: resetPwdForm.confirm_password
       })
-      ElMessage.success('密码重置成功')
+      ElMessage.success(t('tenantPage.resetPwdSuccess'))
       closeResetPwdDialog()
     } catch (e) {
       // 错误已在拦截器处理
@@ -1334,7 +1343,7 @@ async function loadLoginLogs() {
     loginLogsList.value = res.items
     loginLogsTotal.value = res.total
   } catch (e) {
-    ElMessage.error('加载登录日志失败')
+    ElMessage.error(t('tenantPage.loadLogsFailed'))
   } finally {
     loginLogsLoading.value = false
   }

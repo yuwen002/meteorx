@@ -1,46 +1,46 @@
 <template>
   <div class="accept-invitation-page">
     <div class="card">
-      <h2>接受邀请</h2>
+      <h2>{{ t('acceptInvite.title') }}</h2>
 
       <div v-if="loading" class="loading-area">
         <el-icon class="is-loading" :size="32"><Loading /></el-icon>
-        <p>正在加载邀请信息...</p>
+        <p>{{ t('acceptInvite.loading') }}</p>
       </div>
 
       <div v-else-if="error" class="error-area">
         <el-icon :size="48" color="#f56c6c"><CircleCloseFilled /></el-icon>
         <p class="error-text">{{ error }}</p>
-        <el-button type="primary" @click="$router.push('/login')">返回登录</el-button>
+        <el-button type="primary" @click="$router.push('/login')">{{ t('auth.backToLogin') }}</el-button>
       </div>
 
       <div v-else-if="success" class="success-area">
         <el-icon :size="48" color="#67c23a"><CircleCheckFilled /></el-icon>
-        <p class="success-text">注册成功！</p>
-        <el-button type="primary" @click="$router.push('/login')">去登录</el-button>
+        <p class="success-text">{{ t('acceptInvite.success') }}</p>
+        <el-button type="primary" @click="$router.push('/login')">{{ t('verifyEmail.goLogin') }}</el-button>
       </div>
 
       <el-form v-else ref="formRef" :model="form" :rules="rules" label-width="80px">
         <div class="invite-info">
-          <p>您已被邀请加入租户 <strong>{{ inviteInfo?.tenant_name || inviteInfo?.tenant_id }}</strong></p>
+          <p>{{ t('acceptInvite.invitedTo', inviteInfo?.tenant_name || inviteInfo?.tenant_id || '') }}</p>
         </div>
-        <el-form-item label="邮箱">
+        <el-form-item :label="t('common.email')">
           <el-input :model-value="inviteInfo?.email" disabled />
         </el-form-item>
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="form.username" placeholder="设置登录用户名" />
+        <el-form-item :label="t('auth.username')" prop="username">
+          <el-input v-model="form.username" :placeholder="t('acceptInvite.usernamePlaceholder')" />
         </el-form-item>
-        <el-form-item label="昵称" prop="nickname">
-          <el-input v-model="form.nickname" placeholder="设置昵称" />
+        <el-form-item :label="t('register.nickname')" prop="nickname">
+          <el-input v-model="form.nickname" :placeholder="t('acceptInvite.nicknamePlaceholder')" />
         </el-form-item>
-        <el-form-item label="密码" prop="password">
-          <el-input v-model="form.password" type="password" show-password placeholder="6-32位，包含字母和数字" />
+        <el-form-item :label="t('auth.password')" prop="password">
+          <el-input v-model="form.password" type="password" show-password :placeholder="t('acceptInvite.passwordPlaceholder')" />
         </el-form-item>
-        <el-form-item label="确认密码" prop="confirm_password">
-          <el-input v-model="form.confirm_password" type="password" show-password placeholder="请再次输入密码" />
+        <el-form-item :label="t('auth.confirmPassword')" prop="confirm_password">
+          <el-input v-model="form.confirm_password" type="password" show-password :placeholder="t('register.confirmPlaceholder')" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :loading="submitLoading" style="width: 100%;" @click="handleSubmit">接受邀请并注册</el-button>
+          <el-button type="primary" :loading="submitLoading" style="width: 100%;" @click="handleSubmit">{{ t('acceptInvite.submit') }}</el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -48,12 +48,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Loading, CircleCloseFilled, CircleCheckFilled } from '@element-plus/icons-vue'
 import { getInvitationInfo, acceptInvitation, type InvitationItem } from '@/api/modules/invitation'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const route = useRoute()
 const token = (route.query.token || route.params.token || '') as string
@@ -74,33 +77,33 @@ const form = reactive({
 
 const validateConfirmPassword = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
   if (value !== form.password) {
-    callback(new Error('两次输入的密码不一致'))
+    callback(new Error(t('register.passwordMismatch')))
   } else {
     callback()
   }
 }
 
-const rules: FormRules = {
+const rules = computed<FormRules>(() => ({
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 3, max: 32, message: '用户名长度 3-32 位', trigger: 'blur' },
-    { pattern: /^[a-zA-Z0-9_]+$/, message: '用户名只能包含字母、数字和下划线', trigger: 'blur' }
+    { required: true, message: t('register.usernameRequired'), trigger: 'blur' },
+    { min: 3, max: 32, message: t('acceptInvite.usernameLength'), trigger: 'blur' },
+    { pattern: /^[a-zA-Z0-9_]+$/, message: t('acceptInvite.usernamePattern'), trigger: 'blur' }
   ],
-  nickname: [{ required: true, message: '请输入昵称', trigger: 'blur' }],
+  nickname: [{ required: true, message: t('register.nicknameRequired'), trigger: 'blur' }],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 32, message: '密码长度 6-32 位', trigger: 'blur' },
-    { pattern: /^(?=.*[A-Za-z])(?=.*\d)/, message: '密码必须包含字母和数字', trigger: 'blur' }
+    { required: true, message: t('register.passwordRequired'), trigger: 'blur' },
+    { min: 6, max: 32, message: t('register.passwordLength'), trigger: 'blur' },
+    { pattern: /^(?=.*[A-Za-z])(?=.*\d)/, message: t('acceptInvite.passwordPattern'), trigger: 'blur' }
   ],
   confirm_password: [
-    { required: true, message: '请确认密码', trigger: 'blur' },
+    { required: true, message: t('register.confirmRequired'), trigger: 'blur' },
     { validator: validateConfirmPassword, trigger: 'blur' }
   ]
-}
+}))
 
 async function loadInvitationInfo() {
   if (!token) {
-    error.value = '缺少邀请令牌'
+    error.value = t('acceptInvite.missingToken')
     loading.value = false
     return
   }
@@ -108,10 +111,10 @@ async function loadInvitationInfo() {
     const data = await getInvitationInfo(token)
     inviteInfo.value = data
     if (data.status !== 'pending') {
-      error.value = data.status === 'accepted' ? '此邀请已被接受' : data.status === 'cancelled' ? '此邀请已被取消' : '此邀请已过期'
+      error.value = data.status === 'accepted' ? t('acceptInvite.statusAccepted') : data.status === 'cancelled' ? t('acceptInvite.statusCancelled') : t('acceptInvite.statusExpired')
     }
   } catch (e) {
-    error.value = (e as Error).message || '获取邀请信息失败'
+    error.value = (e as Error).message || t('acceptInvite.loadFailed')
   } finally {
     loading.value = false
   }
@@ -130,9 +133,9 @@ async function handleSubmit() {
         nickname: form.nickname
       })
       success.value = true
-      ElMessage.success('注册成功，请登录')
+      ElMessage.success(t('register.successMsg'))
     } catch (e) {
-      ElMessage.error((e as Error).message || '注册失败')
+      ElMessage.error((e as Error).message || t('acceptInvite.registerFailed'))
     } finally {
       submitLoading.value = false
     }
