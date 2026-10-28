@@ -7,7 +7,7 @@
     <div v-else-if="fatal" class="center-box">
       <el-result icon="warning" :title="fatal.title" :sub-title="fatal.message">
         <template #extra>
-          <el-button type="primary" @click="goHome">返回首页</el-button>
+          <el-button type="primary" @click="goHome">{{ t('wiki.shareView.backHome') }}</el-button>
         </template>
       </el-result>
     </div>
@@ -17,18 +17,18 @@
         <div class="share-header__main">
           <div class="share-badge">
             <el-icon><Share /></el-icon>
-            知识库分享
+            {{ t('wiki.shareView.badge') }}
           </div>
           <h1>{{ doc.title }}</h1>
           <div class="share-meta">
-            <span v-if="doc.view_count">浏览次数 {{ doc.view_count }}</span>
-            <span v-if="doc.updated_at">最后更新 {{ formatTime(doc.updated_at) }}</span>
-            <span v-if="doc.allow_download" class="tip">已允许下载原文</span>
+            <span v-if="doc.view_count">{{ t('wiki.shareView.viewCount', doc.view_count) }}</span>
+            <span v-if="doc.updated_at">{{ t('wiki.shareView.lastUpdated', formatTime(doc.updated_at)) }}</span>
+            <span v-if="doc.allow_download" class="tip">{{ t('wiki.shareView.allowDownloadTip') }}</span>
           </div>
         </div>
         <el-button v-if="doc.allow_download" type="primary" plain @click="downloadMarkdown">
           <el-icon style="margin-right: 4px"><Download /></el-icon>
-          下载 Markdown
+          {{ t('wiki.shareView.downloadMarkdown') }}
         </el-button>
       </header>
 
@@ -37,29 +37,29 @@
       <main v-if="doc.content_html" class="markdown-body" v-html="sanitizeHtml(doc.content_html)"></main>
       <pre v-else class="plain-content">{{ doc.content }}</pre>
 
-      <footer class="share-footer">由 MeteorX 知识库生成 · 未经授权请勿转载</footer>
+      <footer class="share-footer">{{ t('wiki.shareView.footer') }}</footer>
     </template>
 
     <!-- 密码访问弹窗 -->
     <el-dialog
       v-model="passwordDialog"
-      title="该分享链接需要密码访问"
+      :title="t('wiki.shareView.pwdTitle')"
       width="420px"
       :close-on-click-modal="false"
       :close-on-press-escape="false"
     >
-      <p class="dialog-tip">请向分享者获取访问密码后输入：</p>
+      <p class="dialog-tip">{{ t('wiki.shareView.pwdTip') }}</p>
       <el-input
         v-model="password"
         type="password"
         show-password
-        placeholder="请输入访问密码"
+        :placeholder="t('wiki.shareView.pwdPlaceholder')"
         @keyup.enter="submitPassword"
       />
       <div v-if="passwordError" class="password-error">{{ passwordError }}</div>
       <template #footer>
-        <el-button @click="cancelPassword">取消</el-button>
-        <el-button type="primary" :loading="checking" @click="submitPassword">确认访问</el-button>
+        <el-button @click="cancelPassword">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="checking" @click="submitPassword">{{ t('wiki.shareView.pwdConfirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -70,6 +70,7 @@ import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { sanitizeHtml } from '@/utils/sanitize'
+import { useI18n } from '@/composables/useI18n'
 import { Download, Share } from '@element-plus/icons-vue'
 
 interface SharedDocumentView {
@@ -97,6 +98,7 @@ interface ShareApiResponse {
 
 const route = useRoute()
 const router = useRouter()
+const { t, locale } = useI18n()
 const token = route.params.token as string
 
 const doc = ref<SharedDocumentView | null>(null)
@@ -107,6 +109,11 @@ const fatal = ref<{ title: string; message: string } | null>(null)
 const passwordDialog = ref(false)
 const password = ref('')
 const passwordError = ref('')
+
+// The password-protected share endpoint signals with Chinese messages,
+// so match by code points to keep this source ASCII
+const PWD_REQUIRED_RE = /\u9700\u8981\u5bc6\u7801/
+const PWD_INVALID_RE = /\u5bc6\u7801\u9519\u8bef/
 
 onMounted(() => {
   void fetchDoc()
@@ -122,7 +129,7 @@ async function fetchDoc(pwd?: string): Promise<void> {
     })
     const body = res.data as ShareApiResponse
     if (body && typeof body === 'object' && body.code !== undefined && body.code !== 0 && body.code !== 200) {
-      throw new Error(body.message || '加载失败')
+      throw new Error(body.message || t('wiki.shareView.loadFailed'))
     }
     const data = (body?.data ?? body) as SharedDocumentView
     if (data && typeof data === 'object' && data.document_id) {
@@ -131,19 +138,19 @@ async function fetchDoc(pwd?: string): Promise<void> {
       passwordDialog.value = false
       return
     }
-    throw new Error('返回数据格式不正确')
+    throw new Error(t('wiki.shareView.badFormat'))
   } catch (err) {
     const e = err as {
       response?: { status?: number; statusText?: string; data?: { message?: string } }
       message?: string
     }
     const status = e?.response?.status
-    const message = e?.response?.data?.message || e?.response?.statusText || e?.message || '加载失败'
-    if (status === 403 && (message.includes('需要密码') || message.includes('密码错误'))) {
-      // 有密码分享：停留在密码输入弹窗（浏览计数在密码验证通过后才会产生）
+    const message = e?.response?.data?.message || e?.response?.statusText || e?.message || t('wiki.shareView.loadFailed')
+    if (status === 403 && (PWD_REQUIRED_RE.test(message) || PWD_INVALID_RE.test(message))) {
+      // Password-protected share: stay on the password dialog (view count is only raised after a valid password)
       passwordDialog.value = true
       if (pwd) {
-        passwordError.value = message.includes('需要密码') ? '' : '密码错误，请重试'
+        passwordError.value = PWD_REQUIRED_RE.test(message) ? '' : t('wiki.shareView.pwdError')
       } else {
         passwordError.value = ''
       }
@@ -152,7 +159,7 @@ async function fetchDoc(pwd?: string): Promise<void> {
       return
     }
     fatal.value = {
-      title: status === 404 ? '分享不存在或已被删除' : '暂时无法访问该分享',
+      title: status === 404 ? t('wiki.shareView.notFoundTitle') : t('wiki.shareView.errorTitle'),
       message
     }
     doc.value = null
@@ -163,7 +170,7 @@ async function fetchDoc(pwd?: string): Promise<void> {
 
 async function submitPassword() {
   if (!password.value.trim()) {
-    passwordError.value = '请输入密码'
+    passwordError.value = t('wiki.shareView.pwdRequired')
     return
   }
   checking.value = true
@@ -172,7 +179,7 @@ async function submitPassword() {
     await fetchDoc(password.value)
     password.value = ''
   } catch {
-    passwordError.value = '密码错误，请重试'
+    passwordError.value = t('wiki.shareView.pwdError')
   } finally {
     checking.value = false
   }
@@ -183,7 +190,7 @@ function cancelPassword() {
   password.value = ''
   passwordError.value = ''
   if (!doc.value && !fatal.value) {
-    fatal.value = { title: '未输入密码', message: '该分享链接需要密码才能访问' }
+    fatal.value = { title: t('wiki.shareView.noPwdTitle'), message: t('wiki.shareView.noPwdMessage') }
   }
 }
 
@@ -203,7 +210,7 @@ function downloadMarkdown() {
 function formatTime(time: string) {
   const date = new Date(time)
   if (Number.isNaN(date.getTime())) return time
-  return date.toLocaleString('zh-CN', { hour12: false })
+  return date.toLocaleString(locale.value, { hour12: false })
 }
 
 function goHome() {

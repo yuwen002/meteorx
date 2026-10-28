@@ -4,27 +4,27 @@
       <div class="search-bar">
         <el-input
           v-model="query.keyword"
-          placeholder="搜索空间名称"
+          :placeholder="t('wiki.spaceList.searchPlaceholder')"
           clearable
           style="width: 240px"
           @keyup.enter="search"
         />
         <el-button type="primary" @click="search">
-          <el-icon><Search /></el-icon>查询
+          <el-icon><Search /></el-icon>{{ t('common.query') }}
         </el-button>
-        <el-button @click="resetSearch">重置</el-button>
+        <el-button @click="resetSearch">{{ t('common.reset') }}</el-button>
         <div class="flex-1"></div>
         <el-button @click="goSearchPage">
-          <el-icon><Search /></el-icon>Wiki 搜索
+          <el-icon><Search /></el-icon>{{ t('wiki.spaceList.goSearch') }}
         </el-button>
         <el-button @click="goTrashPage">
-          <el-icon><Delete /></el-icon>回收站
+          <el-icon><Delete /></el-icon>{{ t('wiki.spaceList.trash') }}
         </el-button>
         <el-button @click="goPendingReviews">
-          <el-icon><DocumentChecked /></el-icon>待审核
+          <el-icon><DocumentChecked /></el-icon>{{ t('wiki.spaceList.pending') }}
         </el-button>
         <el-button type="success" @click="openCreateDialog">
-          <el-icon><Plus /></el-icon>新建空间
+          <el-icon><Plus /></el-icon>{{ t('wiki.spaceList.create') }}
         </el-button>
       </div>
 
@@ -39,21 +39,21 @@
               </el-tag>
             </div>
             <div v-if="item.description" class="space-desc">{{ item.description }}</div>
-            <div v-else class="space-desc empty">暂无描述</div>
+            <div v-else class="space-desc empty">{{ t('wiki.spaceList.noDesc') }}</div>
             <div class="space-footer">
-              <span>成员 {{ item.member_count || 0 }}</span>
-              <span>节点 {{ item.node_count || 0 }}</span>
+              <span>{{ t('wiki.spaceList.members', item.member_count || 0) }}</span>
+              <span>{{ t('wiki.spaceList.nodes', item.node_count || 0) }}</span>
               <span>{{ item.updated_at?.substring(0, 10) }}</span>
             </div>
             <div v-if="canManage(item)" class="space-actions" @click.stop>
-              <el-button link type="primary" @click="openEditDialog(item)">编辑</el-button>
-              <el-button link type="danger" @click="handleDelete(item)">删除</el-button>
+              <el-button link type="primary" @click="openEditDialog(item)">{{ t('common.edit') }}</el-button>
+              <el-button link type="danger" @click="handleDelete(item)">{{ t('common.delete') }}</el-button>
             </div>
           </el-card>
         </el-col>
       </el-row>
 
-      <el-empty v-if="!loading && list.length === 0" description="暂无知识空间" />
+      <el-empty v-if="!loading && list.length === 0" :description="t('wiki.spaceList.empty')" />
 
       <div v-if="total > 0" class="pagination">
         <el-pagination
@@ -70,32 +70,32 @@
     </el-card>
 
     <!-- 新建/编辑弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑空间' : '新建空间'" width="480px">
+    <el-dialog v-model="dialogVisible" :title="editingId ? t('wiki.spaceList.editTitle') : t('wiki.spaceList.create')" width="480px">
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="80px">
-        <el-form-item label="名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入空间名称" />
+        <el-form-item :label="t('common.name')" prop="name">
+          <el-input v-model="form.name" :placeholder="t('wiki.spaceList.nameRequired')" />
         </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入空间描述" />
+        <el-form-item :label="t('wiki.spaceList.description')">
+          <el-input v-model="form.description" type="textarea" :rows="3" :placeholder="t('wiki.spaceList.descPlaceholder')" />
         </el-form-item>
-        <el-form-item label="可见性">
+        <el-form-item :label="t('wiki.spaceList.visibility')">
           <el-radio-group v-model="form.visibility">
-            <el-radio :label="1">私有（仅成员可见）</el-radio>
-            <el-radio :label="2">租户内可见</el-radio>
-            <el-radio :label="3">公开（平台可见）</el-radio>
+            <el-radio :label="1">{{ t('wiki.spaceList.visPrivate') }}</el-radio>
+            <el-radio :label="2">{{ t('wiki.spaceList.visTenant') }}</el-radio>
+            <el-radio :label="3">{{ t('wiki.spaceList.visPublic') }}</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitForm">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitForm">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -109,9 +109,11 @@ import {
   type WikiSpace
 } from '@/api/modules/wiki'
 import { useTableList } from '@/composables/useTableList'
+import { useI18n } from '@/composables/useI18n'
 import { toPageResult } from '@/types/pagination'
 
 const router = useRouter()
+const { t } = useI18n()
 
 const {
   list,
@@ -142,19 +144,19 @@ const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const editingId = ref<string | null>(null)
 const form = reactive({ name: '', description: '', visibility: 1 })
-const formRules: FormRules = {
-  name: [{ required: true, message: '请输入空间名称', trigger: 'blur' }]
-}
+const formRules = computed<FormRules>(() => ({
+  name: [{ required: true, message: t('wiki.spaceList.nameRequired'), trigger: 'blur' }]
+}))
 
 function resetSearch() {
   reset()
 }
 
-// 可见性：1=私有  2=租户内可见  3=公开
+// Visibility: 1 = private, 2 = tenant, 3 = public
 function visibilityText(v: number) {
-  if (v === 3) return '公开'
-  if (v === 2) return '租户可见'
-  return '私有'
+  if (v === 3) return t('wiki.spaceList.vis.public')
+  if (v === 2) return t('wiki.spaceList.vis.tenant')
+  return t('wiki.spaceList.vis.private')
 }
 function visibilityTagType(v: number): 'success' | 'warning' | 'info' {
   if (v === 3) return 'success'
@@ -162,7 +164,7 @@ function visibilityTagType(v: number): 'success' | 'warning' | 'info' {
   return 'info'
 }
 
-// 仅 owner/admin 可对空间做管理与删除
+// Only owner/admin can manage or delete a space
 function canManage(item: WikiSpace) {
   return item.my_role === 'owner' || item.my_role === 'admin'
 }
@@ -204,10 +206,10 @@ async function submitForm() {
     try {
       if (editingId.value) {
         await updateSpace(editingId.value, form)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('wiki.spaceList.updateSuccess'))
       } else {
         await createSpace(form)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('wiki.spaceList.createSuccess'))
       }
       dialogVisible.value = false
       loadList()
@@ -218,13 +220,13 @@ async function submitForm() {
 }
 
 function handleDelete(item: WikiSpace) {
-  ElMessageBox.confirm(`确定要删除空间 "${item.name}" 吗？`, '提示', {
+  ElMessageBox.confirm(t('wiki.spaceList.deleteConfirm', item.name), t('common.tip'), {
     type: 'warning'
   })
     .then(async () => {
       if (!item.id) return
       await deleteSpace(item.id)
-      ElMessage.success('删除成功')
+      ElMessage.success(t('wiki.spaceList.deleteSuccess'))
       loadList()
     })
     .catch(() => {})

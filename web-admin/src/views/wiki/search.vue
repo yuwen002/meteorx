@@ -4,7 +4,7 @@
       <div class="search-head">
         <el-input
           v-model="keyword"
-          placeholder="搜索 Wiki 空间、目录与文档标题/正文…"
+          :placeholder="t('wiki.search.placeholder')"
           clearable
           size="large"
           @keyup.enter="doSearch"
@@ -13,11 +13,11 @@
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-button type="primary" size="large" :loading="loading" @click="doSearch">搜索</el-button>
+        <el-button type="primary" size="large" :loading="loading" @click="doSearch">{{ t('common.search') }}</el-button>
       </div>
 
       <div v-if="searched && !loading && list.length === 0" class="empty">
-        <el-empty description="未找到与关键字匹配的内容" />
+        <el-empty :description="t('wiki.search.empty')" />
       </div>
 
       <div v-loading="loading" class="results">
@@ -55,8 +55,10 @@ import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { searchWiki, type WikiSearchItem } from '@/api/modules/wiki'
 import { sanitizeHtml } from '@/utils/sanitize'
+import { useI18n } from '@/composables/useI18n'
 
 const router = useRouter()
+const { t } = useI18n()
 
 const keyword = ref('')
 const list = ref<WikiSearchItem[]>([])
@@ -72,13 +74,13 @@ function tagType(type: string): 'success' | 'primary' | 'info' {
   return 'info'
 }
 function typeText(type: string) {
-  if (type === 'document') return '文档'
-  if (type === 'space') return '空间'
-  return '节点'
+  if (type === 'document') return t('wiki.type.document')
+  if (type === 'space') return t('wiki.type.space')
+  return t('wiki.type.node')
 }
 
 function snippetHtml(item: WikiSearchItem) {
-  return sanitizeHtml(item.highlight || item.snippet || '（无摘要）')
+  return sanitizeHtml(item.highlight || item.snippet || t('wiki.search.noSnippet'))
 }
 
 async function doSearch() {

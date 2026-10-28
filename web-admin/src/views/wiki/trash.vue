@@ -3,34 +3,34 @@
     <el-card shadow="never">
       <div class="head">
         <div>
-          <h3>回收站</h3>
-          <p class="tip">被删除的空间、目录与文档会在此保留 30 天，过期后自动清除。</p>
+          <h3>{{ t('wiki.trash.title') }}</h3>
+          <p class="tip">{{ t('wiki.trash.tip') }}</p>
         </div>
         <div class="head-actions">
           <el-button v-if="isSuperAdmin" type="warning" :loading="expiring" @click="handleExpire">
-            <el-icon><Delete /></el-icon>清理过期
+            <el-icon><Delete /></el-icon>{{ t('wiki.trash.expire') }}
           </el-button>
           <el-button @click="load">
-            <el-icon><Refresh /></el-icon>刷新
+            <el-icon><Refresh /></el-icon>{{ t('common.refresh') }}
           </el-button>
         </div>
       </div>
 
       <el-tabs v-model="activeType" @tab-change="onTypeChange">
-        <el-tab-pane label="全部" name="" />
-        <el-tab-pane label="空间" name="space" />
-        <el-tab-pane label="目录" name="node" />
-        <el-tab-pane label="文档" name="document" />
+        <el-tab-pane :label="t('common.all')" name="" />
+        <el-tab-pane :label="t('wiki.trash.tabSpace')" name="space" />
+        <el-tab-pane :label="t('wiki.trash.tabNode')" name="node" />
+        <el-tab-pane :label="t('wiki.trash.tabDocument')" name="document" />
       </el-tabs>
 
       <el-table v-loading="loading" :data="list" size="default">
-        <el-table-column label="类型" width="100">
+        <el-table-column :label="t('common.type')" width="100">
           <template #default="{ row }">
             <el-tag :type="tagType(row.item_type)" size="small">{{ typeText(row.item_type) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="title" label="名称" min-width="220" show-overflow-tooltip />
-        <el-table-column label="空间" min-width="160">
+        <el-table-column prop="title" :label="t('wiki.trash.colName')" min-width="220" show-overflow-tooltip />
+        <el-table-column :label="t('wiki.trash.colSpace')" min-width="160">
           <template #default="{ row }">
             <el-link
               v-if="row.item_type === 'document' || row.item_type === 'node'"
@@ -43,27 +43,27 @@
             <span v-else>{{ row.space_id }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="删除时间" width="170">
+        <el-table-column :label="t('wiki.trash.colDeletedAt')" width="170">
           <template #default="{ row }">
             {{ row.deleted_at?.replace('T', ' ').substring(0, 19) }}
           </template>
         </el-table-column>
-        <el-table-column label="过期时间" width="170">
+        <el-table-column :label="t('wiki.trash.colExpiresAt')" width="170">
           <template #default="{ row }">
             {{ row.expires_at?.replace('T', ' ').substring(0, 19) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="170" align="center">
+        <el-table-column :label="t('common.actions')" width="170" align="center">
           <template #default="{ row }">
-            <el-button link type="success" :loading="operating" @click="restore(row)">恢复</el-button>
+            <el-button link type="success" :loading="operating" @click="restore(row)">{{ t('wiki.trash.restore') }}</el-button>
             <el-button link type="danger" :loading="operating" @click="permanentDelete(row)">
-              彻底删除
+              {{ t('wiki.trash.permanentDelete') }}
             </el-button>
           </template>
         </el-table-column>
       </el-table>
 
-      <el-empty v-if="!loading && list.length === 0" description="回收站是空的" />
+      <el-empty v-if="!loading && list.length === 0" :description="t('wiki.trash.empty')" />
 
       <div v-if="total > 0" class="pagination">
         <el-pagination
@@ -95,9 +95,11 @@ import {
   expireTrash,
   type WikiTrashItem
 } from '@/api/modules/wiki'
+import { useI18n } from '@/composables/useI18n'
 
 const router = useRouter()
 const userStore = useUserStore()
+const { t } = useI18n()
 const isSuperAdmin = computed(() => userStore.isAdmin)
 
 const list = ref<WikiTrashItem[]>([])
@@ -115,9 +117,9 @@ function tagType(type: string): 'success' | 'danger' | 'warning' | 'info' {
   return 'warning'
 }
 function typeText(type: string) {
-  if (type === 'document') return '文档'
-  if (type === 'space') return '空间'
-  return '目录'
+  if (type === 'document') return t('wiki.trash.tabDocument')
+  if (type === 'space') return t('wiki.trash.tabSpace')
+  return t('wiki.trash.tabNode')
 }
 
 function onTypeChange() {
@@ -152,7 +154,7 @@ async function restore(row: WikiTrashItem) {
   operating.value = true
   try {
     await restoreTrashItem(row.id)
-    ElMessage.success('已恢复')
+    ElMessage.success(t('wiki.trash.restored'))
     await load()
   } finally {
     operating.value = false
@@ -162,8 +164,8 @@ async function restore(row: WikiTrashItem) {
 async function permanentDelete(row: WikiTrashItem) {
   try {
     await ElMessageBox.confirm(
-      `彻底删除 "${row.title}" 后将无法恢复，确定继续吗？`,
-      '警告',
+      t('wiki.trash.permanentConfirm', row.title),
+      t('wiki.trash.warning'),
       { type: 'error' }
     )
   } catch {
@@ -172,7 +174,7 @@ async function permanentDelete(row: WikiTrashItem) {
   operating.value = true
   try {
     await permanentDeleteTrashItem(row.id)
-    ElMessage.success('已彻底删除')
+    ElMessage.success(t('wiki.trash.permanentlyDeleted'))
     await load()
   } finally {
     operating.value = false
@@ -182,8 +184,8 @@ async function permanentDelete(row: WikiTrashItem) {
 async function handleExpire() {
   try {
     await ElMessageBox.confirm(
-      '将立即清除所有已过期的回收站项目，此操作不可撤销，确定继续吗？',
-      '清理过期项目',
+      t('wiki.trash.expireConfirm'),
+      t('wiki.trash.expireTitle'),
       { type: 'warning' }
     )
   } catch {
@@ -194,13 +196,13 @@ async function handleExpire() {
     const res = await expireTrash()
     const purged = res?.purged ?? 0
     if (purged > 0) {
-      ElMessage.success(`已清理 ${purged} 个过期项目`)
+      ElMessage.success(t('wiki.trash.expireDone', purged))
     } else {
-      ElMessage.info('没有需要清理的过期项目')
+      ElMessage.info(t('wiki.trash.expireNone'))
     }
     await load()
   } catch {
-    // 错误提示由响应拦截器统一处理
+    // errors are surfaced by the shared response interceptor
   } finally {
     expiring.value = false
   }
