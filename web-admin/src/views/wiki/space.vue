@@ -4,7 +4,7 @@
     <div class="topbar">
       <el-button :icon="Back" circle @click="router.push('/wiki')" />
       <div class="space-info">
-        <span class="space-title">{{ spaceInfo?.name || '知识空间' }}</span>
+        <span class="space-title">{{ spaceInfo?.name || t('wiki.space.defaultTitle') }}</span>
         <el-tag v-if="spaceInfo" :type="visibilityTagType(spaceInfo.visibility)" size="small">
           {{ visibilityText(spaceInfo.visibility) }}
         </el-tag>
@@ -19,7 +19,7 @@
         :disabled="!spaceInfo"
         @click="membersDialogVisible = true"
       >
-        成员
+        {{ t('wiki.space.members') }}
       </el-button>
       <el-button
         v-if="canManage"
@@ -28,7 +28,7 @@
         :disabled="!spaceInfo"
         @click="handleDeleteSpace"
       >
-        删除空间
+        {{ t('wiki.space.deleteSpace') }}
       </el-button>
     </div>
 
@@ -36,28 +36,28 @@
       <!-- 左侧：目录树 -->
       <aside v-loading="loadingTree" class="sidebar">
         <div class="sidebar-head">
-          <span class="title">目录</span>
+          <span class="title">{{ t('wiki.space.treeTitle') }}</span>
           <div v-if="canEdit" class="tree-actions">
-            <el-tooltip content="批量操作">
+            <el-tooltip :content="t('wiki.space.batchOps')">
               <el-button circle size="small" :icon="Finished" :type="batchMode ? 'primary' : ''" @click="batchMode = !batchMode" />
             </el-tooltip>
-            <el-tooltip content="新建文档">
+            <el-tooltip :content="t('wiki.space.newDocument')">
               <el-button circle size="small" :icon="Plus" @click="openCreateNode('document')" />
             </el-tooltip>
-            <el-tooltip content="新建目录">
+            <el-tooltip :content="t('wiki.space.newFolder')">
               <el-button circle size="small" :icon="FolderAdd" @click="openCreateNode('folder')" />
             </el-tooltip>
           </div>
         </div>
         <!-- 批量操作工具栏 -->
         <div v-if="batchMode && canEdit" class="batch-bar">
-          <el-checkbox v-model="selectAll" @change="handleSelectAll">全选</el-checkbox>
-          <span class="batch-count">已选 {{ selectedBatchNodes.length }} 项</span>
+          <el-checkbox v-model="selectAll" @change="handleSelectAll">{{ t('wiki.space.selectAll') }}</el-checkbox>
+          <span class="batch-count">{{ t('wiki.space.selectedCount', selectedBatchNodes.length) }}</span>
           <el-button size="small" type="danger" :disabled="selectedBatchNodes.length === 0" @click="batchDelete">
-            批量删除
+            {{ t('wiki.space.batchDelete') }}
           </el-button>
           <el-button size="small" :disabled="selectedBatchNodes.length === 0" @click="openBatchMove">
-            批量移动
+            {{ t('wiki.space.batchMove') }}
           </el-button>
         </div>
         <el-tree
@@ -84,28 +84,28 @@
               <span class="node-label">{{ data.title }}</span>
               <span v-if="canEdit" class="node-ops" @click.stop>
                 <el-dropdown v-if="data.type === 'folder'" trigger="click" @command="(cmd: string) => openCreateNode(cmd as 'folder' | 'document', data)">
-                  <el-button link size="small" :icon="Plus" title="在该目录下新建" />
+                  <el-button link size="small" :icon="Plus" :title="t('wiki.space.createInFolder')" />
                   <template #dropdown>
                     <el-dropdown-menu>
-                      <el-dropdown-item command="document"><el-icon><Document /></el-icon>新建文档</el-dropdown-item>
-                      <el-dropdown-item command="folder"><el-icon><FolderAdd /></el-icon>新建目录</el-dropdown-item>
+                      <el-dropdown-item command="document"><el-icon><Document /></el-icon>{{ t('wiki.space.newDocument') }}</el-dropdown-item>
+                      <el-dropdown-item command="folder"><el-icon><FolderAdd /></el-icon>{{ t('wiki.space.newFolder') }}</el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
-                <el-button link size="small" :icon="EditPen" title="重命名" @click="openRename(data)" />
+                <el-button link size="small" :icon="EditPen" :title="t('wiki.space.rename')" @click="openRename(data)" />
                 <el-button
                   link
                   size="small"
                   :icon="Lock"
-                  title="节点权限"
+                  :title="t('wiki.space.nodePermission')"
                   @click="openNodePermission(data)"
                 />
-                <el-button link size="small" type="danger" :icon="Delete" title="删除" @click="removeNode(data)" />
+                <el-button link size="small" type="danger" :icon="Delete" :title="t('common.delete')" @click="removeNode(data)" />
               </span>
             </div>
           </template>
         </el-tree>
-        <el-empty v-if="!loadingTree && tree.length === 0" description="空间是空的" :image-size="60" />
+        <el-empty v-if="!loadingTree && tree.length === 0" :description="t('wiki.space.treeEmpty')" :image-size="60" />
       </aside>
 
       <!-- 右侧：文档区 -->
@@ -137,7 +137,7 @@
               </el-tag>
             </div>
             <el-tag v-if="canEdit" type="warning" size="small" class="unsaved-tip">
-              最后编辑 {{ currentDocument.last_edited_at?.replace('T', ' ').substring(0, 16) }}
+              {{ t('wiki.space.lastEditedAt', currentDocument.last_edited_at?.replace('T', ' ').substring(0, 16) || '') }}
             </el-tag>
             <PublishWorkflow
               v-if="currentDocument"
@@ -147,14 +147,14 @@
               :can-publish="canManage"
               @status-changed="onPublishStatusChanged"
             />
-            <el-button v-if="canEdit" :icon="PriceTag" @click="tagManagerRef?.open()">标签</el-button>
-            <el-button v-if="canEdit" :icon="Share" @click="shareManagerRef?.open()">分享</el-button>
-            <el-button :icon="DataAnalysis" @click="statsPanelRef?.open()">统计</el-button>
+            <el-button v-if="canEdit" :icon="PriceTag" @click="tagManagerRef?.open()">{{ t('wiki.space.tagBtn') }}</el-button>
+            <el-button v-if="canEdit" :icon="Share" @click="shareManagerRef?.open()">{{ t('wiki.space.shareBtn') }}</el-button>
+            <el-button :icon="DataAnalysis" @click="statsPanelRef?.open()">{{ t('wiki.space.statsBtn') }}</el-button>
             <el-button :icon="isSubscribed ? 'Star' : 'StarFilled'" :type="isSubscribed ? 'warning' : ''" @click="toggleSubscribe">
-              {{ isSubscribed ? '已订阅' : '订阅' }}
+              {{ isSubscribed ? t('wiki.space.subscribed') : t('wiki.space.subscribe') }}
             </el-button>
-            <el-button v-if="canEdit" type="primary" :icon="EditPen" @click="startEditing">编辑</el-button>
-            <el-button v-if="canEdit" :icon="FolderAdd" @click="membersDialogVisible = true">成员</el-button>
+            <el-button v-if="canEdit" type="primary" :icon="EditPen" @click="startEditing">{{ t('common.edit') }}</el-button>
+            <el-button v-if="canEdit" :icon="FolderAdd" @click="membersDialogVisible = true">{{ t('wiki.space.members') }}</el-button>
           </div>
           <div class="doc-scroll">
             <!-- 正文已经后端转义+清洗，前端再经 DOMPurify 消毒，v-html 可信 -->
@@ -176,7 +176,7 @@
                 :icon="Document"
                 @click="editorMode = 'editor'"
               >
-                仅编辑
+                {{ t('wiki.space.modeEditor') }}
               </el-button>
               <el-button
                 size="small"
@@ -184,7 +184,7 @@
                 :icon="Operation"
                 @click="editorMode = 'split'"
               >
-                分栏
+                {{ t('wiki.space.modeSplit') }}
               </el-button>
               <el-button
                 size="small"
@@ -192,24 +192,24 @@
                 :icon="View"
                 @click="editorMode = 'preview'"
               >
-                仅预览
+                {{ t('wiki.space.modePreview') }}
               </el-button>
             </div>
             <div class="md-tools">
-              <el-tooltip content="使用模板"><el-button size="small" :icon="Files" @click="templateSelectorRef?.open()" /></el-tooltip>
-              <el-tooltip content="标题"><el-button size="small" :icon="Menu" @click="mdHeading" /></el-tooltip>
-              <el-tooltip content="加粗">
+              <el-tooltip :content="t('wiki.space.mdTemplate')"><el-button size="small" :icon="Files" @click="templateSelectorRef?.open()" /></el-tooltip>
+              <el-tooltip :content="t('wiki.space.mdHeading')"><el-button size="small" :icon="Menu" @click="mdHeading" /></el-tooltip>
+              <el-tooltip :content="t('wiki.space.mdBold')">
                 <el-button size="small" @click="mdBold"><b>B</b></el-button>
               </el-tooltip>
-              <el-tooltip content="斜体">
+              <el-tooltip :content="t('wiki.space.mdItalic')">
                 <el-button size="small" @click="mdItalic"><i>I</i></el-button>
               </el-tooltip>
-              <el-tooltip content="行内代码"><el-button size="small" :icon="Cpu" @click="mdCode" /></el-tooltip>
-              <el-tooltip content="代码块"><el-button size="small" :icon="Box" @click="mdCodeBlock" /></el-tooltip>
-              <el-tooltip content="链接"><el-button size="small" :icon="Link" @click="mdLink" /></el-tooltip>
-              <el-tooltip content="列表"><el-button size="small" :icon="List" @click="mdList" /></el-tooltip>
-              <el-tooltip content="引用"><el-button size="small" :icon="ChatDotRound" @click="mdQuote" /></el-tooltip>
-              <el-tooltip content="插入图片">
+              <el-tooltip :content="t('wiki.space.mdCode')"><el-button size="small" :icon="Cpu" @click="mdCode" /></el-tooltip>
+              <el-tooltip :content="t('wiki.space.mdCodeBlock')"><el-button size="small" :icon="Box" @click="mdCodeBlock" /></el-tooltip>
+              <el-tooltip :content="t('wiki.space.mdLink')"><el-button size="small" :icon="Link" @click="mdLink" /></el-tooltip>
+              <el-tooltip :content="t('wiki.space.mdList')"><el-button size="small" :icon="List" @click="mdList" /></el-tooltip>
+              <el-tooltip :content="t('wiki.space.mdQuote')"><el-button size="small" :icon="ChatDotRound" @click="mdQuote" /></el-tooltip>
+              <el-tooltip :content="t('wiki.space.mdImage')">
                 <el-button size="small" :icon="Picture" :loading="uploading" @click="imageInput?.click()" />
               </el-tooltip>
               <input
@@ -221,11 +221,11 @@
               />
             </div>
             <div class="flex-1"></div>
-            <el-tooltip v-if="dirty" content="内容有未保存修改">
-              <span class="dirty-dot">● 未保存</span>
+            <el-tooltip v-if="dirty" :content="t('wiki.space.dirtyTip')">
+              <span class="dirty-dot">{{ t('wiki.space.dirtyDot') }}</span>
             </el-tooltip>
-            <el-button :icon="Close" @click="exitEditing">退出编辑</el-button>
-            <el-button type="primary" :icon="Check" :loading="saving" @click="saveDoc">保存</el-button>
+            <el-button :icon="Close" @click="exitEditing">{{ t('wiki.space.exitEditing') }}</el-button>
+            <el-button type="primary" :icon="Check" :loading="saving" @click="saveDoc">{{ t('common.save') }}</el-button>
           </div>
 
           <div class="editor-body">
@@ -245,7 +245,7 @@
               <!-- 实时预览已经后端转义+清洗，前端再经 DOMPurify 消毒 -->
               <!-- eslint-disable-next-line vue/no-v-html -->
               <div v-if="previewHtml" v-html="sanitizeHtml(previewHtml)"></div>
-              <el-empty v-else description="输入内容后将自动渲染预览" :image-size="60" />
+              <el-empty v-else :description="t('wiki.space.previewEmpty')" :image-size="60" />
             </div>
           </div>
         </template>
@@ -253,7 +253,7 @@
         <!-- 附件 / 版本 / 扩展功能面板 -->
         <template v-else>
           <el-empty
-            :description="currentNode ? '该目录下暂无打开文档' : '从左侧选择一个文档开始阅读'"
+            :description="currentNode ? t('wiki.space.noOpenDoc') : t('wiki.space.selectDocHint')"
             :image-size="90"
           />
         </template>
@@ -266,28 +266,28 @@
               :class="{ active: activePanel === 'attachments' }"
               @click="activePanel = 'attachments'"
             >
-              附件 ({{ attachments.length }})
+              {{ t('wiki.space.tabAttachments', attachments.length) }}
             </span>
             <span
               class="tab"
               :class="{ active: activePanel === 'history' }"
               @click="activePanel = 'history'"
             >
-              历史版本 ({{ revisions.length }})
+              {{ t('wiki.space.tabHistory', revisions.length) }}
             </span>
             <span
               class="tab"
               :class="{ active: activePanel === 'tags' }"
               @click="activePanel = 'tags'"
             >
-              标签 ({{ documentTags.length }})
+              {{ t('wiki.space.tabTags', documentTags.length) }}
             </span>
             <span
               class="tab"
               :class="{ active: activePanel === 'shares' }"
               @click="activePanel = 'shares'; shareManagerRef?.open()"
             >
-              分享
+              {{ t('wiki.space.tabShares') }}
             </span>
           </div>
 
@@ -300,7 +300,7 @@
                 accept="*/*"
                 :on-change="(f: UploadFile) => handleAttachmentAdd(f.raw as File)"
               >
-                <el-button :icon="Upload" :loading="uploading">上传附件</el-button>
+                <el-button :icon="Upload" :loading="uploading">{{ t('wiki.space.uploadAttachment') }}</el-button>
               </el-upload>
             </div>
             <div v-if="attachments.length" class="attach-grid">
@@ -309,7 +309,7 @@
                 <span class="attach-name" :title="a.file_name">{{ a.file_name }}</span>
                 <span class="attach-size">{{ formatSize(a.file_size) }}</span>
                 <div class="attach-ops">
-                  <el-button link type="primary" size="small" @click="previewAttachment(a)">预览/下载</el-button>
+                  <el-button link type="primary" size="small" @click="previewAttachment(a)">{{ t('wiki.space.previewDownload') }}</el-button>
                   <el-button
                     v-if="canEdit"
                     link
@@ -317,24 +317,24 @@
                     size="small"
                     @click="removeAttachment(a)"
                   >
-                    删除
+                    {{ t('common.delete') }}
                   </el-button>
                 </div>
               </div>
             </div>
-            <el-empty v-else description="暂无附件" :image-size="50" />
+            <el-empty v-else :description="t('wiki.space.attachEmpty')" :image-size="50" />
           </div>
 
           <div v-else-if="activePanel === 'history'" class="panel-body">
             <div v-if="canEdit" class="history-ops" style="margin-bottom: 8px; display: flex; gap: 8px;">
-              <el-button size="small" :icon="Download" @click="exportDocument">导出文档</el-button>
+              <el-button size="small" :icon="Download" @click="exportDocument">{{ t('wiki.space.exportDoc') }}</el-button>
               <el-upload
                 :auto-upload="false"
                 :show-file-list="false"
                 :on-change="handleImportFile"
                 accept=".md,.markdown"
               >
-                <el-button size="small" :icon="Upload">导入文档</el-button>
+                <el-button size="small" :icon="Upload">{{ t('wiki.space.importDoc') }}</el-button>
               </el-upload>
               <el-button 
                 v-if="revisions.length >= 2"
@@ -342,7 +342,7 @@
                 :icon="DataAnalysis" 
                 @click="openDiffDialog"
               >
-                版本对比
+                {{ t('wiki.space.diffTitle') }}
               </el-button>
             </div>
             <el-table 
@@ -352,29 +352,29 @@
               @selection-change="handleRevisionSelection"
             >
               <el-table-column type="selection" width="40" />
-              <el-table-column label="版本" width="70">
+              <el-table-column :label="t('wiki.space.colVersion')" width="70">
                 <template #default="{ row }">v{{ row.version }}</template>
               </el-table-column>
-              <el-table-column prop="summary" label="更新说明" min-width="140" show-overflow-tooltip />
-              <el-table-column label="编辑时间" width="160">
+              <el-table-column prop="summary" :label="t('wiki.space.colSummary')" min-width="140" show-overflow-tooltip />
+              <el-table-column :label="t('wiki.space.colEditedAt')" width="160">
                 <template #default="{ row }">
                   {{ row.created_at?.replace('T', ' ').substring(0, 16) }}
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="130" align="center">
+              <el-table-column :label="t('common.actions')" width="130" align="center">
                 <template #default="{ row }">
-                  <el-button link type="primary" @click="viewRevision(row)">查看</el-button>
-                  <el-button v-if="canEdit" link type="warning" @click="restoreVersion(row)">恢复</el-button>
+                  <el-button link type="primary" @click="viewRevision(row)">{{ t('wiki.space.view') }}</el-button>
+                  <el-button v-if="canEdit" link type="warning" @click="restoreVersion(row)">{{ t('wiki.space.restore') }}</el-button>
                 </template>
               </el-table-column>
             </el-table>
-            <el-empty v-if="!loadingRevisions && revisions.length === 0" description="暂无历史版本" :image-size="50" />
+            <el-empty v-if="!loadingRevisions && revisions.length === 0" :description="t('wiki.space.revisionsEmpty')" :image-size="50" />
           </div>
 
           <!-- 标签面板 -->
           <div v-else-if="activePanel === 'tags'" class="panel-body">
             <div v-if="canEdit" class="tag-ops" style="margin-bottom: 12px">
-              <el-button type="primary" size="small" @click="tagManagerRef?.open()">管理标签</el-button>
+              <el-button type="primary" size="small" @click="tagManagerRef?.open()">{{ t('wiki.space.manageTags') }}</el-button>
             </div>
             <div v-if="documentTags.length" class="tag-grid">
               <el-tag
@@ -388,50 +388,50 @@
                 {{ dt.tag?.name }}
               </el-tag>
             </div>
-            <el-empty v-else description="暂无标签，点击「管理标签」添加" :image-size="50" />
+            <el-empty v-else :description="t('wiki.space.tagsEmpty')" :image-size="50" />
           </div>
 
           <!-- 分享面板 -->
           <div v-else-if="activePanel === 'shares'" class="panel-body">
-            <el-button type="primary" @click="shareManagerRef?.open()">打开分享链接管理</el-button>
+            <el-button type="primary" @click="shareManagerRef?.open()">{{ t('wiki.space.openShareMgr') }}</el-button>
           </div>
         </div>
       </main>
     </div>
 
     <!-- 弹窗 -->
-    <el-dialog v-model="createVisible" :title="createForm.type === 'document' ? '新建文档' : '新建目录'" width="420px">
+    <el-dialog v-model="createVisible" :title="createForm.type === 'document' ? t('wiki.space.newDocument') : t('wiki.space.newFolder')" width="420px">
       <el-form :model="createForm" label-width="60px">
-        <el-form-item :label="createForm.type === 'document' ? '文档名' : '目录名'">
-          <el-input v-model="createForm.title" placeholder="请输入名称" />
+        <el-form-item :label="createForm.type === 'document' ? t('wiki.space.docName') : t('wiki.space.folderName')">
+          <el-input v-model="createForm.title" :placeholder="t('wiki.space.namePlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="createVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitCreateNode">确定</el-button>
+        <el-button @click="createVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitCreateNode">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="renameVisible" title="重命名" width="420px">
-      <el-input v-model="renameTitle" placeholder="请输入新名称" />
+    <el-dialog v-model="renameVisible" :title="t('wiki.space.rename')" width="420px">
+      <el-input v-model="renameTitle" :placeholder="t('wiki.space.newNamePlaceholder')" />
       <template #footer>
-        <el-button @click="renameVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitRename">确定</el-button>
+        <el-button @click="renameVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitRename">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 历史版本预览 -->
-    <el-dialog v-model="revisionDialogVisible" title="版本预览" width="760px" top="5vh">
+    <el-dialog v-model="revisionDialogVisible" :title="t('wiki.space.revisionPreview')" width="760px" top="5vh">
       <!-- 历史版本预览已经后端转义+清洗，前端再经 DOMPurify 消毒 -->
       <!-- eslint-disable-next-line vue/no-v-html -->
       <div class="article" v-html="sanitizeHtml(revisionPreviewHtml)"></div>
     </el-dialog>
 
     <!-- 版本对比对话框 -->
-    <el-dialog v-model="diffDialogVisible" title="版本对比" width="900px" top="5vh">
-      <div class="diff-selector" style="margin-bottom: 16px; display: flex; gap: 16px; align-items: center;">
-        <span>对比版本：</span>
-        <el-select v-model="diffVersion1" placeholder="选择旧版本" style="width: 150px">
+    <el-dialog v-model="diffDialogVisible" :title="t('wiki.space.diffTitle')" width="900px" top="5vh">
+      <div class="diff-selector" style="margin-bottom: 16px; display: flex; gap: 16px; align-items:center;">
+        <span>{{ t('wiki.space.diffPick') }}</span>
+        <el-select v-model="diffVersion1" :placeholder="t('wiki.space.diffOld')" style="width: 150px">
           <el-option
             v-for="rev in revisions"
             :key="rev.version"
@@ -440,7 +440,7 @@
           />
         </el-select>
         <span>→</span>
-        <el-select v-model="diffVersion2" placeholder="选择新版本" style="width: 150px">
+        <el-select v-model="diffVersion2" :placeholder="t('wiki.space.diffNew')" style="width: 150px">
           <el-option
             v-for="rev in revisions"
             :key="rev.version"
@@ -448,21 +448,21 @@
             :value="rev.version"
           />
         </el-select>
-        <el-button type="primary" :loading="loadingDiff" @click="loadDiff">对比</el-button>
+        <el-button type="primary" :loading="loadingDiff" @click="loadDiff">{{ t('wiki.space.diffRun') }}</el-button>
       </div>
       <!-- 版本对比 HTML 已经后端转义+清洗，前端再经 DOMPurify 消毒 -->
       <!-- eslint-disable-next-line vue/no-v-html -->
       <div v-if="diffHtml" class="diff-view" v-html="sanitizeHtml(diffHtml)"></div>
-      <el-empty v-else description="选择两个版本后点击对比查看差异" :image-size="80" />
+      <el-empty v-else :description="t('wiki.space.diffEmpty')" :image-size="80" />
     </el-dialog>
 
     <!-- 附件图片预览 -->
-    <el-dialog v-model="attachmentPreviewVisible" title="图片预览" width="640px">
+    <el-dialog v-model="attachmentPreviewVisible" :title="t('wiki.space.imagePreview')" width="640px">
       <div class="article preview-img-wrap">
-        <img :src="attachmentPreviewUrl" alt="预览" />
+        <img :src="attachmentPreviewUrl" :alt="t('wiki.space.preview')" />
       </div>
       <template #footer>
-        <el-button type="primary" @click="downloadAttachment(currentAttachment!)">下载原图</el-button>
+        <el-button type="primary" @click="downloadAttachment(currentAttachment!)">{{ t('wiki.space.downloadOriginal') }}</el-button>
       </template>
     </el-dialog>
 
@@ -481,24 +481,24 @@
     />
     
     <!-- 批量移动对话框 -->
-    <el-dialog v-model="batchMoveVisible" title="批量移动" width="420px">
+    <el-dialog v-model="batchMoveVisible" :title="t('wiki.space.batchMove')" width="420px">
       <el-form label-width="80px">
-        <el-form-item label="目标目录">
+        <el-form-item :label="t('wiki.space.batchMoveTarget')">
           <el-tree-select
             v-model="batchMoveTargetId"
             :data="tree"
             :props="{ label: 'title', children: 'children' }"
             node-key="id"
             check-strictly
-            placeholder="选择目标目录（留空则移到根级）"
+            :placeholder="t('wiki.space.batchMoveTargetPlaceholder')"
             clearable
             :render-after-expand="false"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="batchMoveVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitBatchMove">确定</el-button>
+        <el-button @click="batchMoveVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitBatchMove">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
     
@@ -581,6 +581,7 @@ import {
 } from '@/api/modules/wiki'
 import { uploadFile, downloadFile } from '@/api/modules/file'
 import { useUserStore } from '@/stores/user'
+import { useI18n } from '@/composables/useI18n'
 import { sanitizeHtml } from '@/utils/sanitize'
 import MembersDialog from './components/MembersDialog.vue'
 import NodePermissionDialog from './components/NodePermissionDialog.vue'
@@ -596,6 +597,7 @@ import PublishWorkflow from './components/PublishWorkflow.vue'
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const { t } = useI18n()
 
 const spaceId = route.params.id as string
 const myUserId = computed(() => userStore.userInfo?.id || '')
@@ -616,9 +618,9 @@ const selectedNodeId = ref('')
 const currentNode = ref<WikiNode | null>(null)
 
 function visibilityText(v: number) {
-  if (v === 3) return '公开'
-  if (v === 2) return '租户可见'
-  return '私有'
+  if (v === 3) return t('wiki.spaceList.vis.public')
+  if (v === 2) return t('wiki.spaceList.vis.tenant')
+  return t('wiki.spaceList.vis.private')
 }
 function visibilityTagType(v: number): 'success' | 'warning' | 'info' {
   if (v === 3) return 'success'
@@ -765,9 +767,9 @@ async function saveDoc() {
       format: 'markdown'
     })
     dirty.value = false
-    // 文档内容变化后刷新历史版本
+    // Reload revisions after the content changes
     await loadRevisions()
-    ElMessage.success('已保存')
+    ElMessage.success(t('wiki.space.saved'))
   } finally {
     saving.value = false
   }
@@ -776,7 +778,7 @@ async function saveDoc() {
 async function exitEditing() {
   if (dirty.value) {
     try {
-      await ElMessageBox.confirm('有未保存的修改，退出编辑将丢弃，确定退出吗？', '提示', {
+      await ElMessageBox.confirm(t('wiki.space.exitConfirm'), t('common.tip'), {
         type: 'warning'
       })
     } catch {
@@ -787,14 +789,14 @@ async function exitEditing() {
   editorMode.value = 'split'
   dirty.value = false
   if (currentDocument.value) {
-    // 重新拉取最新内容
+    // Refetch the latest content
     await loadDocument(currentDocument.value.node_id)
   }
 }
 
 onBeforeRouteLeave(() => {
   if (editing.value && dirty.value) {
-    return window.confirm('有未保存的修改，确定离开吗？')
+    return window.confirm(t('wiki.space.leaveConfirm'))
   }
   return true
 })
@@ -837,10 +839,10 @@ function mdHeading() {
   blockPrefix('## ')
 }
 function mdBold() {
-  replaceSelection('**', '**', '加粗文字')
+  replaceSelection('**', '**', t('wiki.space.mdBoldText'))
 }
 function mdItalic() {
-  replaceSelection('*', '*', '斜体文字')
+  replaceSelection('*', '*', t('wiki.space.mdItalicText'))
 }
 function mdCode() {
   replaceSelection('`', '`', 'code')
@@ -851,7 +853,7 @@ function mdCodeBlock() {
   schedulePreview()
 }
 function mdLink() {
-  replaceSelection('[', '](https://)', '链接文字')
+  replaceSelection('[', '](https://)', t('wiki.space.mdLinkText'))
 }
 function mdList() {
   blockPrefix('- ')
@@ -877,10 +879,10 @@ async function handleImageUpload(e: Event) {
   try {
     const resp = await uploadFile(file)
     if (!resp?.id) {
-      ElMessage.error('上传失败')
+      ElMessage.error(t('wiki.space.uploadFailed'))
       return
     }
-    // 图片同步登记为附件
+    // Register the uploaded image as an attachment too
     try {
       await createAttachment({
         document_id: currentDocument.value!.id,
@@ -892,14 +894,14 @@ async function handleImageUpload(e: Event) {
       })
       await loadAttachments()
     } catch {
-      /* 附件登记失败不阻断插入 */
+      /* A failed attachment registration must not block the insertion */
     }
     const path = resolveUploadPath(resp.url || '')
     editingContent.value += `\n![${file.name || 'image'}](${path})\n`
     schedulePreview()
-    ElMessage.success('图片已插入')
+    ElMessage.success(t('wiki.space.imageInserted'))
   } catch {
-    /* 拦截器已提示 */
+    /* Already reported by the response interceptor */
   } finally {
     uploading.value = false
   }
@@ -923,7 +925,7 @@ function openCreateNode(type: 'folder' | 'document', parent?: WikiNode) {
 
 async function submitCreateNode() {
   if (!createForm.title.trim()) {
-    ElMessage.warning('请输入名称')
+    ElMessage.warning(t('wiki.space.namePlaceholder'))
     return
   }
   submitting.value = true
@@ -934,7 +936,7 @@ async function submitCreateNode() {
       parent_id: createParent.value?.id || undefined
     })
     createVisible.value = false
-    ElMessage.success(createForm.type === 'document' ? '文档已创建' : '目录已创建')
+    ElMessage.success(createForm.type === 'document' ? t('wiki.space.docCreated') : t('wiki.space.folderCreated'))
     await reloadTree()
     await nextTick()
     treeRef.value?.setCurrentKey(node.id)
@@ -962,7 +964,7 @@ async function submitRename() {
   try {
     await updateNode(spaceId, renameTarget.value.id, { title: renameTitle.value.trim() })
     renameVisible.value = false
-    ElMessage.success('重命名成功')
+    ElMessage.success(t('wiki.space.renameSuccess'))
     await reloadTree()
     if (renameTarget.value.id === selectedNodeId.value) {
       currentNode.value = findNodeById(tree.value, selectedNodeId.value)
@@ -977,9 +979,9 @@ async function removeNode(node: WikiNode) {
   try {
     await ElMessageBox.confirm(
       node.type === 'folder'
-        ? `目录 "${node.title}" 及其下所有内容将移入回收站，确定删除吗？`
-        : `文档 "${node.title}" 将移入回收站，确定删除吗？`,
-      '删除确认',
+        ? t('wiki.space.deleteFolderConfirm', node.title)
+        : t('wiki.space.deleteDocConfirm', node.title),
+      t('wiki.space.deleteConfirmTitle'),
       { type: 'warning' }
     )
   } catch {
@@ -987,7 +989,7 @@ async function removeNode(node: WikiNode) {
   }
   try {
     await deleteNode(spaceId, node.id)
-    ElMessage.success('已移入回收站')
+    ElMessage.success(t('wiki.space.movedToTrash'))
     if (selectedNodeId.value === node.id) {
       currentNode.value = null
       currentDocument.value = null
@@ -1004,8 +1006,8 @@ async function handleDeleteSpace() {
   if (!spaceInfo.value) return
   try {
     await ElMessageBox.confirm(
-      `知识库 "${spaceInfo.value.name}" 及其全部内容将移入回收站（保留 30 天），确定删除吗？`,
-      '删除空间',
+      t('wiki.space.deleteSpaceConfirm', spaceInfo.value.name),
+      t('wiki.space.deleteSpace'),
       { type: 'error' }
     )
   } catch {
@@ -1013,7 +1015,7 @@ async function handleDeleteSpace() {
   }
   try {
     await deleteSpace(spaceId)
-    ElMessage.success('已删除并移入回收站')
+    ElMessage.success(t('wiki.space.spaceDeleted'))
     router.replace('/wiki')
   } catch {
     /* 拦截器已提示 */
@@ -1040,40 +1042,40 @@ const templateSelectorRef = ref<InstanceType<typeof TemplateSelector>>()
 const documentTags = ref<DocumentTag[]>([])
 const editLocked = ref(false)
 
-// 加载文档标签
+// Load document tags
 async function loadDocumentTags() {
   if (!currentDocument.value) return
   try {
     const { listDocumentTags } = await import('@/api/modules/wiki')
     documentTags.value = await listDocumentTags(currentDocument.value.id)
   } catch (error) {
-    console.error('加载标签失败:', error)
+    console.error('Failed to load document tags:', error)
   }
 }
 
-// 移除文档标签
+// Detach a tag from the document
 async function handleRemoveTag(tagId: string) {
   if (!currentDocument.value) return
   try {
     const { removeDocumentTag } = await import('@/api/modules/wiki')
     await removeDocumentTag(currentDocument.value.id, tagId)
-    ElMessage.success('标签已移除')
+    ElMessage.success(t('wiki.space.tagRemoved'))
     await loadDocumentTags()
   } catch (error) {
-    ElMessage.error('移除标签失败')
+    ElMessage.error(t('wiki.space.tagRemoveFailed'))
   }
 }
 
-// 处理模板选择
+// Apply the chosen template to the editor
 function handleTemplateSelect(template: DocumentTemplate) {
   if (!editing.value) {
     startEditing()
   }
   editingContent.value = template.content
-  ElMessage.success(`已使用模板: ${template.name}`)
+  ElMessage.success(t('wiki.space.templateApplied', template.name))
 }
 
-// 编辑锁状态变化
+// Edit lock state changes
 function handleEditLocked() {
   editLocked.value = true
 }
@@ -1104,7 +1106,7 @@ async function handleAttachmentAdd(file: File) {
       mime_type: resp.mime_type || file.type,
       file_url: resp.url || ''
     })
-    ElMessage.success('附件已上传')
+    ElMessage.success(t('wiki.space.attachmentUploaded'))
     await loadAttachments()
   } catch {
     /* 拦截器已提示 */
@@ -1115,13 +1117,13 @@ async function handleAttachmentAdd(file: File) {
 
 async function removeAttachment(a: WikiAttachment) {
   try {
-    await ElMessageBox.confirm(`确定删除附件 "${a.file_name}" 吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(t('wiki.space.deleteAttachmentConfirm', a.file_name), t('common.tip'), { type: 'warning' })
   } catch {
     return
   }
   try {
     await deleteAttachment(a.id)
-    ElMessage.success('附件已删除')
+    ElMessage.success(t('wiki.space.attachmentDeleted'))
     await loadAttachments()
   } catch {
     /* 拦截器已提示 */
@@ -1130,7 +1132,7 @@ async function removeAttachment(a: WikiAttachment) {
 
 async function downloadAttachment(a: WikiAttachment) {
   if (!a.file_id) {
-    // 无文件索引时退化为直接访问签名 URL
+    // Without a file index, fall back to the signed URL
     window.open(a.file_url, '_blank')
     return
   }
@@ -1147,7 +1149,7 @@ async function downloadAttachment(a: WikiAttachment) {
   }
 }
 
-// 图片附件在线预览
+// Inline preview of image attachments
 const attachmentPreviewVisible = ref(false)
 const attachmentPreviewUrl = ref('')
 const currentAttachment = ref<WikiAttachment | null>(null)
@@ -1163,7 +1165,7 @@ async function previewAttachment(a: WikiAttachment) {
       attachmentPreviewVisible.value = true
       return
     } catch {
-      /* 失败退化为下载 */
+      /* Fall back to downloading */
     }
   }
   await downloadAttachment(a)
@@ -1195,13 +1197,13 @@ async function loadRevisions() {
 }
 
 async function viewRevision(row: DocumentRevision) {
-  revisionPreviewHtml.value = row.content_html || '<p class="empty-tip">（此版本无正文内容）</p>'
+  revisionPreviewHtml.value = row.content_html || `<p class="empty-tip">${t('wiki.space.revisionNoContent')}</p>`
   revisionDialogVisible.value = true
 }
 
 async function restoreVersion(row: DocumentRevision) {
   try {
-    await ElMessageBox.confirm(`确定将文档恢复到 v${row.version} 吗？将覆盖当前内容。`, '版本恢复', {
+    await ElMessageBox.confirm(t('wiki.space.restoreRevisionConfirm', row.version), t('wiki.space.restoreRevisionTitle'), {
       type: 'warning'
     })
   } catch {
@@ -1209,7 +1211,7 @@ async function restoreVersion(row: DocumentRevision) {
   }
   try {
     await restoreRevision(currentDocument.value!.id, row.version)
-    ElMessage.success('已恢复到该版本')
+    ElMessage.success(t('wiki.space.revisionRestored'))
     await loadDocument(currentDocument.value!.node_id)
     await loadRevisions()
   } catch {
@@ -1231,7 +1233,7 @@ function handleRevisionSelection(selection: DocumentRevision[]) {
 
 function openDiffDialog() {
   if (revisions.value.length < 2) {
-    ElMessage.warning('至少需要两个版本才能进行对比')
+    ElMessage.warning(t('wiki.space.diffNeedTwo'))
     return
   }
   diffVersion1.value = revisions.value[revisions.value.length - 1].version
@@ -1242,7 +1244,7 @@ function openDiffDialog() {
 
 async function loadDiff() {
   if (!currentDocument.value || !diffVersion1.value || !diffVersion2.value) {
-    ElMessage.warning('请选择两个版本进行对比')
+    ElMessage.warning(t('wiki.space.diffPickTwo'))
     return
   }
   loadingDiff.value = true
@@ -1252,7 +1254,7 @@ async function loadDiff() {
     const diff = await compareRevisions(currentDocument.value.id, v1, v2)
     diffHtml.value = renderDiffHtml(diff)
   } catch {
-    ElMessage.error('获取版本对比失败')
+    ElMessage.error(t('wiki.space.diffLoadFailed'))
     diffHtml.value = ''
   } finally {
     loadingDiff.value = false
@@ -1262,7 +1264,7 @@ async function loadDiff() {
 function renderDiffHtml(diff: RevisionDiff | null): string {
   if (!diff || !diff.diffs) return ''
   let html = '<div class="diff-container">'
-  html += `<div class="diff-header">对比版本：v${diff.old_version} → v${diff.new_version}</div>`
+  html += `<div class="diff-header">${t('wiki.space.diffHeader', diff.old_version, diff.new_version)}</div>`
   html += '<div class="diff-content">'
   
   for (const line of diff.diffs) {
@@ -1297,9 +1299,9 @@ async function exportDocument() {
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    ElMessage.success('文档导出成功')
+    ElMessage.success(t('wiki.space.exportSuccess'))
   } catch {
-    ElMessage.error('文档导出失败')
+    ElMessage.error(t('wiki.space.exportFailed'))
   }
 }
 
@@ -1308,8 +1310,8 @@ async function handleImportFile(file: { name: string; raw?: File }) {
   
   try {
     await ElMessageBox.confirm(
-      `确定要导入文件 "${file.name}" 吗？这将覆盖当前文档内容。`,
-      '导入文档',
+      t('wiki.space.importConfirm', file.name),
+      t('wiki.space.importDoc'),
       { type: 'warning' }
     )
   } catch {
@@ -1318,10 +1320,10 @@ async function handleImportFile(file: { name: string; raw?: File }) {
   
   try {
     await importDocumentApi(currentDocument.value.id, file.raw)
-    ElMessage.success('文档导入成功')
+    ElMessage.success(t('wiki.space.importSuccess'))
     await loadDocument(currentDocument.value.node_id)
   } catch {
-    ElMessage.error('文档导入失败')
+    ElMessage.error(t('wiki.space.importFailed'))
   }
 }
 
@@ -1351,8 +1353,8 @@ async function batchDelete() {
   if (selectedBatchNodes.value.length === 0) return
   try {
     await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedBatchNodes.value.length} 个节点及其子节点吗？`,
-      '批量删除',
+      t('wiki.space.batchDeleteConfirm', selectedBatchNodes.value.length),
+      t('wiki.space.batchDelete'),
       { type: 'warning' }
     )
   } catch {
@@ -1361,7 +1363,7 @@ async function batchDelete() {
   submitting.value = true
   try {
     await batchDeleteNodes({ node_ids: selectedBatchNodes.value })
-    ElMessage.success('批量删除成功')
+    ElMessage.success(t('wiki.space.batchDeleteSuccess'))
     selectedBatchNodes.value = []
     selectAll.value = false
     await reloadTree()
@@ -1385,7 +1387,7 @@ async function submitBatchMove() {
       node_ids: selectedBatchNodes.value,
       new_parent_id: batchMoveTargetId.value
     })
-    ElMessage.success('批量移动成功')
+    ElMessage.success(t('wiki.space.batchMoveSuccess'))
     batchMoveVisible.value = false
     selectedBatchNodes.value = []
     selectAll.value = false
@@ -1417,11 +1419,11 @@ async function toggleSubscribe() {
   try {
     if (isSubscribed.value) {
       await unsubscribeDocument(currentDocument.value.id)
-      ElMessage.success('已取消订阅')
+      ElMessage.success(t('wiki.space.unsubscribeSuccess'))
       isSubscribed.value = false
     } else {
       await subscribeDocument(currentDocument.value.id)
-      ElMessage.success('已订阅该文档')
+      ElMessage.success(t('wiki.space.subscribeSuccess'))
       isSubscribed.value = true
     }
   } catch {
@@ -1444,7 +1446,7 @@ onMounted(async () => {
       await selectNode(node)
     }
   } else if (tree.value.length > 0) {
-    // 默认展开第一级
+    // Expand the first level by default
     expandedKeys.value = tree.value.filter((n) => n.children?.length).map((n) => n.id)
   }
 })
