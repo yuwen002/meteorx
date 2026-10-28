@@ -1,33 +1,33 @@
 <template>
   <div class="announcement-list">
     <div class="page-header">
-      <h2>平台公告</h2>
-      <p class="subtitle">查看平台发布的最新消息和通知</p>
+      <h2>{{ t('announcementPage.title') }}</h2>
+      <p class="subtitle">{{ t('announcementPage.subtitle') }}</p>
     </div>
 
     <el-table v-loading="loading" :data="list" stripe style="width: 100%">
-      <el-table-column prop="title" label="公告标题" min-width="200">
+      <el-table-column prop="title" :label="t('announcementPage.col.title')" min-width="200">
         <template #default="{ row }">
           <span class="title">{{ row.title }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="content" label="内容" min-width="300">
+      <el-table-column prop="content" :label="t('announcementPage.col.content')" min-width="300">
         <template #default="{ row }">
           <span class="content-preview">{{ stripHtml(row.content) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="发布时间" width="180">
+      <el-table-column :label="t('announcementPage.col.publishTime')" width="180">
         <template #default="{ row }">
           {{ formatDate(row.publish_at || row.created_at) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="100" fixed="right">
+      <el-table-column :label="t('announcementPage.col.operation')" width="100" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" type="primary" link @click="handleView(row)">查看</el-button>
+          <el-button size="small" type="primary" link @click="handleView(row)">{{ t('announcementPage.action.view') }}</el-button>
         </template>
       </el-table-column>
       <template #empty>
-        <el-empty description="暂无公告" />
+        <el-empty :description="t('announcementPage.empty')" />
       </template>
     </el-table>
 
@@ -48,7 +48,7 @@
       <!-- eslint-disable-next-line vue/no-v-html -->
       <div class="announcement-content" v-html="currentItem?.content"></div>
       <template #footer>
-        <el-button @click="detailVisible = false">关闭</el-button>
+        <el-button @click="detailVisible = false">{{ t('announcementPage.action.close') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -59,6 +59,9 @@ import { ref } from 'vue'
 import { listTenantAnnouncements, type AnnouncementItem } from '@/api/modules/announcement'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
+import { useI18n } from '@/composables/useI18n'
+
+const { t, locale } = useI18n()
 
 const {
   list,
@@ -86,7 +89,7 @@ function formatDate(dateStr: string | undefined | null) {
   if (!dateStr) return ''
   const d = new Date(dateStr)
   if (isNaN(d.getTime())) return ''
-  return d.toLocaleString('zh-CN', {
+  return d.toLocaleString(locale.value, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

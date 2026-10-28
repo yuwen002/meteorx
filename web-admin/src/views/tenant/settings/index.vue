@@ -5,8 +5,8 @@
         <el-card shadow="never">
           <template #header>
             <div class="card-header">
-              <span class="title">租户设置</span>
-              <el-tag v-if="loading" type="info" size="small">加载中...</el-tag>
+              <span class="title">{{ t('tenantSettingsPage.title') }}</span>
+              <el-tag v-if="loading" type="info" size="small">{{ t('common.loading') }}</el-tag>
             </div>
           </template>
 
@@ -18,33 +18,33 @@
             class="settings-form"
           >
             <el-tabs v-model="activeTab">
-              <el-tab-pane label="基本信息" name="basic">
-                <el-form-item label="租户名称" prop="welcome_text">
-                  <el-input v-model="form.welcome_text" placeholder="设置租户欢迎语" />
+              <el-tab-pane :label="t('tenantSettingsPage.tab.basic')" name="basic">
+                <el-form-item :label="t('tenantSettingsPage.form.tenantName')" prop="welcome_text">
+                  <el-input v-model="form.welcome_text" :placeholder="t('tenantSettingsPage.form.welcomePlaceholder')" />
                 </el-form-item>
-                <el-form-item label="租户描述" prop="description">
+                <el-form-item :label="t('tenantSettingsPage.form.description')" prop="description">
                   <el-input
                     v-model="form.description"
                     type="textarea"
                     :rows="3"
-                    placeholder="设置租户描述信息"
+                    :placeholder="t('tenantSettingsPage.form.descriptionPlaceholder')"
                   />
                 </el-form-item>
-                <el-form-item label="联系姓名" prop="contact_name">
-                  <el-input v-model="form.contact_name" placeholder="联系人姓名" />
+                <el-form-item :label="t('tenantSettingsPage.form.contactName')" prop="contact_name">
+                  <el-input v-model="form.contact_name" :placeholder="t('tenantSettingsPage.form.contactNamePlaceholder')" />
                 </el-form-item>
-                <el-form-item label="联系邮箱" prop="contact_email">
-                  <el-input v-model="form.contact_email" placeholder="联系邮箱" />
+                <el-form-item :label="t('tenantSettingsPage.form.contactEmail')" prop="contact_email">
+                  <el-input v-model="form.contact_email" :placeholder="t('tenantSettingsPage.form.contactEmailPlaceholder')" />
                 </el-form-item>
-                <el-form-item label="联系电话" prop="contact_phone">
-                  <el-input v-model="form.contact_phone" placeholder="联系电话" />
+                <el-form-item :label="t('tenantSettingsPage.form.contactPhone')" prop="contact_phone">
+                  <el-input v-model="form.contact_phone" :placeholder="t('tenantSettingsPage.form.contactPhonePlaceholder')" />
                 </el-form-item>
-                <el-form-item label="地址" prop="address">
-                  <el-input v-model="form.address" placeholder="地址" />
+                <el-form-item :label="t('tenantSettingsPage.form.address')" prop="address">
+                  <el-input v-model="form.address" :placeholder="t('tenantSettingsPage.form.addressPlaceholder')" />
                 </el-form-item>
               </el-tab-pane>
 
-              <el-tab-pane label="品牌定制" name="branding">
+              <el-tab-pane :label="t('tenantSettingsPage.tab.branding')" name="branding">
                 <el-form-item label="Logo" prop="logo">
                   <el-input v-model="form.logo" placeholder="Logo URL" />
                   <div v-if="form.logo" class="preview">
@@ -54,7 +54,7 @@
                 <el-form-item label="Favicon" prop="favicon">
                   <el-input v-model="form.favicon" placeholder="Favicon URL" />
                 </el-form-item>
-                <el-form-item label="主题色" prop="primary_color">
+                <el-form-item :label="t('tenantSettingsPage.form.primaryColor')" prop="primary_color">
                   <div class="color-picker-wrapper">
                     <el-color-picker v-model="form.primary_color" />
                     <el-input
@@ -64,52 +64,52 @@
                     />
                   </div>
                 </el-form-item>
-                <el-form-item label="主题风格" prop="theme">
-                  <el-select v-model="form.theme" placeholder="选择主题" style="width: 200px;">
-                    <el-option label="明亮主题" value="light" />
-                    <el-option label="暗色主题" value="dark" />
-                    <el-option label="跟随系统" value="auto" />
+                <el-form-item :label="t('tenantSettingsPage.form.theme')" prop="theme">
+                  <el-select v-model="form.theme" :placeholder="t('tenantSettingsPage.form.themePlaceholder')" style="width: 200px;">
+                    <el-option :label="t('tenantSettingsPage.theme.light')" value="light" />
+                    <el-option :label="t('tenantSettingsPage.theme.dark')" value="dark" />
+                    <el-option :label="t('tenantSettingsPage.theme.auto')" value="auto" />
                   </el-select>
                 </el-form-item>
               </el-tab-pane>
 
-              <el-tab-pane label="本地化" name="localization">
-                <el-form-item label="默认语言" prop="language">
-                  <el-select v-model="form.language" placeholder="选择语言" style="width: 200px;">
-                    <el-option label="简体中文" value="zh-CN" />
-                    <el-option label="English" value="en-US" />
-                    <el-option label="日本語" value="ja-JP" />
+              <el-tab-pane :label="t('tenantSettingsPage.tab.localization')" name="localization">
+                <el-form-item :label="t('tenantSettingsPage.form.language')" prop="language">
+                  <el-select v-model="form.language" :placeholder="t('tenantSettingsPage.form.languagePlaceholder')" style="width: 200px;">
+                    <el-option :label="t('tenantSettingsPage.lang.zh')" value="zh-CN" />
+                    <el-option :label="t('tenantSettingsPage.lang.en')" value="en-US" />
+                    <el-option :label="t('tenantSettingsPage.lang.ja')" value="ja-JP" />
                   </el-select>
                 </el-form-item>
-                <el-form-item label="时区" prop="timezone">
-                  <el-select v-model="form.timezone" placeholder="选择时区" style="width: 200px;">
-                    <el-option label="(GMT+08:00) 北京" value="Asia/Shanghai" />
-                    <el-option label="(GMT+00:00) 伦敦" value="Europe/London" />
-                    <el-option label="(GMT-05:00) 纽约" value="America/New_York" />
-                    <el-option label="(GMT-08:00) 洛杉矶" value="America/Los_Angeles" />
-                    <el-option label="(GMT+09:00) 东京" value="Asia/Tokyo" />
+                <el-form-item :label="t('tenantSettingsPage.form.timezone')" prop="timezone">
+                  <el-select v-model="form.timezone" :placeholder="t('tenantSettingsPage.form.timezonePlaceholder')" style="width: 200px;">
+                    <el-option :label="t('tenantSettingsPage.timezone.shanghai')" value="Asia/Shanghai" />
+                    <el-option :label="t('tenantSettingsPage.timezone.london')" value="Europe/London" />
+                    <el-option :label="t('tenantSettingsPage.timezone.newyork')" value="America/New_York" />
+                    <el-option :label="t('tenantSettingsPage.timezone.losangeles')" value="America/Los_Angeles" />
+                    <el-option :label="t('tenantSettingsPage.timezone.tokyo')" value="Asia/Tokyo" />
                   </el-select>
                 </el-form-item>
               </el-tab-pane>
 
-              <el-tab-pane label="扩展配置" name="extra">
-                <el-form-item label="扩展配置" prop="extra">
+              <el-tab-pane :label="t('tenantSettingsPage.tab.extra')" name="extra">
+                <el-form-item :label="t('tenantSettingsPage.form.extra')" prop="extra">
                   <el-input
                     v-model="form.extra"
                     type="textarea"
                     :rows="8"
                     placeholder='{"key": "value"}'
                   />
-                  <div class="extra-tip">支持 JSON 格式的扩展配置</div>
+                  <div class="extra-tip">{{ t('tenantSettingsPage.extraTip') }}</div>
                 </el-form-item>
               </el-tab-pane>
             </el-tabs>
 
             <div class="form-actions">
               <el-button type="primary" :loading="saving" @click="handleSave">
-                保存设置
+                {{ t('tenantSettingsPage.action.save') }}
               </el-button>
-              <el-button @click="handleReset">重置</el-button>
+              <el-button @click="handleReset">{{ t('common.reset') }}</el-button>
             </div>
           </el-form>
         </el-card>
@@ -118,7 +118,7 @@
       <el-col :span="8">
         <el-card shadow="never">
           <template #header>
-            <span class="title">预览</span>
+            <span class="title">{{ t('tenantSettingsPage.tab.preview') }}</span>
           </template>
           <div class="preview-panel">
             <div
@@ -131,36 +131,36 @@
                 alt="Logo"
                 class="preview-header-logo"
               />
-              <span v-else class="preview-header-title">{{ form.welcome_text || 'MeteorX 平台' }}</span>
+              <span v-else class="preview-header-title">{{ form.welcome_text || t('tenantSettingsPage.preview.defaultHeader') }}</span>
             </div>
             <div class="preview-body">
               <div class="preview-welcome">
-                <h3>{{ form.welcome_text || '欢迎使用' }}</h3>
-                <p>{{ form.description || '租户描述将显示在此处' }}</p>
+                <h3>{{ form.welcome_text || t('tenantSettingsPage.preview.defaultWelcome') }}</h3>
+                <p>{{ form.description || t('tenantSettingsPage.preview.defaultDesc') }}</p>
               </div>
               <div class="preview-info">
                 <div v-if="form.contact_name" class="info-item">
-                  <span class="info-label">联系人:</span>
+                  <span class="info-label">{{ t('tenantSettingsPage.preview.contact') }}</span>
                   <span class="info-value">{{ form.contact_name }}</span>
                 </div>
                 <div v-if="form.contact_email" class="info-item">
-                  <span class="info-label">邮箱:</span>
+                  <span class="info-label">{{ t('tenantSettingsPage.preview.email') }}</span>
                   <span class="info-value">{{ form.contact_email }}</span>
                 </div>
                 <div v-if="form.contact_phone" class="info-item">
-                  <span class="info-label">电话:</span>
+                  <span class="info-label">{{ t('tenantSettingsPage.preview.phone') }}</span>
                   <span class="info-value">{{ form.contact_phone }}</span>
                 </div>
                 <div v-if="form.address" class="info-item">
-                  <span class="info-label">地址:</span>
+                  <span class="info-label">{{ t('tenantSettingsPage.preview.address') }}</span>
                   <span class="info-value">{{ form.address }}</span>
                 </div>
                 <div class="info-item">
-                  <span class="info-label">语言:</span>
+                  <span class="info-label">{{ t('tenantSettingsPage.preview.language') }}</span>
                   <span class="info-value">{{ getLanguageLabel(form.language) }}</span>
                 </div>
                 <div class="info-item">
-                  <span class="info-label">时区:</span>
+                  <span class="info-label">{{ t('tenantSettingsPage.preview.timezone') }}</span>
                   <span class="info-value">{{ getTimezoneLabel(form.timezone) }}</span>
                 </div>
               </div>
@@ -173,12 +173,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { getTenantSettings, updateTenantSettings } from '@/api/modules/tenant'
 import type { TenantSettings, UpdateTenantSettingsReq } from '@/api/modules/tenant'
 import { useBrand } from '@/composables/useBrand'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const formRef = ref<FormInstance>()
 const loading = ref(false)
@@ -206,9 +209,9 @@ const form = reactive<TenantSettings>({
   updated_at: ''
 })
 
-const formRules: FormRules = {
+const formRules = computed<FormRules>(() => ({
   contact_email: [
-    { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }
+    { type: 'email', message: t('tenantSettingsPage.rules.emailInvalid'), trigger: 'blur' }
   ],
   extra: [
     {
@@ -217,7 +220,7 @@ const formRules: FormRules = {
           try {
             JSON.parse(value)
           } catch {
-            callback(new Error('请输入有效的 JSON 格式'))
+            callback(new Error(t('tenantSettingsPage.rules.jsonInvalid')))
             return
           }
         }
@@ -226,7 +229,7 @@ const formRules: FormRules = {
       trigger: 'blur'
     }
   ]
-}
+}))
 
 onMounted(() => {
   loadSettings()
@@ -238,8 +241,8 @@ async function loadSettings() {
     const res = await getTenantSettings()
     Object.assign(form, res)
   } catch (error) {
-    console.error('加载租户设置失败', error)
-    ElMessage.warning('加载设置失败，使用默认配置')
+    console.error('failed to load tenant settings', error)
+    ElMessage.warning(t('tenantSettingsPage.msg.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -270,9 +273,9 @@ async function handleSave() {
       Object.assign(form, res)
       // 保存成功后即时将品牌配置应用到全局 UI（多租户白标）
       useBrand().applyServerBrand(res)
-      ElMessage.success('保存成功')
+      ElMessage.success(t('tenantSettingsPage.msg.saveSuccess'))
     } catch (error) {
-      ElMessage.error((error as { response?: { data?: { message?: string } } })?.response?.data?.message || '保存失败')
+      ElMessage.error((error as { response?: { data?: { message?: string } } })?.response?.data?.message || t('tenantSettingsPage.msg.saveFailed'))
     } finally {
       saving.value = false
     }
@@ -302,20 +305,20 @@ function handleReset() {
 
 function getLanguageLabel(lang: string): string {
   const map: Record<string, string> = {
-    'zh-CN': '简体中文',
-    'en-US': 'English',
-    'ja-JP': '日本語'
+    'zh-CN': t('tenantSettingsPage.lang.zh'),
+    'en-US': t('tenantSettingsPage.lang.en'),
+    'ja-JP': t('tenantSettingsPage.lang.ja')
   }
   return map[lang] || lang
 }
 
 function getTimezoneLabel(tz: string): string {
   const map: Record<string, string> = {
-    'Asia/Shanghai': '(GMT+08:00) 北京',
-    'Europe/London': '(GMT+00:00) 伦敦',
-    'America/New_York': '(GMT-05:00) 纽约',
-    'America/Los_Angeles': '(GMT-08:00) 洛杉矶',
-    'Asia/Tokyo': '(GMT+09:00) 东京'
+    'Asia/Shanghai': t('tenantSettingsPage.timezone.shanghai'),
+    'Europe/London': t('tenantSettingsPage.timezone.london'),
+    'America/New_York': t('tenantSettingsPage.timezone.newyork'),
+    'America/Los_Angeles': t('tenantSettingsPage.timezone.losangeles'),
+    'Asia/Tokyo': t('tenantSettingsPage.timezone.tokyo')
   }
   return map[tz] || tz
 }

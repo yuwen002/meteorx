@@ -5,79 +5,79 @@
       <div class="toolbar">
         <el-input
           v-model="query.keyword"
-          placeholder="搜索公告标题"
+          :placeholder="t('sysAnnouncementPage.search.placeholder')"
           clearable
           style="width: 220px"
           @keyup.enter="loadList"
         />
-        <el-select v-model="query.status" placeholder="状态" clearable style="width: 140px">
-          <el-option label="草稿" :value="0" />
-          <el-option label="已发布" :value="1" />
-          <el-option label="已下架" :value="2" />
+        <el-select v-model="query.status" :placeholder="t('sysAnnouncementPage.filter.status')" clearable style="width: 140px">
+          <el-option :label="t('sysAnnouncementPage.status.draft')" :value="0" />
+          <el-option :label="t('sysAnnouncementPage.status.published')" :value="1" />
+          <el-option :label="t('sysAnnouncementPage.status.offline')" :value="2" />
         </el-select>
-        <el-select v-model="query.scope" placeholder="范围" clearable style="width: 140px">
-          <el-option label="全平台" value="all" />
-          <el-option label="指定租户" value="tenant" />
+        <el-select v-model="query.scope" :placeholder="t('sysAnnouncementPage.filter.scope')" clearable style="width: 140px">
+          <el-option :label="t('sysAnnouncementPage.scope.all')" value="all" />
+          <el-option :label="t('sysAnnouncementPage.scope.tenant')" value="tenant" />
         </el-select>
         <el-button type="primary" @click="loadList">
-          <el-icon><Search /></el-icon>查询
+          <el-icon><Search /></el-icon>{{ t('common.query') }}
         </el-button>
-        <el-button @click="resetSearch">重置</el-button>
+        <el-button @click="resetSearch">{{ t('common.reset') }}</el-button>
         <div class="flex-1"></div>
         <el-button type="primary" @click="openCreate">
-          <el-icon><Plus /></el-icon>新建公告
+          <el-icon><Plus /></el-icon>{{ t('sysAnnouncementPage.action.create') }}
         </el-button>
       </div>
 
       <!-- 列表 -->
       <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="55" :index="(i: number) => (page - 1) * pageSize + i + 1" />
-        <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip>
+        <el-table-column prop="title" :label="t('sysAnnouncementPage.col.title')" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="title-text">{{ row.title }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="scope" label="范围" width="110">
+        <el-table-column prop="scope" :label="t('sysAnnouncementPage.col.scope')" width="110">
           <template #default="{ row }">
             <el-tag size="small" :type="row.scope === 'all' ? 'primary' : 'warning'">
-              {{ row.scope === 'all' ? '全平台' : '指定租户' }}
+              {{ row.scope === 'all' ? t('sysAnnouncementPage.scope.all') : t('sysAnnouncementPage.scope.tenant') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="target_tenant_id" label="目标租户" width="110">
+        <el-table-column prop="target_tenant_id" :label="t('sysAnnouncementPage.col.targetTenant')" width="110">
           <template #default="{ row }">
             {{ row.target_tenant_id || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="90">
+        <el-table-column prop="status" :label="t('sysAnnouncementPage.col.status')" width="90">
           <template #default="{ row }">
             <el-tag size="small" :type="getStatusType(row.status)">{{ row.status_text }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="publish_at" label="发布时间" width="160">
+        <el-table-column prop="publish_at" :label="t('sysAnnouncementPage.col.publishTime')" width="160">
           <template #default="{ row }">{{ row.publish_at || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="expire_at" label="过期时间" width="160">
+        <el-table-column prop="expire_at" :label="t('sysAnnouncementPage.col.expireTime')" width="160">
           <template #default="{ row }">{{ row.expire_at || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column prop="created_at" :label="t('sysAnnouncementPage.col.createdAt')" width="160" />
+        <el-table-column :label="t('sysAnnouncementPage.col.operation')" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">详情</el-button>
-            <el-button link type="warning" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="primary" @click="openDetail(row)">{{ t('sysAnnouncementPage.row.detail') }}</el-button>
+            <el-button link type="warning" @click="openEdit(row)">{{ t('sysAnnouncementPage.row.edit') }}</el-button>
             <el-button
               v-if="row.status !== 1"
               link
               type="success"
               @click="handleStatus(row, 1)"
-            >发布</el-button>
+            >{{ t('sysAnnouncementPage.row.publish') }}</el-button>
             <el-button
               v-else
               link
               type="warning"
               @click="handleStatus(row, 2)"
-            >下架</el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            >{{ t('sysAnnouncementPage.row.offline') }}</el-button>
+            <el-button link type="danger" @click="handleDelete(row)">{{ t('sysAnnouncementPage.row.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -96,76 +96,76 @@
     </el-card>
 
     <!-- 创建/编辑弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑公告' : '新建公告'" width="680px" destroy-on-close>
+    <el-dialog v-model="dialogVisible" :title="isEdit ? t('sysAnnouncementPage.dialog.editTitle') : t('sysAnnouncementPage.dialog.createTitle')" width="680px" destroy-on-close>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
-        <el-form-item label="标题" prop="title">
-          <el-input v-model="form.title" placeholder="请输入公告标题" maxlength="200" show-word-limit />
+        <el-form-item :label="t('sysAnnouncementPage.form.title')" prop="title">
+          <el-input v-model="form.title" :placeholder="t('sysAnnouncementPage.form.titlePlaceholder')" maxlength="200" show-word-limit />
         </el-form-item>
-        <el-form-item label="内容" prop="content">
+        <el-form-item :label="t('sysAnnouncementPage.form.content')" prop="content">
           <el-input
             v-model="form.content"
             type="textarea"
             :rows="6"
-            placeholder="请输入公告内容"
+            :placeholder="t('sysAnnouncementPage.form.contentPlaceholder')"
             show-word-limit
             maxlength="5000"
           />
         </el-form-item>
-        <el-form-item label="范围" prop="scope">
+        <el-form-item :label="t('sysAnnouncementPage.form.scope')" prop="scope">
           <el-radio-group v-model="form.scope">
-            <el-radio-button value="all">全平台</el-radio-button>
-            <el-radio-button value="tenant">指定租户</el-radio-button>
+            <el-radio-button value="all">{{ t('sysAnnouncementPage.scope.all') }}</el-radio-button>
+            <el-radio-button value="tenant">{{ t('sysAnnouncementPage.scope.tenant') }}</el-radio-button>
           </el-radio-group>
         </el-form-item>
-        <el-form-item v-if="form.scope === 'tenant'" label="目标租户" prop="target_tenant_id">
-          <el-input v-model="form.target_tenant_id" placeholder="请输入目标租户ID" />
+        <el-form-item v-if="form.scope === 'tenant'" :label="t('sysAnnouncementPage.form.targetTenant')" prop="target_tenant_id">
+          <el-input v-model="form.target_tenant_id" :placeholder="t('sysAnnouncementPage.form.targetTenantPlaceholder')" />
         </el-form-item>
-        <el-form-item label="发布时间">
+        <el-form-item :label="t('sysAnnouncementPage.form.publishAt')">
           <el-date-picker
             v-model="form.publish_at"
             type="datetime"
-            placeholder="选择发布时间（可选）"
+            :placeholder="t('sysAnnouncementPage.form.publishAtPlaceholder')"
             value-format="YYYY-MM-DD HH:mm:ss"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="过期时间">
+        <el-form-item :label="t('sysAnnouncementPage.form.expireAt')">
           <el-date-picker
             v-model="form.expire_at"
             type="datetime"
-            placeholder="选择过期时间（可选）"
+            :placeholder="t('sysAnnouncementPage.form.expireAtPlaceholder')"
             value-format="YYYY-MM-DD HH:mm:ss"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="t('sysAnnouncementPage.form.status')">
           <el-radio-group v-model="form.status">
-            <el-radio-button :value="0">草稿</el-radio-button>
-            <el-radio-button :value="1">直接发布</el-radio-button>
+            <el-radio-button :value="0">{{ t('sysAnnouncementPage.form.statusDraft') }}</el-radio-button>
+            <el-radio-button :value="1">{{ t('sysAnnouncementPage.form.statusPublish') }}</el-radio-button>
           </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitForm">保存</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitForm">{{ t('common.save') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="公告详情" width="680px" destroy-on-close>
+    <el-dialog v-model="detailVisible" :title="t('sysAnnouncementPage.dialog.detailTitle')" width="680px" destroy-on-close>
       <el-descriptions v-if="current" :column="2" border>
-        <el-descriptions-item label="标题" :span="2">{{ current.title }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="t('sysAnnouncementPage.col.title')" :span="2">{{ current.title }}</el-descriptions-item>
+        <el-descriptions-item :label="t('sysAnnouncementPage.col.status')">
           <el-tag size="small" :type="getStatusType(current.status)">{{ current.status_text }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="范围">
-          {{ current.scope === 'all' ? '全平台' : '指定租户' }}
+        <el-descriptions-item :label="t('sysAnnouncementPage.col.scope')">
+          {{ current.scope === 'all' ? t('sysAnnouncementPage.scope.all') : t('sysAnnouncementPage.scope.tenant') }}
         </el-descriptions-item>
-        <el-descriptions-item label="目标租户" :span="2">{{ current.target_tenant_id || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="发布时间">{{ current.publish_at || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="过期时间">{{ current.expire_at || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间" :span="2">{{ current.created_at }}</el-descriptions-item>
-        <el-descriptions-item label="公告内容" :span="2">
+        <el-descriptions-item :label="t('sysAnnouncementPage.col.targetTenant')" :span="2">{{ current.target_tenant_id || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('sysAnnouncementPage.col.publishTime')">{{ current.publish_at || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('sysAnnouncementPage.col.expireTime')">{{ current.expire_at || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('sysAnnouncementPage.col.createdAt')" :span="2">{{ current.created_at }}</el-descriptions-item>
+        <el-descriptions-item :label="t('sysAnnouncementPage.detail.content')" :span="2">
           <div class="content-box">{{ current.content }}</div>
         </el-descriptions-item>
       </el-descriptions>
@@ -174,7 +174,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -190,6 +190,9 @@ import {
 } from '@/api/modules/announcement'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const {
   list,
@@ -234,15 +237,15 @@ const form = reactive({
   expire_at: ''
 })
 
-const rules: FormRules = {
-  title: [{ required: true, message: '请输入公告标题', trigger: 'blur' }],
-  content: [{ required: true, message: '请输入公告内容', trigger: 'blur' }],
-  scope: [{ required: true, message: '请选择范围', trigger: 'change' }],
+const rules = computed<FormRules>(() => ({
+  title: [{ required: true, message: t('sysAnnouncementPage.rules.titleRequired'), trigger: 'blur' }],
+  content: [{ required: true, message: t('sysAnnouncementPage.rules.contentRequired'), trigger: 'blur' }],
+  scope: [{ required: true, message: t('sysAnnouncementPage.rules.scopeRequired'), trigger: 'change' }],
   target_tenant_id: [
     {
       validator: (_: unknown, value: string, callback: (error?: string | Error) => void) => {
         if (form.scope === 'tenant' && !value) {
-          callback(new Error('指定租户时必须填写目标租户ID'))
+          callback(new Error(t('sysAnnouncementPage.rules.tenantIdRequired')))
         } else {
           callback()
         }
@@ -250,7 +253,7 @@ const rules: FormRules = {
       trigger: 'blur'
     }
   ]
-}
+}))
 
 function resetSearch() {
   reset()
@@ -314,51 +317,57 @@ async function submitForm() {
     }
     if (isEdit.value) {
       await updateAnnouncement(currentId.value, payload)
-      ElMessage.success('公告更新成功')
+      ElMessage.success(t('sysAnnouncementPage.update.success'))
     } else {
       await createAnnouncement(payload)
-      ElMessage.success('公告创建成功')
+      ElMessage.success(t('sysAnnouncementPage.create.success'))
     }
     dialogVisible.value = false
     loadList()
   } catch (error) {
-    console.error('保存公告失败', error)
+    console.error('failed to save announcement', error)
   } finally {
     submitting.value = false
   }
 }
 
 async function handleStatus(row: AnnouncementItem, status: number) {
-  const text = status === 1 ? '发布' : '下架'
+  const publish = status === 1
   try {
-    await ElMessageBox.confirm(`确定要${text}公告「${row.title}」吗？`, '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await ElMessageBox.confirm(
+      publish
+        ? t('sysAnnouncementPage.confirm.publish', row.title)
+        : t('sysAnnouncementPage.confirm.offline', row.title),
+      t('common.tip'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    )
     await updateAnnouncementStatus(row.id, status)
-    ElMessage.success(`${text}成功`)
+    ElMessage.success(publish ? t('sysAnnouncementPage.publish.success') : t('sysAnnouncementPage.offline.success'))
     loadList()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(`${text}失败`)
+      ElMessage.error(publish ? t('sysAnnouncementPage.publish.fail') : t('sysAnnouncementPage.offline.fail'))
     }
   }
 }
 
 async function handleDelete(row: AnnouncementItem) {
   try {
-    await ElMessageBox.confirm(`确定要删除公告「${row.title}」吗？`, '警告', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('sysAnnouncementPage.confirm.delete', row.title), t('sysAnnouncementPage.confirm.warnTitle'), {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning'
     })
     await deleteAnnouncement(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('sysAnnouncementPage.delete.success'))
     loadList()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      ElMessage.error(t('sysAnnouncementPage.delete.fail'))
     }
   }
 }
