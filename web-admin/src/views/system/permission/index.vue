@@ -2,45 +2,45 @@
   <div class="page">
     <el-card shadow="never">
       <div class="search-bar">
-        <el-input v-model="query.keyword" placeholder="搜索权限名/编码" clearable style="width: 240px" @keyup.enter="loadList" />
-        <el-input v-model="query.resource" placeholder="按资源过滤" clearable style="width: 160px" @keyup.enter="loadList" />
-        <el-button type="primary" @click="loadList"><el-icon><Search /></el-icon>查询</el-button>
-        <el-button @click="resetSearch">重置</el-button>
+        <el-input v-model="query.keyword" :placeholder="t('permPage.searchNameCodePlaceholder')" clearable style="width: 240px" @keyup.enter="loadList" />
+        <el-input v-model="query.resource" :placeholder="t('permPage.filterResourcePlaceholder')" clearable style="width: 160px" @keyup.enter="loadList" />
+        <el-button type="primary" @click="loadList"><el-icon><Search /></el-icon>{{ t('common.query') }}</el-button>
+        <el-button @click="resetSearch">{{ t('common.reset') }}</el-button>
         <div class="flex-1"></div>
-        <el-button type="success" @click="openCreateDialog"><el-icon><Plus /></el-icon>新增权限</el-button>
+        <el-button type="success" @click="openCreateDialog"><el-icon><Plus /></el-icon>{{ t('permPage.create') }}</el-button>
       </div>
 
       <div v-if="selectedIds.length > 0" class="batch-bar">
-        <el-button type="danger" @click="handleBatchDelete">批量删除</el-button>
-        <el-button type="warning" @click="handleBatchDisable">批量禁用</el-button>
-        <el-button type="success" @click="handleBatchEnable">批量启用</el-button>
-        <span style="margin-left: 8px; color: #666;">已选择 {{ selectedIds.length }} 项</span>
+        <el-button type="danger" @click="handleBatchDelete">{{ t('permPage.batchDelete') }}</el-button>
+        <el-button type="warning" @click="handleBatchDisable">{{ t('permPage.batchDisable') }}</el-button>
+        <el-button type="success" @click="handleBatchEnable">{{ t('permPage.batchEnable') }}</el-button>
+        <span style="margin-left: 8px; color: #666;">{{ t('permPage.selected', selectedIds.length) }}</span>
       </div>
 
       <el-table v-loading="loading" :data="list" border stripe style="width: 100%" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="name" label="权限名" min-width="140" />
-        <el-table-column prop="code" label="编码" min-width="180">
+        <el-table-column prop="name" :label="t('permPage.col.name')" min-width="140" />
+        <el-table-column prop="code" :label="t('permPage.col.code')" min-width="180">
           <template #default="{ row }">
             <el-tag type="primary" effect="plain" size="small">{{ row.code }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="resource" label="资源" width="120" />
-        <el-table-column prop="action" label="操作" width="100" />
-        <el-table-column prop="description" label="描述" min-width="180" />
-        <el-table-column label="状态" width="100">
+        <el-table-column prop="resource" :label="t('permPage.col.resource')" width="120" />
+        <el-table-column prop="action" :label="t('permPage.col.action')" width="100" />
+        <el-table-column prop="description" :label="t('permPage.col.description')" min-width="180" />
+        <el-table-column :label="t('permPage.col.status')" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '启用' : '禁用' }}</el-tag>
+            <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? t('permPage.status.enabled') : t('permPage.status.disabled') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180" />
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column prop="created_at" :label="t('permPage.col.createdAt')" width="180" />
+        <el-table-column :label="t('permPage.col.operation')" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
+            <el-button link type="primary" @click="openEditDialog(row)">{{ t('permPage.edit') }}</el-button>
             <el-button link :type="row.status === 1 ? 'warning' : 'success'" @click="handleToggleStatus(row)">
-              {{ row.status === 1 ? '禁用' : '启用' }}
+              {{ row.status === 1 ? t('permPage.status.disabled') : t('permPage.status.enabled') }}
             </el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button link type="danger" @click="handleDelete(row)">{{ t('permPage.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -59,24 +59,24 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="dialogMode === 'create' ? '新增权限' : '编辑权限'" width="500px" :close-on-click-modal="false">
+    <el-dialog v-model="dialogVisible" :title="dialogMode === 'create' ? t('permPage.dialog.createTitle') : t('permPage.dialog.editTitle')" width="500px" :close-on-click-modal="false">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
-        <el-form-item label="权限名" prop="name"><el-input v-model="form.name" /></el-form-item>
-        <el-form-item label="编码" prop="code"><el-input v-model="form.code" :disabled="dialogMode === 'edit'" placeholder="如: user:list" /></el-form-item>
-        <el-form-item label="资源" prop="resource"><el-input v-model="form.resource" placeholder="如: user" /></el-form-item>
-        <el-form-item label="操作" prop="action"><el-input v-model="form.action" placeholder="如: list/create/read/update/delete" /></el-form-item>
-        <el-form-item label="描述" prop="description"><el-input v-model="form.description" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item :label="t('permPage.form.nameLabel')" prop="name"><el-input v-model="form.name" /></el-form-item>
+        <el-form-item :label="t('permPage.form.codeLabel')" prop="code"><el-input v-model="form.code" :disabled="dialogMode === 'edit'" :placeholder="t('permPage.form.codePlaceholder')" /></el-form-item>
+        <el-form-item :label="t('permPage.form.resourceLabel')" prop="resource"><el-input v-model="form.resource" :placeholder="t('permPage.form.resourcePlaceholder')" /></el-form-item>
+        <el-form-item :label="t('permPage.form.actionLabel')" prop="action"><el-input v-model="form.action" :placeholder="t('permPage.form.actionPlaceholder')" /></el-form-item>
+        <el-form-item :label="t('permPage.form.descLabel')" prop="description"><el-input v-model="form.description" type="textarea" :rows="2" /></el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submitForm">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="submitForm">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -93,6 +93,9 @@ import {
 } from '@/api/modules/permission'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const {
   list,
@@ -125,12 +128,12 @@ const saving = ref(false)
 const editingId = ref<string | null>(null)
 const form = reactive({ name: '', code: '', resource: '', action: '', description: '' })
 
-const rules: FormRules = {
-  name: [{ required: true, message: '请输入权限名', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入编码', trigger: 'blur' }],
-  resource: [{ required: true, message: '请输入资源', trigger: 'blur' }],
-  action: [{ required: true, message: '请输入操作', trigger: 'blur' }]
-}
+const rules = computed<FormRules>(() => ({
+  name: [{ required: true, message: t('permPage.form.nameRequired'), trigger: 'blur' }],
+  code: [{ required: true, message: t('permPage.form.codeRequired'), trigger: 'blur' }],
+  resource: [{ required: true, message: t('permPage.form.resourceRequired'), trigger: 'blur' }],
+  action: [{ required: true, message: t('permPage.form.actionRequired'), trigger: 'blur' }]
+}))
 
 function openCreateDialog() {
   dialogMode.value = 'create'
@@ -162,10 +165,10 @@ async function submitForm() {
     try {
       if (dialogMode.value === 'create') {
         await createPermission({ ...form })
-        ElMessage.success('新增成功')
+        ElMessage.success(t('permPage.created'))
       } else if (editingId.value) {
         await updatePermission(editingId.value, { ...form })
-        ElMessage.success('更新成功')
+        ElMessage.success(t('permPage.updated'))
       }
       dialogVisible.value = false
       loadList()
@@ -176,11 +179,11 @@ async function submitForm() {
 }
 
 function handleDelete(row: PermissionItem) {
-  ElMessageBox.confirm(`确定要删除权限 "${row.name}" 吗？`, '提示', { type: 'warning' })
+  ElMessageBox.confirm(t('permPage.deleteConfirm', row.name), t('common.tip'), { type: 'warning' })
     .then(async () => {
       if (!row.id) return
       await deletePermission(row.id)
-      ElMessage.success('删除成功')
+      ElMessage.success(t('permPage.deleted'))
       loadList()
     })
     .catch(() => {})
@@ -197,11 +200,14 @@ function resetSearch() {
 async function handleToggleStatus(row: PermissionItem) {
   if (!row.id) return
   const newStatus = row.status === 1 ? 0 : 1
-  const actionText = newStatus === 1 ? '启用' : '禁用'
   try {
-    await ElMessageBox.confirm(`确定要${actionText}权限 "${row.name}" 吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      newStatus === 1 ? t('permPage.enableConfirm', row.name) : t('permPage.disableConfirm', row.name),
+      t('common.tip'),
+      { type: 'warning' }
+    )
     await updatePermissionStatus(row.id, newStatus)
-    ElMessage.success(`${actionText}成功`)
+    ElMessage.success(newStatus === 1 ? t('permPage.enabled') : t('permPage.disabled'))
     loadList()
   } catch (e) {
     // 用户取消或请求失败
@@ -210,10 +216,10 @@ async function handleToggleStatus(row: PermissionItem) {
 
 function handleBatchDelete() {
   if (selectedIds.value.length === 0) return
-  ElMessageBox.confirm(`确定要删除选中的 ${selectedIds.value.length} 个权限吗？`, '提示', { type: 'warning' })
+  ElMessageBox.confirm(t('permPage.batchDeleteConfirm', selectedIds.value.length), t('common.tip'), { type: 'warning' })
     .then(async () => {
       await batchDeletePermissions(selectedIds.value)
-      ElMessage.success('批量删除成功')
+      ElMessage.success(t('permPage.batchDeleted'))
       selectedIds.value = []
       loadList()
     })
@@ -222,10 +228,10 @@ function handleBatchDelete() {
 
 function handleBatchEnable() {
   if (selectedIds.value.length === 0) return
-  ElMessageBox.confirm(`确定要启用选中的 ${selectedIds.value.length} 个权限吗？`, '提示', { type: 'warning' })
+  ElMessageBox.confirm(t('permPage.batchEnableConfirm', selectedIds.value.length), t('common.tip'), { type: 'warning' })
     .then(async () => {
       await batchUpdatePermissionStatus(selectedIds.value, 1)
-      ElMessage.success('批量启用成功')
+      ElMessage.success(t('permPage.batchEnabled'))
       selectedIds.value = []
       loadList()
     })
@@ -234,10 +240,10 @@ function handleBatchEnable() {
 
 function handleBatchDisable() {
   if (selectedIds.value.length === 0) return
-  ElMessageBox.confirm(`确定要禁用选中的 ${selectedIds.value.length} 个权限吗？`, '提示', { type: 'warning' })
+  ElMessageBox.confirm(t('permPage.batchDisableConfirm', selectedIds.value.length), t('common.tip'), { type: 'warning' })
     .then(async () => {
       await batchUpdatePermissionStatus(selectedIds.value, 0)
-      ElMessage.success('批量禁用成功')
+      ElMessage.success(t('permPage.batchDisabled'))
       selectedIds.value = []
       loadList()
     })

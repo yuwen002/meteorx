@@ -2,75 +2,75 @@
   <div class="page">
     <el-card shadow="never">
       <div class="search-bar">
-        <el-input v-model="query.keyword" placeholder="搜索套餐名/编码" clearable style="width: 240px" @keyup.enter="loadList" />
-        <el-select v-model="query.status" placeholder="状态" clearable style="width: 130px">
-          <el-option label="启用" :value="1" />
-          <el-option label="停用" :value="0" />
+        <el-input v-model="query.keyword" :placeholder="t('planPage.searchPlaceholder')" clearable style="width: 240px" @keyup.enter="loadList" />
+        <el-select v-model="query.status" :placeholder="t('planPage.statusFilter')" clearable style="width: 130px">
+          <el-option :label="t('planPage.status.enabled')" :value="1" />
+          <el-option :label="t('planPage.status.disabled')" :value="0" />
         </el-select>
-        <el-button type="primary" @click="loadList"><el-icon><Search /></el-icon>查询</el-button>
-        <el-button @click="resetSearch">重置</el-button>
+        <el-button type="primary" @click="loadList"><el-icon><Search /></el-icon>{{ t('common.query') }}</el-button>
+        <el-button @click="resetSearch">{{ t('common.reset') }}</el-button>
         <div class="flex-1"></div>
-        <el-button type="success" @click="openCreateDialog"><el-icon><Plus /></el-icon>新增套餐</el-button>
+        <el-button type="success" @click="openCreateDialog"><el-icon><Plus /></el-icon>{{ t('planPage.create') }}</el-button>
       </div>
 
       <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
-        <el-table-column prop="name" label="套餐名称" min-width="130" />
-        <el-table-column prop="code" label="编码" min-width="140">
+        <el-table-column prop="name" :label="t('planPage.col.name')" min-width="130" />
+        <el-table-column prop="code" :label="t('planPage.col.code')" min-width="140">
           <template #default="{ row }">
             <el-tag type="primary" effect="plain" size="small">{{ row.code }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="用户数上限" width="120">
+        <el-table-column :label="t('planPage.col.userLimit')" width="120">
           <template #default="{ row }">
-            <span v-if="row.user_limit === -1">不限</span>
-            <span v-else>{{ row.user_limit }} 人</span>
+            <span v-if="row.user_limit === -1">{{ t('planPage.unlimited') }}</span>
+            <span v-else>{{ t('planPage.people', row.user_limit) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="存储配额" width="120">
+        <el-table-column :label="t('planPage.col.storage')" width="120">
           <template #default="{ row }">
-            <span v-if="row.storage_limit === -1">不限</span>
+            <span v-if="row.storage_limit === -1">{{ t('planPage.unlimited') }}</span>
             <span v-else>{{ formatSize(row.storage_limit) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="API速率" width="120">
+        <el-table-column :label="t('planPage.col.apiRate')" width="120">
           <template #default="{ row }">
-            <span v-if="row.api_rate_limit === -1">不限</span>
-            <span v-else>{{ row.api_rate_limit }} 次/分</span>
+            <span v-if="row.api_rate_limit === -1">{{ t('planPage.unlimited') }}</span>
+            <span v-else>{{ t('planPage.ratePerMin', row.api_rate_limit) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="Wiki空间" width="110">
+        <el-table-column :label="t('planPage.col.wikiSpace')" width="110">
           <template #default="{ row }">
-            <span v-if="row.wiki_space_limit === -1">不限</span>
-            <span v-else>{{ row.wiki_space_limit }} 个</span>
+            <span v-if="row.wiki_space_limit === -1">{{ t('planPage.unlimited') }}</span>
+            <span v-else>{{ t('planPage.spaces', row.wiki_space_limit) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="月费" width="110">
+        <el-table-column :label="t('planPage.col.price')" width="110">
           <template #default="{ row }">
             <span v-if="row.price === 0">
-              <el-tag type="success" size="small" effect="plain">免费</el-tag>
+              <el-tag type="success" size="small" effect="plain">{{ t('planPage.free') }}</el-tag>
             </span>
             <span v-else>¥{{ row.price }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="使用租户数" width="110">
+        <el-table-column :label="t('planPage.col.subscribers')" width="110">
           <template #default="{ row }">
             {{ row.subscriber_cnt ?? 0 }}
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="描述" min-width="180" />
-        <el-table-column label="状态" width="90">
+        <el-table-column prop="description" :label="t('planPage.col.description')" min-width="180" />
+        <el-table-column :label="t('planPage.col.status')" width="90">
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '启用' : '停用' }}</el-tag>
+            <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? t('planPage.status.enabled') : t('planPage.status.disabled') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="170" />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column prop="created_at" :label="t('planPage.col.createdAt')" width="170" />
+        <el-table-column :label="t('planPage.col.operation')" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
+            <el-button link type="primary" @click="openEditDialog(row)">{{ t('planPage.action.edit') }}</el-button>
             <el-button link :type="row.status === 1 ? 'warning' : 'success'" @click="handleToggleStatus(row)">
-              {{ row.status === 1 ? '停用' : '启用' }}
+              {{ row.status === 1 ? t('planPage.status.disabled') : t('planPage.status.enabled') }}
             </el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button link type="danger" @click="handleDelete(row)">{{ t('planPage.action.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -89,53 +89,54 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="dialogMode === 'create' ? '新增套餐' : '编辑套餐'" width="560px" :close-on-click-modal="false">
+    <el-dialog v-model="dialogVisible" :title="dialogMode === 'create' ? t('planPage.dialog.createTitle') : t('planPage.dialog.editTitle')" width="560px" :close-on-click-modal="false">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-        <el-form-item label="套餐名称" prop="name"><el-input v-model="form.name" placeholder="如：标准版" /></el-form-item>
-        <el-form-item label="套餐编码" prop="code">
-          <el-input v-model="form.code" :disabled="dialogMode === 'edit'" placeholder="如：standard" />
+        <el-form-item :label="t('planPage.form.nameLabel')" prop="name"><el-input v-model="form.name" :placeholder="t('planPage.form.namePlaceholder')" /></el-form-item>
+        <el-form-item :label="t('planPage.form.codeLabel')" prop="code">
+          <el-input v-model="form.code" :disabled="dialogMode === 'edit'" :placeholder="t('planPage.form.codePlaceholder')" />
         </el-form-item>
-        <el-form-item label="用户数上限" prop="user_limit">
+        <el-form-item :label="t('planPage.form.userLimitLabel')" prop="user_limit">
           <el-input-number v-model="form.user_limit" :min="-1" :max="999999" />
-          <span class="tip">-1 表示不限</span>
+          <span class="tip">{{ t('planPage.form.tipUnlimited') }}</span>
         </el-form-item>
-        <el-form-item label="存储配额(GB)" prop="storage_limit">
+        <el-form-item :label="t('planPage.form.storageLabel')" prop="storage_limit">
           <el-input-number v-model="form.storage_limit" :min="-1" :max="102400" :precision="0" />
-          <span class="tip">-1 表示不限，单位为 GB</span>
+          <span class="tip">{{ t('planPage.form.tipStorageUnlimited') }}</span>
         </el-form-item>
-        <el-form-item label="API速率(分)" prop="api_rate_limit">
+        <el-form-item :label="t('planPage.form.apiLabel')" prop="api_rate_limit">
           <el-input-number v-model="form.api_rate_limit" :min="-1" :max="1000000" :step="60" />
-          <span class="tip">每分钟请求数上限，-1 表示不限</span>
+          <span class="tip">{{ t('planPage.form.tipApi') }}</span>
         </el-form-item>
-        <el-form-item label="Wiki空间数" prop="wiki_space_limit">
+        <el-form-item :label="t('planPage.form.wikiLabel')" prop="wiki_space_limit">
           <el-input-number v-model="form.wiki_space_limit" :min="-1" :max="100000" />
-          <span class="tip">-1 表示不限</span>
+          <span class="tip">{{ t('planPage.form.tipUnlimited') }}</span>
         </el-form-item>
-        <el-form-item label="月费价格" prop="price">
+        <el-form-item :label="t('planPage.form.priceLabel')" prop="price">
           <el-input-number v-model="form.price" :min="0" :precision="2" :step="10" />
-          <span class="tip">0 表示免费</span>
+          <span class="tip">{{ t('planPage.form.tipPriceFree') }}</span>
         </el-form-item>
-        <el-form-item label="状态" prop="status">
-          <el-switch v-model="form.status" :active-value="1" :inactive-value="0" active-text="启用" inactive-text="停用" />
+        <el-form-item :label="t('planPage.form.statusLabel')" prop="status">
+          <el-switch v-model="form.status" :active-value="1" :inactive-value="0" :active-text="t('planPage.status.enabled')" :inactive-text="t('planPage.status.disabled')" />
         </el-form-item>
-        <el-form-item label="描述" prop="description">
+        <el-form-item :label="t('planPage.form.descLabel')" prop="description">
           <el-input v-model="form.description" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submitForm">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="submitForm">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules } from 'element-plus'
+import { useI18n } from '@/composables/useI18n'
 import {
   getPlanList,
   createPlan,
@@ -145,6 +146,8 @@ import {
 } from '@/api/modules/plan'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
+
+const { t } = useI18n()
 
 const {
   list,
@@ -201,11 +204,11 @@ function formatSize(bytes: number): string {
   return `${val.toFixed(i === 0 ? 0 : 2)} ${units[i]}`
 }
 
-const rules: FormRules = {
-  name: [{ required: true, message: '请输入套餐名称', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入套餐编码', trigger: 'blur' }],
-  user_limit: [{ required: true, message: '请输入用户数上限', trigger: 'blur' }]
-}
+const rules = computed<FormRules>(() => ({
+  name: [{ required: true, message: t('planPage.form.nameRequired'), trigger: 'blur' }],
+  code: [{ required: true, message: t('planPage.form.codeRequired'), trigger: 'blur' }],
+  user_limit: [{ required: true, message: t('planPage.form.userLimitRequired'), trigger: 'blur' }]
+}))
 
 function openCreateDialog() {
   dialogMode.value = 'create'
@@ -261,10 +264,10 @@ async function submitForm() {
       const payload = buildPayload()
       if (dialogMode.value === 'create') {
         await createPlan({ ...payload, code: form.code })
-        ElMessage.success('新增成功')
+        ElMessage.success(t('planPage.created'))
       } else if (editingId.value) {
         await updatePlan(editingId.value, payload)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('planPage.updated'))
       }
       dialogVisible.value = false
       loadList()
@@ -275,11 +278,11 @@ async function submitForm() {
 }
 
 function handleDelete(row: PlanItem) {
-  ElMessageBox.confirm(`确定要删除套餐 "${row.name}" 吗？`, '提示', { type: 'warning' })
+  ElMessageBox.confirm(t('planPage.deleteConfirm', row.name), t('common.tip'), { type: 'warning' })
     .then(async () => {
       if (!row.id) return
       await deletePlan(row.id)
-      ElMessage.success('删除成功')
+      ElMessage.success(t('planPage.deleted'))
       loadList()
     })
     .catch(() => {})
@@ -292,11 +295,14 @@ function resetSearch() {
 async function handleToggleStatus(row: PlanItem) {
   if (!row.id) return
   const newStatus = row.status === 1 ? 0 : 1
-  const actionText = newStatus === 1 ? '启用' : '停用'
   try {
-    await ElMessageBox.confirm(`确定要${actionText}套餐 "${row.name}" 吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      newStatus === 1 ? t('planPage.enableConfirm', row.name) : t('planPage.disableConfirm', row.name),
+      t('common.tip'),
+      { type: 'warning' }
+    )
     await updatePlan(row.id, { status: newStatus })
-    ElMessage.success(`${actionText}成功`)
+    ElMessage.success(newStatus === 1 ? t('planPage.enabled') : t('planPage.disabled'))
     loadList()
   } catch (e) {
     // 用户取消或请求失败

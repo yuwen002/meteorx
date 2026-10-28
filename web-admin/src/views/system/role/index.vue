@@ -2,51 +2,51 @@
   <div class="page">
     <el-card shadow="never">
       <div class="search-bar">
-        <el-input v-model="query.keyword" placeholder="搜索角色名" clearable style="width: 200px" @keyup.enter="loadList" />
-        <el-button type="primary" @click="loadList"><el-icon><Search /></el-icon>查询</el-button>
-        <el-button @click="resetSearch">重置</el-button>
+        <el-input v-model="query.keyword" :placeholder="t('rolePage.searchPlaceholder')" clearable style="width: 200px" @keyup.enter="loadList" />
+        <el-button type="primary" @click="loadList"><el-icon><Search /></el-icon>{{ t('common.query') }}</el-button>
+        <el-button @click="resetSearch">{{ t('common.reset') }}</el-button>
         <div class="flex-1"></div>
         <el-button type="info" @click="openRecycleBin">
-          <el-icon><Delete /></el-icon>回收站
+          <el-icon><Delete /></el-icon>{{ t('rolePage.recycleBin') }}
         </el-button>
         <el-button type="success" @click="openCreateDialog">
-          <el-icon><Plus /></el-icon>新增角色
+          <el-icon><Plus /></el-icon>{{ t('rolePage.create') }}
         </el-button>
       </div>
 
       <div v-if="selectedIds.length > 0" class="batch-bar">
-        <el-button type="danger" @click="handleBatchDelete">批量删除</el-button>
-        <el-button type="warning" @click="handleBatchDisable">批量停用</el-button>
-        <el-button type="success" @click="handleBatchEnable">批量启用</el-button>
-        <span style="margin-left: 8px; color: #666;">已选择 {{ selectedIds.length }} 项</span>
+        <el-button type="danger" @click="handleBatchDelete">{{ t('rolePage.batchDelete') }}</el-button>
+        <el-button type="warning" @click="handleBatchDisable">{{ t('rolePage.batchDisable') }}</el-button>
+        <el-button type="success" @click="handleBatchEnable">{{ t('rolePage.batchEnable') }}</el-button>
+        <span style="margin-left: 8px; color: #666;">{{ t('rolePage.selected', selectedIds.length) }}</span>
       </div>
 
       <el-table v-loading="loading" :data="list" border stripe style="width: 100%" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" :selectable="(row: RoleItem) => !row.is_system" />
-        <el-table-column prop="name" label="角色名" min-width="140" />
-        <el-table-column prop="code" label="编码" min-width="140" />
-        <el-table-column prop="description" label="描述" min-width="200" />
-        <el-table-column label="系统角色" width="110">
+        <el-table-column prop="name" :label="t('rolePage.col.name')" min-width="140" />
+        <el-table-column prop="code" :label="t('rolePage.col.code')" min-width="140" />
+        <el-table-column prop="description" :label="t('rolePage.col.description')" min-width="200" />
+        <el-table-column :label="t('rolePage.col.systemRole')" width="110">
           <template #default="{ row }">
-            <el-tag v-if="row.is_system" type="warning" size="small">系统</el-tag>
+            <el-tag v-if="row.is_system" type="warning" size="small">{{ t('rolePage.systemTag') }}</el-tag>
             <span v-else style="color: #9ca3af">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100">
+        <el-table-column :label="t('rolePage.col.status')" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '启用' : '禁用' }}</el-tag>
+            <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? t('rolePage.status.enabled') : t('rolePage.status.disabled') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180" />
-        <el-table-column label="操作" width="380" fixed="right">
+        <el-table-column prop="created_at" :label="t('rolePage.col.createdAt')" width="180" />
+        <el-table-column :label="t('rolePage.col.operation')" width="380" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openViewPerms(row)">查看权限</el-button>
-            <el-button link type="success" @click="openBindPerm(row)">绑定权限</el-button>
+            <el-button link type="primary" @click="openViewPerms(row)">{{ t('rolePage.action.viewPerms') }}</el-button>
+            <el-button link type="success" @click="openBindPerm(row)">{{ t('rolePage.action.bindPerms') }}</el-button>
             <el-button v-if="!row.is_system" link :type="row.status === 1 ? 'warning' : 'success'" @click="handleToggleStatus(row)">
-              {{ row.status === 1 ? '停用' : '启用' }}
+              {{ row.status === 1 ? t('rolePage.status.off') : t('rolePage.status.enabled') }}
             </el-button>
-            <el-button v-if="!row.is_system" link type="primary" @click="openEditDialog(row)">编辑</el-button>
-            <el-button v-if="!row.is_system" link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button v-if="!row.is_system" link type="primary" @click="openEditDialog(row)">{{ t('rolePage.action.edit') }}</el-button>
+            <el-button v-if="!row.is_system" link type="danger" @click="handleDelete(row)">{{ t('rolePage.action.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -66,40 +66,40 @@
     </el-card>
 
     <!-- 新增/编辑弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="dialogMode === 'create' ? '新增角色' : '编辑角色'" width="480px" :close-on-click-modal="false">
+    <el-dialog v-model="dialogVisible" :title="dialogMode === 'create' ? t('rolePage.dialog.createTitle') : t('rolePage.dialog.editTitle')" width="480px" :close-on-click-modal="false">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
-        <el-form-item label="角色名" prop="name"><el-input v-model="form.name" /></el-form-item>
-        <el-form-item label="编码" prop="code"><el-input v-model="form.code" :disabled="dialogMode === 'edit'" /></el-form-item>
-        <el-form-item label="作用域" prop="scope">
+        <el-form-item :label="t('rolePage.form.nameLabel')" prop="name"><el-input v-model="form.name" /></el-form-item>
+        <el-form-item :label="t('rolePage.form.codeLabel')" prop="code"><el-input v-model="form.code" :disabled="dialogMode === 'edit'" /></el-form-item>
+        <el-form-item :label="t('rolePage.form.scopeLabel')" prop="scope">
           <el-select v-model="form.scope" style="width: 100%" :disabled="dialogMode === 'edit'">
-            <el-option label="系统级" value="system" />
-            <el-option label="租户级" value="tenant" />
-            <el-option label="全部" value="all" />
+            <el-option :label="t('rolePage.scope.system')" value="system" />
+            <el-option :label="t('rolePage.scope.tenant')" value="tenant" />
+            <el-option :label="t('rolePage.scope.all')" value="all" />
           </el-select>
         </el-form-item>
-        <el-form-item label="描述" prop="description"><el-input v-model="form.description" type="textarea" :rows="3" /></el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="t('rolePage.form.descLabel')" prop="description"><el-input v-model="form.description" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item :label="t('rolePage.form.statusLabel')">
           <el-radio-group v-model="form.status">
-            <el-radio :value="1">启用</el-radio>
-            <el-radio :value="0">禁用</el-radio>
+            <el-radio :value="1">{{ t('rolePage.status.enabled') }}</el-radio>
+            <el-radio :value="0">{{ t('rolePage.status.disabled') }}</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submitForm">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="submitForm">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 查看权限弹窗 -->
-    <el-dialog v-model="viewPermsDialogVisible" title="查看已绑定权限" width="700px" :close-on-click-modal="false">
+    <el-dialog v-model="viewPermsDialogVisible" :title="t('rolePage.view.title')" width="700px" :close-on-click-modal="false">
       <div style="margin-bottom: 10px; font-size: 14px; color: #6b7280">
-        当前角色：<b style="color: #111827">{{ currentRole?.name }}</b>
-        ，已绑定 <b style="color: #2563eb">{{ currentRolePerms.length }}</b> 个权限
-        <span v-if="selectedPermIds.length > 0" style="margin-left: 16px; color: #f56c6c;">已选择 {{ selectedPermIds.length }} 个权限</span>
+        {{ t('rolePage.view.currentRole') }}<b style="color: #111827">{{ currentRole?.name }}</b>
+        {{ t('rolePage.view.boundPrefix') }}<b style="color: #2563eb">{{ currentRolePerms.length }}</b>{{ t('rolePage.view.boundSuffix') }}
+        <span v-if="selectedPermIds.length > 0" style="margin-left: 16px; color: #f56c6c;">{{ t('rolePage.view.selectedPerms', selectedPermIds.length) }}</span>
       </div>
       <div v-if="selectedPermIds.length > 0" style="margin-bottom: 10px;">
-        <el-button type="danger" size="small" @click="handleBatchUnbindPerms">批量解绑</el-button>
+        <el-button type="danger" size="small" @click="handleBatchUnbindPerms">{{ t('rolePage.view.batchUnbind') }}</el-button>
       </div>
       <el-table
         :data="currentRolePerms"
@@ -110,30 +110,30 @@
         @selection-change="handlePermSelectionChange"
       >
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="name" label="权限名称" min-width="140" />
-        <el-table-column prop="code" label="编码" min-width="180">
+        <el-table-column prop="name" :label="t('rolePage.view.colPermName')" min-width="140" />
+        <el-table-column prop="code" :label="t('rolePage.view.colCode')" min-width="180">
           <template #default="{ row }">
             <el-tag size="small" type="info">{{ row.code }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="resource" label="资源" width="100" />
-        <el-table-column prop="action" label="操作" width="100" />
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column prop="resource" :label="t('rolePage.view.colResource')" width="100" />
+        <el-table-column prop="action" :label="t('rolePage.view.colAction')" width="100" />
+        <el-table-column :label="t('rolePage.view.colOperation')" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button link type="danger" @click="handleUnbindPerm(row)">解绑</el-button>
+            <el-button link type="danger" @click="handleUnbindPerm(row)">{{ t('rolePage.view.unbind') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
       <template #footer>
-        <el-button @click="viewPermsDialogVisible = false">关闭</el-button>
+        <el-button @click="viewPermsDialogVisible = false">{{ t('rolePage.view.close') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 绑定权限弹窗 -->
-    <el-dialog v-model="bindDialogVisible" title="绑定权限" width="560px" :close-on-click-modal="false">
+    <el-dialog v-model="bindDialogVisible" :title="t('rolePage.bind.title')" width="560px" :close-on-click-modal="false">
       <div style="margin-bottom: 10px; font-size: 14px; color: #6b7280">
-        当前角色：<b style="color: #111827">{{ currentRole?.name }}</b>
-        ，已选中 <b style="color: #2563eb">{{ checkedPermIds.length }}</b> 个权限
+        {{ t('rolePage.bind.currentRole') }}<b style="color: #111827">{{ currentRole?.name }}</b>
+        {{ t('rolePage.bind.checkedPrefix') }}<b style="color: #2563eb">{{ checkedPermIds.length }}</b>{{ t('rolePage.bind.checkedSuffix') }}
       </div>
       <el-tree
         ref="treeRef"
@@ -152,20 +152,21 @@
         </template>
       </el-tree>
       <template #footer>
-        <el-button @click="bindDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submitBind">保存绑定</el-button>
+        <el-button @click="bindDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="submitBind">{{ t('rolePage.bind.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { Search, Delete, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { ElTree } from 'element-plus'
+import { useI18n } from '@/composables/useI18n'
 import {
   getRoleList,
   createRole,
@@ -187,6 +188,7 @@ import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
 
 const router = useRouter()
+const { t } = useI18n()
 
 const {
   list,
@@ -219,10 +221,10 @@ const saving = ref(false)
 const editingId = ref<string | null>(null)
 const form = reactive({ name: '', code: '', description: '', scope: 'system', status: 1 })
 
-const rules: FormRules = {
-  name: [{ required: true, message: '请输入角色名', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入编码', trigger: 'blur' }]
-}
+const rules = computed<FormRules>(() => ({
+  name: [{ required: true, message: t('rolePage.form.nameRequired'), trigger: 'blur' }],
+  code: [{ required: true, message: t('rolePage.form.codeRequired'), trigger: 'blur' }]
+}))
 
 // 权限树节点（按 resource 分组，子节点为具体权限）
 interface PermTreeNode {
@@ -295,11 +297,11 @@ async function submitForm() {
     try {
       if (dialogMode.value === 'create') {
         await createRole({ name: form.name, code: form.code, scope: form.scope, description: form.description, status: form.status })
-        ElMessage.success('新增成功')
+        ElMessage.success(t('rolePage.created'))
       } else if (editingId.value) {
         // 编辑时也要传递 code，防止后端将其清空
         await updateRole(editingId.value, { name: form.name, code: form.code, description: form.description, status: form.status })
-        ElMessage.success('更新成功')
+        ElMessage.success(t('rolePage.updated'))
       }
       dialogVisible.value = false
       loadList()
@@ -314,11 +316,11 @@ function handleSelectionChange(selection: RoleItem[]) {
 }
 
 function handleDelete(row: RoleItem) {
-  ElMessageBox.confirm(`确定要删除角色 "${row.name}" 吗？`, '提示', { type: 'warning' })
+  ElMessageBox.confirm(t('rolePage.deleteConfirm', row.name), t('common.tip'), { type: 'warning' })
     .then(async () => {
       if (!row.id) return
       await deleteRole(row.id)
-      ElMessage.success('删除成功')
+      ElMessage.success(t('rolePage.deleted'))
       loadList()
     })
     .catch(() => {})
@@ -326,10 +328,10 @@ function handleDelete(row: RoleItem) {
 
 function handleBatchDelete() {
   if (selectedIds.value.length === 0) return
-  ElMessageBox.confirm(`确定要删除选中的 ${selectedIds.value.length} 个角色吗？`, '提示', { type: 'warning' })
+  ElMessageBox.confirm(t('rolePage.batchDeleteConfirm', selectedIds.value.length), t('common.tip'), { type: 'warning' })
     .then(async () => {
       await batchDeleteRoles(selectedIds.value)
-      ElMessage.success('批量删除成功')
+      ElMessage.success(t('rolePage.batchDeleted'))
       selectedIds.value = []
       loadList()
     })
@@ -338,10 +340,10 @@ function handleBatchDelete() {
 
 function handleBatchEnable() {
   if (selectedIds.value.length === 0) return
-  ElMessageBox.confirm(`确定要启用选中的 ${selectedIds.value.length} 个角色吗？`, '提示', { type: 'warning' })
+  ElMessageBox.confirm(t('rolePage.batchEnableConfirm', selectedIds.value.length), t('common.tip'), { type: 'warning' })
     .then(async () => {
       await batchUpdateRoleStatus(selectedIds.value, 1)
-      ElMessage.success('批量启用成功')
+      ElMessage.success(t('rolePage.batchEnabled'))
       selectedIds.value = []
       loadList()
     })
@@ -350,10 +352,10 @@ function handleBatchEnable() {
 
 function handleBatchDisable() {
   if (selectedIds.value.length === 0) return
-  ElMessageBox.confirm(`确定要停用选中的 ${selectedIds.value.length} 个角色吗？`, '提示', { type: 'warning' })
+  ElMessageBox.confirm(t('rolePage.batchDisableConfirm', selectedIds.value.length), t('common.tip'), { type: 'warning' })
     .then(async () => {
       await batchUpdateRoleStatus(selectedIds.value, 0)
-      ElMessage.success('批量停用成功')
+      ElMessage.success(t('rolePage.batchDisabled'))
       selectedIds.value = []
       loadList()
     })
@@ -363,11 +365,14 @@ function handleBatchDisable() {
 async function handleToggleStatus(row: RoleItem) {
   if (!row.id) return
   const newStatus = row.status === 1 ? 0 : 1
-  const actionText = newStatus === 1 ? '启用' : '停用'
   try {
-    await ElMessageBox.confirm(`确定要${actionText}角色 "${row.name}" 吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      newStatus === 1 ? t('rolePage.enableConfirm', row.name) : t('rolePage.disableConfirm', row.name),
+      t('common.tip'),
+      { type: 'warning' }
+    )
     await updateRoleStatus(row.id, newStatus)
-    ElMessage.success(`${actionText}成功`)
+    ElMessage.success(newStatus === 1 ? t('rolePage.enabled') : t('rolePage.disabled'))
     loadList()
   } catch (e) {
     // 用户取消或请求失败
@@ -386,7 +391,7 @@ async function openViewPerms(row: RoleItem) {
     currentRolePerms.value = perms || []
     viewPermsDialogVisible.value = true
   } catch (e) {
-    ElMessage.error('加载权限数据失败')
+    ElMessage.error(t('rolePage.loadPermsFailed'))
   } finally {
     saving.value = false
   }
@@ -397,12 +402,12 @@ async function handleUnbindPerm(perm: PermissionItem) {
   if (!currentRole.value) return
   try {
     await ElMessageBox.confirm(
-      `确定要解除角色 "${currentRole.value.name}" 的权限 "${perm.name}" 吗？`,
-      '确认解绑',
+      t('rolePage.unbindConfirm', currentRole.value.name, perm.name),
+      t('rolePage.unbindTitle'),
       { type: 'warning' }
     )
     await unbindRolePermission(currentRole.value.id, perm.id)
-    ElMessage.success('权限解绑成功')
+    ElMessage.success(t('rolePage.unbindSuccess'))
     // 刷新列表
     currentRolePerms.value = currentRolePerms.value.filter(p => p.id !== perm.id)
   } catch (e) {
@@ -420,12 +425,12 @@ async function handleBatchUnbindPerms() {
   if (!currentRole.value || selectedPermIds.value.length === 0) return
   try {
     await ElMessageBox.confirm(
-      `确定要解除角色 "${currentRole.value.name}" 的 ${selectedPermIds.value.length} 个权限吗？`,
-      '确认批量解绑',
+      t('rolePage.batchUnbindConfirm', currentRole.value.name, selectedPermIds.value.length),
+      t('rolePage.batchUnbindTitle'),
       { type: 'warning' }
     )
     await unbindRolePermissions(currentRole.value.id, selectedPermIds.value)
-    ElMessage.success('批量解绑成功')
+    ElMessage.success(t('rolePage.batchUnbindSuccess'))
     // 刷新列表
     currentRolePerms.value = currentRolePerms.value.filter(p => !selectedPermIds.value.includes(p.id))
     selectedPermIds.value = []
@@ -447,7 +452,7 @@ async function openBindPerm(row: RoleItem) {
     checkedPermIds.value = (perms || []).map((p: PermissionItem) => p.id)
     bindDialogVisible.value = true
   } catch (e) {
-    ElMessage.error('加载权限数据失败')
+    ElMessage.error(t('rolePage.loadPermsFailed'))
   } finally {
     saving.value = false
   }
@@ -461,7 +466,7 @@ async function submitBind() {
   saving.value = true
   try {
     await bindRolePermissions(currentRole.value.id, leafIds)
-    ElMessage.success('权限绑定成功')
+    ElMessage.success(t('rolePage.bindSuccess'))
     bindDialogVisible.value = false
   } finally {
     saving.value = false
