@@ -11,12 +11,27 @@ export interface AnnouncementPayload {
   content?: string
 }
 
+// 消息撤回事件负载（与后端 dto.RecallPush 对齐）
+export interface ChatRecallPayload {
+  conversation_id: string
+  message_id: string
+}
+
+// 输入中提示负载（与后端 dto.TypingPush 对齐）
+export interface ChatTypingPayload {
+  conversation_id: string
+  user_id: string
+  typing: boolean
+}
+
 // WebSocket 消息：按 type 判别负载结构，避免使用 any
 export type WSMessage =
   | { type: 'alert'; payload: AlertNotification; time: number }
   | { type: 'announcement'; payload: AnnouncementPayload; time: number }
   | { type: 'unread_count' | 'ping' | 'pong'; payload: Record<string, unknown>; time: number }
   | { type: 'chat'; payload: ChatMessageItem; time: number }
+  | { type: 'chat_recall'; payload: ChatRecallPayload; time: number }
+  | { type: 'chat_typing'; payload: ChatTypingPayload; time: number }
 
 // 重连配置
 const RECONNECT_BASE_DELAY = 1000 // base delay 1s

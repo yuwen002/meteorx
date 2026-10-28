@@ -42,6 +42,9 @@
         <header class="msg-header">
           <el-avatar :size="32">{{ (chatStore.activeConversation.peer_name || '?').charAt(0) }}</el-avatar>
           <span class="msg-peer">{{ chatStore.activeConversation.peer_name || chatStore.activeConversation.peer_user_id }}</span>
+          <span v-if="peerOnline" class="presence-dot online" :title="t('chat.online')"></span>
+          <span v-else class="presence-dot offline" :title="t('chat.offline')"></span>
+          <span v-if="activeTypingNames" class="typing-hint">{{ activeTypingNames }} {{ t('chat.typing') }}</span>
         </header>
 
         <div ref="scrollRef" class="msg-body" v-loading="chatStore.loadingMessages">
@@ -54,7 +57,13 @@
           >
             <div class="msg-bubble">
               <div class="msg-meta">{{ displayName(msg) }} · {{ formatClock(msg.created_at) }}</div>
-              <div class="msg-text">{{ msg.content }}</div>
+              <div v-if="msg.recalled" class="msg-recalled">{{ t('chat.recalled') }}</div>
+              <div v-else class="msg-text">{{ msg.content }}</div>
+              <div v-if="canRecall(msg)" class="msg-actions">
+                <el-button link size="small" :class="isMine(msg) ? 'recall-mine' : 'recall-theirs'" @click="doRecall(msg)">
+                  {{ t('chat.recall') }}
+                </el-button>
+              </div>
             </div>
           </div>
         </div>
@@ -114,8 +123,9 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, computed } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { Plus } from '@element-plus/icons-vue'
 import { useI18n } from '@/composables/useI18n'
 import { useChatStore } from '@/stores/chat'
@@ -137,6 +147,46 @@ function isMine(msg: ChatMessageItem): boolean {
 }
 function displayName(msg: ChatMessageItem): string {
   return isMine(msg) ? t('chat.me') : msg.sender_name || msg.sender_id
+}
+
+// ---- 在线状态 / 输入中 ----
+const peerOnline = computed(() => {
+  const peer = chatStore.activeConversation?.peer_user_id
+  return !!peer && chatStore.isOnline(peer)
+})
+
+// 当前会话内正在输入的成员展示名（逗号分隔）
+const activeTypingNames = computed(() => {
+  const ids = chatStore.typingUsers[chatStore.activeId] || []
+  if (!ids.length) return ''
+  return ids
+    .map((id) => {
+      const conv = chatStore.activeConversation
+      return (conv?.peer_user_id === id ? conv?.peer_name : undefined) || id
+    })
+    .join(', ')
+})
+
+// ---- 消息撤回 ----
+// 与后端 service.RecallWindow 保持一致：发送后 5 分钟内可撤回
+const RECALL_WINDOW_MS = 5 * 60 * 1000
+
+function canRecall(msg: ChatMessageItem): boolean {
+  if (msg.recalled || msg.sender_id !== myId()) return false
+  const d = toDate(msg.created_at)
+  if (!d) return false
+  return Date.now() - d.getTime() < RECALL_WINDOW_MS
+}
+
+async function doRecall(msg: ChatMessageItem) {
+  try {
+    await ElMessageBox.confirm(t('chat.recallConfirm'), t('common.tip'), { type: 'warning' })
+  } catch {
+    return // cancelled
+  }
+  const ok = await chatStore.recall(msg.id)
+  if (ok) ElMessage.success(t('chat.recallSuccess'))
+  else ElMessage.error(t('chat.recallFailed'))
 }
 
 // ---- 时间格式化 ----
@@ -168,6 +218,7 @@ async function doSend() {
   const ok = await chatStore.send(text)
   if (ok) {
     draft.value = ''
+    stopTyping()
     scrollToBottom()
   }
 }
@@ -176,7 +227,39 @@ function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     void doSend()
+    return
   }
+  notifyTypingOnce()
+}
+
+// 输入中上报：状态翻转必发，持续输入每 3s 最多一次，频率控制在前端
+const TYPING_PING_INTERVAL_MS = 3000
+let typingActive = false
+let lastTypingPing = 0
+let typingIdleTimer: ReturnType<typeof setTimeout> | null = null
+
+function notifyTypingOnce() {
+  const now = Date.now()
+  if (!typingActive) {
+    typingActive = true
+    lastTypingPing = now
+    chatStore.notifyTyping(true)
+  } else if (now - lastTypingPing >= TYPING_PING_INTERVAL_MS) {
+    lastTypingPing = now
+    chatStore.notifyTyping(true)
+  }
+  if (typingIdleTimer) clearTimeout(typingIdleTimer)
+  typingIdleTimer = setTimeout(stopTyping, TYPING_PING_INTERVAL_MS + 500)
+}
+
+function stopTyping() {
+  if (typingIdleTimer) {
+    clearTimeout(typingIdleTimer)
+    typingIdleTimer = null
+  }
+  if (!typingActive) return
+  typingActive = false
+  chatStore.notifyTyping(false)
 }
 
 function scrollToBottom() {
@@ -230,6 +313,11 @@ async function startChat() {
 
 onMounted(() => {
   void chatStore.loadConversations()
+})
+
+// 离开页面时收起输入中状态，避免对方一直看到「正在输入…」
+onUnmounted(() => {
+  stopTyping()
 })
 </script>
 
@@ -331,6 +419,23 @@ onMounted(() => {
   font-weight: 600;
   color: var(--mx-text-strong);
 }
+.presence-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.presence-dot.online {
+  background: var(--el-color-success);
+}
+.presence-dot.offline {
+  background: var(--mx-text-muted);
+}
+.typing-hint {
+  font-size: 12px;
+  color: var(--mx-text-muted);
+  margin-left: auto;
+}
 .msg-body {
   flex: 1;
   overflow-y: auto;
@@ -364,6 +469,25 @@ onMounted(() => {
 .msg-text {
   white-space: pre-wrap;
   word-break: break-word;
+}
+.msg-recalled {
+  font-size: 12px;
+  font-style: italic;
+  opacity: 0.7;
+}
+.msg-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.recall-theirs {
+  color: var(--mx-text-muted);
+}
+.recall-mine {
+  color: rgba(255, 255, 255, 0.85);
+}
+.recall-mine:hover {
+  color: #fff;
 }
 .msg-input {
   border-top: 1px solid var(--mx-header-border);

@@ -9,7 +9,7 @@
  *
  * 接口均只需登录，后端以会话成员归属为准做访问控制，不挂 RBAC 权限码。
  */
-import { get, post } from '@/api/request'
+import { del, get, post } from '@/api/request'
 import type { PageResult } from '@/types/pagination'
 
 /** 会话类型（首版仅 direct） */
@@ -35,6 +35,8 @@ export interface ChatMessageItem {
   sender_name?: string
   content: string
   type: string
+  /** 是否已被发送人撤回（后端软撤回，正文为空） */
+  recalled?: boolean
   created_at: string
 }
 
@@ -67,4 +69,19 @@ export function listChatMessages(conversationId: string, params?: MessageListPar
 /** 标记会话已读（幂等，推进服务端已读水位） */
 export function markConversationRead(conversationId: string) {
   return post<{ ok: boolean }>(`/chat/conversations/${conversationId}/read`)
+}
+
+/** 撤回自己发送的消息（仅发送人本人、限时 5 分钟） */
+export function recallChatMessage(conversationId: string, messageId: string) {
+  return del<{ ok: boolean }>(`/chat/conversations/${conversationId}/messages/${messageId}`)
+}
+
+/** 上报输入中状态（后端无状态转发给其他成员，频率控制由调用方承担） */
+export function sendTyping(conversationId: string, typing: boolean) {
+  return post<{ ok: boolean }>(`/chat/conversations/${conversationId}/typing`, { typing })
+}
+
+/** 在线状态：当前持有 WS 连接的用户 ID 集合 */
+export function getPresence() {
+  return get<{ online_user_ids: string[] }>('/chat/presence')
 }

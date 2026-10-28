@@ -93,6 +93,16 @@ onMessage((msg: WSMessage) => {
       chatStore.receiveChatPush(msg.payload)
       break
 
+    case 'chat_recall':
+      // 对方撤回消息：当前会话内原位标记为已撤回
+      chatStore.receiveRecallPush(msg.payload)
+      break
+
+    case 'chat_typing':
+      // 对方输入中提示（瞬态事件，仅前端展示，不落库）
+      chatStore.receiveTypingPush(msg.payload)
+      break
+
     case 'pong':
       // 心跳响应，无需处理
       break

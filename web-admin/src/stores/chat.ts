@@ -6,10 +6,16 @@ import {
   sendChatMessage,
   listChatMessages,
   markConversationRead,
+  recallChatMessage,
+  sendTyping,
+  getPresence,
   type ConversationItem,
   type ChatMessageItem
 } from '@/api/modules/chat'
 import { toPageResult } from '@/types/pagination'
+
+// 输入中提示自动消退时长（无停止事件时多久后不再展示）
+const TYPING_TTL_MS = 4000
 
 /**
  * 协作即时消息（1:1 私聊）状态。
@@ -26,11 +32,33 @@ export const useChatStore = defineStore('chat', () => {
   const loadingMessages = ref(false)
   const sending = ref(false)
 
+  /** 当前在线（持有 WS 连接）的用户 ID 集合 */
+  const onlineUserIds = ref<string[]>([])
+  /** conversationID -> 正在输入的用户 ID 列表 */
+  const typingUsers = ref<Record<string, string[]>>({})
+  /** `${convId}:${userId}` -> 消退定时器 */
+  const typingTimers: Record<string, ReturnType<typeof setTimeout>> = {}
+
   /** 全部会话未读总数（用于侧边栏/菜单角标） */
   const totalUnread = computed(() => conversations.value.reduce((s, c) => s + (c.unread_count || 0), 0))
 
   /** 当前会话（未选中时为 null） */
   const activeConversation = computed(() => conversations.value.find((c) => c.id === activeId.value) || null)
+
+  /** 判定用户是否在线 */
+  function isOnline(userId: string): boolean {
+    return onlineUserIds.value.includes(userId)
+  }
+
+  /** 拉取在线用户集合（拉取式，选中会话或收到 chat 事件时刷新，不做轮询） */
+  async function loadPresence() {
+    try {
+      const res = await getPresence()
+      onlineUserIds.value = res?.online_user_ids || []
+    } catch {
+      /* 忽略：在线状态为弱信息，拉取失败不影响聊天主流程 */
+    }
+  }
 
   /** 拉取会话列表 */
   async function loadConversations() {
@@ -64,6 +92,7 @@ export const useChatStore = defineStore('chat', () => {
       const conv = conversations.value.find((c) => c.id === id)
       if (conv) conv.unread_count = 0
       void markConversationRead(id).catch(() => {})
+      void loadPresence()
     } finally {
       loadingMessages.value = false
     }
@@ -112,11 +141,81 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /** 处理 WS 推送来的撤回事件：原位把该消息标记为已撤回 */
+  function receiveRecallPush(payload: { conversation_id: string; message_id: string }) {
+    if (!payload?.message_id) return
+    if (payload.conversation_id === activeId.value) {
+      const idx = messages.value.findIndex((m) => m.id === payload.message_id)
+      if (idx >= 0) {
+        messages.value[idx] = { ...messages.value[idx], recalled: true, content: '' }
+      }
+    }
+    // 若被撤回的正是会话摘要那条，摘要已不可靠，交由下次拉列表自然纠正，这里不主动改写
+  }
+
+  /** 处理 WS 推送来的输入中事件 */
+  function receiveTypingPush(payload: { conversation_id: string; user_id: string; typing: boolean }) {
+    if (!payload?.conversation_id || !payload?.user_id) return
+    setTyping(payload.conversation_id, payload.user_id, payload.typing)
+  }
+
+  /** 维护某会话内某成员的输入中状态，带 TTL 自动消退 */
+  function setTyping(convId: string, userId: string, typing: boolean) {
+    const key = `${convId}:${userId}`
+    if (!typing) {
+      clearTypingUser(convId, userId)
+      if (typingTimers[key]) {
+        clearTimeout(typingTimers[key])
+        delete typingTimers[key]
+      }
+      return
+    }
+    const arr = typingUsers.value[convId] || []
+    if (!arr.includes(userId)) typingUsers.value[convId] = [...arr, userId]
+    if (typingTimers[key]) clearTimeout(typingTimers[key])
+    typingTimers[key] = setTimeout(() => {
+      clearTypingUser(convId, userId)
+      delete typingTimers[key]
+    }, TYPING_TTL_MS)
+  }
+
+  function clearTypingUser(convId: string, userId: string) {
+    const arr = typingUsers.value[convId]
+    if (!arr) return
+    const next = arr.filter((u) => u !== userId)
+    if (next.length) typingUsers.value[convId] = next
+    else delete typingUsers.value[convId]
+  }
+
+  /** 上报本端输入中状态（频率控制由调用方承担；失败静默，属弱信息） */
+  function notifyTyping(typing: boolean) {
+    if (!activeId.value) return
+    void sendTyping(activeId.value, typing).catch(() => {})
+  }
+
+  /** 撤回自己发送的消息，成功后原位标记 */
+  async function recall(messageId: string): Promise<boolean> {
+    if (!activeId.value) return false
+    try {
+      await recallChatMessage(activeId.value, messageId)
+      const idx = messages.value.findIndex((m) => m.id === messageId)
+      if (idx >= 0) {
+        messages.value[idx] = { ...messages.value[idx], recalled: true, content: '' }
+      }
+      return true
+    } catch {
+      return false
+    }
+  }
+
   /** 退出登录时重置，避免跨账号泄露会话与消息 */
   function reset() {
     conversations.value = []
     messages.value = []
     activeId.value = ''
+    onlineUserIds.value = []
+    typingUsers.value = {}
+    Object.values(typingTimers).forEach((t) => clearTimeout(t))
   }
 
   return {
@@ -126,13 +225,21 @@ export const useChatStore = defineStore('chat', () => {
     loadingConversations,
     loadingMessages,
     sending,
+    onlineUserIds,
+    typingUsers,
     totalUnread,
     activeConversation,
+    isOnline,
+    loadPresence,
     loadConversations,
     openWith,
     selectConversation,
     send,
+    recall,
+    notifyTyping,
     receiveChatPush,
+    receiveRecallPush,
+    receiveTypingPush,
     reset
   }
 })
