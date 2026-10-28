@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="visible" title="文档统计" width="800px">
+  <el-dialog v-model="visible" :title="t('wiki.stats.title')" width="800px">
     <el-row :gutter="16">
       <el-col :span="6">
         <el-card shadow="hover" class="stat-card">
@@ -8,7 +8,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-value">{{ stats.total_views || 0 }}</div>
-            <div class="stat-label">总浏览量</div>
+            <div class="stat-label">{{ t('wiki.stats.totalViews') }}</div>
           </div>
         </el-card>
       </el-col>
@@ -19,7 +19,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-value">{{ stats.total_edits || 0 }}</div>
-            <div class="stat-label">总编辑次数</div>
+            <div class="stat-label">{{ t('wiki.stats.totalEdits') }}</div>
           </div>
         </el-card>
       </el-col>
@@ -30,7 +30,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-value">{{ stats.total_downloads || 0 }}</div>
-            <div class="stat-label">总下载次数</div>
+            <div class="stat-label">{{ t('wiki.stats.totalDownloads') }}</div>
           </div>
         </el-card>
       </el-col>
@@ -41,7 +41,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-value">{{ stats.total_shares || 0 }}</div>
-            <div class="stat-label">总分享次数</div>
+            <div class="stat-label">{{ t('wiki.stats.totalShares') }}</div>
           </div>
         </el-card>
       </el-col>
@@ -52,13 +52,13 @@
         <el-card shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>独立访客</span>
+              <span>{{ t('wiki.stats.uniqueViewers') }}</span>
               <el-tag type="success">{{ stats.unique_viewers || 0 }}</el-tag>
             </div>
           </template>
-          <el-empty v-if="!stats.unique_viewers" description="暂无数据" />
+          <el-empty v-if="!stats.unique_viewers" :description="t('common.noData')" />
           <div v-else class="stat-detail">
-            <p>最近浏览: {{ stats.last_viewed_at ? formatTime(stats.last_viewed_at) : '无' }}</p>
+            <p>{{ t('wiki.stats.lastViewed') }}: {{ stats.last_viewed_at ? formatTime(stats.last_viewed_at) : t('wiki.stats.none') }}</p>
           </div>
         </el-card>
       </el-col>
@@ -66,24 +66,24 @@
         <el-card shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>访问日志</span>
+              <span>{{ t('wiki.stats.accessLogs') }}</span>
               <el-button link type="primary" @click="showLogs = !showLogs">
-                {{ showLogs ? '收起' : '展开' }}
+                {{ showLogs ? t('wiki.stats.collapse') : t('wiki.stats.expand') }}
               </el-button>
             </div>
           </template>
           <div v-if="showLogs">
             <el-table :data="accessLogs" style="width: 100%" max-height="300">
-              <el-table-column prop="user_name" label="用户" width="120" />
-              <el-table-column prop="action" label="操作" width="100">
+              <el-table-column prop="user_name" :label="t('wiki.stats.colUser')" width="120" />
+              <el-table-column prop="action" :label="t('common.actions')" width="100">
                 <template #default="{ row }">
                   <el-tag :type="getActionType(row.action)" size="small">
                     {{ getActionLabel(row.action) }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="ip_address" label="IP地址" width="140" />
-              <el-table-column prop="created_at" label="时间" width="180">
+              <el-table-column prop="ip_address" :label="t('wiki.stats.colIp')" width="140" />
+              <el-table-column prop="created_at" :label="t('wiki.stats.colTime')" width="180">
                 <template #default="{ row }">
                   {{ formatTime(row.created_at) }}
                 </template>
@@ -99,13 +99,13 @@
               @current-change="loadAccessLogs"
             />
           </div>
-          <el-empty v-else description="点击展开查看访问日志" />
+          <el-empty v-else :description="t('wiki.stats.logsEmpty')" />
         </el-card>
       </el-col>
     </el-row>
 
     <template #footer>
-      <el-button @click="visible = false">关闭</el-button>
+      <el-button @click="visible = false">{{ t('common.close') }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -120,6 +120,9 @@ import {
   type DocumentAccessLog
 } from '@/api/modules/wiki'
 import { ElMessage } from 'element-plus'
+import { useI18n } from '@/composables/useI18n'
+
+const { t, locale } = useI18n()
 
 const props = defineProps<{
   documentId: string
@@ -159,7 +162,7 @@ async function loadStats() {
   try {
     stats.value = await getDocumentStats(props.documentId)
   } catch (error) {
-    ElMessage.error('加载统计数据失败')
+    ElMessage.error(t('wiki.stats.loadStatsFailed'))
   }
 }
 
@@ -169,13 +172,13 @@ async function loadAccessLogs() {
     accessLogs.value = res.data ?? []
     totalLogs.value = res.pagination?.total ?? 0
   } catch (error) {
-    ElMessage.error('加载访问日志失败')
+    ElMessage.error(t('wiki.stats.loadLogsFailed'))
   }
 }
 
 function formatTime(time: string) {
   const date = new Date(time)
-  return date.toLocaleString('zh-CN')
+  return date.toLocaleString(locale.value)
 }
 
 function getActionType(action: string) {
@@ -190,10 +193,10 @@ function getActionType(action: string) {
 
 function getActionLabel(action: string) {
   const labels: Record<string, string> = {
-    view: '浏览',
-    edit: '编辑',
-    download: '下载',
-    share: '分享'
+    view: t('wiki.stats.action.view'),
+    edit: t('wiki.stats.action.edit'),
+    download: t('wiki.stats.action.download'),
+    share: t('wiki.stats.action.share')
   }
   return labels[action] || action
 }

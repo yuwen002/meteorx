@@ -9,7 +9,7 @@
     >
       <template #reference>
         <el-badge :value="notificationStore.totalUnread" :hidden="!notificationStore.hasUnread" class="header-badge">
-          <el-tooltip content="通知中心" placement="bottom">
+          <el-tooltip :content="t('wiki.notif.title')" placement="bottom">
             <el-button :icon="Bell" circle :type="notificationStore.hasUnread ? 'danger' : 'default'" />
           </el-tooltip>
         </el-badge>
@@ -18,7 +18,7 @@
       <div class="panel">
         <!-- 面板头部 -->
         <div class="panel-header">
-          <h3>通知中心</h3>
+          <h3>{{ t('wiki.notif.title') }}</h3>
           <div class="header-actions">
             <el-button
               v-if="notificationStore.hasUnread"
@@ -27,15 +27,15 @@
               size="small"
               @click="notificationStore.markAllAsRead()"
             >
-              全部标为已读
+              {{ t('wiki.notif.markAllRead') }}
             </el-button>
           </div>
         </div>
 
         <!-- 标签切换 -->
         <el-tabs v-model="activeTab" class="panel-tabs">
-          <el-tab-pane label="公告" name="announcement" />
-          <el-tab-pane label="告警" name="alert" />
+          <el-tab-pane :label="t('wiki.notif.tab.announcement')" name="announcement" />
+          <el-tab-pane :label="t('wiki.notif.tab.alert')" name="alert" />
         </el-tabs>
 
         <!-- 公告列表 -->
@@ -60,11 +60,11 @@
             </div>
           </div>
 
-          <el-empty v-if="!notificationStore.loading && notificationStore.announcements.length === 0" description="暂无公告" />
+          <el-empty v-if="!notificationStore.loading && notificationStore.announcements.length === 0" :description="t('wiki.notif.emptyAnnouncement')" />
 
           <div class="panel-footer">
             <el-button link type="primary" size="small" @click="goToAnnouncement">
-              查看全部公告
+              {{ t('wiki.notif.viewAllAnnouncement') }}
             </el-button>
           </div>
         </div>
@@ -91,11 +91,11 @@
             </div>
           </div>
 
-          <el-empty v-if="notificationStore.alerts.length === 0" description="暂无告警" />
+          <el-empty v-if="notificationStore.alerts.length === 0" :description="t('wiki.notif.emptyAlert')" />
 
           <div class="panel-footer">
             <el-button link type="primary" size="small" @click="goToAlert">
-              查看全部告警
+              {{ t('wiki.notif.viewAllAlert') }}
             </el-button>
           </div>
         </div>
@@ -109,6 +109,9 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Bell, Warning } from '@element-plus/icons-vue'
 import { useNotificationStore, type AnnouncementNotification } from '@/stores/notification'
+import { useI18n } from '@/composables/useI18n'
+
+const { t, locale } = useI18n()
 
 const router = useRouter()
 const notificationStore = useNotificationStore()
@@ -128,11 +131,11 @@ function formatTime(time: string | number | undefined | null): string {
   if (isNaN(d.getTime())) return ''
   const now = Date.now()
   const diff = now - d.getTime()
-  if (diff < 60000) return '刚刚'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`
-  if (diff < 604800000) return `${Math.floor(diff / 86400000)} 天前`
-  return d.toLocaleDateString('zh-CN')
+  if (diff < 60000) return t('wiki.time.justNow')
+  if (diff < 3600000) return t('wiki.time.minutesAgo', Math.floor(diff / 60000))
+  if (diff < 86400000) return t('wiki.time.hoursAgo', Math.floor(diff / 3600000))
+  if (diff < 604800000) return t('wiki.time.daysAgo', Math.floor(diff / 86400000))
+  return d.toLocaleDateString(locale.value)
 }
 
 function getRiskColor(level: string): string {

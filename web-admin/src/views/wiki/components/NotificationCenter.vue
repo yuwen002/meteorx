@@ -14,8 +14,8 @@
 
       <div class="notification-panel">
         <div class="panel-header">
-          <h3>通知中心</h3>
-          <el-button link type="primary" @click="markAllAsRead">全部标为已读</el-button>
+          <h3>{{ t('wiki.notif.title') }}</h3>
+          <el-button link type="primary" @click="markAllAsRead">{{ t('wiki.notif.markAllRead') }}</el-button>
         </div>
 
         <el-divider style="margin: 8px 0" />
@@ -40,7 +40,7 @@
             </div>
           </div>
 
-          <el-empty v-if="notifications.length === 0" description="暂无通知" />
+          <el-empty v-if="notifications.length === 0" :description="t('wiki.notif.empty')" />
         </div>
 
         <div v-if="total > pageSize" class="panel-footer">
@@ -70,6 +70,9 @@ import {
   type Notification
 } from '@/api/modules/wiki'
 import { ElMessage } from 'element-plus'
+import { useI18n } from '@/composables/useI18n'
+
+const { t, locale } = useI18n()
 
 const popoverVisible = ref(false)
 const notifications = ref<Notification[]>([])
@@ -89,7 +92,7 @@ async function loadNotifications() {
     notifications.value = res.data ?? []
     total.value = res.pagination?.total ?? 0
   } catch (error) {
-    ElMessage.error('加载通知失败')
+    ElMessage.error(t('wiki.notif.loadFailed'))
   }
 }
 
@@ -98,7 +101,7 @@ async function loadUnreadCount() {
     const res = await getUnreadNotificationCount()
     unreadCount.value = res.count
   } catch (error) {
-    console.error('加载未读数量失败:', error)
+    console.error('failed to load unread count:', error)
   }
 }
 
@@ -109,7 +112,7 @@ async function handleNotificationClick(notification: Notification) {
       notification.is_read = true
       unreadCount.value = Math.max(0, unreadCount.value - 1)
     } catch (error) {
-      ElMessage.error('标记已读失败')
+      ElMessage.error(t('wiki.notif.markReadFailed'))
     }
   }
 }
@@ -119,9 +122,9 @@ async function markAllAsRead() {
     await markAllNotificationsAsRead()
     notifications.value.forEach((n) => (n.is_read = true))
     unreadCount.value = 0
-    ElMessage.success('已全部标为已读')
+    ElMessage.success(t('wiki.notif.markedAll'))
   } catch (error) {
-    ElMessage.error('操作失败')
+    ElMessage.error(t('common.failed'))
   }
 }
 
@@ -150,10 +153,10 @@ function formatTime(time: string) {
   const now = new Date()
   const diff = now.getTime() - date.getTime()
 
-  if (diff < 60000) return '刚刚'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`
-  return date.toLocaleDateString('zh-CN')
+  if (diff < 60000) return t('wiki.time.justNow')
+  if (diff < 3600000) return t('wiki.time.minutesAgo', Math.floor(diff / 60000))
+  if (diff < 86400000) return t('wiki.time.hoursAgo', Math.floor(diff / 3600000))
+  return date.toLocaleDateString(locale.value)
 }
 </script>
 

@@ -1,16 +1,16 @@
 <template>
   <div class="comment-section">
-    <h3>评论 ({{ rootComments.length }})</h3>
+    <h3>{{ t('wiki.comment.title', rootComments.length) }}</h3>
 
     <div class="comment-input">
       <el-input
         v-model="newComment"
         type="textarea"
         :rows="3"
-        placeholder="输入评论内容... 使用 @用户名 可以提及他人"
+        :placeholder="t('wiki.comment.inputPlaceholder')"
       />
       <el-button type="primary" :loading="submitting" @click="submitComment">
-        发表评论
+        {{ t('wiki.comment.submit') }}
       </el-button>
     </div>
 
@@ -19,24 +19,24 @@
     <div class="comment-list">
       <div v-for="comment in rootComments" :key="comment.id" class="comment-item">
         <div class="comment-header">
-          <span class="user-name">{{ comment.user_name || '匿名用户' }}</span>
+          <span class="user-name">{{ comment.user_name || t('wiki.comment.anonymous') }}</span>
           <span class="comment-time">{{ formatTime(comment.created_at) }}</span>
         </div>
         <div class="comment-content">{{ comment.content }}</div>
         <div class="comment-actions">
-          <el-button link type="primary" @click="replyTo(comment)">回复</el-button>
-          <el-button link type="danger" @click="handleDelete(comment.id)">删除</el-button>
+          <el-button link type="primary" @click="replyTo(comment)">{{ t('wiki.comment.reply') }}</el-button>
+          <el-button link type="danger" @click="handleDelete(comment.id)">{{ t('common.delete') }}</el-button>
         </div>
 
         <!-- 回复列表：后端以 replies 嵌套返回 -->
         <div v-for="reply in comment.replies || []" :key="reply.id" class="reply-item">
           <div class="comment-header">
-            <span class="user-name">{{ reply.user_name || '匿名用户' }}</span>
+            <span class="user-name">{{ reply.user_name || t('wiki.comment.anonymous') }}</span>
             <span class="comment-time">{{ formatTime(reply.created_at) }}</span>
           </div>
           <div class="comment-content">{{ reply.content }}</div>
           <div class="comment-actions">
-            <el-button link type="danger" @click="handleDelete(reply.id)">删除</el-button>
+            <el-button link type="danger" @click="handleDelete(reply.id)">{{ t('common.delete') }}</el-button>
           </div>
         </div>
 
@@ -46,16 +46,16 @@
             v-model="replyContent"
             type="textarea"
             :rows="2"
-            placeholder="输入回复内容..."
+            :placeholder="t('wiki.comment.replyPlaceholder')"
           />
-          <el-button size="small" @click="cancelReply">取消</el-button>
+          <el-button size="small" @click="cancelReply">{{ t('common.cancel') }}</el-button>
           <el-button size="small" type="primary" :loading="submitting" @click="submitReply(comment.id)">
-            发表回复
+            {{ t('wiki.comment.submitReply') }}
           </el-button>
         </div>
       </div>
 
-      <el-empty v-if="rootComments.length === 0" description="暂无评论" />
+      <el-empty v-if="rootComments.length === 0" :description="t('wiki.comment.empty')" />
     </div>
   </div>
 </template>
@@ -69,6 +69,9 @@ import {
   deleteComment,
   type Comment
 } from '@/api/modules/wiki'
+import { useI18n } from '@/composables/useI18n'
+
+const { t, locale } = useI18n()
 
 const props = defineProps<{
   documentId: string
@@ -97,13 +100,13 @@ async function loadComments() {
   try {
     comments.value = await listComments(props.documentId)
   } catch (error) {
-    ElMessage.error('加载评论失败')
+    ElMessage.error(t('wiki.comment.loadFailed'))
   }
 }
 
 async function submitComment() {
   if (!newComment.value.trim()) {
-    ElMessage.warning('请输入评论内容')
+    ElMessage.warning(t('wiki.comment.contentRequired'))
     return
   }
 
@@ -113,11 +116,11 @@ async function submitComment() {
       document_id: props.documentId,
       content: newComment.value
     })
-    ElMessage.success('评论成功')
+    ElMessage.success(t('wiki.comment.success'))
     newComment.value = ''
     await loadComments()
   } catch (error) {
-    ElMessage.error('评论失败')
+    ElMessage.error(t('wiki.comment.failed'))
   } finally {
     submitting.value = false
   }
@@ -135,7 +138,7 @@ function cancelReply() {
 
 async function submitReply(parentId: string) {
   if (!replyContent.value.trim()) {
-    ElMessage.warning('请输入回复内容')
+    ElMessage.warning(t('wiki.comment.replyContentRequired'))
     return
   }
 
@@ -146,24 +149,24 @@ async function submitReply(parentId: string) {
       parent_id: parentId,
       content: replyContent.value
     })
-    ElMessage.success('回复成功')
+    ElMessage.success(t('wiki.comment.replySuccess'))
     replyContent.value = ''
     replyingTo.value = null
     await loadComments()
   } catch (error) {
-    ElMessage.error('回复失败')
+    ElMessage.error(t('wiki.comment.replyFailed'))
   } finally {
     submitting.value = false
   }
 }
 
 function handleDelete(id: string) {
-  ElMessageBox.confirm('确定要删除此评论吗？', '提示', {
+  ElMessageBox.confirm(t('wiki.comment.deleteConfirm'), t('common.tip'), {
     type: 'warning'
   })
     .then(async () => {
       await deleteComment(id)
-      ElMessage.success('删除成功')
+      ElMessage.success(t('wiki.comment.deleteSuccess'))
       await loadComments()
     })
     .catch(() => {})
@@ -174,10 +177,10 @@ function formatTime(time: string) {
   const now = new Date()
   const diff = now.getTime() - date.getTime()
 
-  if (diff < 60000) return '刚刚'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`
-  return date.toLocaleDateString('zh-CN')
+  if (diff < 60000) return t('wiki.time.justNow')
+  if (diff < 3600000) return t('wiki.time.minutesAgo', Math.floor(diff / 60000))
+  if (diff < 86400000) return t('wiki.time.hoursAgo', Math.floor(diff / 3600000))
+  return date.toLocaleDateString(locale.value)
 }
 </script>
 

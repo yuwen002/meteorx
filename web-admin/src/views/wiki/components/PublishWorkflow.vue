@@ -12,56 +12,56 @@
             command="submit-review"
             :icon="Upload"
           >
-            提交审核
+            {{ t('wiki.pub.menu.submitReview') }}
           </el-dropdown-item>
           <el-dropdown-item
             v-if="canApprove"
             command="approve"
             :icon="CircleCheck"
           >
-            审核通过
+            {{ t('wiki.pub.menu.approve') }}
           </el-dropdown-item>
           <el-dropdown-item
             v-if="canReject"
             command="reject"
             :icon="CircleClose"
           >
-            驳回
+            {{ t('wiki.pub.menu.reject') }}
           </el-dropdown-item>
           <el-dropdown-item
             v-if="canPublish"
             command="publish"
             :icon="Promotion"
           >
-            直接发布
+            {{ t('wiki.pub.menu.publish') }}
           </el-dropdown-item>
           <el-dropdown-item
             v-if="canUnpublish"
             command="unpublish"
             :icon="RefreshLeft"
           >
-            取消发布
+            {{ t('wiki.pub.menu.unpublish') }}
           </el-dropdown-item>
           <el-dropdown-item
             v-if="canArchive"
             command="archive"
             :icon="Box"
           >
-            归档
+            {{ t('wiki.pub.menu.archive') }}
           </el-dropdown-item>
           <el-dropdown-item
             v-if="canBackToDraft"
             command="unpublish"
             :icon="RefreshLeft"
           >
-            退回草稿
+            {{ t('wiki.pub.menu.backToDraft') }}
           </el-dropdown-item>
           <el-dropdown-item
             divided
             command="view-comments"
             :icon="ChatDotRound"
           >
-            审核记录
+            {{ t('wiki.pub.menu.records') }}
           </el-dropdown-item>
         </el-dropdown-menu>
       </template>
@@ -72,15 +72,15 @@
         v-model="commentText"
         type="textarea"
         :rows="4"
-        placeholder="输入审核意见（可选）"
+        :placeholder="t('wiki.pub.commentPlaceholder')"
       />
       <template #footer>
-        <el-button @click="commentDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitAction">确认</el-button>
+        <el-button @click="commentDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitAction">{{ t('wiki.pub.confirmOk') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="commentsDialogVisible" title="审核记录" width="600px">
+    <el-dialog v-model="commentsDialogVisible" :title="t('wiki.pub.menu.records')" width="600px">
       <el-timeline v-if="reviewComments.length">
         <el-timeline-item
           v-for="c in reviewComments"
@@ -98,7 +98,7 @@
           </div>
         </el-timeline-item>
       </el-timeline>
-      <el-empty v-else description="暂无审核记录" :image-size="60" />
+      <el-empty v-else :description="t('wiki.pub.recordsEmpty')" :image-size="60" />
     </el-dialog>
   </div>
 </template>
@@ -110,6 +110,7 @@ import {
   MoreFilled, Upload, CircleCheck, CircleClose,
   Promotion, RefreshLeft, Box, ChatDotRound
 } from '@element-plus/icons-vue'
+import { useI18n } from '@/composables/useI18n'
 import {
   type PublishStatus,
   type ReviewComment,
@@ -121,6 +122,8 @@ import {
   archiveDocument,
   listReviewComments
 } from '@/api/modules/wiki'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   documentId: string
@@ -137,11 +140,11 @@ const status = computed(() => props.publishStatus || 'draft')
 
 const statusText = computed(() => {
   const map: Record<string, string> = {
-    draft: '草稿',
-    pending_review: '待审核',
-    published: '已发布',
-    rejected: '已驳回',
-    archived: '已归档'
+    draft: t('wiki.pub.status.draft'),
+    pending_review: t('wiki.pub.status.pending'),
+    published: t('wiki.pub.status.published'),
+    rejected: t('wiki.pub.status.rejected'),
+    archived: t('wiki.pub.status.archived')
   }
   return map[status.value] || status.value
 })
@@ -203,9 +206,9 @@ function handleCommand(cmd: string) {
   if (['submit-review', 'approve', 'reject'].includes(cmd)) {
     pendingCommand.value = cmd
     const titleMap: Record<string, string> = {
-      'submit-review': '提交审核',
-      'approve': '审核通过',
-      'reject': '驳回文档'
+      'submit-review': t('wiki.pub.menu.submitReview'),
+      'approve': t('wiki.pub.menu.approve'),
+      'reject': t('wiki.pub.rejectDoc')
     }
     commentDialogTitle.value = titleMap[cmd]
     commentText.value = ''
@@ -214,12 +217,12 @@ function handleCommand(cmd: string) {
   }
 
   const confirmMap: Record<string, string> = {
-    'publish': '确定直接发布该文档？',
-    'unpublish': '确定取消发布该文档？',
-    'archive': '确定归档该文档？'
+    'publish': t('wiki.pub.confirmPublish'),
+    'unpublish': t('wiki.pub.confirmUnpublish'),
+    'archive': t('wiki.pub.confirmArchive')
   }
 
-  ElMessageBox.confirm(confirmMap[cmd] || '确定执行此操作？', '提示', {
+  ElMessageBox.confirm(confirmMap[cmd] || t('wiki.pub.confirmDefault'), t('common.tip'), {
     type: 'warning'
   }).then(() => {
     executeAction(cmd)
@@ -262,9 +265,9 @@ async function executeAction(cmd: string, comment?: string) {
     if (result?.publish_status) {
       emit('status-changed', result.publish_status)
     }
-    ElMessage.success('操作成功')
+    ElMessage.success(t('common.success'))
   } catch (e) {
-    ElMessage.error((e as Error)?.message || '操作失败')
+    ElMessage.error((e as Error)?.message || t('common.failed'))
   }
 }
 
@@ -273,17 +276,17 @@ async function loadComments() {
     reviewComments.value = await listReviewComments(props.documentId)
     commentsDialogVisible.value = true
   } catch (e) {
-    ElMessage.error((e as Error)?.message || '加载审核记录失败')
+    ElMessage.error((e as Error)?.message || t('wiki.pub.loadRecordsFailed'))
   }
 }
 
 function actionText(action: string): string {
   const map: Record<string, string> = {
-    submit: '提交审核',
-    approve: '审核通过',
-    reject: '驳回',
-    publish: '直接发布',
-    archive: '归档'
+    submit: t('wiki.pub.menu.submitReview'),
+    approve: t('wiki.pub.menu.approve'),
+    reject: t('wiki.pub.menu.reject'),
+    publish: t('wiki.pub.menu.publish'),
+    archive: t('wiki.pub.menu.archive')
   }
   return map[action] || action
 }
@@ -299,9 +302,9 @@ function actionTagType(action: string): string {
   return map[action] || 'info'
 }
 
-function formatTime(t: string): string {
-  if (!t) return ''
-  return t.replace('T', ' ').substring(0, 19)
+function formatTime(time: string): string {
+  if (!time) return ''
+  return time.replace('T', ' ').substring(0, 19)
 }
 </script>
 
