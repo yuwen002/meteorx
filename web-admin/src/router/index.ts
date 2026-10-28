@@ -99,6 +99,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '任务管理', icon: 'List' }
       },
       {
+        path: 'chat',
+        name: 'Chat',
+        component: () => import('@/views/chat/index.vue'),
+        meta: { title: '协作私聊', icon: 'ChatLineRound' }
+      },
+      {
         path: 'export',
         name: 'Export',
         component: () => import('@/views/export/index.vue'),

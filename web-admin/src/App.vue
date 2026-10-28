@@ -13,6 +13,7 @@ import { ElNotification } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useNotificationStore } from '@/stores/notification'
 import { useMessageStore } from '@/stores/message'
+import { useChatStore } from '@/stores/chat'
 import { useWebSocket, type WSMessage } from '@/composables/useWebSocket'
 import { useI18n } from '@/composables/useI18n'
 import { useTheme } from '@/composables/useTheme'
@@ -29,6 +30,7 @@ applyBrand()
 const userStore = useUserStore()
 const notificationStore = useNotificationStore()
 const messageStore = useMessageStore()
+const chatStore = useChatStore()
 const { connected, connect, disconnect, onMessage } = useWebSocket()
 
 // 用户登录后自动连接 WebSocket，并同步服务端下发的租户品牌（多租户白标）
@@ -42,6 +44,8 @@ watch(() => userStore.token, (newToken) => {
     disconnect()
     // 退出登录清空角标，避免下一个账号看到上一个账号的未读数
     messageStore.reset()
+    // 清空私聊会话与消息，避免跨账号泄露
+    chatStore.reset()
   }
 })
 
@@ -83,6 +87,11 @@ onMessage((msg: WSMessage) => {
       messageStore.receiveUnreadPush(Number(msg.payload?.count))
       break
     }
+
+    case 'chat':
+      // 收到 1:1 私聊新消息：当前会话即时追加，否则累加未读/回源刷新
+      chatStore.receiveChatPush(msg.payload)
+      break
 
     case 'pong':
       // 心跳响应，无需处理

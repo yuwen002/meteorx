@@ -41,6 +41,15 @@
               </span>
             </template>
           </el-menu-item>
+          <el-menu-item index="/chat">
+            <el-icon><ChatLineRound /></el-icon>
+            <template #title>
+              <span class="menu-title-with-badge">
+                {{ t('nav.chat') }}
+                <el-badge v-if="chatStore.totalUnread > 0" :value="chatStore.totalUnread" :max="99" class="menu-badge" />
+              </span>
+            </template>
+          </el-menu-item>
           <el-menu-item index="/task">
             <el-icon><List /></el-icon>
             <template #title>{{ t('nav.task') }}</template>
@@ -288,6 +297,7 @@ import {
   Bell,
   Brush,
   ChatDotRound,
+  ChatLineRound,
   CloseBold,
   Connection,
   DataAnalysis,
@@ -322,6 +332,7 @@ import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { useNotificationStore } from '@/stores/notification'
 import { useMessageStore } from '@/stores/message'
+import { useChatStore } from '@/stores/chat'
 import { useTheme } from '@/composables/useTheme'
 import { useI18n } from '@/composables/useI18n'
 import { useBrand } from '@/composables/useBrand'
@@ -334,6 +345,7 @@ const userStore = useUserStore()
 const appStore = useAppStore()
 const notificationStore = useNotificationStore()
 const messageStore = useMessageStore()
+const chatStore = useChatStore()
 
 const { theme, toggleTheme } = useTheme()
 const { locale, setLocale, t } = useI18n()
