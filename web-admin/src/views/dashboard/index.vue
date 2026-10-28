@@ -10,7 +10,7 @@
                 <el-icon><OfficeBuilding /></el-icon>
               </div>
               <div class="stat-info">
-                <div class="stat-label">租户总数</div>
+                <div class="stat-label">{{ t('dashboardPage.stat.tenantTotal') }}</div>
                 <div class="stat-value">{{ overview.tenant_stats?.total ?? 0 }}</div>
               </div>
             </div>
@@ -23,7 +23,7 @@
                 <el-icon><UserFilled /></el-icon>
               </div>
               <div class="stat-info">
-                <div class="stat-label">用户总数</div>
+                <div class="stat-label">{{ t('dashboardPage.stat.userTotal') }}</div>
                 <div class="stat-value">{{ overview.user_stats?.total ?? 0 }}</div>
               </div>
             </div>
@@ -36,7 +36,7 @@
                 <el-icon><Goods /></el-icon>
               </div>
               <div class="stat-info">
-                <div class="stat-label">生效订阅</div>
+                <div class="stat-label">{{ t('dashboardPage.stat.activeSub') }}</div>
                 <div class="stat-value">{{ overview.subscription_stats?.active ?? 0 }}</div>
               </div>
             </div>
@@ -49,7 +49,7 @@
                 <el-icon><Document /></el-icon>
               </div>
               <div class="stat-info">
-                <div class="stat-label">操作日志</div>
+                <div class="stat-label">{{ t('dashboardPage.stat.auditLog') }}</div>
                 <div class="stat-value">{{ overview.audit_stats?.total ?? 0 }}</div>
               </div>
             </div>
@@ -61,34 +61,34 @@
       <el-row :gutter="16">
         <el-col :span="12">
           <el-card shadow="hover" class="section-card">
-            <template #header><span><el-icon><TrendCharts /></el-icon> 新增概览</span></template>
+            <template #header><span><el-icon><TrendCharts /></el-icon> {{ t('dashboardPage.growth.title') }}</span></template>
             <el-table :data="growthRows" size="small" border>
-              <el-table-column prop="label" label="指标" width="140" />
-              <el-table-column prop="today" label="今日" />
-              <el-table-column prop="week" label="本周" />
-              <el-table-column prop="month" label="本月" />
+              <el-table-column prop="label" :label="t('dashboardPage.growth.col.metric')" width="140" />
+              <el-table-column prop="today" :label="t('dashboardPage.growth.col.today')" />
+              <el-table-column prop="week" :label="t('dashboardPage.growth.col.week')" />
+              <el-table-column prop="month" :label="t('dashboardPage.growth.col.month')" />
             </el-table>
           </el-card>
         </el-col>
         <el-col :span="12">
           <el-card shadow="hover" class="section-card">
-            <template #header><span><el-icon><Coin /></el-icon> 订阅分布</span></template>
+            <template #header><span><el-icon><Coin /></el-icon> {{ t('dashboardPage.subDist.title') }}</span></template>
             <div class="sub-stats">
               <div class="sub-item">
                 <div class="sub-num">{{ overview.subscription_stats?.total ?? 0 }}</div>
-                <div class="sub-label">订阅总数</div>
+                <div class="sub-label">{{ t('dashboardPage.sub.total') }}</div>
               </div>
               <div class="sub-item">
                 <div class="sub-num" style="color:#10b981">{{ overview.subscription_stats?.active ?? 0 }}</div>
-                <div class="sub-label">生效中</div>
+                <div class="sub-label">{{ t('dashboardPage.sub.active') }}</div>
               </div>
               <div class="sub-item">
                 <div class="sub-num" style="color:#f59e0b">{{ overview.subscription_stats?.expired ?? 0 }}</div>
-                <div class="sub-label">已到期</div>
+                <div class="sub-label">{{ t('dashboardPage.sub.expired') }}</div>
               </div>
               <div class="sub-item">
                 <div class="sub-num" style="color:#ef4444">{{ overview.subscription_stats?.cancelled ?? 0 }}</div>
-                <div class="sub-label">已取消</div>
+                <div class="sub-label">{{ t('dashboardPage.sub.cancelled') }}</div>
               </div>
             </div>
           </el-card>
@@ -99,21 +99,21 @@
       <el-row :gutter="16">
         <el-col :span="12">
           <el-card shadow="hover" class="section-card">
-            <template #header><span><el-icon><Odometer /></el-icon> 操作类型统计</span></template>
-            <el-empty v-if="!actionRows.length" description="暂无数据" :image-size="60" />
+            <template #header><span><el-icon><Odometer /></el-icon> {{ t('dashboardPage.action.title') }}</span></template>
+            <el-empty v-if="!actionRows.length" :description="t('dashboardPage.noData')" :image-size="60" />
             <el-table v-else :data="actionRows" size="small" border>
-              <el-table-column prop="key" label="操作类型" />
-              <el-table-column prop="value" label="次数" />
+              <el-table-column prop="key" :label="t('dashboardPage.action.col.type')" />
+              <el-table-column prop="value" :label="t('dashboardPage.action.col.count')" />
             </el-table>
           </el-card>
         </el-col>
         <el-col :span="12">
           <el-card shadow="hover" class="section-card">
-            <template #header><span><el-icon><DataAnalysis /></el-icon> 模块访问统计</span></template>
-            <el-empty v-if="!moduleRows.length" description="暂无数据" :image-size="60" />
+            <template #header><span><el-icon><DataAnalysis /></el-icon> {{ t('dashboardPage.module.title') }}</span></template>
+            <el-empty v-if="!moduleRows.length" :description="t('dashboardPage.noData')" :image-size="60" />
             <el-table v-else :data="moduleRows" size="small" border>
-              <el-table-column prop="key" label="模块" />
-              <el-table-column prop="value" label="访问次数" />
+              <el-table-column prop="key" :label="t('dashboardPage.module.col.module')" />
+              <el-table-column prop="value" :label="t('dashboardPage.module.col.count')" />
             </el-table>
           </el-card>
         </el-col>
@@ -125,22 +125,22 @@
           <el-card shadow="hover" class="section-card trend-card">
             <template #header>
               <div class="trend-header">
-                <span><el-icon><TrendCharts /></el-icon> 增长趋势</span>
+                <span><el-icon><TrendCharts /></el-icon> {{ t('dashboardPage.trend.title') }}</span>
                 <div class="trend-controls">
                   <el-radio-group v-model="trendMetric" size="small">
-                    <el-radio-button value="new_users">新增用户</el-radio-button>
-                    <el-radio-button value="new_tenants">新增租户</el-radio-button>
-                    <el-radio-button value="audit_logs">活跃日志</el-radio-button>
+                    <el-radio-button value="new_users">{{ t('dashboardPage.trend.metric.users') }}</el-radio-button>
+                    <el-radio-button value="new_tenants">{{ t('dashboardPage.trend.metric.tenants') }}</el-radio-button>
+                    <el-radio-button value="audit_logs">{{ t('dashboardPage.trend.metric.audit') }}</el-radio-button>
                   </el-radio-group>
                   <el-select v-model="trendPeriod" size="small" style="width: 100px" @change="loadTrend">
-                    <el-option :value="7" label="近 7 天" />
-                    <el-option :value="30" label="近 30 天" />
-                    <el-option :value="90" label="近 90 天" />
+                    <el-option :value="7" :label="t('dashboardPage.trend.period7')" />
+                    <el-option :value="30" :label="t('dashboardPage.trend.period30')" />
+                    <el-option :value="90" :label="t('dashboardPage.trend.period90')" />
                   </el-select>
                 </div>
               </div>
             </template>
-            <el-empty v-if="!trend.list.length" description="暂无数据" :image-size="60" />
+            <el-empty v-if="!trend.list.length" :description="t('dashboardPage.noData')" :image-size="60" />
             <div v-else class="trend-scroll">
               <svg
                 class="trend-svg"
@@ -148,7 +148,7 @@
                 :width="trendChart.width"
                 :height="trendChart.height"
                 role="img"
-                aria-label="增长趋势柱状图"
+                :aria-label="t('dashboardPage.trend.aria')"
               >
                 <line
                   :x1="trendChart.padLeft"
@@ -190,7 +190,7 @@
                 <el-icon><User /></el-icon>
               </div>
               <div class="stat-info">
-                <div class="stat-label">我的租户用户</div>
+                <div class="stat-label">{{ t('dashboardPage.ws.myUsers') }}</div>
                 <div class="stat-value">{{ stats.users }}</div>
               </div>
             </div>
@@ -203,7 +203,7 @@
                 <el-icon><UserFilled /></el-icon>
               </div>
               <div class="stat-info">
-                <div class="stat-label">角色总数</div>
+                <div class="stat-label">{{ t('dashboardPage.ws.myRoles') }}</div>
                 <div class="stat-value">{{ stats.roles }}</div>
               </div>
             </div>
@@ -216,7 +216,7 @@
                 <el-icon><Lock /></el-icon>
               </div>
               <div class="stat-info">
-                <div class="stat-label">我的权限</div>
+                <div class="stat-label">{{ t('dashboardPage.ws.myPerm') }}</div>
                 <div class="stat-value">{{ stats.my_permission }}</div>
               </div>
             </div>
@@ -229,7 +229,7 @@
                 <el-icon><InfoFilled /></el-icon>
               </div>
               <div class="stat-info">
-                <div class="stat-label">当前租户</div>
+                <div class="stat-label">{{ t('dashboardPage.ws.currentTenant') }}</div>
                 <div class="stat-value">{{ userStore.userInfo?.tenant_id || '-' }}</div>
               </div>
             </div>
@@ -240,27 +240,27 @@
 
     <el-card class="welcome-card" shadow="never">
       <template #header>
-        <span><el-icon><TrendCharts /></el-icon>{{ isAdmin ? '平台概览' : '工作台' }}</span>
+        <span><el-icon><TrendCharts /></el-icon>{{ isAdmin ? t('dashboardPage.welcome.overview') : t('dashboardPage.welcome.workspace') }}</span>
       </template>
       <div class="welcome">
-        <h3>欢迎，{{ userStore.userInfo?.nickname || userStore.userInfo?.username || '用户' }}！</h3>
-        <p v-if="isAdmin">这是一个基于 Vue 3 + Element Plus + Go 后端（Chi + GORM）的多租户 SaaS 平台。</p>
-        <p v-else>您已登录租户管理后台，可以管理本租户下的用户和角色。</p>
+        <h3>{{ t('dashboardPage.welcome.greeting', userStore.userInfo?.nickname || userStore.userInfo?.username || t('dashboardPage.welcome.userFallback')) }}</h3>
+        <p v-if="isAdmin">{{ t('dashboardPage.welcome.adminDesc') }}</p>
+        <p v-else>{{ t('dashboardPage.welcome.tenantDesc') }}</p>
         <el-divider />
         <div class="feature-list">
           <template v-if="isAdmin">
-            <div>✅ 数据看板：平台运营数据总览</div>
-            <div>✅ 租户管理：新增、禁用/启用、注销审批</div>
-            <div>✅ 用户管理：系统管理员管理、用户统计</div>
-            <div>✅ 通知公告：面向全平台与租户发布公告</div>
-            <div>✅ 套餐管理：订阅与配额管理</div>
-            <div>✅ 审计日志：全平台操作留痕</div>
+            <div>{{ t('dashboardPage.feature.admin1') }}</div>
+            <div>{{ t('dashboardPage.feature.admin2') }}</div>
+            <div>{{ t('dashboardPage.feature.admin3') }}</div>
+            <div>{{ t('dashboardPage.feature.admin4') }}</div>
+            <div>{{ t('dashboardPage.feature.admin5') }}</div>
+            <div>{{ t('dashboardPage.feature.admin6') }}</div>
           </template>
           <template v-else>
-            <div>👥 用户管理：管理本租户下的用户</div>
-            <div>🔐 角色权限：查看和分配用户角色</div>
-            <div>📊 数据隔离：仅显示本租户数据</div>
-            <div>🔑 安全登录：支持租户 ID + 账号密码登录</div>
+            <div>{{ t('dashboardPage.feature.tenant1') }}</div>
+            <div>{{ t('dashboardPage.feature.tenant2') }}</div>
+            <div>{{ t('dashboardPage.feature.tenant3') }}</div>
+            <div>{{ t('dashboardPage.feature.tenant4') }}</div>
           </template>
         </div>
       </div>
@@ -288,6 +288,9 @@ import { useUserStore } from '@/stores/user'
 import { getUserStats } from '@/api/modules/user'
 import { getRBACStats } from '@/api/modules/role'
 import { getDashboardOverview, getGrowthTrend, type DashboardOverview, type GrowthTrend } from '@/api/modules/dashboard'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const userStore = useUserStore()
 const stats = ref({ users: 0, roles: 0, permissions: 0, my_permission: 0 })
@@ -297,8 +300,8 @@ const isAdmin = computed(() => !!userStore.userInfo?.is_master)
 
 // 新增概览行数据
 const growthRows = computed(() => [
-  { label: '新增租户', today: overview.value.tenant_stats?.today_new ?? 0, week: overview.value.tenant_stats?.week_new ?? 0, month: overview.value.tenant_stats?.month_new ?? 0 },
-  { label: '新增用户', today: overview.value.user_stats?.today_new ?? 0, week: overview.value.user_stats?.week_new ?? 0, month: overview.value.user_stats?.month_new ?? 0 }
+  { label: t('dashboardPage.growth.newTenant'), today: overview.value.tenant_stats?.today_new ?? 0, week: overview.value.tenant_stats?.week_new ?? 0, month: overview.value.tenant_stats?.month_new ?? 0 },
+  { label: t('dashboardPage.growth.newUser'), today: overview.value.user_stats?.today_new ?? 0, week: overview.value.user_stats?.week_new ?? 0, month: overview.value.user_stats?.month_new ?? 0 }
 ])
 
 // 操作类型 / 模块统计行
@@ -316,7 +319,7 @@ async function loadTrend() {
   try {
     trend.value = await getGrowthTrend(trendPeriod.value)
   } catch {
-    ElMessage.warning('增长趋势加载失败')
+    ElMessage.warning(t('dashboardPage.msg.trendFailed'))
   }
 }
 
@@ -366,7 +369,7 @@ onMounted(async () => {
       try {
         overview.value = await getDashboardOverview()
       } catch {
-        ElMessage.warning('运营数据看板加载失败')
+        ElMessage.warning(t('dashboardPage.msg.overviewFailed'))
       }
       loadTrend()
       // 兼容旧统计接口，作为兜底
@@ -384,7 +387,7 @@ onMounted(async () => {
       stats.value.my_permission = userStore.permissions.length
     }
   } catch (e) {
-    ElMessage.warning('部分统计数据加载失败')
+    ElMessage.warning(t('dashboardPage.msg.statsPartialFailed'))
   }
 })
 </script>

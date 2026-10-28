@@ -2,8 +2,8 @@
   <div class="login-page">
     <div class="login-box">
       <div class="login-title">
-        <h2>MeteorX 管理后台</h2>
-        <p>{{ loginMode === 'admin' ? '系统管理员登录' : '租户用户登录' }}</p>
+        <h2>{{ t('loginPage.adminTitle') }}</h2>
+        <p>{{ loginMode === 'admin' ? t('loginPage.adminSubtitle') : t('loginPage.tenantSubtitle') }}</p>
       </div>
 
       <div class="login-mode-switch">
@@ -13,7 +13,7 @@
           @click="switchMode('admin')"
         >
           <el-icon><Avatar /></el-icon>
-          <span>管理员</span>
+          <span>{{ t('loginPage.mode.admin') }}</span>
         </div>
         <div
           class="mode-tab"
@@ -21,7 +21,7 @@
           @click="switchMode('tenant')"
         >
           <el-icon><OfficeBuilding /></el-icon>
-          <span>租户</span>
+          <span>{{ t('loginPage.mode.tenant') }}</span>
         </div>
       </div>
 
@@ -33,32 +33,32 @@
         class="login-form"
         @keyup.enter="handleLogin"
       >
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="form.username" placeholder="请输入用户名" prefix-icon="User" clearable size="large" />
+        <el-form-item :label="t('auth.username')" prop="username">
+          <el-input v-model="form.username" :placeholder="t('loginPage.usernamePlaceholder')" prefix-icon="User" clearable size="large" />
         </el-form-item>
-        <el-form-item label="密码" prop="password">
+        <el-form-item :label="t('auth.password')" prop="password">
           <el-input
             v-model="form.password"
             type="password"
-            placeholder="请输入密码"
+            :placeholder="t('loginPage.passwordPlaceholder')"
             prefix-icon="Lock"
             show-password
             size="large"
           />
         </el-form-item>
-        <el-form-item v-if="loginMode === 'tenant'" label="租户 ID" prop="tenant_id">
+        <el-form-item v-if="loginMode === 'tenant'" :label="t('loginPage.tenantIdLabel')" prop="tenant_id">
           <el-input
             v-model="form.tenant_id"
-            placeholder="请输入您的租户 ID"
+            :placeholder="t('loginPage.tenantIdPlaceholder')"
             prefix-icon="OfficeBuilding"
             clearable
             size="large"
           />
         </el-form-item>
-        <el-form-item v-if="require2FA" label="双因素验证码" prop="otp">
+        <el-form-item v-if="require2FA" :label="t('loginPage.otpLabel')" prop="otp">
           <el-input
             v-model="form.otp"
-            placeholder="请输入验证器 App 的 6 位动态码"
+            :placeholder="t('loginPage.otpPlaceholder')"
             prefix-icon="Key"
             maxlength="6"
             clearable
@@ -67,36 +67,36 @@
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="loading" size="large" style="width: 100%" @click="handleLogin">
-            登 录
+            {{ t('loginPage.submit') }}
           </el-button>
         </el-form-item>
         <div v-if="loginError.show" class="login-error" :class="{ locked: loginError.locked }">
           <el-icon><Warning /></el-icon>
           <span>{{ loginError.message }}</span>
           <div v-if="!loginError.locked && loginError.remainingAttempts > 0" class="attempts-warning">
-            剩余尝试次数：{{ loginError.remainingAttempts }} 次
+            {{ t('loginPage.attempts', loginError.remainingAttempts) }}
           </div>
           <div v-if="loginError.locked" class="lockout-info">
-            账号已锁定，请 {{ Math.ceil(loginError.lockoutDuration / 60) }} 分钟后重试
+            {{ t('loginPage.locked', Math.ceil(loginError.lockoutDuration / 60)) }}
           </div>
         </div>
         <div class="form-footer">
           <el-link type="primary" :underline="false" @click="goForgotPassword">
-            忘记密码？
+            {{ t('loginPage.forgot') }}
           </el-link>
         </div>
 
         <div class="register-link">
-          <span>还没有账号？</span>
+          <span>{{ t('loginPage.noAccount') }}</span>
           <el-dropdown trigger="click" @command="handleRegisterCommand">
             <el-link type="primary" :underline="false">
-              立即注册
+              {{ t('loginPage.registerNow') }}
               <el-icon class="el-icon--right"><ArrowDown /></el-icon>
             </el-link>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="user">用户注册（加入已有租户）</el-dropdown-item>
-                <el-dropdown-item command="tenant">租户注册（创建新租户）</el-dropdown-item>
+                <el-dropdown-item command="user">{{ t('loginPage.registerUser') }}</el-dropdown-item>
+                <el-dropdown-item command="tenant">{{ t('loginPage.registerTenant') }}</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -104,7 +104,7 @@
 
         <!-- OAuth2 第三方登录 -->
         <div class="oauth-divider">
-          <span>或</span>
+          <span>{{ t('loginPage.or') }}</span>
         </div>
         <div class="oauth-buttons">
           <div
@@ -114,22 +114,22 @@
             :style="{ borderColor: providerColor(p.id), color: providerColor(p.id) }"
             @click="handleOAuthLogin(p.id)"
           >
-            <span>{{ p.label }} 登录</span>
+            <span>{{ t('loginPage.providerLogin', p.label) }}</span>
           </div>
         </div>
 
         <!-- 租户选择对话框 -->
         <el-dialog
           v-model="showTenantDialog"
-          title="选择租户"
+          :title="t('loginPage.selectTenantTitle')"
           width="400px"
           :close-on-click-modal="false"
           :close-on-press-escape="false"
         >
-          <p class="dialog-tip">请选择您要登录的租户</p>
+          <p class="dialog-tip">{{ t('loginPage.selectTenantTip') }}</p>
           <el-select
             v-model="selectedTenantId"
-            placeholder="请选择租户"
+            :placeholder="t('loginPage.selectTenantPlaceholder')"
             size="large"
             style="width: 100%"
             filterable
@@ -142,16 +142,16 @@
             />
           </el-select>
           <template #footer>
-            <el-button @click="showTenantDialog = false">取消</el-button>
+            <el-button @click="showTenantDialog = false">{{ t('common.cancel') }}</el-button>
             <el-button type="primary" :loading="oauthSubmitting" @click="confirmOAuthLogin">
-              确认登录
+              {{ t('loginPage.confirmLogin') }}
             </el-button>
           </template>
         </el-dialog>
 
         <div class="tips">
           <el-icon><InfoFilled /></el-icon>
-          {{ loginMode === 'admin' ? '默认管理员账号：admin / 123456' : '请输入租户 ID 和租户账号' }}
+          {{ loginMode === 'admin' ? t('loginPage.tipAdmin') : t('loginPage.tipTenant') }}
         </div>
       </el-form>
     </div>
@@ -168,6 +168,9 @@ import { useUserStore } from '@/stores/user'
 import { getOAuthRedirectURL, getOAuthTenants, type LoginParams, type LoginErrorData } from '@/api/auth'
 import { listOAuthProviders, type ProviderMeta } from '@/api/modules/oauth'
 import { providerColor } from '@/providers'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const route = useRoute()
@@ -225,10 +228,10 @@ const form = reactive<LoginParams>({
 })
 
 const formRules = computed<FormRules>(() => ({
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  username: [{ required: true, message: t('loginPage.usernameRequired'), trigger: 'blur' }],
+  password: [{ required: true, message: t('loginPage.passwordRequired'), trigger: 'blur' }],
   tenant_id: loginMode.value === 'tenant'
-    ? [{ required: true, message: '请输入租户 ID', trigger: 'blur' }]
+    ? [{ required: true, message: t('loginPage.tenantIdRequired'), trigger: 'blur' }]
     : []
 }))
 
@@ -260,7 +263,7 @@ async function handleLogin() {
         params.otp = form.otp.trim()
       }
       await userStore.doLogin(params)
-      ElMessage.success('登录成功')
+      ElMessage.success(t('loginPage.loginSuccess'))
       const redirect = (route.query.redirect as string) || '/'
       router.push(redirect)
     } catch (e) {
@@ -300,16 +303,16 @@ async function handleOAuthLogin(provider: string) {
         showTenantDialog.value = true
       }
     } else {
-      ElMessage.error('没有可用的租户，请联系管理员')
+      ElMessage.error(t('loginPage.noTenant'))
     }
   } catch (e) {
-    ElMessage.error('获取租户列表失败，请稍后重试')
+    ElMessage.error(t('loginPage.fetchTenantFailed'))
   }
 }
 
 async function confirmOAuthLogin() {
   if (!selectedTenantId.value) {
-    ElMessage.warning('请选择租户')
+    ElMessage.warning(t('loginPage.selectTenantRequired'))
     return
   }
   
@@ -326,7 +329,7 @@ async function confirmOAuthLogin() {
       showTenantDialog.value = false
     }
   } catch (e) {
-    ElMessage.error('OAuth 登录失败，请稍后重试')
+    ElMessage.error(t('loginPage.oauthFailed'))
   } finally {
     oauthSubmitting.value = false
   }
