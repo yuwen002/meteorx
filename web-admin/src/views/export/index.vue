@@ -3,59 +3,59 @@
     <el-card shadow="never">
       <template #header>
         <div class="card-header">
-          <span>数据导出</span>
+          <span>{{ t('nav.export') }}</span>
           <el-button type="primary" @click="openCreateDialog">
-            <el-icon><Plus /></el-icon>新建导出任务
+            <el-icon><Plus /></el-icon>{{ t('exportPage.create') }}
           </el-button>
         </div>
       </template>
 
       <div class="filter-bar">
-        <el-select v-model="resourceFilter" placeholder="资源类型" clearable style="width: 150px; margin-right: 12px;" @change="loadList">
+        <el-select v-model="resourceFilter" :placeholder="t('exportPage.colResource')" clearable style="width: 150px; margin-right: 12px;" @change="loadList">
           <el-option v-for="opt in resourceOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
-        <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 130px; margin-right: 12px;" @change="loadList">
-          <el-option label="排队中" value="pending" />
-          <el-option label="导出中" value="running" />
-          <el-option label="已完成" value="completed" />
-          <el-option label="失败" value="failed" />
+        <el-select v-model="statusFilter" :placeholder="t('exportPage.colStatus')" clearable style="width: 130px; margin-right: 12px;" @change="loadList">
+          <el-option :label="t('exportPage.status.pending')" value="pending" />
+          <el-option :label="t('exportPage.status.running')" value="running" />
+          <el-option :label="t('exportPage.status.completed')" value="completed" />
+          <el-option :label="t('exportPage.status.failed')" value="failed" />
         </el-select>
-        <el-button type="primary" @click="loadList">查询</el-button>
-        <el-button @click="loadList">刷新</el-button>
+        <el-button type="primary" @click="loadList">{{ t('common.query') }}</el-button>
+        <el-button @click="loadList">{{ t('common.refresh') }}</el-button>
       </div>
 
       <el-alert
       type="info"
       :closable="false"
       show-icon
-      title="导出为异步任务，创建后在此列表查看进度；完成后即可下载。支持 CSV / Excel(xlsx) / JSON / PDF 格式（CSV 为 UTF-8 带 BOM，Excel 直接打开不乱码；PDF 需服务端配置中文字体）。"
+      :title="t('exportPage.alert')"
       style="margin-bottom: 16px;"
       />
 
       <el-table v-loading="loading" :data="list" stripe style="width: 100%;">
-        <el-table-column label="资源类型" width="130">
+        <el-table-column :label="t('exportPage.colResource')" width="130">
           <template #default="{ row }">{{ resourceLabel(row.resource) }}</template>
         </el-table-column>
-        <el-table-column label="格式" width="90" align="center">
+        <el-table-column :label="t('exportPage.colFormat')" width="90" align="center">
           <template #default="{ row }">{{ (row.format || 'csv').toUpperCase() }}</template>
         </el-table-column>
-        <el-table-column label="状态" width="110" align="center">
+        <el-table-column :label="t('exportPage.colStatus')" width="110" align="center">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="导出行数" width="110" align="center">
+        <el-table-column :label="t('exportPage.colRows')" width="110" align="center">
           <template #default="{ row }">{{ row.status === 'completed' ? row.rows : '-' }}</template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" min-width="180" />
-        <el-table-column prop="expires_at" label="过期时间" min-width="180" />
-        <el-table-column label="说明" min-width="160">
+        <el-table-column prop="created_at" :label="t('exportPage.colCreatedAt')" min-width="180" />
+        <el-table-column prop="expires_at" :label="t('exportPage.colExpiresAt')" min-width="180" />
+        <el-table-column :label="t('exportPage.colDesc')" min-width="160">
           <template #default="{ row }">
-            <el-text v-if="row.status === 'failed'" type="danger">{{ row.error_msg || '导出失败' }}</el-text>
+            <el-text v-if="row.status === 'failed'" type="danger">{{ row.error_msg || t('exportPage.failFallback') }}</el-text>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" align="center" fixed="right">
+        <el-table-column :label="t('exportPage.colAction')" width="160" align="center" fixed="right">
           <template #default="{ row }">
             <el-button
               type="primary"
@@ -63,8 +63,8 @@
               size="small"
               :disabled="row.status !== 'completed'"
               @click="handleDownload(row)"
-            >下载</el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            >{{ t('exportPage.download') }}</el-button>
+            <el-button type="danger" link size="small" @click="handleDelete(row)">{{ t('common.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -82,29 +82,29 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="createDialogVisible" title="新建导出任务" width="480px" :close-on-click-modal="false">
+    <el-dialog v-model="createDialogVisible" :title="t('exportPage.create')" width="480px" :close-on-click-modal="false">
       <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="90px">
-        <el-form-item label="资源类型" prop="resource">
-          <el-select v-model="createForm.resource" placeholder="请选择要导出的数据" style="width: 100%;">
+        <el-form-item :label="t('exportPage.colResource')" prop="resource">
+          <el-select v-model="createForm.resource" :placeholder="t('exportPage.resourcePlaceholder')" style="width: 100%;">
             <el-option v-for="opt in resourceOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="导出格式" prop="format">
-          <el-select v-model="createForm.format" placeholder="请选择导出格式" style="width: 100%;">
+        <el-form-item :label="t('exportPage.formatLabel')" prop="format">
+          <el-select v-model="createForm.format" :placeholder="t('exportPage.formatPlaceholder')" style="width: 100%;">
             <el-option v-for="opt in formatOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="createDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="createLoading" @click="submitCreate">提交</el-button>
+        <el-button @click="createDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="createLoading" @click="submitCreate">{{ t('exportPage.submit') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -118,27 +118,35 @@ import {
   type ExportFormat
 } from '@/api/modules/export'
 import { toPageResult } from '@/types/pagination'
+import { useI18n } from '@/composables/useI18n'
 
-const resourceOptions: { label: string; value: ExportResource }[] = [
-  { label: '用户', value: 'user' },
-  { label: '任务', value: 'task' },
-  { label: '审计日志', value: 'audit_log' },
-  { label: 'Wiki 文档', value: 'wiki_document' }
-]
+const { t } = useI18n()
 
-const formatOptions: { label: string; value: ExportFormat }[] = [
-  { label: 'CSV（Excel 可直接打开）', value: 'csv' },
-  { label: 'Excel（.xlsx）', value: 'xlsx' },
+const resourceOptions = computed<{ label: string; value: ExportResource }[]>(() => [
+  { label: t('exportPage.resUser'), value: 'user' },
+  { label: t('exportPage.resTask'), value: 'task' },
+  { label: t('exportPage.resAudit'), value: 'audit_log' },
+  { label: t('exportPage.resWiki'), value: 'wiki_document' }
+])
+
+const formatOptions = computed<{ label: string; value: ExportFormat }[]>(() => [
+  { label: t('exportPage.fmtCsv'), value: 'csv' },
+  { label: t('exportPage.fmtXlsx'), value: 'xlsx' },
   { label: 'JSON', value: 'json' },
-  { label: 'PDF（需服务端配置中文字体）', value: 'pdf' }
-]
+  { label: t('exportPage.fmtPdf'), value: 'pdf' }
+])
 
 function resourceLabel(resource: string) {
-  return resourceOptions.find(o => o.value === resource)?.label || resource
+  return resourceOptions.value.find(o => o.value === resource)?.label || resource
 }
 
 function statusLabel(status: string) {
-  const map: Record<string, string> = { pending: '排队中', running: '导出中', completed: '已完成', failed: '失败' }
+  const map: Record<string, string> = {
+    pending: t('exportPage.status.pending'),
+    running: t('exportPage.status.running'),
+    completed: t('exportPage.status.completed'),
+    failed: t('exportPage.status.failed')
+  }
   return map[status] || status
 }
 
@@ -169,7 +177,7 @@ async function loadList() {
     total.value = result.total
     scheduleAutoRefresh()
   } catch {
-    ElMessage.error('获取导出任务列表失败')
+    ElMessage.error(t('exportPage.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -195,9 +203,9 @@ const createDialogVisible = ref(false)
 const createFormRef = ref<FormInstance>()
 const createLoading = ref(false)
 const createForm = reactive({ resource: '' as ExportResource | '', format: 'csv' as ExportFormat })
-const createRules: FormRules = {
-  resource: [{ required: true, message: '请选择资源类型', trigger: 'change' }]
-}
+const createRules = computed<FormRules>(() => ({
+  resource: [{ required: true, message: t('exportPage.resRequired'), trigger: 'change' }]
+}))
 
 function openCreateDialog() {
   createForm.resource = ''
@@ -211,12 +219,12 @@ async function submitCreate() {
     createLoading.value = true
     try {
       await createExport({ resource: createForm.resource as ExportResource, format: createForm.format })
-      ElMessage.success('导出任务已创建，正在后台生成')
+      ElMessage.success(t('exportPage.created'))
       createDialogVisible.value = false
       page.value = 1
       loadList()
     } catch (e) {
-      ElMessage.error((e as Error).message || '创建导出任务失败')
+      ElMessage.error((e as Error).message || t('exportPage.createFailed'))
     } finally {
       createLoading.value = false
     }
@@ -233,15 +241,15 @@ async function handleDownload(row: ExportJobItem) {
     link.click()
     window.URL.revokeObjectURL(url)
   } catch {
-    ElMessage.error('下载失败，文件可能已过期')
+    ElMessage.error(t('exportPage.downloadFailed'))
   }
 }
 
 async function handleDelete(row: ExportJobItem) {
   try {
-    await ElMessageBox.confirm('确定删除此导出任务及其文件？', '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('exportPage.deleteConfirm'), t('exportPage.deleteTitle'), { type: 'warning' })
     await deleteExport(row.id)
-    ElMessage.success('已删除')
+    ElMessage.success(t('exportPage.deleted'))
     loadList()
   } catch { /* 用户取消，或请求失败（失败提示由 request.ts 拦截器统一弹出） */ }
 }

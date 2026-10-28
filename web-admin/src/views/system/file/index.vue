@@ -5,65 +5,65 @@
       <div class="search-bar">
         <el-input
           v-model="query.keyword"
-          placeholder="搜索文件名"
+          :placeholder="t('filePage.searchPlaceholder')"
           clearable
           style="width: 220px"
           @keyup.enter="loadList"
         />
         <el-select
           v-model="query.file_type"
-          placeholder="文件类型"
+          :placeholder="t('filePage.typePlaceholder')"
           clearable
           style="width: 120px"
         >
-          <el-option label="图片" value="image" />
-          <el-option label="文档" value="document" />
-          <el-option label="视频" value="video" />
-          <el-option label="音频" value="audio" />
-          <el-option label="其他" value="other" />
+          <el-option :label="t('filePage.type.image')" value="image" />
+          <el-option :label="t('filePage.type.document')" value="document" />
+          <el-option :label="t('filePage.type.video')" value="video" />
+          <el-option :label="t('filePage.type.audio')" value="audio" />
+          <el-option :label="t('filePage.type.other')" value="other" />
         </el-select>
         <el-button type="primary" @click="loadList">
-          <el-icon><Search /></el-icon>查询
+          <el-icon><Search /></el-icon>{{ t('common.query') }}
         </el-button>
-        <el-button @click="resetSearch">重置</el-button>
+        <el-button @click="resetSearch">{{ t('common.reset') }}</el-button>
         <div class="flex-1"></div>
         <el-button type="info" @click="toggleRecycleBin">
-          <el-icon><Delete /></el-icon>{{ isRecycleBin ? '返回列表' : '回收站' }}
+          <el-icon><Delete /></el-icon>{{ isRecycleBin ? t('filePage.backToList') : t('filePage.recycleBin') }}
         </el-button>
         <el-button v-if="userStore.hasPermission('file:upload') && !isRecycleBin" type="success" @click="openUploadDialog">
-          <el-icon><Upload /></el-icon>上传文件
+          <el-icon><Upload /></el-icon>{{ t('filePage.upload') }}
         </el-button>
       </div>
 
       <!-- 列表 -->
       <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="60" :index="(i: number) => (page - 1) * pageSize + i + 1" />
-        <el-table-column prop="original_name" label="文件名" min-width="180" show-overflow-tooltip />
-        <el-table-column label="类型" width="100">
+        <el-table-column prop="original_name" :label="t('filePage.colName')" min-width="180" show-overflow-tooltip />
+        <el-table-column :label="t('filePage.colType')" width="100">
           <template #default="{ row }">
             <el-tag :type="getFileTypeColor(row.file_type)" size="small">
               {{ getFileTypeLabel(row.file_type) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="file_size" label="大小" width="100">
+        <el-table-column prop="file_size" :label="t('filePage.colSize')" width="100">
           <template #default="{ row }">
             {{ formatFileSize(row.file_size) }}
           </template>
         </el-table-column>
-        <el-table-column prop="mime_type" label="MIME类型" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="上传时间" width="180" />
-        <el-table-column v-if="isRecycleBin" prop="deleted_at" label="删除时间" width="180" />
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column prop="mime_type" :label="t('filePage.colMime')" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="created_at" :label="t('filePage.colCreatedAt')" width="180" />
+        <el-table-column v-if="isRecycleBin" prop="deleted_at" :label="t('filePage.colDeletedAt')" width="180" />
+        <el-table-column :label="t('filePage.colAction')" width="280" fixed="right">
           <template #default="{ row }">
             <template v-if="isRecycleBin">
-              <el-button link type="success" @click="handleRestore(row)">恢复</el-button>
-              <el-button link type="danger" @click="handlePermanentDelete(row)">永久删除</el-button>
+              <el-button link type="success" @click="handleRestore(row)">{{ t('filePage.restore') }}</el-button>
+              <el-button link type="danger" @click="handlePermanentDelete(row)">{{ t('filePage.permanentDelete') }}</el-button>
             </template>
             <template v-else>
-              <el-button link type="primary" @click="handleDownload(row)">下载</el-button>
-              <el-button v-if="userStore.hasPermission('file:update')" link type="warning" @click="openEditDialog(row)">重命名</el-button>
-              <el-button v-if="userStore.hasPermission('file:delete')" link type="danger" @click="handleDelete(row)">删除</el-button>
+              <el-button link type="primary" @click="handleDownload(row)">{{ t('filePage.download') }}</el-button>
+              <el-button v-if="userStore.hasPermission('file:update')" link type="warning" @click="openEditDialog(row)">{{ t('filePage.rename') }}</el-button>
+              <el-button v-if="userStore.hasPermission('file:delete')" link type="danger" @click="handleDelete(row)">{{ t('common.delete') }}</el-button>
             </template>
           </template>
         </el-table-column>
@@ -87,7 +87,7 @@
     <!-- 上传文件弹窗 -->
     <el-dialog
       v-model="uploadDialogVisible"
-      title="上传文件"
+      :title="t('filePage.uploadTitle')"
       width="520px"
       :close-on-click-modal="false"
       @close="handleUploadDialogClose"
@@ -105,11 +105,11 @@
       >
         <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
         <div class="el-upload__text">
-          将文件拖到此处，或<em>点击上传</em>
+          {{ t('filePage.dragText') }}<em>{{ t('filePage.clickUpload') }}</em>
         </div>
         <template #tip>
           <div class="el-upload__tip">
-            支持图片、PDF、Office 文档等格式，单个文件不超过 {{ formatFileSize(MAX_FILE_SIZE) }}，最多 {{ MAX_UPLOAD_COUNT }} 个
+            {{ t('filePage.uploadTip', formatFileSize(MAX_FILE_SIZE), MAX_UPLOAD_COUNT) }}
           </div>
         </template>
       </el-upload>
@@ -121,9 +121,9 @@
       </div>
 
       <template #footer>
-        <el-button :disabled="uploading" @click="uploadDialogVisible = false">取消</el-button>
+        <el-button :disabled="uploading" @click="uploadDialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="uploading" :disabled="fileList.length === 0" @click="submitUpload">
-          {{ uploading ? '上传中...' : '确定上传' }}
+          {{ uploading ? t('filePage.uploading') : t('filePage.confirmUpload') }}
         </el-button>
       </template>
     </el-dialog>
@@ -131,7 +131,7 @@
     <!-- 重命名弹窗 -->
     <el-dialog
       v-model="editDialogVisible"
-      title="重命名文件"
+      :title="t('filePage.renameTitle')"
       width="400px"
       :close-on-click-modal="false"
     >
@@ -141,20 +141,20 @@
         :rules="editRules"
         label-width="80px"
       >
-        <el-form-item label="文件名" prop="file_name">
-          <el-input v-model="editForm.file_name" placeholder="请输入新文件名" />
+        <el-form-item :label="t('filePage.fileNameLabel')" prop="file_name">
+          <el-input v-model="editForm.file_name" :placeholder="t('filePage.newNamePlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="editing" @click="submitEdit">确定</el-button>
+        <el-button @click="editDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="editing" @click="submitEdit">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import type { FormInstance, FormRules, UploadInstance, UploadUserFile } from 'element-plus'
@@ -173,7 +173,9 @@ import {
 } from '@/api/modules/file'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
+import { useI18n } from '@/composables/useI18n'
 
+const { t } = useI18n()
 const userStore = useUserStore()
 
 // 常量
@@ -224,9 +226,9 @@ const editFormRef = ref<FormInstance>()
 const editing = ref(false)
 const editingId = ref<string | null>(null)
 const editForm = reactive({ file_name: '' })
-const editRules: FormRules = {
-  file_name: [{ required: true, message: '请输入文件名', trigger: 'blur' }]
-}
+const editRules = computed<FormRules>(() => ({
+  file_name: [{ required: true, message: t('filePage.fileNameRequired'), trigger: 'blur' }]
+}))
 
 function toggleRecycleBin() {
   isRecycleBin.value = !isRecycleBin.value
@@ -255,7 +257,7 @@ function handleUploadDialogClose() {
 
 function handleFileChange(file: UploadUserFile) {
   if (file.size && file.size > MAX_FILE_SIZE) {
-    ElMessage.error(`文件 "${file.name}" 超过 ${formatFileSize(MAX_FILE_SIZE)}`)
+    ElMessage.error(t('filePage.fileTooLarge', file.name, formatFileSize(MAX_FILE_SIZE)))
     fileList.value = fileList.value.filter(f => f.uid !== file.uid)
     return false
   }
@@ -266,20 +268,20 @@ function handleFileRemove() {
 }
 
 function handleExceed() {
-  ElMessage.warning(`最多只能上传 ${MAX_UPLOAD_COUNT} 个文件`)
+  ElMessage.warning(t('filePage.maxFiles', MAX_UPLOAD_COUNT))
 }
 
 async function submitUpload() {
   const validFiles = fileList.value.filter(f => f.raw && f.size && f.size <= MAX_FILE_SIZE)
   if (validFiles.length === 0) {
-    ElMessage.warning('请选择有效的文件')
+    ElMessage.warning(t('filePage.pickValid'))
     return
   }
 
   uploading.value = true
   uploadProgress.value = 0
   uploadStatus.value = ''
-  uploadProgressText.value = `正在上传 0 / ${validFiles.length}`
+  uploadProgressText.value = t('filePage.uploadingProgress', 0, validFiles.length)
 
   let successCount = 0
   const failedNames: string[] = []
@@ -297,19 +299,19 @@ async function submitUpload() {
         } finally {
           completed++
           uploadProgress.value = Math.round((completed / total) * 100)
-          uploadProgressText.value = `正在上传 ${completed} / ${total}`
+          uploadProgressText.value = t('filePage.uploadingProgress', completed, total)
         }
       })
     )
 
     if (failedNames.length === 0) {
       uploadStatus.value = 'success'
-      uploadProgressText.value = `上传完成：${successCount} 个文件`
-      ElMessage.success(`上传成功（${successCount} 个文件）`)
+      uploadProgressText.value = t('filePage.uploadDone', successCount)
+      ElMessage.success(t('filePage.uploadSuccess', successCount))
     } else {
       uploadStatus.value = 'error'
-      uploadProgressText.value = `成功 ${successCount} 个，失败 ${failedNames.length} 个`
-      ElMessage.warning(`成功 ${successCount} 个，失败 ${failedNames.length} 个：${failedNames.join('、')}`)
+      uploadProgressText.value = t('filePage.uploadPartial', successCount, failedNames.length)
+      ElMessage.warning(t('filePage.uploadPartialDetail', successCount, failedNames.length, failedNames.join('、')))
     }
 
     loadList()
@@ -339,7 +341,7 @@ async function submitEdit() {
     editing.value = true
     try {
       await updateFile(editingId.value, { file_name: editForm.file_name })
-      ElMessage.success('重命名成功')
+      ElMessage.success(t('filePage.renameSuccess'))
       editDialogVisible.value = false
       loadList()
     } finally {
@@ -357,18 +359,18 @@ function handleDownload(row: FileItem) {
     link.click()
     window.URL.revokeObjectURL(url)
   }).catch(() => {
-    ElMessage.error('下载失败')
+    ElMessage.error(t('filePage.downloadFailed'))
   })
 }
 
 function handleDelete(row: FileItem) {
-  ElMessageBox.confirm(`确定要删除文件 "${row.original_name}" 吗？`, '提示', {
+  ElMessageBox.confirm(t('filePage.deleteConfirm', row.original_name), t('common.tip'), {
     type: 'warning'
   })
     .then(async () => {
       if (!row.id) return
       await deleteFile(row.id)
-      ElMessage.success('删除成功')
+      ElMessage.success(t('filePage.deleteSuccess'))
       loadList()
     })
     .catch(() => {})
@@ -377,11 +379,11 @@ function handleDelete(row: FileItem) {
 async function handleRestore(row: FileItem) {
   if (!row.id) return
   try {
-    await ElMessageBox.confirm(`确定要恢复文件 "${row.original_name}" 吗？`, '提示', {
+    await ElMessageBox.confirm(t('filePage.restoreConfirm', row.original_name), t('common.tip'), {
       type: 'warning'
     })
     await restoreFile(row.id)
-    ElMessage.success('恢复成功')
+    ElMessage.success(t('filePage.restoreSuccess'))
     loadList()
   } catch (e) {
     // 用户取消
@@ -389,15 +391,15 @@ async function handleRestore(row: FileItem) {
 }
 
 function handlePermanentDelete(row: FileItem) {
-  ElMessageBox.confirm(`确定要永久删除文件 "${row.original_name}" 吗？此操作不可恢复！`, '危险操作', {
+  ElMessageBox.confirm(t('filePage.permanentDeleteConfirm', row.original_name), t('filePage.dangerTitle'), {
     type: 'error',
-    confirmButtonText: '确定永久删除',
-    cancelButtonText: '取消'
+    confirmButtonText: t('filePage.confirmPermanentDelete'),
+    cancelButtonText: t('common.cancel')
   })
     .then(async () => {
       if (!row.id) return
       await permanentDeleteFile(row.id)
-      ElMessage.success('已永久删除')
+      ElMessage.success(t('filePage.permanentDeleted'))
       loadList()
     })
     .catch(() => {})
@@ -405,13 +407,13 @@ function handlePermanentDelete(row: FileItem) {
 
 function getFileTypeLabel(type: string) {
   const map: Record<string, string> = {
-    image: '图片',
-    document: '文档',
-    video: '视频',
-    audio: '音频',
-    other: '其他'
+    image: t('filePage.type.image'),
+    document: t('filePage.type.document'),
+    video: t('filePage.type.video'),
+    audio: t('filePage.type.audio'),
+    other: t('filePage.type.other')
   }
-  return map[type] || '其他'
+  return map[type] || t('filePage.type.other')
 }
 
 function getFileTypeColor(type: string) {

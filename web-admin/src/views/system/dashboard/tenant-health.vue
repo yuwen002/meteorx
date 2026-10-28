@@ -4,25 +4,25 @@
       <el-col :span="6">
         <el-card shadow="never" class="summary-card">
           <div class="summary-num">{{ total }}</div>
-          <div class="summary-label">租户总数</div>
+          <div class="summary-label">{{ t('healthPage.totalTenants') }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="never" class="summary-card healthy">
           <div class="summary-num">{{ summary.healthy }}</div>
-          <div class="summary-label">健康</div>
+          <div class="summary-label">{{ t('healthPage.level.healthy') }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="never" class="summary-card moderate">
           <div class="summary-num">{{ summary.moderate }}</div>
-          <div class="summary-label">中等</div>
+          <div class="summary-label">{{ t('healthPage.level.moderate') }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="never" class="summary-card risk">
           <div class="summary-num">{{ summary.atRisk }}</div>
-          <div class="summary-label">风险</div>
+          <div class="summary-label">{{ t('healthPage.level.atRisk') }}</div>
         </el-card>
       </el-col>
     </el-row>
@@ -30,55 +30,55 @@
     <el-card shadow="never">
       <template #header>
         <div class="card-header">
-          <span>租户健康度看板</span>
+          <span>{{ t('healthPage.title') }}</span>
         </div>
       </template>
 
       <div class="filter-bar">
         <el-input
           v-model="keyword"
-          placeholder="按租户名称搜索"
+          :placeholder="t('healthPage.searchPlaceholder')"
           clearable
           style="width: 220px; margin-right: 12px;"
           @keyup.enter="handleSearch"
           @clear="handleSearch"
         />
-        <el-button type="primary" @click="handleSearch">查询</el-button>
-        <el-button @click="loadList">刷新</el-button>
+        <el-button type="primary" @click="handleSearch">{{ t('common.query') }}</el-button>
+        <el-button @click="loadList">{{ t('common.refresh') }}</el-button>
       </div>
 
       <el-table v-loading="loading" :data="list" stripe style="width: 100%;" @row-click="openDetail">
-        <el-table-column prop="tenant_name" label="租户" min-width="140" show-overflow-tooltip />
-        <el-table-column label="套餐" width="120">
+        <el-table-column prop="tenant_name" :label="t('healthPage.colTenant')" min-width="140" show-overflow-tooltip />
+        <el-table-column :label="t('healthPage.colPlan')" width="120">
           <template #default="{ row }">{{ row.plan_name || '-' }}</template>
         </el-table-column>
-        <el-table-column label="订阅" width="150" align="center">
+        <el-table-column :label="t('healthPage.colSubscription')" width="150" align="center">
           <template #default="{ row }">
             <el-tag :type="subTagType(row.subscription_status)" size="small">
               {{ subLabel(row.subscription_status) }}
             </el-tag>
             <div v-if="row.subscription_status === 1" class="sub-days">
-              <span v-if="row.days_remaining < 0">长期</span>
-              <span v-else>剩 {{ row.days_remaining }} 天</span>
+              <span v-if="row.days_remaining < 0">{{ t('healthPage.longTerm') }}</span>
+              <span v-else>{{ t('healthPage.daysLeft', row.days_remaining) }}</span>
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="用户" width="100" align="center">
+        <el-table-column :label="t('healthPage.colUsers')" width="100" align="center">
           <template #default="{ row }">{{ row.active_user_count }}/{{ row.user_count }}</template>
         </el-table-column>
-        <el-table-column label="任务(完成/总)" width="130" align="center">
+        <el-table-column :label="t('healthPage.colTasks')" width="130" align="center">
           <template #default="{ row }">{{ row.task_completed_count }}/{{ row.task_count }}</template>
         </el-table-column>
-        <el-table-column label="文档" width="80" align="center">
+        <el-table-column :label="t('healthPage.colDocs')" width="80" align="center">
           <template #default="{ row }">{{ row.wiki_doc_count }}</template>
         </el-table-column>
-        <el-table-column label="存储" width="110" align="center">
+        <el-table-column :label="t('healthPage.colStorage')" width="110" align="center">
           <template #default="{ row }">{{ formatSize(row.storage_used) }}</template>
         </el-table-column>
-        <el-table-column label="近7天活跃" width="110" align="center">
+        <el-table-column :label="t('healthPage.colActive7d')" width="110" align="center">
           <template #default="{ row }">{{ row.audit_count_7d }}</template>
         </el-table-column>
-        <el-table-column label="健康度" width="150" align="center">
+        <el-table-column :label="t('healthPage.colHealth')" width="150" align="center">
           <template #default="{ row }">
             <el-progress
               :percentage="row.health_score"
@@ -88,7 +88,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="评级" width="90" align="center">
+        <el-table-column :label="t('healthPage.colLevel')" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="levelTagType(row.health_level)" size="small">{{ levelLabel(row.health_level) }}</el-tag>
           </template>
@@ -108,7 +108,7 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" title="租户健康度详情" size="420px">
+    <el-drawer v-model="detailVisible" :title="t('healthPage.drawerTitle')" size="420px">
       <div v-if="detail" class="detail">
         <div class="detail-head">
           <span class="detail-name">{{ detail.tenant_name }}</span>
@@ -117,19 +117,19 @@
         <el-progress :percentage="detail.health_score" :color="levelColor(detail.health_level)" :stroke-width="16" />
 
         <el-descriptions :column="1" border class="detail-desc">
-          <el-descriptions-item label="租户状态">{{ detail.status === 1 ? '启用' : '禁用' }}</el-descriptions-item>
-          <el-descriptions-item label="套餐">{{ detail.plan_name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="订阅状态">{{ subLabel(detail.subscription_status) }}</el-descriptions-item>
-          <el-descriptions-item label="到期时间">{{ formatTime(detail.subscription_expires_at) }}</el-descriptions-item>
-          <el-descriptions-item label="剩余天数">
-            {{ detail.subscription_status === 1 ? (detail.days_remaining < 0 ? '长期有效' : detail.days_remaining + ' 天') : '-' }}
+          <el-descriptions-item :label="t('healthPage.dStatus')">{{ detail.status === 1 ? t('common.status.enabled') : t('common.status.disabled') }}</el-descriptions-item>
+          <el-descriptions-item :label="t('healthPage.colPlan')">{{ detail.plan_name || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('healthPage.dSubStatus')">{{ subLabel(detail.subscription_status) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('healthPage.dExpiresAt')">{{ formatTime(detail.subscription_expires_at) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('healthPage.dRemainDays')">
+            {{ detail.subscription_status === 1 ? (detail.days_remaining < 0 ? t('healthPage.forever') : t('healthPage.daysN', detail.days_remaining)) : '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="用户（有效/总）">{{ detail.active_user_count }}/{{ detail.user_count }}</el-descriptions-item>
-          <el-descriptions-item label="任务（完成/总）">{{ detail.task_completed_count }}/{{ detail.task_count }}</el-descriptions-item>
-          <el-descriptions-item label="Wiki 文档">{{ detail.wiki_doc_count }}</el-descriptions-item>
-          <el-descriptions-item label="存储占用">{{ formatSize(detail.storage_used) }}</el-descriptions-item>
-          <el-descriptions-item label="近 7 天操作">{{ detail.audit_count_7d }}</el-descriptions-item>
-          <el-descriptions-item label="最近活动">{{ formatTime(detail.last_activity_at) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('healthPage.dUsers')">{{ detail.active_user_count }}/{{ detail.user_count }}</el-descriptions-item>
+          <el-descriptions-item :label="t('healthPage.dTasks')">{{ detail.task_completed_count }}/{{ detail.task_count }}</el-descriptions-item>
+          <el-descriptions-item :label="t('healthPage.dDocs')">{{ detail.wiki_doc_count }}</el-descriptions-item>
+          <el-descriptions-item :label="t('healthPage.dStorage')">{{ formatSize(detail.storage_used) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('healthPage.dOps7d')">{{ detail.audit_count_7d }}</el-descriptions-item>
+          <el-descriptions-item :label="t('healthPage.dLastActivity')">{{ formatTime(detail.last_activity_at) }}</el-descriptions-item>
         </el-descriptions>
       </div>
     </el-drawer>
@@ -144,6 +144,9 @@ import {
   getTenantHealthDetail,
   type TenantHealthItem
 } from '@/api/modules/dashboard'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const list = ref<TenantHealthItem[]>([])
@@ -167,7 +170,7 @@ async function loadList() {
     summary.moderate = res.moderate || 0
     summary.atRisk = res.at_risk || 0
   } catch {
-    ElMessage.error('获取租户健康度失败')
+    ElMessage.error(t('healthPage.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -192,8 +195,13 @@ async function openDetail(row: TenantHealthItem) {
 }
 
 function subLabel(status: number) {
-  const map: Record<number, string> = { 0: '无订阅', 1: '生效', 2: '到期', 3: '取消' }
-  return map[status] || '未知'
+  const map: Record<number, string> = {
+    0: t('healthPage.sub.none'),
+    1: t('healthPage.sub.active'),
+    2: t('healthPage.sub.expired'),
+    3: t('healthPage.sub.cancelled')
+  }
+  return map[status] || t('healthPage.sub.unknown')
 }
 
 function subTagType(status: number) {
@@ -202,7 +210,11 @@ function subTagType(status: number) {
 }
 
 function levelLabel(level: string) {
-  const map: Record<string, string> = { healthy: '健康', moderate: '中等', 'at_risk': '风险' }
+  const map: Record<string, string> = {
+    healthy: t('healthPage.level.healthy'),
+    moderate: t('healthPage.level.moderate'),
+    'at_risk': t('healthPage.level.atRisk')
+  }
   return map[level] || level
 }
 

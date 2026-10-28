@@ -4,25 +4,25 @@
       <el-col :span="6">
         <el-card shadow="never" class="summary-card">
           <div class="summary-num">{{ stats.total_queries }}</div>
-          <div class="summary-label">采样 SQL 总数</div>
+          <div class="summary-label">{{ t('slowQuery.sumTotal') }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="never" class="summary-card risk">
           <div class="summary-num">{{ stats.slow_queries }}</div>
-          <div class="summary-label">慢查询数</div>
+          <div class="summary-label">{{ t('slowQuery.sumSlow') }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="never" class="summary-card moderate">
           <div class="summary-num">{{ stats.max_duration_ms }}<span class="unit">ms</span></div>
-          <div class="summary-label">最大耗时</div>
+          <div class="summary-label">{{ t('slowQuery.sumMax') }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="never" class="summary-card healthy">
           <div class="summary-num">{{ avgSlowDisplay }}<span class="unit">ms</span></div>
-          <div class="summary-label">慢查询平均耗时</div>
+          <div class="summary-label">{{ t('slowQuery.sumAvg') }}</div>
         </el-card>
       </el-col>
     </el-row>
@@ -30,27 +30,27 @@
     <el-card shadow="never">
       <template #header>
         <div class="card-header">
-          <span>慢查询看板</span>
-          <span class="threshold-tip">判定阈值：{{ stats.threshold_ms }} ms · 缓冲容量 {{ stats.capacity }}</span>
+          <span>{{ t('slowQuery.title') }}</span>
+          <span class="threshold-tip">{{ t('slowQuery.thresholdTip', stats.threshold_ms, stats.capacity) }}</span>
         </div>
       </template>
 
       <div class="filter-bar">
-        <el-button type="primary" @click="load">刷新</el-button>
-        <el-button @click="toggleAuto">{{ auto ? '停止自动刷新' : '开启自动刷新(5s)' }}</el-button>
-        <el-button type="danger" plain @click="handleReset">重置统计</el-button>
+        <el-button type="primary" @click="load">{{ t('common.refresh') }}</el-button>
+        <el-button @click="toggleAuto">{{ auto ? t('slowQuery.stopAuto') : t('slowQuery.startAuto') }}</el-button>
+        <el-button type="danger" plain @click="handleReset">{{ t('slowQuery.resetStats') }}</el-button>
       </div>
 
       <el-table v-loading="loading" :data="entries" stripe style="width: 100%;">
-        <el-table-column label="时间" width="180">
+        <el-table-column :label="t('slowQuery.colTime')" width="180">
           <template #default="{ row }">{{ formatTime(row.time) }}</template>
         </el-table-column>
-        <el-table-column label="耗时" width="110" align="right" sortable :sort-by="(r: SlowQueryEntry) => r.duration_ms">
+        <el-table-column :label="t('slowQuery.colDuration')" width="110" align="right" sortable :sort-by="(r: SlowQueryEntry) => r.duration_ms">
           <template #default="{ row }">
             <span :class="durationClass(row.duration_ms)">{{ row.duration_ms }} ms</span>
           </template>
         </el-table-column>
-        <el-table-column label="行数" width="90" align="right">
+        <el-table-column :label="t('slowQuery.colRows')" width="90" align="right">
           <template #default="{ row }">{{ row.rows }}</template>
         </el-table-column>
         <el-table-column prop="sql" label="SQL" min-width="320" show-overflow-tooltip>
@@ -58,10 +58,10 @@
             <code class="sql-text">{{ row.sql }}</code>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column :label="t('slowQuery.colStatus')" width="100" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.error" type="danger" size="small">错误</el-tag>
-            <el-tag v-else type="warning" size="small">慢</el-tag>
+            <el-tag v-if="row.error" type="danger" size="small">{{ t('slowQuery.tagError') }}</el-tag>
+            <el-tag v-else type="warning" size="small">{{ t('slowQuery.tagSlow') }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="Trace ID" width="120" show-overflow-tooltip>
@@ -69,7 +69,7 @@
         </el-table-column>
       </el-table>
 
-      <el-empty v-if="!loading && entries.length === 0" description="暂无慢查询记录" />
+      <el-empty v-if="!loading && entries.length === 0" :description="t('slowQuery.empty')" />
     </el-card>
   </div>
 </template>
@@ -83,6 +83,9 @@ import {
   type SlowQueryEntry,
   type SlowQueryStats
 } from '@/api/modules/dashboard'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const entries = ref<SlowQueryEntry[]>([])
@@ -104,7 +107,7 @@ async function load() {
     entries.value = res.entries || []
     Object.assign(stats, res.stats || {})
   } catch {
-    ElMessage.error('获取慢查询看板失败')
+    ElMessage.error(t('slowQuery.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -112,17 +115,17 @@ async function load() {
 
 async function handleReset() {
   try {
-    await ElMessageBox.confirm('确定要清空慢查询统计与明细吗？', '重置确认', {
+    await ElMessageBox.confirm(t('slowQuery.resetConfirm'), t('slowQuery.resetTitle'), {
       type: 'warning',
-      confirmButtonText: '重置',
-      cancelButtonText: '取消'
+      confirmButtonText: t('slowQuery.resetBtn'),
+      cancelButtonText: t('common.cancel')
     })
   } catch {
     return
   }
   try {
     await resetSlowQueries()
-    ElMessage.success('慢查询统计已重置')
+    ElMessage.success(t('slowQuery.resetDone'))
     load()
   } catch {
     // 错误已由拦截器提示

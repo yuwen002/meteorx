@@ -5,37 +5,37 @@
       <el-col :span="4">
         <el-card shadow="never" class="stat-card">
           <div class="stat-num">{{ stats.pending }}</div>
-          <div class="stat-label">待办</div>
+          <div class="stat-label">{{ t('taskPage.stat.pending') }}</div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card shadow="never" class="stat-card">
           <div class="stat-num">{{ stats.in_progress }}</div>
-          <div class="stat-label">进行中</div>
+          <div class="stat-label">{{ t('taskPage.stat.in_progress') }}</div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card shadow="never" class="stat-card">
           <div class="stat-num">{{ stats.completed }}</div>
-          <div class="stat-label">已完成</div>
+          <div class="stat-label">{{ t('taskPage.stat.completed') }}</div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card shadow="never" class="stat-card stat-card--clickable" @click="filterOverdue">
           <div class="stat-num danger">{{ stats.overdue }}</div>
-          <div class="stat-label">已逾期<span class="drill-hint">› 下钻</span></div>
+          <div class="stat-label">{{ t('taskPage.stat.overdue') }}<span class="drill-hint">{{ t('taskPage.stat.drillHint') }}</span></div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card shadow="never" class="stat-card">
           <div class="stat-num">{{ (stats.completion_rate * 100).toFixed(1) }}%</div>
-          <div class="stat-label">完成率</div>
+          <div class="stat-label">{{ t('taskPage.stat.completionRate') }}</div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card shadow="never" class="stat-card">
           <div class="stat-num">{{ formatDuration(stats.avg_handle_seconds) }}</div>
-          <div class="stat-label">平均耗时</div>
+          <div class="stat-label">{{ t('taskPage.stat.avgHandle') }}</div>
         </el-card>
       </el-col>
     </el-row>
@@ -43,119 +43,119 @@
     <el-card shadow="never">
       <template #header>
         <div class="card-header">
-          <span>任务管理</span>
+          <span>{{ t('taskPage.title') }}</span>
           <div>
-            <el-tooltip :disabled="aiEnabled" content="AI 能力未启用，请在服务端配置后开启" placement="bottom">
+            <el-tooltip :disabled="aiEnabled" :content="t('taskPage.aiDisabledTip')" placement="bottom">
               <span>
                 <el-button :disabled="!aiEnabled" @click="openSummary">
-                  <el-icon><MagicStick /></el-icon>AI 摘要
+                  <el-icon><MagicStick /></el-icon>{{ t('taskPage.aiSummary') }}
                 </el-button>
               </span>
             </el-tooltip>
             <el-button @click="openTrash">
-              <el-icon><Files /></el-icon>回收站
+              <el-icon><Files /></el-icon>{{ t('taskPage.trash') }}
             </el-button>
             <el-button type="primary" @click="openDialog()">
-              <el-icon><Plus /></el-icon>新建任务
+              <el-icon><Plus /></el-icon>{{ t('taskPage.create') }}
             </el-button>
           </div>
         </div>
       </template>
 
       <div class="filter-bar">
-        <el-select v-model="visibilityFilter" placeholder="范围" clearable style="width: 120px; margin-right: 12px;" @change="loadList">
-          <el-option label="全部可见" value="" />
-          <el-option label="个人待办" value="personal" />
-          <el-option label="团队协作" value="tenant" />
+        <el-select v-model="visibilityFilter" :placeholder="t('taskPage.filter.scopePlaceholder')" clearable style="width: 120px; margin-right: 12px;" @change="loadList">
+          <el-option :label="t('taskPage.scope.all')" value="" />
+          <el-option :label="t('taskPage.scope.personal')" value="personal" />
+          <el-option :label="t('taskPage.scope.tenant')" value="tenant" />
         </el-select>
-        <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 120px; margin-right: 12px;" @change="loadList">
-          <el-option label="待办" value="pending" />
-          <el-option label="进行中" value="in_progress" />
-          <el-option label="已完成" value="completed" />
-          <el-option label="已逾期" value="overdue" />
+        <el-select v-model="statusFilter" :placeholder="t('taskPage.filter.statusPlaceholder')" clearable style="width: 120px; margin-right: 12px;" @change="loadList">
+          <el-option :label="t('taskPage.stat.pending')" value="pending" />
+          <el-option :label="t('taskPage.stat.in_progress')" value="in_progress" />
+          <el-option :label="t('taskPage.stat.completed')" value="completed" />
+          <el-option :label="t('taskPage.stat.overdue')" value="overdue" />
         </el-select>
-        <el-select v-model="priorityFilter" placeholder="优先级" clearable style="width: 120px; margin-right: 12px;" @change="loadList">
-          <el-option label="低" value="low" />
-          <el-option label="普通" value="normal" />
-          <el-option label="高" value="high" />
-          <el-option label="紧急" value="urgent" />
+        <el-select v-model="priorityFilter" :placeholder="t('taskPage.filter.priorityPlaceholder')" clearable style="width: 120px; margin-right: 12px;" @change="loadList">
+          <el-option :label="t('taskPage.priority.low')" value="low" />
+          <el-option :label="t('taskPage.priority.normal')" value="normal" />
+          <el-option :label="t('taskPage.priority.high')" value="high" />
+          <el-option :label="t('taskPage.priority.urgent')" value="urgent" />
         </el-select>
-        <el-input v-model="tagFilter" placeholder="按标签筛选" clearable style="width: 150px; margin-right: 12px;" @clear="loadList" @keyup.enter="loadList" />
+        <el-input v-model="tagFilter" :placeholder="t('taskPage.filter.tagPlaceholder')" clearable style="width: 150px; margin-right: 12px;" @clear="loadList" @keyup.enter="loadList" />
         <el-date-picker
           v-model="dueRange"
           type="daterange"
-          range-separator="至"
-          start-placeholder="截止起"
-          end-placeholder="截止止"
+          :range-separator="t('taskPage.filter.rangeSeparator')"
+          :start-placeholder="t('taskPage.filter.dueStart')"
+          :end-placeholder="t('taskPage.filter.dueEnd')"
           value-format="YYYY-MM-DD"
           clearable
           style="width: 240px; margin-right: 12px;"
           @change="loadList"
         />
-        <el-input v-model="keyword" placeholder="搜索标题/描述" clearable style="width: 200px; margin-right: 12px;" @clear="loadList" @keyup.enter="loadList" />
-        <el-button type="primary" @click="loadList">查询</el-button>
+        <el-input v-model="keyword" :placeholder="t('taskPage.filter.keywordPlaceholder')" clearable style="width: 200px; margin-right: 12px;" @clear="loadList" @keyup.enter="loadList" />
+        <el-button type="primary" @click="loadList">{{ t('common.query') }}</el-button>
       </div>
 
       <div v-if="selected.length" class="batch-bar">
-        <span class="batch-tip">已选择 {{ selected.length }} 项</span>
+        <span class="batch-tip">{{ t('taskPage.batch.selected', selected.length) }}</span>
         <el-dropdown trigger="click" class="batch-dropdown" @command="handleBatchStatus">
-          <el-button plain size="small">批量改状态<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+          <el-button plain size="small">{{ t('taskPage.batch.changeStatus') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="pending">待办</el-dropdown-item>
-              <el-dropdown-item command="in_progress">进行中</el-dropdown-item>
-              <el-dropdown-item command="completed">已完成</el-dropdown-item>
+              <el-dropdown-item command="pending">{{ t('taskPage.stat.pending') }}</el-dropdown-item>
+              <el-dropdown-item command="in_progress">{{ t('taskPage.stat.in_progress') }}</el-dropdown-item>
+              <el-dropdown-item command="completed">{{ t('taskPage.stat.completed') }}</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-button size="small" @click="openBatchAssign">批量指派</el-button>
-        <el-button type="success" size="small" @click="handleBatchComplete">批量完成</el-button>
-        <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
+        <el-button size="small" @click="openBatchAssign">{{ t('taskPage.batch.assign') }}</el-button>
+        <el-button type="success" size="small" @click="handleBatchComplete">{{ t('taskPage.batch.complete') }}</el-button>
+        <el-button type="danger" size="small" @click="handleBatchDelete">{{ t('taskPage.batch.delete') }}</el-button>
       </div>
 
       <el-table v-loading="loading" :data="list" stripe style="width: 100%;" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="45" />
-        <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip>
+        <el-table-column prop="title" :label="t('taskPage.col.title')" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">
             <el-tag v-if="row.recurrence" size="small" type="success" effect="plain" style="margin-right: 6px;">{{ recurrenceLabel(row.recurrence) }}</el-tag>
             <span>{{ row.title }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="范围" width="90" align="center">
+        <el-table-column :label="t('taskPage.col.scope')" width="90" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="row.visibility === 'tenant' ? 'warning' : 'info'">
-              {{ row.visibility === 'tenant' ? '团队' : '个人' }}
+              {{ row.visibility === 'tenant' ? t('taskPage.scope.tagTenant') : t('taskPage.scope.tagPersonal') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="90" align="center">
+        <el-table-column :label="t('taskPage.col.status')" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="优先级" width="90" align="center">
+        <el-table-column :label="t('taskPage.col.priority')" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="priorityTagType(row.priority)" size="small" effect="plain">{{ priorityLabel(row.priority) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="标签" min-width="140">
+        <el-table-column :label="t('taskPage.col.tags')" min-width="140">
           <template #default="{ row }">
-            <el-tag v-for="t in row.tags" :key="t" size="small" type="info" style="margin-right: 4px;">{{ t }}</el-tag>
+            <el-tag v-for="tag in row.tags" :key="tag" size="small" type="info" style="margin-right: 4px;">{{ tag }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="负责人" min-width="100">
+        <el-table-column :label="t('taskPage.col.assignee')" min-width="100">
           <template #default="{ row }">{{ row.assignee_name || '-' }}</template>
         </el-table-column>
-        <el-table-column label="截止时间" min-width="150">
+        <el-table-column :label="t('taskPage.col.dueDate')" min-width="150">
           <template #default="{ row }">{{ row.due_date || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" min-width="150" />
-        <el-table-column label="操作" width="220" align="center" fixed="right">
+        <el-table-column prop="created_at" :label="t('taskPage.col.createdAt')" min-width="150" />
+        <el-table-column :label="t('taskPage.col.action')" width="220" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.status !== 'completed'" type="success" link size="small" @click="handleComplete(row)">完成</el-button>
-            <el-button v-else type="warning" link size="small" @click="handleReopen(row)">重开</el-button>
-            <el-button type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button v-if="row.status !== 'completed'" type="success" link size="small" @click="handleComplete(row)">{{ t('taskPage.action.complete') }}</el-button>
+            <el-button v-else type="warning" link size="small" @click="handleReopen(row)">{{ t('taskPage.action.reopen') }}</el-button>
+            <el-button type="primary" link size="small" @click="openDialog(row)">{{ t('taskPage.action.edit') }}</el-button>
+            <el-button type="danger" link size="small" @click="handleDelete(row)">{{ t('taskPage.action.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -173,104 +173,104 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑任务' : '新建任务'" width="520px" :close-on-click-modal="false">
+    <el-dialog v-model="dialogVisible" :title="editingId ? t('taskPage.dialog.editTitle') : t('taskPage.dialog.createTitle')" width="520px" :close-on-click-modal="false">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
-        <el-form-item v-if="!editingId && aiEnabled" label="AI 解析">
+        <el-form-item v-if="!editingId && aiEnabled" :label="t('taskPage.form.aiParseLabel')">
           <div class="ai-parse">
-            <el-input v-model="nlText" type="textarea" :rows="2" maxlength="500" placeholder="用自然语言描述任务，如“下周五前高优先级写完周报并加标签 运营”，AI 会预填下方表单" />
+            <el-input v-model="nlText" type="textarea" :rows="2" maxlength="500" :placeholder="t('taskPage.form.aiParsePlaceholder')" />
             <el-button class="ai-parse__btn" type="primary" plain :loading="aiParsing" @click="handleAIParse">
-              <el-icon><MagicStick /></el-icon>解析预填
+              <el-icon><MagicStick /></el-icon>{{ t('taskPage.form.aiParseBtn') }}
             </el-button>
           </div>
         </el-form-item>
-        <el-form-item label="标题" prop="title">
-          <el-input v-model="form.title" placeholder="请输入任务标题" maxlength="200" show-word-limit />
+        <el-form-item :label="t('taskPage.form.titleLabel')" prop="title">
+          <el-input v-model="form.title" :placeholder="t('taskPage.form.titlePlaceholder')" maxlength="200" show-word-limit />
         </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="form.description" type="textarea" :rows="3" placeholder="任务详细描述（可选）" maxlength="2000" show-word-limit />
+        <el-form-item :label="t('taskPage.form.descLabel')">
+          <el-input v-model="form.description" type="textarea" :rows="3" :placeholder="t('taskPage.form.descPlaceholder')" maxlength="2000" show-word-limit />
           <el-button v-if="aiEnabled" class="ai-inline-btn" size="small" plain :loading="aiExpanding" @click="handleAIExpand">
-            <el-icon><MagicStick /></el-icon>AI 扩写/拆解
+            <el-icon><MagicStick /></el-icon>{{ t('taskPage.form.aiExpandBtn') }}
           </el-button>
         </el-form-item>
-        <el-form-item label="可见范围" prop="visibility">
+        <el-form-item :label="t('taskPage.form.visibilityLabel')" prop="visibility">
           <el-radio-group v-model="form.visibility">
-            <el-radio-button label="personal">个人待办</el-radio-button>
-            <el-radio-button label="tenant">团队协作</el-radio-button>
+            <el-radio-button label="personal">{{ t('taskPage.scope.personal') }}</el-radio-button>
+            <el-radio-button label="tenant">{{ t('taskPage.scope.tenant') }}</el-radio-button>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="优先级">
+        <el-form-item :label="t('taskPage.form.priorityLabel')">
           <div class="ai-field-row">
             <el-select v-model="form.priority" style="flex: 1;">
-              <el-option label="低" value="low" />
-              <el-option label="普通" value="normal" />
-              <el-option label="高" value="high" />
-              <el-option label="紧急" value="urgent" />
+              <el-option :label="t('taskPage.priority.low')" value="low" />
+              <el-option :label="t('taskPage.priority.normal')" value="normal" />
+              <el-option :label="t('taskPage.priority.high')" value="high" />
+              <el-option :label="t('taskPage.priority.urgent')" value="urgent" />
             </el-select>
             <el-button v-if="aiEnabled" size="small" plain :loading="aiSuggesting" @click="handleAISuggest">
-              <el-icon><MagicStick /></el-icon>AI 建议
+              <el-icon><MagicStick /></el-icon>{{ t('taskPage.form.aiSuggestBtn') }}
             </el-button>
           </div>
         </el-form-item>
-        <el-form-item v-if="form.visibility === 'tenant'" label="负责人">
-          <el-input v-model="form.assignee_id" placeholder="负责人用户 ID（可选，留空则自己负责）" clearable />
+        <el-form-item v-if="form.visibility === 'tenant'" :label="t('taskPage.form.assigneeLabel')">
+          <el-input v-model="form.assignee_id" :placeholder="t('taskPage.form.assigneePlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="截止时间">
+        <el-form-item :label="t('taskPage.form.dueLabel')">
           <el-date-picker
             v-model="form.due_date"
             type="datetime"
-            placeholder="选择截止时间（可选）"
+            :placeholder="t('taskPage.form.duePlaceholder')"
             value-format="YYYY-MM-DD HH:mm:ss"
             style="width: 100%;"
           />
         </el-form-item>
-        <el-form-item label="提醒提前量">
-          <el-input v-model="form.remind_before" placeholder="如 2h / 30m / 1d，留空使用全局默认" clearable />
-          <div class="form-tip">仅在设置截止时间时生效；为空则按系统默认提醒窗口提醒。</div>
+        <el-form-item :label="t('taskPage.form.remindLabel')">
+          <el-input v-model="form.remind_before" :placeholder="t('taskPage.form.remindPlaceholder')" clearable />
+          <div class="form-tip">{{ t('taskPage.form.remindTip') }}</div>
         </el-form-item>
-        <el-form-item label="重复周期">
-          <el-select v-model="form.recurrence" placeholder="不重复" style="width: 100%;">
-            <el-option label="不重复" value="" />
-            <el-option label="每日" value="daily" />
-            <el-option label="每周" value="weekly" />
-            <el-option label="每月" value="monthly" />
+        <el-form-item :label="t('taskPage.form.recurrenceLabel')">
+          <el-select v-model="form.recurrence" :placeholder="t('taskPage.form.recurrencePlaceholder')" style="width: 100%;">
+            <el-option :label="t('taskPage.recurrence.none')" value="" />
+            <el-option :label="t('taskPage.recurrence.daily')" value="daily" />
+            <el-option :label="t('taskPage.recurrence.weekly')" value="weekly" />
+            <el-option :label="t('taskPage.recurrence.monthly')" value="monthly" />
           </el-select>
-          <div class="form-tip">选择周期需先设置截止时间；完成该任务后会自动按周期生成下一条待办。</div>
+          <div class="form-tip">{{ t('taskPage.form.recurrenceTip') }}</div>
         </el-form-item>
-        <el-form-item label="标签">
-          <el-select v-model="form.tags" multiple filterable allow-create default-first-option placeholder="输入后回车添加标签" style="width: 100%;">
-            <el-option v-for="t in form.tags" :key="t" :label="t" :value="t" />
+        <el-form-item :label="t('taskPage.form.tagsLabel')">
+          <el-select v-model="form.tags" multiple filterable allow-create default-first-option :placeholder="t('taskPage.form.tagsPlaceholder')" style="width: 100%;">
+            <el-option v-for="tag in form.tags" :key="tag" :label="tag" :value="tag" />
           </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="submitForm">{{ editingId ? '保存' : '创建' }}</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="submitForm">{{ editingId ? t('taskPage.form.submitSave') : t('taskPage.form.submitCreate') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="assignVisible" title="批量指派负责人" width="440px" :close-on-click-modal="false">
+    <el-dialog v-model="assignVisible" :title="t('taskPage.assign.title')" width="440px" :close-on-click-modal="false">
       <el-form label-width="90px">
-        <el-form-item label="负责人 ID">
-          <el-input v-model="assignUserId" placeholder="请输入同租户成员的用户 ID" clearable />
-          <div class="form-tip">仅可指派给同租户成员；个人待办任务会被回写为创建人。</div>
+        <el-form-item :label="t('taskPage.assign.idLabel')">
+          <el-input v-model="assignUserId" :placeholder="t('taskPage.assign.idPlaceholder')" clearable />
+          <div class="form-tip">{{ t('taskPage.assign.tip') }}</div>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="assignVisible = false">取消</el-button>
-        <el-button type="primary" :loading="assignLoading" @click="submitBatchAssign">确定</el-button>
+        <el-button @click="assignVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="assignLoading" @click="submitBatchAssign">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-drawer v-model="trashVisible" title="回收站" size="600px">
+    <el-drawer v-model="trashVisible" :title="t('taskPage.trash.title')" size="600px">
       <el-table v-loading="trashLoading" :data="trashList" stripe style="width: 100%;">
-        <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
-        <el-table-column label="删除时间" min-width="150">
+        <el-table-column prop="title" :label="t('taskPage.trash.colTitle')" min-width="160" show-overflow-tooltip />
+        <el-table-column :label="t('taskPage.trash.colDeletedAt')" min-width="150">
           <template #default="{ row }">{{ row.deleted_at || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="150" align="center">
+        <el-table-column :label="t('taskPage.trash.colAction')" width="150" align="center">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleRestore(row)">恢复</el-button>
-            <el-button type="danger" link size="small" @click="handlePermanentDelete(row)">彻底删除</el-button>
+            <el-button type="primary" link size="small" @click="handleRestore(row)">{{ t('taskPage.trash.restore') }}</el-button>
+            <el-button type="danger" link size="small" @click="handlePermanentDelete(row)">{{ t('taskPage.trash.permanentDelete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -287,40 +287,40 @@
       </div>
     </el-drawer>
 
-    <el-dialog v-model="summaryVisible" title="AI 任务摘要 / 周报" width="560px">
+    <el-dialog v-model="summaryVisible" :title="t('taskPage.summary.title')" width="560px">
       <div class="summary-toolbar">
         <el-radio-group v-model="summaryScope" size="small" @change="loadSummary">
-          <el-radio-button label="today">今日</el-radio-button>
-          <el-radio-button label="week">本周</el-radio-button>
-          <el-radio-button label="overdue">逾期</el-radio-button>
-          <el-radio-button label="all">全部</el-radio-button>
+          <el-radio-button label="today">{{ t('taskPage.summary.scope.today') }}</el-radio-button>
+          <el-radio-button label="week">{{ t('taskPage.summary.scope.week') }}</el-radio-button>
+          <el-radio-button label="overdue">{{ t('taskPage.summary.scope.overdue') }}</el-radio-button>
+          <el-radio-button label="all">{{ t('taskPage.summary.scope.all') }}</el-radio-button>
         </el-radio-group>
-        <span v-if="summary" class="summary-tip">共 {{ summary.total }} 项</span>
+        <span v-if="summary" class="summary-tip">{{ t('taskPage.summary.totalCount', summary.total) }}</span>
       </div>
       <div v-loading="summaryLoading" class="summary-body">
         <template v-if="summary">
           <p class="summary-text">{{ summary.text }}</p>
           <div v-if="summary.highlights?.length" class="summary-block">
-            <div class="summary-block__title">重点</div>
+            <div class="summary-block__title">{{ t('taskPage.summary.highlights') }}</div>
             <ul><li v-for="(h, i) in summary.highlights" :key="'h'+i">{{ h }}</li></ul>
           </div>
           <div v-if="summary.suggested_focus?.length" class="summary-block">
-            <div class="summary-block__title">优先处理建议</div>
+            <div class="summary-block__title">{{ t('taskPage.summary.suggestedFocus') }}</div>
             <ul><li v-for="(f, i) in summary.suggested_focus" :key="'f'+i">{{ f }}</li></ul>
           </div>
         </template>
-        <el-empty v-else-if="!summaryLoading" description="暂无摘要" />
+        <el-empty v-else-if="!summaryLoading" :description="t('taskPage.summary.empty')" />
       </div>
       <template #footer>
-        <el-button @click="summaryVisible = false">关闭</el-button>
-        <el-button type="primary" :loading="summaryLoading" @click="loadSummary">重新生成</el-button>
+        <el-button @click="summaryVisible = false">{{ t('taskPage.summary.close') }}</el-button>
+        <el-button type="primary" :loading="summaryLoading" @click="loadSummary">{{ t('taskPage.summary.regenerate') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -358,7 +358,9 @@ import {
   type TaskSummaryScope,
 } from '@/api/modules/task-ai'
 import { toPageResult } from '@/types/pagination'
+import { useI18n } from '@/composables/useI18n'
 
+const { t } = useI18n()
 const route = useRoute()
 
 const loading = ref(false)
@@ -390,19 +392,19 @@ const trashPageSize = ref(10)
 const trashTotal = ref(0)
 
 function statusLabel(s: string) {
-  return ({ pending: '待办', in_progress: '进行中', completed: '已完成' } as Record<string, string>)[s] || s
+  return ({ pending: t('taskPage.stat.pending'), in_progress: t('taskPage.stat.in_progress'), completed: t('taskPage.stat.completed') } as Record<string, string>)[s] || s
 }
 function statusTagType(s: string) {
   return ({ pending: 'info', in_progress: 'warning', completed: 'success' } as Record<string, string>)[s] || 'info'
 }
 function priorityLabel(p: string) {
-  return ({ low: '低', normal: '普通', high: '高', urgent: '紧急' } as Record<string, string>)[p] || p
+  return ({ low: t('taskPage.priority.low'), normal: t('taskPage.priority.normal'), high: t('taskPage.priority.high'), urgent: t('taskPage.priority.urgent') } as Record<string, string>)[p] || p
 }
 function priorityTagType(p: string) {
   return ({ low: 'info', normal: '', high: 'warning', urgent: 'danger' } as Record<string, string>)[p] || ''
 }
 function recurrenceLabel(r: string) {
-  return ({ daily: '每日', weekly: '每周', monthly: '每月' } as Record<string, string>)[r] || r
+  return ({ daily: t('taskPage.recurrence.daily'), weekly: t('taskPage.recurrence.weekly'), monthly: t('taskPage.recurrence.monthly') } as Record<string, string>)[r] || r
 }
 // formatDuration 将秒数格式化为“X天/X小时/X分钟”可读时长；0 或无效返回 “-”。
 function formatDuration(seconds: number) {
@@ -410,10 +412,10 @@ function formatDuration(seconds: number) {
   const d = Math.floor(seconds / 86400)
   const h = Math.floor((seconds % 86400) / 3600)
   const m = Math.floor((seconds % 3600) / 60)
-  if (d > 0) return `${d}天${h}小时`
-  if (h > 0) return `${h}小时${m}分钟`
-  if (m > 0) return `${m}分钟`
-  return `${Math.floor(seconds)}秒`
+  if (d > 0) return t('taskPage.duration.days', d, h)
+  if (h > 0) return t('taskPage.duration.hours', h, m)
+  if (m > 0) return t('taskPage.duration.minutes', m)
+  return t('taskPage.duration.seconds', Math.floor(seconds))
 }
 
 async function loadStats() {
@@ -421,7 +423,7 @@ async function loadStats() {
     const data = await getTaskStats(visibilityFilter.value ? { visibility: visibilityFilter.value } : undefined)
     Object.assign(stats, data)
   } catch (e) {
-    console.error('加载任务统计失败', e)
+    console.error(t('taskPage.loadStatsFailed'), e)
   }
 }
 
@@ -444,7 +446,7 @@ async function loadList() {
     total.value = result.total
     loadStats()
   } catch (e) {
-    ElMessage.error('获取任务列表失败')
+    ElMessage.error(t('taskPage.loadListFailed'))
   } finally {
     loading.value = false
   }
@@ -465,9 +467,9 @@ const form = reactive({
   recurrence: '' as '' | TaskRecurrence,
   tags: [] as string[],
 })
-const rules: FormRules = {
-  title: [{ required: true, message: '请输入任务标题', trigger: 'blur' }],
-}
+const rules = computed<FormRules>(() => ({
+  title: [{ required: true, message: t('taskPage.form.titleRequired'), trigger: 'blur' }],
+}))
 
 function openDialog(row?: TaskItem) {
   editingId.value = row?.id || ''
@@ -514,15 +516,15 @@ async function submitForm() {
       }
       if (editingId.value) {
         await updateTask(editingId.value, payload)
-        ElMessage.success('任务已更新')
+        ElMessage.success(t('taskPage.updated'))
       } else {
         await createTask(payload)
-        ElMessage.success('任务已创建')
+        ElMessage.success(t('taskPage.created'))
       }
       dialogVisible.value = false
       loadList()
     } catch (e) {
-      ElMessage.error((e as Error).message || '操作失败')
+      ElMessage.error((e as Error).message || t('taskPage.opFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -532,28 +534,28 @@ async function submitForm() {
 async function handleComplete(row: TaskItem) {
   try {
     await completeTask(row.id)
-    ElMessage.success('已完成')
+    ElMessage.success(t('taskPage.completed'))
     loadList()
   } catch (e) {
-    ElMessage.error((e as Error).message || '操作失败')
+    ElMessage.error((e as Error).message || t('taskPage.opFailed'))
   }
 }
 
 async function handleReopen(row: TaskItem) {
   try {
     await reopenTask(row.id, 'pending')
-    ElMessage.success('已重新打开')
+    ElMessage.success(t('taskPage.reopened'))
     loadList()
   } catch (e) {
-    ElMessage.error((e as Error).message || '操作失败')
+    ElMessage.error((e as Error).message || t('taskPage.opFailed'))
   }
 }
 
 async function handleDelete(row: TaskItem) {
   try {
-    await ElMessageBox.confirm(`确定删除任务「${row.title}」？`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('taskPage.deleteConfirm', row.title), t('taskPage.deleteTitle'), { type: 'warning' })
     await deleteTask(row.id)
-    ElMessage.success('已删除')
+    ElMessage.success(t('taskPage.deleted'))
     loadList()
   } catch { /* cancelled */ }
 }
@@ -563,10 +565,10 @@ async function handleBatchComplete() {
   if (!ids.length) return
   try {
     const res = await batchCompleteTasks(ids)
-    ElMessage.success(`已完成 ${res.affected} 项`)
+    ElMessage.success(t('taskPage.batchCompleted', res.affected))
     loadList()
   } catch (e) {
-    ElMessage.error((e as Error).message || '批量完成失败')
+    ElMessage.error((e as Error).message || t('taskPage.batchCompleteFailed'))
   }
 }
 
@@ -581,10 +583,10 @@ async function handleBatchStatus(status: string) {
   if (!ids.length) return
   try {
     const res = await batchUpdateTaskStatus({ ids, status: status as TaskStatus })
-    ElMessage.success(`已改为${statusLabel(status)} ${res.affected} 项`)
+    ElMessage.success(t('taskPage.batchStatusChanged', statusLabel(status), res.affected))
     loadList()
   } catch (e) {
-    ElMessage.error((e as Error).message || '批量修改状态失败')
+    ElMessage.error((e as Error).message || t('taskPage.batchStatusFailed'))
   }
 }
 
@@ -598,17 +600,17 @@ async function submitBatchAssign() {
   if (!ids.length) return
   const assignee = assignUserId.value.trim()
   if (!assignee) {
-    ElMessage.warning('请输入负责人用户 ID')
+    ElMessage.warning(t('taskPage.assigneeIdRequired'))
     return
   }
   assignLoading.value = true
   try {
     const res = await batchAssignTasks({ ids, assignee_id: assignee })
-    ElMessage.success(`已指派 ${res.affected} 项`)
+    ElMessage.success(t('taskPage.batchAssigned', res.affected))
     assignVisible.value = false
     loadList()
   } catch (e) {
-    ElMessage.error((e as Error).message || '批量指派失败')
+    ElMessage.error((e as Error).message || t('taskPage.batchAssignFailed'))
   } finally {
     assignLoading.value = false
   }
@@ -618,9 +620,9 @@ async function handleBatchDelete() {
   const ids = selected.value.map((r) => r.id)
   if (!ids.length) return
   try {
-    await ElMessageBox.confirm(`确定删除选中的 ${ids.length} 项任务？`, '批量删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('taskPage.batchDeleteConfirm', ids.length), t('taskPage.batchDeleteTitle'), { type: 'warning' })
     const res = await batchDeleteTasks(ids)
-    ElMessage.success(`已删除 ${res.affected} 项`)
+    ElMessage.success(t('taskPage.batchDeleted', res.affected))
     loadList()
   } catch { /* cancelled */ }
 }
@@ -646,7 +648,7 @@ async function loadTrash() {
     trashList.value = result.list
     trashTotal.value = result.total
   } catch {
-    ElMessage.error('获取回收站列表失败')
+    ElMessage.error(t('taskPage.loadTrashFailed'))
   } finally {
     trashLoading.value = false
   }
@@ -655,19 +657,19 @@ async function loadTrash() {
 async function handleRestore(row: TaskItem) {
   try {
     await restoreTask(row.id)
-    ElMessage.success('已恢复')
+    ElMessage.success(t('taskPage.restored'))
     loadTrash()
     loadList()
   } catch (e) {
-    ElMessage.error((e as Error).message || '恢复失败')
+    ElMessage.error((e as Error).message || t('taskPage.restoreFailed'))
   }
 }
 
 async function handlePermanentDelete(row: TaskItem) {
   try {
-    await ElMessageBox.confirm(`彻底删除任务「${row.title}」？此操作不可恢复。`, '确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('taskPage.permanentDeleteConfirm', row.title), t('taskPage.permanentDeleteTitle'), { type: 'warning' })
     await permanentDeleteTask(row.id)
-    ElMessage.success('已彻底删除')
+    ElMessage.success(t('taskPage.permanentDeleted'))
     loadTrash()
   } catch { /* cancelled */ }
 }
@@ -700,7 +702,7 @@ async function loadAICapabilities() {
 async function handleAIParse() {
   const text = nlText.value.trim()
   if (!text) {
-    ElMessage.warning('请先输入任务描述')
+    ElMessage.warning(t('taskPage.aiDescRequired'))
     return
   }
   aiParsing.value = true
@@ -711,9 +713,9 @@ async function handleAIParse() {
     if (draft.due_date) form.due_date = draft.due_date
     if (draft.recurrence) form.recurrence = draft.recurrence
     if (draft.tags?.length) form.tags = [...draft.tags]
-    ElMessage.success('已根据描述预填，请确认后创建')
+    ElMessage.success(t('taskPage.aiPrefilled'))
   } catch (e) {
-    ElMessage.error((e as Error).message || 'AI 解析失败')
+    ElMessage.error((e as Error).message || t('taskPage.aiParseFailed'))
   } finally {
     aiParsing.value = false
   }
@@ -722,7 +724,7 @@ async function handleAIParse() {
 // handleAISuggest 依据当前标题/描述给出优先级与标签建议。
 async function handleAISuggest() {
   if (!form.title.trim()) {
-    ElMessage.warning('请先填写标题')
+    ElMessage.warning(t('taskPage.aiTitleRequired'))
     return
   }
   aiSuggesting.value = true
@@ -730,9 +732,9 @@ async function handleAISuggest() {
     const s = await suggestTaskFields(form.title, form.description)
     if (s.priority) form.priority = s.priority
     if (s.tags?.length) form.tags = Array.from(new Set([...form.tags, ...s.tags]))
-    if (s.reason) ElMessage.info(`建议：${s.reason}`)
+    if (s.reason) ElMessage.info(t('taskPage.aiSuggestion', s.reason))
   } catch (e) {
-    ElMessage.error((e as Error).message || 'AI 建议失败')
+    ElMessage.error((e as Error).message || t('taskPage.aiSuggestFailed'))
   } finally {
     aiSuggesting.value = false
   }
@@ -741,7 +743,7 @@ async function handleAISuggest() {
 // handleAIExpand 扩写描述并追加拆解步骤。
 async function handleAIExpand() {
   if (!form.title.trim()) {
-    ElMessage.warning('请先填写标题')
+    ElMessage.warning(t('taskPage.aiTitleRequired'))
     return
   }
   aiExpanding.value = true
@@ -750,9 +752,9 @@ async function handleAIExpand() {
     let text = e2.description || ''
     if (e2.steps?.length) text += (text ? '\n\n' : '') + e2.steps.map((s, i) => `${i + 1}. ${s}`).join('\n')
     if (text) form.description = text
-    else ElMessage.info('AI 未返回可用内容')
+    else ElMessage.info(t('taskPage.aiNoContent'))
   } catch (e) {
-    ElMessage.error((e as Error).message || 'AI 扩写失败')
+    ElMessage.error((e as Error).message || t('taskPage.aiExpandFailed'))
   } finally {
     aiExpanding.value = false
   }
@@ -770,7 +772,7 @@ async function loadSummary() {
     summary.value = await summarizeTasks(summaryScope.value)
   } catch (e) {
     summary.value = null
-    ElMessage.error((e as Error).message || '生成摘要失败')
+    ElMessage.error((e as Error).message || t('taskPage.summaryFailed'))
   } finally {
     summaryLoading.value = false
   }

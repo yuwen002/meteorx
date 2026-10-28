@@ -9,7 +9,7 @@
               <el-icon><Bell /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">告警规则</div>
+              <div class="stat-label">{{ t('alertPage.stat.rules') }}</div>
               <div class="stat-value">{{ rules.length }}</div>
             </div>
           </div>
@@ -22,7 +22,7 @@
               <el-icon><CircleCheck /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">已启用</div>
+              <div class="stat-label">{{ t('alertPage.stat.enabled') }}</div>
               <div class="stat-value">{{ enabledRulesCount }}</div>
             </div>
           </div>
@@ -35,7 +35,7 @@
               <el-icon><Warning /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">今日告警</div>
+              <div class="stat-label">{{ t('alertPage.stat.todayAlerts') }}</div>
               <div class="stat-value">{{ alertStats.today_alerts }}</div>
             </div>
           </div>
@@ -48,7 +48,7 @@
               <el-icon><Message /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">已通知 / 待处理</div>
+              <div class="stat-label">{{ t('alertPage.stat.notifiedPending') }}</div>
               <div class="stat-value">{{ alertStats.notified_count }} / {{ alertStats.pending_count }}</div>
             </div>
           </div>
@@ -62,11 +62,11 @@
         <el-card shadow="hover" class="chart-card">
           <template #header>
             <div class="chart-header">
-              <span>告警趋势（近{{ statsDays }}天）</span>
+              <span>{{ t('alertPage.trend.title', statsDays) }}</span>
               <el-radio-group v-model="statsDays" size="small" @change="loadAlertStats">
-                <el-radio-button :label="7">7天</el-radio-button>
-                <el-radio-button :label="14">14天</el-radio-button>
-                <el-radio-button :label="30">30天</el-radio-button>
+                <el-radio-button :label="7">{{ t('alertPage.trend.day7') }}</el-radio-button>
+                <el-radio-button :label="14">{{ t('alertPage.trend.day14') }}</el-radio-button>
+                <el-radio-button :label="30">{{ t('alertPage.trend.day30') }}</el-radio-button>
               </el-radio-group>
             </div>
           </template>
@@ -87,7 +87,7 @@
       </el-col>
       <el-col :span="8">
         <el-card shadow="hover" class="chart-card">
-          <template #header><span>风险等级分布</span></template>
+          <template #header><span>{{ t('alertPage.riskDist.title') }}</span></template>
           <div class="risk-dist">
             <div v-for="(count, level) in alertStats.risk_level_stats" :key="level" class="risk-item">
               <span class="risk-label">{{ getRiskLevelLabel(level) }}</span>
@@ -98,7 +98,7 @@
               />
               <span class="risk-count">{{ count }}</span>
             </div>
-            <el-empty v-if="Object.keys(alertStats.risk_level_stats).length === 0" description="暂无数据" :image-size="40" />
+            <el-empty v-if="Object.keys(alertStats.risk_level_stats).length === 0" :description="t('alertPage.noData')" :image-size="40" />
           </div>
         </el-card>
       </el-col>
@@ -108,26 +108,26 @@
     <el-card shadow="never" class="table-card">
       <template #header>
         <div class="card-header">
-          <span>告警规则管理</span>
+          <span>{{ t('alertPage.ruleMgmt.title') }}</span>
           <el-button type="primary" @click="openCreateRule">
-            <el-icon><Plus /></el-icon>新建规则
+            <el-icon><Plus /></el-icon>{{ t('alertPage.ruleMgmt.create') }}
           </el-button>
         </div>
       </template>
 
       <el-table :data="rules" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="60" />
-        <el-table-column prop="name" label="规则名称" width="180" />
-        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="trigger_type" label="触发类型" width="120">
+        <el-table-column prop="name" :label="t('alertPage.col.name')" width="180" />
+        <el-table-column prop="description" :label="t('alertPage.col.description')" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="trigger_type" :label="t('alertPage.col.triggerType')" width="120">
           <template #default="{ row }">
             <el-tag size="small" :type="getTriggerTypeTag(row.trigger_type)">
               {{ getTriggerTypeLabel(row.trigger_type) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="trigger_value" label="触发值" width="120" />
-        <el-table-column prop="notify_channels" label="通知渠道" width="180">
+        <el-table-column prop="trigger_value" :label="t('alertPage.col.triggerValue')" width="120" />
+        <el-table-column prop="notify_channels" :label="t('alertPage.col.notifyChannels')" width="180">
           <template #default="{ row }">
             <el-tag
               v-for="channel in parseChannels(row.notify_channels)"
@@ -139,23 +139,23 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="enabled" label="状态" width="80">
+        <el-table-column prop="enabled" :label="t('alertPage.col.status')" width="80">
           <template #default="{ row }">
             <el-tag size="small" :type="row.enabled ? 'success' : 'info'">
-              {{ row.enabled ? '启用' : '禁用' }}
+              {{ row.enabled ? t('alertPage.status.enabled') : t('alertPage.status.disabled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="cooldown_minutes" label="冷却时间" width="100">
+        <el-table-column prop="cooldown_minutes" :label="t('alertPage.col.cooldown')" width="100">
           <template #default="{ row }">
-            {{ row.cooldown_minutes }}分钟
+            {{ t('alertPage.cooldownMinutes', row.cooldown_minutes) }}
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180" />
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column prop="created_at" :label="t('alertPage.col.createdAt')" width="180" />
+        <el-table-column :label="t('alertPage.col.action')" width="150" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEditRule(row)">编辑</el-button>
-            <el-button link type="danger" @click="handleDeleteRule(row)">删除</el-button>
+            <el-button link type="primary" @click="openEditRule(row)">{{ t('alertPage.action.edit') }}</el-button>
+            <el-button link type="danger" @click="handleDeleteRule(row)">{{ t('alertPage.action.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -165,16 +165,16 @@
     <el-card shadow="never" class="table-card" style="margin-top: 16px">
       <template #header>
         <div class="card-header">
-          <span>告警记录</span>
+          <span>{{ t('alertPage.record.title') }}</span>
           <el-button @click="loadAlerts">
-            <el-icon><Refresh /></el-icon>刷新
+            <el-icon><Refresh /></el-icon>{{ t('alertPage.record.refresh') }}
           </el-button>
         </div>
       </template>
 
       <!-- 搜索栏 -->
       <div class="search-bar">
-        <el-select v-model="query.rule_id" placeholder="告警规则" clearable style="width: 180px">
+        <el-select v-model="query.rule_id" :placeholder="t('alertPage.filter.rulePlaceholder')" clearable style="width: 180px">
           <el-option
             v-for="rule in rules"
             :key="rule.id"
@@ -182,48 +182,48 @@
             :value="rule.id"
           />
         </el-select>
-        <el-select v-model="query.risk_level" placeholder="风险等级" clearable style="width: 140px">
-          <el-option label="低风险" value="low" />
-          <el-option label="中风险" value="medium" />
-          <el-option label="高风险" value="high" />
-          <el-option label="严重风险" value="critical" />
+        <el-select v-model="query.risk_level" :placeholder="t('alertPage.filter.riskLevelPlaceholder')" clearable style="width: 140px">
+          <el-option :label="t('alertPage.risk.low')" value="low" />
+          <el-option :label="t('alertPage.risk.medium')" value="medium" />
+          <el-option :label="t('alertPage.risk.high')" value="high" />
+          <el-option :label="t('alertPage.risk.critical')" value="critical" />
         </el-select>
-        <el-input v-model="query.user_id" placeholder="用户ID" clearable style="width: 200px" />
+        <el-input v-model="query.user_id" :placeholder="t('alertPage.filter.userIdPlaceholder')" clearable style="width: 200px" />
         <el-button type="primary" @click="loadAlerts">
-          <el-icon><Search /></el-icon>查询
+          <el-icon><Search /></el-icon>{{ t('common.query') }}
         </el-button>
-        <el-button @click="resetAlertSearch">重置</el-button>
+        <el-button @click="resetAlertSearch">{{ t('common.reset') }}</el-button>
       </div>
 
       <el-table v-loading="alertLoading" :data="alerts" border stripe style="width: 100%">
         <el-table-column type="index" label="#" width="60" />
-        <el-table-column prop="rule_name" label="规则名称" width="180" />
-        <el-table-column prop="username" label="触发用户" width="120" />
-        <el-table-column prop="action" label="操作类型" width="100">
+        <el-table-column prop="rule_name" :label="t('alertPage.col.name')" width="180" />
+        <el-table-column prop="username" :label="t('alertPage.col.triggerUser')" width="120" />
+        <el-table-column prop="action" :label="t('alertPage.col.actionType')" width="100">
           <template #default="{ row }">
             <el-tag size="small">{{ row.action }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="risk_level" label="风险等级" width="100">
+        <el-table-column prop="risk_level" :label="t('alertPage.col.riskLevel')" width="100">
           <template #default="{ row }">
             <el-tag size="small" :type="getRiskLevelType(row.risk_level)">
               {{ getRiskLevelLabel(row.risk_level) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="message" label="告警消息" min-width="250" show-overflow-tooltip />
-        <el-table-column prop="notified" label="通知状态" width="100">
+        <el-table-column prop="message" :label="t('alertPage.col.message')" min-width="250" show-overflow-tooltip />
+        <el-table-column prop="notified" :label="t('alertPage.col.notifyStatus')" width="100">
           <template #default="{ row }">
             <el-tag size="small" :type="row.notified ? 'success' : 'warning'">
-              {{ row.notified ? '已通知' : '未通知' }}
+              {{ row.notified ? t('alertPage.notifyStatus.notified') : t('alertPage.notifyStatus.unnotified') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="notify_time" label="通知时间" width="180" />
-        <el-table-column prop="created_at" label="触发时间" width="180" />
-        <el-table-column label="操作" width="90" fixed="right">
+        <el-table-column prop="notify_time" :label="t('alertPage.col.notifyTime')" width="180" />
+        <el-table-column prop="created_at" :label="t('alertPage.col.triggerTime')" width="180" />
+        <el-table-column :label="t('alertPage.col.action')" width="90" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openAlertDetail(row.id)">详情</el-button>
+            <el-button link type="primary" @click="openAlertDetail(row.id)">{{ t('alertPage.action.detail') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -244,74 +244,74 @@
     <!-- 创建/编辑规则弹窗 -->
     <el-dialog
       v-model="ruleDialogVisible"
-      :title="isEditRule ? '编辑告警规则' : '新建告警规则'"
+      :title="isEditRule ? t('alertPage.dialog.editTitle') : t('alertPage.dialog.createTitle')"
       width="700px"
       destroy-on-close
     >
       <el-form :model="ruleForm" label-width="120px">
-        <el-form-item label="规则名称" required>
-          <el-input v-model="ruleForm.name" placeholder="请输入规则名称" />
+        <el-form-item :label="t('alertPage.form.nameLabel')" required>
+          <el-input v-model="ruleForm.name" :placeholder="t('alertPage.form.namePlaceholder')" />
         </el-form-item>
-        <el-form-item label="规则描述">
-          <el-input v-model="ruleForm.description" type="textarea" :rows="2" placeholder="请输入规则描述" />
+        <el-form-item :label="t('alertPage.form.descLabel')">
+          <el-input v-model="ruleForm.description" type="textarea" :rows="2" :placeholder="t('alertPage.form.descPlaceholder')" />
         </el-form-item>
-        <el-form-item label="是否启用">
+        <el-form-item :label="t('alertPage.form.enabledLabel')">
           <el-switch v-model="ruleForm.enabled" />
         </el-form-item>
-        <el-form-item label="触发类型" required>
-          <el-select v-model="ruleForm.trigger_type" placeholder="请选择触发类型" style="width: 100%">
-            <el-option label="按风险等级" value="risk_level" />
-            <el-option label="按操作类型" value="action" />
-            <el-option label="按特定用户" value="user" />
+        <el-form-item :label="t('alertPage.form.triggerTypeLabel')" required>
+          <el-select v-model="ruleForm.trigger_type" :placeholder="t('alertPage.form.triggerTypePlaceholder')" style="width: 100%">
+            <el-option :label="t('alertPage.form.trigger.byRisk')" value="risk_level" />
+            <el-option :label="t('alertPage.form.trigger.byAction')" value="action" />
+            <el-option :label="t('alertPage.form.trigger.byUser')" value="user" />
           </el-select>
         </el-form-item>
-        <el-form-item label="触发值" required>
-          <el-input v-model="ruleForm.trigger_value" placeholder="如: high/critical/delete/user_id" />
+        <el-form-item :label="t('alertPage.form.triggerValueLabel')" required>
+          <el-input v-model="ruleForm.trigger_value" :placeholder="t('alertPage.form.triggerValuePlaceholder')" />
         </el-form-item>
-        <el-form-item label="通知渠道" required>
+        <el-form-item :label="t('alertPage.form.notifyChannelsLabel')" required>
           <el-checkbox-group v-model="ruleForm.notify_channels">
-            <el-checkbox label="email">邮件</el-checkbox>
-            <el-checkbox label="dingtalk">钉钉</el-checkbox>
-            <el-checkbox label="wechat">企业微信</el-checkbox>
-            <el-checkbox label="webhook">自定义Webhook</el-checkbox>
+            <el-checkbox label="email">{{ t('alertPage.channel.email') }}</el-checkbox>
+            <el-checkbox label="dingtalk">{{ t('alertPage.channel.dingtalk') }}</el-checkbox>
+            <el-checkbox label="wechat">{{ t('alertPage.channel.wechat') }}</el-checkbox>
+            <el-checkbox label="webhook">{{ t('alertPage.channel.webhook') }}</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
-        <el-form-item label="通知目标" required>
+        <el-form-item :label="t('alertPage.form.notifyTargetsLabel')" required>
           <el-input
             v-model="ruleForm.notify_targets_input"
             type="textarea"
             :rows="3"
-            placeholder="每行一个，邮箱/Webhook地址"
+            :placeholder="t('alertPage.form.notifyTargetsPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="通知模板">
+        <el-form-item :label="t('alertPage.form.notifyTemplateLabel')">
           <el-input
             v-model="ruleForm.notify_template"
             type="textarea"
             :rows="3"
-            placeholder="支持Go模板语法，可用变量: {{.Username}}, {{.Action}}, {{.RiskLevel}}等"
+            :placeholder="t('alertPage.form.notifyTemplatePlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="冷却时间(分钟)">
+        <el-form-item :label="t('alertPage.form.cooldownLabel')">
           <el-input-number v-model="ruleForm.cooldown_minutes" :min="1" :max="1440" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="ruleDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmRule">确定</el-button>
+        <el-button @click="ruleDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="confirmRule">{{ t('alertPage.form.submit') }}</el-button>
       </template>
     </el-dialog>
     <!-- 告警详情：从收件箱的告警站内信跳转时带 alert_id，进入页面直接打开这一条 -->
-    <el-dialog v-model="alertDetailVisible" title="告警详情" width="640px">
+    <el-dialog v-model="alertDetailVisible" :title="t('alertPage.detail.title')" width="640px">
       <div v-loading="alertDetailLoading" class="alert-detail">
         <el-descriptions v-if="alertDetail" :column="2" border>
-          <el-descriptions-item label="规则名称">{{ alertDetail.rule_name }}</el-descriptions-item>
-          <el-descriptions-item label="风险等级">
+          <el-descriptions-item :label="t('alertPage.detail.ruleName')">{{ alertDetail.rule_name }}</el-descriptions-item>
+          <el-descriptions-item :label="t('alertPage.detail.riskLevel')">
             <el-tag size="small" :type="getRiskLevelType(alertDetail.risk_level)">
               {{ getRiskLevelLabel(alertDetail.risk_level) }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="触发用户">
+          <el-descriptions-item :label="t('alertPage.detail.triggerUser')">
             <el-button
               v-if="alertDetail.username || alertDetail.user_id"
               link
@@ -325,18 +325,18 @@
               （{{ alertDetail.user_id }}）
             </span>
           </el-descriptions-item>
-          <el-descriptions-item label="操作类型">
+          <el-descriptions-item :label="t('alertPage.detail.actionType')">
             <el-tag size="small">{{ alertDetail.action }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="告警消息" :span="2">{{ alertDetail.message }}</el-descriptions-item>
-          <el-descriptions-item label="通知状态">
+          <el-descriptions-item :label="t('alertPage.detail.message')" :span="2">{{ alertDetail.message }}</el-descriptions-item>
+          <el-descriptions-item :label="t('alertPage.detail.notifyStatus')">
             <el-tag size="small" :type="alertDetail.notified ? 'success' : 'warning'">
-              {{ alertDetail.notified ? '已通知' : '未通知' }}
+              {{ alertDetail.notified ? t('alertPage.notifyStatus.notified') : t('alertPage.notifyStatus.unnotified') }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="通知时间">{{ alertDetail.notify_time || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="触发时间">{{ alertDetail.created_at }}</el-descriptions-item>
-          <el-descriptions-item label="审计日志 ID">
+          <el-descriptions-item :label="t('alertPage.detail.notifyTime')">{{ alertDetail.notify_time || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('alertPage.detail.triggerTime')">{{ alertDetail.created_at }}</el-descriptions-item>
+          <el-descriptions-item :label="t('alertPage.detail.auditLogId')">
             <el-button
               v-if="alertDetail.audit_log_id"
               link
@@ -350,12 +350,12 @@
         </el-descriptions>
         <el-empty
           v-if="!alertDetailLoading && !alertDetail"
-          description="告警记录不存在或已过期"
+          :description="t('alertPage.detail.notFound')"
           :image-size="60"
         />
       </div>
       <template #footer>
-        <el-button @click="alertDetailVisible = false">关闭</el-button>
+        <el-button @click="alertDetailVisible = false">{{ t('alertPage.detail.close') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -371,6 +371,9 @@ import { get, post, put, del } from '@/api/request'
 import { getAlertStats, type AlertStatsResult } from '@/api/modules/audit'
 import { useTableList } from '@/composables/useTableList'
 import { toPageResult } from '@/types/pagination'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 interface AlertRule {
   id: string
@@ -497,7 +500,7 @@ async function loadAlertStats() {
     const data = await getAlertStats(statsDays.value)
     Object.assign(alertStats, data)
   } catch (e) {
-    console.error('加载告警统计失败', e)
+    console.error(t('alertPage.loadStatsFailed'), e)
   }
 }
 
@@ -513,7 +516,7 @@ async function loadRules() {
     const res = await get<AlertRule[]>('/audit/alert-rules')
     rules.value = Array.isArray(res) ? res : []
   } catch (error) {
-    console.error('加载告警规则失败', error)
+    console.error(t('alertPage.loadRulesFailed'), error)
   }
 }
 
@@ -614,11 +617,11 @@ function openEditRule(row: AlertRule) {
 
 async function confirmRule() {
   if (!ruleForm.name || !ruleForm.trigger_type || !ruleForm.trigger_value) {
-    ElMessage.warning('请填写必填项')
+    ElMessage.warning(t('alertPage.form.nameRequired'))
     return
   }
   if (ruleForm.notify_channels.length === 0) {
-    ElMessage.warning('请选择通知渠道')
+    ElMessage.warning(t('alertPage.form.channelsRequired'))
     return
   }
 
@@ -637,31 +640,31 @@ async function confirmRule() {
 
     if (isEditRule.value) {
       await put(`/audit/alert-rules/${editingRuleId.value}`, data)
-      ElMessage.success('更新告警规则成功')
+      ElMessage.success(t('alertPage.rule.updateSuccess'))
     } else {
       await post('/audit/alert-rules', data)
-      ElMessage.success('创建告警规则成功')
+      ElMessage.success(t('alertPage.rule.createSuccess'))
     }
     ruleDialogVisible.value = false
     loadRules()
   } catch (error) {
-    ElMessage.error(isEditRule.value ? '更新告警规则失败' : '创建告警规则失败')
+    ElMessage.error(isEditRule.value ? t('alertPage.rule.updateFailed') : t('alertPage.rule.createFailed'))
   }
 }
 
 async function handleDeleteRule(row: AlertRule) {
   try {
-    await ElMessageBox.confirm(`确定要删除告警规则 "${row.name}" 吗？`, '警告', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('alertPage.rule.deleteConfirm', row.name), t('alertPage.rule.deleteWarning'), {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning'
     })
     await del(`/audit/alert-rules/${row.id}`)
-    ElMessage.success('删除告警规则成功')
+    ElMessage.success(t('alertPage.rule.deleteSuccess'))
     loadRules()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除告警规则失败')
+      ElMessage.error(t('alertPage.rule.deleteFailed'))
     }
   }
 }
@@ -684,9 +687,9 @@ function parseTargets(targetsStr: string): string[] {
 
 function getChannelLabel(channel: string): string {
   const map: Record<string, string> = {
-    email: '邮件',
-    dingtalk: '钉钉',
-    wechat: '企业微信',
+    email: t('alertPage.channel.email'),
+    dingtalk: t('alertPage.channel.dingtalk'),
+    wechat: t('alertPage.channel.wechat'),
     webhook: 'Webhook'
   }
   return map[channel] || channel
@@ -694,9 +697,9 @@ function getChannelLabel(channel: string): string {
 
 function getTriggerTypeLabel(type: string): string {
   const map: Record<string, string> = {
-    risk_level: '风险等级',
-    action: '操作类型',
-    user: '特定用户'
+    risk_level: t('alertPage.trigger.riskLevel'),
+    action: t('alertPage.trigger.action'),
+    user: t('alertPage.trigger.user')
   }
   return map[type] || type
 }
@@ -722,10 +725,10 @@ function getRiskLevelType(level: string): string {
 
 function getRiskLevelLabel(level: string): string {
   const map: Record<string, string> = {
-    low: '低',
-    medium: '中',
-    high: '高',
-    critical: '严重'
+    low: t('alertPage.riskLevel.short.low'),
+    medium: t('alertPage.riskLevel.short.medium'),
+    high: t('alertPage.riskLevel.short.high'),
+    critical: t('alertPage.riskLevel.short.critical')
   }
   return map[level] || level
 }
