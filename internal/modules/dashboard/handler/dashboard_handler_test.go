@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"meteorx/internal/common/contextx"
 	"meteorx/internal/modules/dashboard/dto"
 	"meteorx/internal/modules/dashboard/handler"
 	"meteorx/internal/modules/dashboard/model"
@@ -18,12 +19,14 @@ import (
 )
 
 type stubDashboardService struct {
-	resp    *dto.DashboardOverviewResp
-	health  *dto.TenantHealthListResp
-	detail  *dto.TenantHealthItemResp
-	trend   *dto.GrowthTrendResp
-	gotDays int
-	err     error
+	resp     *dto.DashboardOverviewResp
+	health   *dto.TenantHealthListResp
+	detail   *dto.TenantHealthItemResp
+	trend    *dto.GrowthTrendResp
+	tenantOv *dto.TenantOverviewResp
+	gotTID   string
+	gotDays  int
+	err      error
 }
 
 func (s *stubDashboardService) GetOverview(_ context.Context) (*dto.DashboardOverviewResp, error) {
@@ -43,11 +46,28 @@ func (s *stubDashboardService) GetTenantHealthDetail(_ context.Context, _ string
 	return s.detail, s.err
 }
 
+func (s *stubDashboardService) GetTenantOverview(_ context.Context, tenantID string) (*dto.TenantOverviewResp, error) {
+	s.gotTID = tenantID
+	return s.tenantOv, s.err
+}
+
 func newDashboardRouter(stub *stubDashboardService) http.Handler {
 	h := handler.NewDashboardHandler(stub)
 	r := chi.NewRouter()
 	r.Get("/admin/dashboard/overview", h.GetOverview)
 	r.Get("/admin/dashboard/trend", h.GetTrend)
+	// 租户总览：需用中间件模拟登录组注入的 tenant_id 上下文
+	r.Route("/dashboard", func(r chi.Router) {
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if tid := req.Header.Get("X-Test-Tenant"); tid != "" {
+					*req = *req.WithContext(contextx.SetVars(req.Context(), tid, "u1", nil))
+				}
+				next.ServeHTTP(w, req)
+			})
+		})
+		r.Get("/tenant-overview", h.GetTenantOverview)
+	})
 	return r
 }
 
@@ -124,4 +144,50 @@ func TestGetTrend_ServiceError_Returns500(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "trend broken")
+}
+
+func TestGetTenantOverview_Success(t *testing.T) {
+	stub := &stubDashboardService{tenantOv: &dto.TenantOverviewResp{
+		Member: dto.TenantMemberOverviewResp{Total: 5, Active: 3},
+		Wiki:   dto.TenantWikiOverviewResp{Spaces: 2, Documents: 9, Views: 100},
+	}}
+	router := newDashboardRouter(stub)
+
+	req := httptest.NewRequest(http.MethodGet, "/dashboard/tenant-overview", nil)
+	req.Header.Set("X-Test-Tenant", "tA")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "tA", stub.gotTID, "handler 应从上下文取当前租户")
+	var out struct {
+		Data dto.TenantOverviewResp `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
+	assert.Equal(t, int64(5), out.Data.Member.Total)
+	assert.Equal(t, int64(9), out.Data.Wiki.Documents)
+}
+
+func TestGetTenantOverview_NoTenant_Returns401(t *testing.T) {
+	stub := &stubDashboardService{tenantOv: &dto.TenantOverviewResp{}}
+	router := newDashboardRouter(stub)
+
+	// 不注入 X-Test-Tenant → 上下文无租户 → 401
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/dashboard/tenant-overview", nil))
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Equal(t, "", stub.gotTID, "未取到租户时不应调用服务")
+}
+
+func TestGetTenantOverview_ServiceError_Returns500(t *testing.T) {
+	router := newDashboardRouter(&stubDashboardService{err: errors.New("overview broken")})
+
+	req := httptest.NewRequest(http.MethodGet, "/dashboard/tenant-overview", nil)
+	req.Header.Set("X-Test-Tenant", "tA")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "overview broken")
 }

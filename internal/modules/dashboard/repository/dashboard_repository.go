@@ -21,6 +21,8 @@ type DashboardRepository interface {
 	GetTenantHealthDetail(ctx context.Context, tenantID string) (*model.TenantHealthItem, error)
 	// GetTrend 获取最近 days 天的增长趋势时间序列（按自然日分桶）
 	GetTrend(ctx context.Context, days int) (*model.GrowthTrend, error)
+	// GetTenantOverview 聚合单个租户的总览（成员/任务/Wiki/存储），供租户工作台首屏
+	GetTenantOverview(ctx context.Context, tenantID string) (*model.TenantOverview, error)
 }
 
 // trendMaxDays 增长趋势查询的最大天数上限，避免一次性拉取过大区间压库。

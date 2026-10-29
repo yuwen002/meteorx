@@ -1,17 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-// 隔离网络层：工作台五路统计 + 会话列表全部 mock，聚焦装载与降级逻辑
+// 隔离网络层：工作台各统计源 + 会话列表全部 mock，聚焦装载与降级/兜底逻辑
 vi.mock('@/api/modules/task', () => ({ getTaskStats: vi.fn() }))
 vi.mock('@/api/modules/wiki', () => ({ getWikiStats: vi.fn(), getUnreadNotificationCount: vi.fn() }))
 vi.mock('@/api/modules/user', () => ({ getUserStats: vi.fn() }))
 vi.mock('@/api/modules/message', () => ({ getUnreadCount: vi.fn() }))
+vi.mock('@/api/modules/dashboard', () => ({ getTenantOverview: vi.fn() }))
 vi.mock('@/api/modules/chat', () => ({ listConversations: vi.fn() }))
 
 import { getTaskStats } from '@/api/modules/task'
 import { getWikiStats, getUnreadNotificationCount } from '@/api/modules/wiki'
 import { getUserStats } from '@/api/modules/user'
 import { getUnreadCount } from '@/api/modules/message'
+import { getTenantOverview } from '@/api/modules/dashboard'
 import { listConversations } from '@/api/modules/chat'
 import type { ConversationItem } from '@/api/modules/chat'
 import { useChatStore } from '@/stores/chat'
@@ -43,6 +45,12 @@ describe('useWorkspaceStats 租户工作台装载', () => {
       completion_rate: 0.66,
       avg_handle_seconds: 7200
     })
+    vi.mocked(getTenantOverview).mockResolvedValue({
+      member: { total: 9, active: 7 },
+      task: { pending: 3, in_progress: 2, completed: 10, overdue: 1, total: 15, completion_rate: 0.66 },
+      wiki: { spaces: 4, documents: 36, views: 500 },
+      storage_used: 12345
+    })
     vi.mocked(getWikiStats).mockResolvedValue({
       total_spaces: 4,
       total_nodes: 20,
@@ -55,21 +63,45 @@ describe('useWorkspaceStats 租户工作台装载', () => {
     vi.mocked(listConversations).mockResolvedValue([])
   })
 
-  it('load 并发拉取五路统计并写入各卡数据源', async () => {
+  it('load 走聚合接口取成员/Wiki/存储，任务与未读各自独立', async () => {
     const ws = useWorkspaceStats()
     await ws.load()
     expect(ws.task.pending).toBe(3)
     expect(ws.wiki.total_documents).toBe(36)
+    expect(ws.wiki.total_spaces).toBe(4)
     expect(ws.memberCount).toBe(9)
+    expect(ws.storageUsed).toBe(12345)
     expect(ws.unreadMessages).toBe(5)
     expect(ws.unreadNotifications).toBe(2)
+    // 聚合成功时不应再各自回退到独立接口
+    expect(getUserStats).not.toHaveBeenCalled()
+    expect(getWikiStats).not.toHaveBeenCalled()
+  })
+
+  it('聚合接口失败时回退独立接口取成员/Wiki', async () => {
+    vi.mocked(getTenantOverview).mockRejectedValue(new Error('overview down'))
+    vi.mocked(getUserStats).mockResolvedValue({ user_count: 11 })
+    vi.mocked(getWikiStats).mockResolvedValue({
+      total_spaces: 6,
+      total_nodes: 30,
+      total_documents: 42,
+      total_views: 800
+    })
+    const ws = useWorkspaceStats()
+    await ws.load()
+    expect(getUserStats).toHaveBeenCalledTimes(1)
+    expect(getWikiStats).toHaveBeenCalledTimes(1)
+    expect(ws.memberCount).toBe(11)
+    expect(ws.wiki.total_documents).toBe(42)
+    // 兜底路径不含存储维度，保持零值
+    expect(ws.storageUsed).toBe(0)
   })
 
   it('单路失败仅该卡降级为零值，其余照常', async () => {
-    vi.mocked(getWikiStats).mockRejectedValue(new Error('wiki down'))
+    vi.mocked(getUnreadCount).mockRejectedValue(new Error('msg down'))
     const ws = useWorkspaceStats()
     await ws.load()
-    expect(ws.wiki.total_documents).toBe(0)
+    expect(ws.unreadMessages).toBe(0)
     expect(ws.task.total).toBe(15)
     expect(ws.memberCount).toBe(9)
   })

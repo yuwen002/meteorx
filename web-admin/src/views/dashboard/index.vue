@@ -229,7 +229,7 @@
               <div class="stat-info">
                 <div class="stat-label">{{ t('dashboardPage.ws.memberTitle') }}</div>
                 <div class="stat-value">{{ ws.memberCount }}</div>
-                <div class="stat-sub">{{ t('dashboardPage.ws.tenantLabel') }} {{ userStore.userInfo?.tenant_id || '-' }}</div>
+                <div class="stat-sub">{{ t('dashboardPage.ws.storage') }} {{ storageText }}</div>
               </div>
             </div>
           </el-card>
@@ -439,6 +439,16 @@ const avgHandleText = computed(() => {
   if (s < 86400) return Math.round(s / 3600) + ' ' + t('dashboardPage.ws.unitHour')
   return Math.round(s / 86400) + ' ' + t('dashboardPage.ws.unitDay')
 })
+
+/** 存储占用可读化：按 1024 进制换算 B/KB/MB/GB/TB */
+function formatBytes(n: number): string {
+  if (!n || n < 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1)
+  const val = n / Math.pow(1024, i)
+  return `${i === 0 ? val : val.toFixed(1)} ${units[i]}`
+}
+const storageText = computed(() => formatBytes(ws.storageUsed))
 
 // 快捷入口：替代原静态欢迎语文案，直达各业务页
 const quickEntries = computed(() => [

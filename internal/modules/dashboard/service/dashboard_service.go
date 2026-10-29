@@ -54,3 +54,12 @@ func (s *DashboardService) GetTrend(ctx context.Context, days int) (*dto.GrowthT
 	}
 	return dto.ToGrowthTrendResp(trend), nil
 }
+
+// GetTenantOverview 获取单个租户的总览聚合（成员/任务/Wiki/存储），供租户工作台首屏
+func (s *DashboardService) GetTenantOverview(ctx context.Context, tenantID string) (*dto.TenantOverviewResp, error) {
+	overview, err := s.repo.GetTenantOverview(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	return dto.ToTenantOverviewResp(overview), nil
+}

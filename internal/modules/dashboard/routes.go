@@ -23,3 +23,12 @@ func RegisterRoutes(r chi.Router, h *handler.DashboardHandler, checker middlewar
 		r.Post("/slow-queries/reset", h.ResetSlowQueries)      // admin:dashboard:create
 	})
 }
+
+// RegisterTenantRoutes 注册租户侧看板路由（仅登录，不挂权限码）。
+// 与 task/wiki/message 一致，以当前 JWT 租户身份为访问边界。
+// 挂载路径前缀: /api/v1/dashboard
+func RegisterTenantRoutes(r chi.Router, h *handler.DashboardHandler) {
+	r.Route("/dashboard", func(r chi.Router) {
+		r.Get("/tenant-overview", h.GetTenantOverview) // 当前租户总览（成员/任务/Wiki/存储）
+	})
+}

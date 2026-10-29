@@ -104,3 +104,36 @@ type TenantHealthList struct {
 	Moderate int64              `json:"moderate"` // 中等租户数
 	AtRisk   int64              `json:"at_risk"`  // 风险租户数
 }
+
+// TenantOverview 单个租户的总览聚合（供租户工作台首屏一次性拉取）。
+// 仅收敛变化慢、可批量计算的租户级事实（成员/任务/Wiki/存储），
+// 未读消息/通知/聊天等按用户实时维度不在此聚合。
+type TenantOverview struct {
+	Member      TenantMemberOverview `json:"member"`
+	Task        TenantTaskOverview   `json:"task"`
+	Wiki        TenantWikiOverview   `json:"wiki"`
+	StorageUsed int64                `json:"storage_used"` // 存储占用（字节）
+}
+
+// TenantMemberOverview 租户成员统计
+type TenantMemberOverview struct {
+	Total  int64 `json:"total"`  // 成员总数
+	Active int64 `json:"active"` // 有效成员数（status=1）
+}
+
+// TenantTaskOverview 租户任务状态分布（租户级，含全部成员的任务）
+type TenantTaskOverview struct {
+	Pending      int64   `json:"pending"`       // 待办
+	InProgress   int64   `json:"in_progress"`   // 进行中
+	Completed    int64   `json:"completed"`     // 已完成
+	Overdue      int64   `json:"overdue"`       // 逾期（未完成且已过截止日）
+	Total        int64   `json:"total"`         // 总数
+	CompletionRate float64 `json:"completion_rate"` // 完成率（completed/total），0~1
+}
+
+// TenantWikiOverview 租户 Wiki 统计
+type TenantWikiOverview struct {
+	Spaces    int64 `json:"spaces"`    // 空间数
+	Documents int64 `json:"documents"` // 文档数
+	Views     int64 `json:"views"`     // 累计浏览量
+}

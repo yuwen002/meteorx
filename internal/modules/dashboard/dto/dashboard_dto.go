@@ -192,3 +192,58 @@ func ToTenantHealthItemResp(it model.TenantHealthItem) TenantHealthItemResp {
 		HealthLevel:           it.HealthLevel,
 	}
 }
+
+// TenantOverviewResp 租户总览聚合响应（供工作台首屏）
+type TenantOverviewResp struct {
+	Member      TenantMemberOverviewResp `json:"member"`
+	Task        TenantTaskOverviewResp   `json:"task"`
+	Wiki        TenantWikiOverviewResp   `json:"wiki"`
+	StorageUsed int64                    `json:"storage_used"`
+}
+
+// TenantMemberOverviewResp 成员统计响应
+type TenantMemberOverviewResp struct {
+	Total  int64 `json:"total"`
+	Active int64 `json:"active"`
+}
+
+// TenantTaskOverviewResp 任务状态分布响应
+type TenantTaskOverviewResp struct {
+	Pending        int64   `json:"pending"`
+	InProgress     int64   `json:"in_progress"`
+	Completed      int64   `json:"completed"`
+	Overdue        int64   `json:"overdue"`
+	Total          int64   `json:"total"`
+	CompletionRate float64 `json:"completion_rate"`
+}
+
+// TenantWikiOverviewResp Wiki 统计响应
+type TenantWikiOverviewResp struct {
+	Spaces    int64 `json:"spaces"`
+	Documents int64 `json:"documents"`
+	Views     int64 `json:"views"`
+}
+
+// ToTenantOverviewResp 将租户总览领域模型转换为响应 DTO
+func ToTenantOverviewResp(m *model.TenantOverview) *TenantOverviewResp {
+	if m == nil {
+		return nil
+	}
+	return &TenantOverviewResp{
+		Member: TenantMemberOverviewResp{Total: m.Member.Total, Active: m.Member.Active},
+		Task: TenantTaskOverviewResp{
+			Pending:        m.Task.Pending,
+			InProgress:     m.Task.InProgress,
+			Completed:      m.Task.Completed,
+			Overdue:        m.Task.Overdue,
+			Total:          m.Task.Total,
+			CompletionRate: m.Task.CompletionRate,
+		},
+		Wiki: TenantWikiOverviewResp{
+			Spaces:    m.Wiki.Spaces,
+			Documents: m.Wiki.Documents,
+			Views:     m.Wiki.Views,
+		},
+		StorageUsed: m.StorageUsed,
+	}
+}

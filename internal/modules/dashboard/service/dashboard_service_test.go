@@ -17,6 +17,8 @@ type mockDashboardRepo struct {
 	health   *model.TenantHealthList
 	detail   *model.TenantHealthItem
 	trend    *model.GrowthTrend
+	tenantOv *model.TenantOverview
+	gotTID   string
 	err      error
 }
 
@@ -34,6 +36,11 @@ func (m *mockDashboardRepo) GetTenantHealth(_ context.Context, _ model.HealthQue
 
 func (m *mockDashboardRepo) GetTenantHealthDetail(_ context.Context, _ string) (*model.TenantHealthItem, error) {
 	return m.detail, m.err
+}
+
+func (m *mockDashboardRepo) GetTenantOverview(_ context.Context, tenantID string) (*model.TenantOverview, error) {
+	m.gotTID = tenantID
+	return m.tenantOv, m.err
 }
 
 func TestGetOverview_MapsAllStats(t *testing.T) {
@@ -108,4 +115,34 @@ func TestGetTrend_PropagatesRepositoryError(t *testing.T) {
 
 	assert.Nil(t, resp)
 	assert.EqualError(t, err, "trend db down")
+}
+
+func TestGetTenantOverview_MapsAndPassesTenantID(t *testing.T) {
+	repo := &mockDashboardRepo{tenantOv: &model.TenantOverview{
+		Member:      model.TenantMemberOverview{Total: 5, Active: 3},
+		Task:        model.TenantTaskOverview{Pending: 2, InProgress: 1, Completed: 4, Overdue: 1, Total: 7, CompletionRate: 0.5714},
+		Wiki:        model.TenantWikiOverview{Spaces: 2, Documents: 9, Views: 100},
+		StorageUsed: 4096,
+	}}
+	svc := service.NewDashboardService(repo)
+
+	resp, err := svc.GetTenantOverview(context.Background(), "tA")
+
+	assert.NoError(t, err)
+	assert.Equal(t, "tA", repo.gotTID)
+	assert.Equal(t, int64(5), resp.Member.Total)
+	assert.Equal(t, int64(3), resp.Member.Active)
+	assert.Equal(t, int64(1), resp.Task.Overdue)
+	assert.InDelta(t, 0.5714, resp.Task.CompletionRate, 0.0001)
+	assert.Equal(t, int64(9), resp.Wiki.Documents)
+	assert.Equal(t, int64(4096), resp.StorageUsed)
+}
+
+func TestGetTenantOverview_PropagatesRepositoryError(t *testing.T) {
+	svc := service.NewDashboardService(&mockDashboardRepo{err: errors.New("overview db down")})
+
+	resp, err := svc.GetTenantOverview(context.Background(), "tA")
+
+	assert.Nil(t, resp)
+	assert.EqualError(t, err, "overview db down")
 }

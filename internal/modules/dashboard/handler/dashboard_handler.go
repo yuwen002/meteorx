@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"meteorx/internal/common/contextx"
 	"meteorx/internal/common/response"
 	"meteorx/internal/dbmonitor"
 	"meteorx/internal/modules/dashboard/dto"
@@ -22,6 +23,7 @@ type DashboardService interface {
 	GetTenantHealth(ctx context.Context, query model.HealthQuery) (*dto.TenantHealthListResp, error)
 	GetTenantHealthDetail(ctx context.Context, tenantID string) (*dto.TenantHealthItemResp, error)
 	GetTrend(ctx context.Context, days int) (*dto.GrowthTrendResp, error)
+	GetTenantOverview(ctx context.Context, tenantID string) (*dto.TenantOverviewResp, error)
 }
 
 // 增长趋势查询的天数默认值与上限，与仓库层上限保持一致。
@@ -131,4 +133,22 @@ func (h *DashboardHandler) GetSlowQueries(w http.ResponseWriter, r *http.Request
 func (h *DashboardHandler) ResetSlowQueries(w http.ResponseWriter, r *http.Request) {
 	dbmonitor.Reset()
 	response.Success(w, map[string]string{"message": "慢查询统计已重置"})
+}
+
+// GetTenantOverview 获取当前租户的总览聚合（成员/任务/Wiki/存储）
+// GET /api/v1/dashboard/tenant-overview（仅登录，以 JWT 租户身份为准，不挂权限码）
+func (h *DashboardHandler) GetTenantOverview(w http.ResponseWriter, r *http.Request) {
+	tenantID := contextx.GetTenantID(r.Context())
+	if tenantID == "" {
+		response.Unauthorized(w, "未获取到租户信息")
+		return
+	}
+
+	overview, err := h.svc.GetTenantOverview(r.Context(), tenantID)
+	if err != nil {
+		slog.Error("获取租户总览失败", "tenant_id", tenantID, "error", err)
+		response.Fail(w, http.StatusInternalServerError, "获取租户总览失败: "+err.Error())
+		return
+	}
+	response.Success(w, overview)
 }

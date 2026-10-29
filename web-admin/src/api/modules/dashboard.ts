@@ -147,3 +147,25 @@ export function getSlowQueries() {
 export function resetSlowQueries() {
   return post<{ message: string }>('/admin/dashboard/slow-queries/reset')
 }
+
+// ---------- 租户总览（仅登录，面向租户工作台首屏）----------
+
+/** 租户总览响应（与后端 dto.TenantOverviewResp 对齐） */
+export interface TenantOverview {
+  member: { total: number; active: number }
+  task: {
+    pending: number
+    in_progress: number
+    completed: number
+    overdue: number
+    total: number
+    completion_rate: number
+  }
+  wiki: { spaces: number; documents: number; views: number }
+  storage_used: number
+}
+
+// 获取当前租户的总览聚合（成员/任务/Wiki/存储）
+export function getTenantOverview() {
+  return get<TenantOverview>('/dashboard/tenant-overview')
+}

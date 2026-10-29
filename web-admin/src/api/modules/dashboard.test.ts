@@ -6,11 +6,13 @@ import {
   getGrowthTrend,
   getSlowQueries,
   resetSlowQueries,
+  getTenantOverview,
   type DashboardOverview,
   type TenantHealthList,
   type TenantHealthItem,
   type GrowthTrend,
   type SlowQuerySnapshot,
+  type TenantOverview,
 } from './dashboard'
 
 vi.mock('@/api/request', () => ({
@@ -120,5 +122,20 @@ describe('Dashboard API', () => {
     vi.mocked(get).mockResolvedValue({ days: 7, list: [] })
     await getGrowthTrend(7)
     expect(get).toHaveBeenCalledWith('/admin/dashboard/trend', { days: 7 })
+  })
+
+  it('getTenantOverview 应 GET /dashboard/tenant-overview 并透传聚合结构', async () => {
+    const ov: TenantOverview = {
+      member: { total: 9, active: 7 },
+      task: { pending: 3, in_progress: 2, completed: 10, overdue: 1, total: 15, completion_rate: 0.66 },
+      wiki: { spaces: 4, documents: 36, views: 500 },
+      storage_used: 12345,
+    }
+    vi.mocked(get).mockResolvedValue(ov)
+    const res = await getTenantOverview()
+    expect(get).toHaveBeenCalledWith('/dashboard/tenant-overview')
+    expect(res.member.total).toBe(9)
+    expect(res.wiki.documents).toBe(36)
+    expect(res.storage_used).toBe(12345)
   })
 })

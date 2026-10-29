@@ -292,6 +292,10 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 复用上方 msgHub：WS 启用时发送的消息实时投递给在线成员，未启用时仅落库、下次拉历史补齐。
 			chat.InitModule(r, db, msgHub, *cfg)
 
+			// 4.13 租户侧数据看板（仅登录）：聚合当前租户的成员/任务/Wiki/存储供工作台首屏，
+			// 以 JWT 租户身份为访问边界，不挂 RBAC 权限码（与 task/wiki/message 同款范式）。
+			dashboard.InitTenantModule(r, db)
+
 			// ========================================================
 			// 🔥 新增分组三：MaaS 平台运营后台特权接口 (Platform Admin Only)
 			// ========================================================
