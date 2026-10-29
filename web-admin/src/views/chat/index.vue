@@ -85,6 +85,10 @@
                   {{ t('chat.recall') }}
                 </el-button>
               </div>
+              <!-- 已读回执：仅在我发送的最后一条消息上展示 -->
+              <div v-if="isMine(msg) && !msg.recalled && msg.id === lastMyMessageId" class="msg-read">
+                {{ readLabel(msg) }}
+              </div>
             </div>
           </div>
         </div>
@@ -248,6 +252,23 @@ function isMine(msg: ChatMessageItem): boolean {
 }
 function displayName(msg: ChatMessageItem): string {
   return isMine(msg) ? t('chat.me') : msg.sender_name || msg.sender_id
+}
+
+// ---- 已读回执 ----
+// 仅在我发送的最后一条未撤回消息上展示已读状态，避免逐条刷屏
+const lastMyMessageId = computed(() => {
+  for (let i = chatStore.messages.length - 1; i >= 0; i--) {
+    const m = chatStore.messages[i]
+    if (m.sender_id === myId() && !m.recalled) return m.id
+  }
+  return ''
+})
+
+function readLabel(msg: ChatMessageItem): string {
+  const n = chatStore.readCountAt(msg.created_at)
+  // 私聊：对方已读/未读二态；群聊：仅在有成员已读时显示人数，未读不占位
+  if (isActiveGroup.value) return n > 0 ? t('chat.readStatusCount', n) : ''
+  return n > 0 ? t('chat.readStatusRead') : t('chat.readStatusUnread')
 }
 
 // ---- 在线状态 / 输入中 ----
@@ -750,6 +771,12 @@ onUnmounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 4px;
+}
+.msg-read {
+  font-size: 11px;
+  opacity: 0.7;
+  text-align: right;
+  margin-top: 2px;
 }
 .recall-theirs {
   color: var(--mx-text-muted);

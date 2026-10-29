@@ -7,6 +7,7 @@ import {
   sendChatMessage,
   listChatMessages,
   markConversationRead,
+  getConversationReadStatus,
   recallChatMessage,
   sendTyping,
   getPresence,
@@ -17,9 +18,10 @@ import {
   renameGroup as apiRenameGroup,
   type ConversationItem,
   type ChatMessageItem,
-  type MemberItem
+  type MemberItem,
+  type ReadStateItem
 } from '@/api/modules/chat'
-import { toPageResult } from '@/types/pagination'
+import { toPageResult, asArray } from '@/types/pagination'
 
 // 输入中提示自动消退时长（无停止事件时多久后不再展示）
 const TYPING_TTL_MS = 4000
@@ -51,6 +53,11 @@ export const useChatStore = defineStore('chat', () => {
 
   /** 当前在线（持有 WS 连接）的用户 ID 集合 */
   const onlineUserIds = ref<string[]>([])
+  /**
+   * 当前会话内除本人外各成员的已读水位：userId -> last_read_at。
+   * 时间格式为后端统一的 YYYY-MM-DD HH:mm:ss（秒级），字典序即时间序，可直接字符串比较。
+   */
+  const readStates = ref<Record<string, string>>({})
   /** conversationID -> 正在输入的用户 ID 列表 */
   const typingUsers = ref<Record<string, string[]>>({})
   /** `${convId}:${userId}` -> 消退定时器 */
@@ -114,6 +121,7 @@ export const useChatStore = defineStore('chat', () => {
     messages.value = []
     messagePage.value = 0
     hasMoreMessages.value = false
+    readStates.value = {}
     loadingMessages.value = true
     try {
       const res = await listChatMessages(id, { page: 1, page_size: MESSAGE_PAGE_SIZE })
@@ -127,9 +135,35 @@ export const useChatStore = defineStore('chat', () => {
       if (conv) conv.unread_count = 0
       void markConversationRead(id).catch(() => {})
       void loadPresence()
+      void loadReadStates(id)
     } finally {
       loadingMessages.value = false
     }
+  }
+
+  /** 拉取当前会话其他成员的已读水位（弱信息，失败静默） */
+  async function loadReadStates(conversationId: string) {
+    try {
+      const res = await getConversationReadStatus(conversationId)
+      const map: Record<string, string> = {}
+      // 空列表时后端序列化为 { data: null }，须经 asArray 归一化
+      for (const s of asArray<ReadStateItem>(res)) {
+        if (s.last_read_at) map[s.user_id] = s.last_read_at
+      }
+      // 回拉期间会话已切换则丢弃，避免跨会话串位
+      if (activeId.value === conversationId) readStates.value = map
+    } catch {
+      /* 忽略：已读回执为弱信息，不影响聊天主流程 */
+    }
+  }
+
+  /** 统计 createdAt 时刻发送的消息已被多少成员阅读（水位 >= 消息时间即已读） */
+  function readCountAt(createdAt: string): number {
+    let n = 0
+    for (const at of Object.values(readStates.value)) {
+      if (at >= createdAt) n++
+    }
+    return n
   }
 
   /**
@@ -213,6 +247,15 @@ export const useChatStore = defineStore('chat', () => {
       }
     }
     // 若被撤回的正是会话摘要那条，摘要已不可靠，交由下次拉列表自然纠正，这里不主动改写
+  }
+
+  /** 处理 WS 推送来的已读回执：仅更新当前会话内对应成员的水位（取更大值） */
+  function receiveReadPush(payload: { conversation_id: string; user_id: string; read_at: string }) {
+    if (!payload?.conversation_id || !payload?.user_id || payload.conversation_id !== activeId.value) return
+    const cur = readStates.value[payload.user_id]
+    if (!cur || payload.read_at > cur) {
+      readStates.value = { ...readStates.value, [payload.user_id]: payload.read_at }
+    }
   }
 
   /** 处理 WS 推送来的输入中事件 */
@@ -326,6 +369,7 @@ export const useChatStore = defineStore('chat', () => {
     activeId.value = ''
     messagePage.value = 0
     hasMoreMessages.value = false
+    readStates.value = {}
     onlineUserIds.value = []
     typingUsers.value = {}
     Object.values(typingTimers).forEach((t) => clearTimeout(t))
@@ -340,6 +384,7 @@ export const useChatStore = defineStore('chat', () => {
     loadingOlder,
     hasMoreMessages,
     messagePage,
+    readStates,
     sending,
     onlineUserIds,
     typingUsers,
@@ -352,6 +397,8 @@ export const useChatStore = defineStore('chat', () => {
     createGroup,
     selectConversation,
     loadOlderMessages,
+    readCountAt,
+    receiveReadPush,
     send,
     recall,
     notifyTyping,

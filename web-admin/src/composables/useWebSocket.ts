@@ -24,6 +24,13 @@ export interface ChatTypingPayload {
   typing: boolean
 }
 
+// 已读回执负载（与后端 dto.ReadPush 对齐）
+export interface ChatReadPayload {
+  conversation_id: string
+  user_id: string
+  read_at: string
+}
+
 // WebSocket 消息：按 type 判别负载结构，避免使用 any
 export type WSMessage =
   | { type: 'alert'; payload: AlertNotification; time: number }
@@ -33,6 +40,7 @@ export type WSMessage =
   | { type: 'chat_recall'; payload: ChatRecallPayload; time: number }
   | { type: 'chat_typing'; payload: ChatTypingPayload; time: number }
   | { type: 'chat_conversation'; payload: ConversationItem; time: number }
+  | { type: 'chat_read'; payload: ChatReadPayload; time: number }
 
 // 重连配置
 const RECONNECT_BASE_DELAY = 1000 // base delay 1s

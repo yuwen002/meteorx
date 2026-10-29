@@ -606,6 +606,50 @@ func TestListMembers_EnrichesNames(t *testing.T) {
 	}
 }
 
+func TestReadStatus_NonMember(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = false
+	if _, err := svc.ReadStatus(context.Background(), "t1", "u1", "c1"); err != ErrConversationNotFound {
+		t.Fatalf("非成员期望 ErrConversationNotFound, got %v", err)
+	}
+}
+
+func TestReadStatus_ExcludesSelfAndEnriches(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = true
+	readAt := time.Now()
+	repo.memberList = []*model.ConversationMember{
+		{UserID: "u1", Role: model.MemberRoleOwner, LastReadAt: &readAt},
+		{UserID: "u2", Role: model.MemberRoleMember, LastReadAt: &readAt},
+		{UserID: "u3", Role: model.MemberRoleMember}, // 从未读，LastReadAt 为空
+	}
+	members, err := svc.ReadStatus(context.Background(), "t1", "u1", "c1")
+	if err != nil {
+		t.Fatalf("期望成功, got %v", err)
+	}
+	if len(members) != 2 {
+		t.Fatalf("应排除请求者本人, got %+v", members)
+	}
+	if members[0].UserID != "u2" || members[0].UserName != "name-u2" {
+		t.Fatalf("其余成员未富化或顺序异常, got %+v", members)
+	}
+	if members[1].UserID != "u3" || members[1].LastReadAt != nil {
+		t.Fatalf("从未读成员水位应为空, got %+v", members[1])
+	}
+}
+
+func TestMarkRead_AdvancesWatermark(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = true
+	// hub 为 nil 时推送应静默跳过不影响水位推进
+	if err := svc.MarkRead(context.Background(), "t1", "u1", "c1"); err != nil {
+		t.Fatalf("期望成功, got %v", err)
+	}
+	if len(repo.markRead) != 1 || repo.markRead[0] != "c1:u1" {
+		t.Fatalf("已读水位未推进, got %v", repo.markRead)
+	}
+}
+
 func TestToConversationResp_CarriesGroupFields(t *testing.T) {
 	resp := ToConversationResp(&model.Conversation{
 		ID: "c1", Type: model.ConversationTypeGroup, PeerName: "g", Name: "g",

@@ -232,6 +232,30 @@ func (h *ChatHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, items)
 }
 
+// ReadStatus 获取会话内其他成员的已读水位（已读回执）。GET /api/v1/chat/conversations/{id}/read-status
+func (h *ChatHandler) ReadStatus(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := currentIdentity(r)
+	id := chi.URLParam(r, "id")
+	if tenantID == "" || userID == "" || id == "" {
+		response.BadRequest(w, "参数不完整")
+		return
+	}
+	members, err := h.svc.ReadStatus(r.Context(), tenantID, userID, id)
+	if err != nil {
+		h.writeErr(w, err, "获取已读状态失败")
+		return
+	}
+	items := make([]*dto.ReadStateResp, 0, len(members))
+	for _, m := range members {
+		item := &dto.ReadStateResp{UserID: m.UserID, Name: m.UserName}
+		if m.LastReadAt != nil {
+			item.LastReadAt = m.LastReadAt.Format("2006-01-02 15:04:05")
+		}
+		items = append(items, item)
+	}
+	response.Success(w, items)
+}
+
 // AddMembers 向群添加成员。POST /api/v1/chat/conversations/{id}/members
 func (h *ChatHandler) AddMembers(w http.ResponseWriter, r *http.Request) {
 	tenantID, userID := currentIdentity(r)

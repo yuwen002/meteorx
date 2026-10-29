@@ -40,6 +40,14 @@ export interface MemberItem {
   joined_at: string
 }
 
+/** 成员已读水位（与后端 dto.ReadStateResp 对齐，仅含请求者以外的会话成员） */
+export interface ReadStateItem {
+  user_id: string
+  name: string
+  /** 最后已读时间；为空表示从未读该会话 */
+  last_read_at?: string
+}
+
 /** 聊天消息（与后端 dto.ChatMessageResp 对齐） */
 export interface ChatMessageItem {
   id: string
@@ -84,9 +92,14 @@ export function listChatMessages(conversationId: string, params?: MessageListPar
   return get<PageResult<ChatMessageItem>>(`/chat/conversations/${conversationId}/messages`, params)
 }
 
-/** 标记会话已读（幂等，推进服务端已读水位） */
+/** 标记会话已读（幂等，推进服务端已读水位，并经 WS 向其他成员广播已读回执） */
 export function markConversationRead(conversationId: string) {
   return post<{ ok: boolean }>(`/chat/conversations/${conversationId}/read`)
+}
+
+/** 获取会话内其他成员的已读水位（已读回执计算用） */
+export function getConversationReadStatus(conversationId: string) {
+  return get<ReadStateItem[]>(`/chat/conversations/${conversationId}/read-status`)
 }
 
 /** 撤回自己发送的消息（仅发送人本人、限时 5 分钟） */

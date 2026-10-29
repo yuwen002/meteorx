@@ -24,6 +24,8 @@ const (
 	MsgTypeChatRecall MessageType = "chat_recall"
 	// MsgTypeChatConversation 会话元信息变更（群名/成员数等）：接收方据此刷新会话列表
 	MsgTypeChatConversation MessageType = "chat_conversation"
+	// MsgTypeChatRead 已读回执事件：成员已读水位推进后实时告知其他成员
+	MsgTypeChatRead MessageType = "chat_read"
 )
 
 // Message WebSocket 消息结构

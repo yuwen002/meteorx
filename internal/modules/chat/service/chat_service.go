@@ -80,6 +80,8 @@ type ChatServiceInterface interface {
 	RemoveMember(ctx context.Context, tenantID, userID, conversationID, targetUserID string) error
 	LeaveGroup(ctx context.Context, tenantID, userID, conversationID string) error
 	ListMembers(ctx context.Context, tenantID, userID, conversationID string) ([]*model.ConversationMember, error)
+	// ReadStatus 返回会话内除请求者外各成员的已读水位，供已读回执计算。
+	ReadStatus(ctx context.Context, tenantID, userID, conversationID string) ([]*model.ConversationMember, error)
 }
 
 // ChatService 聊天模块业务服务。
@@ -200,12 +202,22 @@ func (s *ChatService) ListMessages(ctx context.Context, tenantID, userID, conver
 	return msgs, total, nil
 }
 
-// MarkRead 将当前用户在该会话的已读水位推进到现在。
+// MarkRead 将当前用户在该会话的已读水位推进到现在，并实时告知其他成员（已读回执）。
 func (s *ChatService) MarkRead(ctx context.Context, tenantID, userID, conversationID string) error {
 	if err := s.ensureMember(ctx, conversationID, tenantID, userID); err != nil {
 		return err
 	}
-	return s.repo.MarkRead(ctx, conversationID, userID, time.Now())
+	now := time.Now()
+	if err := s.repo.MarkRead(ctx, conversationID, userID, now); err != nil {
+		return err
+	}
+	// 推送失败不影响已读水位本身（hub 为 nil 时跳过，离线成员下次拉 read-status 即可）
+	s.pushToOthers(ctx, conversationID, userID, ws.NewMessage(ws.MsgTypeChatRead, dto.ReadPush{
+		ConversationID: conversationID,
+		UserID:         userID,
+		ReadAt:         now.Format("2006-01-02 15:04:05"),
+	}))
+	return nil
 }
 
 // RecallMessage 撤回自己发送的消息：软撤回（置标记、清空正文）后向其他成员投递撤回事件。
@@ -412,18 +424,44 @@ func (s *ChatService) ListMembers(ctx context.Context, tenantID, userID, convers
 	if err != nil {
 		return nil, err
 	}
-	if s.dir != nil && len(members) > 0 {
-		ids := make([]string, 0, len(members))
-		for _, m := range members {
-			ids = append(ids, m.UserID)
-		}
-		if names, err := s.dir.ResolveUserNames(ctx, ids); err == nil {
-			for _, m := range members {
-				m.UserName = names[m.UserID]
-			}
+	s.enrichMemberNames(ctx, members)
+	return members, nil
+}
+
+// ReadStatus 返回会话内除请求者外各成员的已读水位（含富化展示名），调用者必须是成员。
+// 已读水位仅对同会话成员可见，供发送方计算自己消息的已读回执。
+func (s *ChatService) ReadStatus(ctx context.Context, tenantID, userID, conversationID string) ([]*model.ConversationMember, error) {
+	if err := s.ensureMember(ctx, conversationID, tenantID, userID); err != nil {
+		return nil, err
+	}
+	members, err := s.repo.ListMembers(ctx, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	others := make([]*model.ConversationMember, 0, len(members))
+	for _, m := range members {
+		if m.UserID != userID {
+			others = append(others, m)
 		}
 	}
-	return members, nil
+	s.enrichMemberNames(ctx, others)
+	return others, nil
+}
+
+// enrichMemberNames 批量富化成员展示名（解析失败静默跳过，属弱信息）。
+func (s *ChatService) enrichMemberNames(ctx context.Context, members []*model.ConversationMember) {
+	if s.dir == nil || len(members) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(members))
+	for _, m := range members {
+		ids = append(ids, m.UserID)
+	}
+	if names, err := s.dir.ResolveUserNames(ctx, ids); err == nil {
+		for _, m := range members {
+			m.UserName = names[m.UserID]
+		}
+	}
 }
 
 // ensureGroupOwner 校验会话为群且调用者为群主，返回会话。

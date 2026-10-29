@@ -45,6 +45,13 @@ type TypingPush struct {
 	Typing         bool   `json:"typing"`          // 输入状态
 }
 
+// ReadPush 已读回执的 WS 推送载荷：某成员已读水位推进后告知其他成员。
+type ReadPush struct {
+	ConversationID string `json:"conversation_id"` // 所属会话 ID
+	UserID         string `json:"user_id"`         // 推进已读水位的用户 ID
+	ReadAt         string `json:"read_at"`         // 新的已读水位（2006-01-02 15:04:05）
+}
+
 // PresenceResp 在线状态响应：当前在线（持有 WS 连接）的用户 ID 集合。
 type PresenceResp struct {
 	OnlineUserIDs []string `json:"online_user_ids"` // 在线用户 ID（无序，前端自行判定）
@@ -70,6 +77,13 @@ type MemberResp struct {
 	Name     string `json:"name"`
 	Role     string `json:"role"` // owner / member
 	JoinedAt string `json:"joined_at"`
+}
+
+// ReadStateResp 成员已读水位响应（已读回执），仅包含请求者以外的会话成员。
+type ReadStateResp struct {
+	UserID     string `json:"user_id"`
+	Name       string `json:"name"`
+	LastReadAt string `json:"last_read_at,omitempty"` // 为空表示从未读该会话
 }
 
 // ChatMessageResp 聊天消息响应。

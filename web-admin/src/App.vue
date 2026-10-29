@@ -108,6 +108,11 @@ onMessage((msg: WSMessage) => {
       chatStore.receiveConversationPush(msg.payload)
       break
 
+    case 'chat_read':
+      // 成员已读水位推进：当前会话内实时更新已读回执
+      chatStore.receiveReadPush(msg.payload)
+      break
+
     case 'pong':
       // 心跳响应，无需处理
       break

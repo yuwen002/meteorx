@@ -9,6 +9,7 @@ vi.mock('@/api/modules/chat', () => ({
   sendChatMessage: vi.fn(),
   listChatMessages: vi.fn(),
   markConversationRead: vi.fn(),
+  getConversationReadStatus: vi.fn(),
   recallChatMessage: vi.fn(),
   sendTyping: vi.fn(),
   getPresence: vi.fn(),
@@ -29,6 +30,7 @@ import {
   listConversationMembers,
   listChatMessages,
   markConversationRead,
+  getConversationReadStatus,
   getPresence
 } from '@/api/modules/chat'
 import type { ChatMessageItem, ConversationItem, MemberItem } from '@/api/modules/chat'
@@ -252,5 +254,84 @@ describe('chat store 历史消息分页', () => {
     const s = useChatStore()
     expect(await s.loadOlderMessages()).toBe(0)
     expect(listChatMessages).not.toHaveBeenCalled()
+  })
+})
+
+// ---- 已读回执 ----
+
+function readPage(ids: string[], total: number) {
+  return { data: ids.map((id) => msg(id)), pagination: { page: 1, page_size: 50, total } }
+}
+
+describe('chat store 已读回执', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.resetAllMocks()
+    vi.mocked(markConversationRead).mockResolvedValue({ ok: true })
+    vi.mocked(getPresence).mockResolvedValue({ online_user_ids: [] })
+    vi.mocked(listChatMessages).mockResolvedValue(readPage([], 0) as never)
+  })
+
+  /** 等待 selectConversation 内部 fire-and-forget 的 read-status 回拉完成 */
+  async function flush() {
+    await Promise.resolve()
+    await Promise.resolve()
+  }
+
+  it('选中会话后拉取其他成员水位并按水位计数', async () => {
+    vi.mocked(getConversationReadStatus).mockResolvedValue([
+      { user_id: 'u2', name: '乙', last_read_at: '2026-01-01 10:05:00' },
+      { user_id: 'u3', name: '丙' } // 从未读
+    ])
+    const s = useChatStore()
+    await s.selectConversation('g1')
+    await flush()
+    expect(getConversationReadStatus).toHaveBeenCalledWith('g1')
+    expect(s.readCountAt('2026-01-01 10:00:00')).toBe(1) // 晚于消息时间的水位计入已读
+    expect(s.readCountAt('2026-01-01 10:06:00')).toBe(0) // 水位早于消息则未读
+  })
+
+  it('read-status 空列表信封对象经 asArray 归一化不报错', async () => {
+    // 后端无其他成员已读时可能返回 { data: null } 回退信封
+    vi.mocked(getConversationReadStatus).mockResolvedValue({ data: null } as never)
+    const s = useChatStore()
+    await s.selectConversation('g1')
+    await flush()
+    expect(s.readCountAt('2026-01-01 10:00:00')).toBe(0)
+  })
+
+  it('receiveReadPush 仅更新当前会话且水位只前进不后退', async () => {
+    vi.mocked(getConversationReadStatus).mockResolvedValue([
+      { user_id: 'u2', name: '乙', last_read_at: '2026-01-01 10:05:00' }
+    ])
+    const s = useChatStore()
+    await s.selectConversation('g1')
+    await flush()
+    // 更新为更晚水位 → 生效
+    s.receiveReadPush({ conversation_id: 'g1', user_id: 'u2', read_at: '2026-01-01 10:08:00' })
+    expect(s.readCountAt('2026-01-01 10:07:00')).toBe(1)
+    // 更旧水位的乱序推送 → 丢弃
+    s.receiveReadPush({ conversation_id: 'g1', user_id: 'u2', read_at: '2026-01-01 10:01:00' })
+    expect(s.readStates.u2).toBe('2026-01-01 10:08:00')
+    // 非当前会话的推送 → 忽略
+    s.receiveReadPush({ conversation_id: 'g9', user_id: 'u5', read_at: '2026-01-01 11:00:00' })
+    expect(s.readStates.u5).toBeUndefined()
+  })
+
+  it('切换会话与登出重置水位', async () => {
+    vi.mocked(getConversationReadStatus).mockResolvedValue([
+      { user_id: 'u2', name: '乙', last_read_at: '2026-01-01 10:05:00' }
+    ])
+    const s = useChatStore()
+    await s.selectConversation('g1')
+    await flush()
+    expect(s.readCountAt('2026-01-01 10:00:00')).toBe(1)
+    // 切到新会话：旧水位清空
+    vi.mocked(getConversationReadStatus).mockResolvedValue([])
+    await s.selectConversation('g2')
+    expect(s.readStates.u2).toBeUndefined()
+    // 登出重置
+    s.reset()
+    expect(Object.keys(s.readStates)).toHaveLength(0)
   })
 })

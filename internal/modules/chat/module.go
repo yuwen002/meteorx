@@ -39,6 +39,7 @@ func RegisterRoutes(r chi.Router, h *handler.ChatHandler) {
 		r.Delete("/conversations/{id}/members/{userId}", h.RemoveMember)
 		r.Post("/conversations/{id}/leave", h.LeaveGroup)
 		r.Post("/conversations/{id}/read", h.MarkRead)
+		r.Get("/conversations/{id}/read-status", h.ReadStatus)
 		r.Post("/conversations/{id}/typing", h.Typing)
 		r.Get("/presence", h.Presence)
 	})
