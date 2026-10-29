@@ -242,6 +242,19 @@ func (m *mockUserRepo) UpdateTOTP(_ context.Context, id, secret string, enabled 
 	return nil
 }
 
+// 备份恢复码方法：user 服务不触达，仅提供编译期满足接口的桩实现。
+func (m *mockUserRepo) ReplaceRecoveryCodes(_ context.Context, _ string, _ []string) error {
+	return nil
+}
+
+func (m *mockUserRepo) ConsumeRecoveryCode(_ context.Context, _, _ string) (bool, error) {
+	return false, nil
+}
+
+func (m *mockUserRepo) CountRecoveryCodes(_ context.Context, _ string) (int64, error) {
+	return 0, nil
+}
+
 var _ userRepo.UserRepository = (*mockUserRepo)(nil)
 
 // ---------- 内存 mock：TenantRepository ----------

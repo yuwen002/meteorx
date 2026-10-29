@@ -18,18 +18,26 @@ import (
 
 type mockUserRepo struct {
 	userRepo.UserRepository
-	users        map[string]*userModel.User
-	byName       map[string]*userModel.User
-	byEmail      map[string]*userModel.User
-	createErr    error
-	lastLoginIDs []string // UpdateLastLogin 调用记录：userID
+	users         map[string]*userModel.User
+	byName        map[string]*userModel.User
+	byEmail       map[string]*userModel.User
+	createErr     error
+	lastLoginIDs  []string                       // UpdateLastLogin 调用记录：userID
+	recoveryCodes map[string][]*mockRecoveryCode // userID -> 恢复码集合
+}
+
+// mockRecoveryCode 内存态恢复码（仅存哈希与核销时间），对齐仓储层行为。
+type mockRecoveryCode struct {
+	hash   string
+	usedAt *time.Time
 }
 
 func newMockUserRepo() *mockUserRepo {
 	return &mockUserRepo{
-		users:   make(map[string]*userModel.User),
-		byName:  make(map[string]*userModel.User),
-		byEmail: make(map[string]*userModel.User),
+		users:         make(map[string]*userModel.User),
+		byName:        make(map[string]*userModel.User),
+		byEmail:       make(map[string]*userModel.User),
+		recoveryCodes: make(map[string][]*mockRecoveryCode),
 	}
 }
 
@@ -98,6 +106,36 @@ func (m *mockUserRepo) UpdateTOTP(_ context.Context, id, secret string, enabled 
 		u.TOTPEnabled = enabled
 	}
 	return nil
+}
+
+func (m *mockUserRepo) ReplaceRecoveryCodes(_ context.Context, userID string, hashes []string) error {
+	codes := make([]*mockRecoveryCode, 0, len(hashes))
+	for _, h := range hashes {
+		codes = append(codes, &mockRecoveryCode{hash: h})
+	}
+	m.recoveryCodes[userID] = codes
+	return nil
+}
+
+func (m *mockUserRepo) ConsumeRecoveryCode(_ context.Context, userID, codeHash string) (bool, error) {
+	for _, c := range m.recoveryCodes[userID] {
+		if c.hash == codeHash && c.usedAt == nil {
+			now := time.Now()
+			c.usedAt = &now
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *mockUserRepo) CountRecoveryCodes(_ context.Context, userID string) (int64, error) {
+	var n int64
+	for _, c := range m.recoveryCodes[userID] {
+		if c.usedAt == nil {
+			n++
+		}
+	}
+	return n, nil
 }
 
 var _ userRepo.UserRepository = (*mockUserRepo)(nil)

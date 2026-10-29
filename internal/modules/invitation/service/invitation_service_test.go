@@ -209,6 +209,15 @@ func (r *stubUserRepo) UpdateLastLogin(_ context.Context, _ string) error { retu
 func (r *stubUserRepo) UpdateTOTP(_ context.Context, _ string, _ string, _ bool) error {
 	return nil
 }
+func (r *stubUserRepo) ReplaceRecoveryCodes(_ context.Context, _ string, _ []string) error {
+	return nil
+}
+func (r *stubUserRepo) ConsumeRecoveryCode(_ context.Context, _, _ string) (bool, error) {
+	return false, nil
+}
+func (r *stubUserRepo) CountRecoveryCodes(_ context.Context, _ string) (int64, error) {
+	return 0, nil
+}
 
 type stubTenantRepo struct {
 	tenants map[string]*tenantModel.Tenant

@@ -60,7 +60,7 @@
             v-model="form.otp"
             :placeholder="t('loginPage.otpPlaceholder')"
             prefix-icon="Key"
-            maxlength="6"
+            maxlength="14"
             clearable
             size="large"
           />

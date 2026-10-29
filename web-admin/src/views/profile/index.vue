@@ -336,8 +336,11 @@
       <template #header>
         <div class="card-header">
           <span>{{ t('profile.totp.title') }}</span>
-          <el-button v-if="!userInfo.totp_enabled" type="primary" @click="open2FASetup">{{ t('profile.totp.enable') }}</el-button>
-          <el-button v-else type="danger" @click="open2FADisable">{{ t('profile.totp.disableBtn') }}</el-button>
+          <div>
+            <el-button v-if="userInfo.totp_enabled" type="primary" link @click="openRegenRecovery">{{ t('profile.totp.regenBtn') }}</el-button>
+            <el-button v-if="!userInfo.totp_enabled" type="primary" @click="open2FASetup">{{ t('profile.totp.enable') }}</el-button>
+            <el-button v-else type="danger" @click="open2FADisable">{{ t('profile.totp.disableBtn') }}</el-button>
+          </div>
         </div>
       </template>
       <div>
@@ -385,6 +388,30 @@
       </template>
     </el-dialog>
 
+    <!-- 备份恢复码展示弹窗（一次性明文） -->
+    <el-dialog v-model="recoveryVisible" :title="t('profile.totp.recoveryTitle')" width="480px" :close-on-click-modal="false">
+      <el-alert type="warning" :closable="false" show-icon style="margin-bottom:16px;">
+        <template #title>{{ t('profile.totp.recoveryOnceHint') }}</template>
+      </el-alert>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <code v-for="c in recoveryCodes" :key="c" style="padding:6px 10px;background:#f5f7fa;border-radius:4px;text-align:center;letter-spacing:1px;">{{ c }}</code>
+      </div>
+      <template #footer>
+        <el-button @click="copyAllRecoveryCodes">{{ t('profile.totp.recoveryCopyAll') }}</el-button>
+        <el-button type="primary" @click="recoveryVisible = false">{{ t('profile.totp.recoveryClose') }}</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 重新生成恢复码弹窗 -->
+    <el-dialog v-model="regenDialogVisible" :title="t('profile.totp.regenTitle')" width="400px">
+      <p style="color:#606266;">{{ t('profile.totp.recoveryRegenHint') }}</p>
+      <el-input v-model="regenCode" :placeholder="t('profile.totp.codePlaceholder')" maxlength="6" style="margin-top:12px;" />
+      <template #footer>
+        <el-button @click="regenDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="regenLoading" @click="submitRegenRecovery">{{ t('profile.totp.regenConfirm') }}</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 编辑资料弹窗 -->
     <el-dialog
       v-model="editDialogVisible"
@@ -424,7 +451,7 @@ import { Edit, Plus, Link, CopyDocument, Check, InfoFilled, Connection, Loading 
 import { useUserStore } from '@/stores/user'
 import { getProfile, updateProfile, changePassword } from '@/api/modules/user'
 import { getUserRoles } from '@/api/modules/role'
-import { createAPIToken, listAPITokens, revokeAPIToken, type APITokenItem, listOAuthAccounts, unbindOAuth, type OAuthAccountItem, getOAuthRedirectURL, sendEmailVerification, setup2FA, enable2FA, disable2FA } from '@/api/auth'
+import { createAPIToken, listAPITokens, revokeAPIToken, type APITokenItem, listOAuthAccounts, unbindOAuth, type OAuthAccountItem, getOAuthRedirectURL, sendEmailVerification, setup2FA, enable2FA, disable2FA, regenerateRecoveryCodes } from '@/api/auth'
 import { listOAuthProviders, type ProviderMeta } from '@/api/modules/oauth'
 import { providerColor } from '@/providers'
 import { useI18n } from '@/composables/useI18n'
@@ -538,6 +565,13 @@ const twoFADisableVisible = ref(false)
 const twoFADisableCode = ref('')
 const twoFADisableLoading = ref(false)
 
+// 备份恢复码：展示一次性明文码 + 重新生成
+const recoveryVisible = ref(false)
+const recoveryCodes = ref<string[]>([])
+const regenDialogVisible = ref(false)
+const regenCode = ref('')
+const regenLoading = ref(false)
+
 async function open2FASetup() {
   try {
     const data = await setup2FA()
@@ -566,10 +600,12 @@ async function submitEnable2FA() {
   }
   twoFAEnableLoading.value = true
   try {
-    await enable2FA(twoFACode.value.trim())
+    const res = await enable2FA(twoFACode.value.trim())
     ElMessage.success(t('profile.totp.enableSuccess'))
     twoFASetupVisible.value = false
     userInfo.totp_enabled = true
+    // 展示一次性下发的备份恢复码
+    showRecoveryCodes(res.recovery_codes || [])
   } catch (e) {
     const err = e as { response?: { data?: { message?: string } } }
     ElMessage.error(err.response?.data?.message || t('profile.totp.enableFailed'))
@@ -599,6 +635,45 @@ async function submitDisable2FA() {
     ElMessage.error(err.response?.data?.message || t('profile.totp.disableFailed'))
   } finally {
     twoFADisableLoading.value = false
+  }
+}
+
+// 展示一次性恢复码列表
+function showRecoveryCodes(codes: string[]) {
+  recoveryCodes.value = codes
+  recoveryVisible.value = true
+}
+
+async function copyAllRecoveryCodes() {
+  try {
+    await navigator.clipboard.writeText(recoveryCodes.value.join('\n'))
+    ElMessage.success(t('profile.totp.recoveryCopied'))
+  } catch {
+    ElMessage.warning(t('profile.totp.copyManual'))
+  }
+}
+
+function openRegenRecovery() {
+  regenCode.value = ''
+  regenDialogVisible.value = true
+}
+
+async function submitRegenRecovery() {
+  if (!/^\d{6}$/.test(regenCode.value)) {
+    ElMessage.warning(t('profile.totp.codeInvalid'))
+    return
+  }
+  regenLoading.value = true
+  try {
+    const res = await regenerateRecoveryCodes(regenCode.value.trim())
+    ElMessage.success(t('profile.totp.regenSuccess'))
+    regenDialogVisible.value = false
+    showRecoveryCodes(res.recovery_codes || [])
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } } }
+    ElMessage.error(err.response?.data?.message || t('profile.totp.regenFailed'))
+  } finally {
+    regenLoading.value = false
   }
 }
 

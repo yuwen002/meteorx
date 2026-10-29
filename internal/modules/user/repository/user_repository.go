@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"meteorx/internal/common/contextx"
 	"meteorx/internal/modules/user/model"
+	"meteorx/pkg/idgen"
 	"time"
 
 	"gorm.io/gorm"
@@ -38,6 +40,20 @@ func (UserPO) TableName() string {
 	return "users"
 }
 
+// RecoveryCodePO 双因素认证备份恢复码（仅存哈希，一次性使用）。
+type RecoveryCodePO struct {
+	ID        string     `gorm:"primaryKey;size:26;comment:恢复码ID"`
+	UserID    string     `gorm:"index;size:26;not null;comment:所属用户ID"`
+	CodeHash  string     `gorm:"size:64;not null;comment:恢复码哈希(SHA-256 hex)"`
+	UsedAt    *time.Time `gorm:"comment:核销时间，nil 表示未使用"`
+	CreatedAt time.Time  `gorm:"autoCreateTime;comment:创建时间"`
+}
+
+// TableName 返回备份恢复码表名 user_recovery_codes。
+func (RecoveryCodePO) TableName() string {
+	return "user_recovery_codes"
+}
+
 // 转换逻辑（角色从 user_roles 关联查询，不在此处填充）
 func (record UserPO) toDomain() *model.User {
 	u := &model.User{
@@ -69,7 +85,7 @@ func (record UserPO) toDomain() *model.User {
 
 // Models 返回本模块全部待迁移模型，作为 AutoMigrate 与脏列巡检的单一模型来源。
 func Models() []interface{} {
-	return []interface{}{&UserPO{}}
+	return []interface{}{&UserPO{}, &RecoveryCodePO{}}
 }
 
 // AutoMigrate 自动迁移用户表结构。
@@ -630,4 +646,58 @@ func (r *userRepository) UpdateTOTP(ctx context.Context, userID, secret string, 
 			"totp_enabled": enabled,
 			"updated_at":   time.Now(),
 		}).Error
+}
+
+// ReplaceRecoveryCodes 以给定哈希集合覆盖用户全部备份恢复码：先物理清空旧码（恢复码无需软删留痕），
+// 再批量写入新码；hashes 为空时仅执行清空（用于关闭 2FA 时级联作废）。
+func (r *userRepository) ReplaceRecoveryCodes(ctx context.Context, userID string, hashes []string) error {
+	if err := r.db.WithContext(ctx).Unscoped().
+		Where("user_id = ?", userID).Delete(&RecoveryCodePO{}).Error; err != nil {
+		return err
+	}
+	if len(hashes) == 0 {
+		return nil
+	}
+	now := time.Now()
+	records := make([]RecoveryCodePO, 0, len(hashes))
+	for _, h := range hashes {
+		records = append(records, RecoveryCodePO{
+			ID:        idgen.New(),
+			UserID:    userID,
+			CodeHash:  h,
+			CreatedAt: now,
+		})
+	}
+	return r.db.WithContext(ctx).Create(&records).Error
+}
+
+// ConsumeRecoveryCode 校验并核销一条未使用的恢复码：按 userID+哈希命中且 used_at 为空时，
+// 写入核销时间并返回 true；未命中（含已使用）返回 false，交由调用方计入失败处理。
+func (r *userRepository) ConsumeRecoveryCode(ctx context.Context, userID, codeHash string) (bool, error) {
+	if userID == "" || codeHash == "" {
+		return false, nil
+	}
+	var record RecoveryCodePO
+	err := r.db.WithContext(ctx).
+		Where("user_id = ? AND code_hash = ? AND used_at IS NULL", userID, codeHash).
+		First(&record).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if err := r.db.WithContext(ctx).Model(&RecoveryCodePO{}).
+		Where("id = ?", record.ID).Update("used_at", time.Now()).Error; err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// CountRecoveryCodes 统计用户剩余未使用的备份恢复码数量。
+func (r *userRepository) CountRecoveryCodes(ctx context.Context, userID string) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&RecoveryCodePO{}).
+		Where("user_id = ? AND used_at IS NULL", userID).Count(&count).Error
+	return count, err
 }

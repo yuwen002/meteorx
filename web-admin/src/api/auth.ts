@@ -246,17 +246,37 @@ export interface Setup2FAResult {
   otpauth_url: string
 }
 
+export interface Enable2FAResult {
+  message: string
+  recovery_codes: string[]
+}
+
+export interface RecoveryCodeStatusResult {
+  enabled: boolean
+  remaining: number
+}
+
 /** 开启双因素认证第一步：生成待绑定密钥与 otpauth URI */
 export function setup2FA() {
   return post<Setup2FAResult>('/auth/2fa/setup', {})
 }
 
-/** 确认绑定双因素认证：提交验证器当前口令以激活 */
+/** 确认绑定双因素认证：提交验证器当前口令以激活，返回一次性备份恢复码 */
 export function enable2FA(code: string) {
-  return post<{ message: string }>('/auth/2fa/enable', { code })
+  return post<Enable2FAResult>('/auth/2fa/enable', { code })
 }
 
 /** 关闭双因素认证：需当前有效验证码 */
 export function disable2FA(code: string) {
   return post<{ message: string }>('/auth/2fa/disable', { code })
+}
+
+/** 查询备份恢复码状态：是否启用 2FA 及剩余未使用数量 */
+export function getRecoveryCodeStatus() {
+  return get<RecoveryCodeStatusResult>('/auth/2fa/recovery-codes')
+}
+
+/** 重新生成备份恢复码：需当前有效验证码，旧码全部作废 */
+export function regenerateRecoveryCodes(code: string) {
+  return post<{ recovery_codes: string[] }>('/auth/2fa/recovery-codes/regenerate', { code })
 }

@@ -50,8 +50,14 @@ type stubAuthService struct {
 
 	setup2FAResp  *dto.Setup2FAResp
 	setup2FAErr   error
+	enable2FAResp []string
 	enable2FAErr  error
 	disable2FAErr error
+
+	recoveryStatus    *service.RecoveryCodeStatus
+	recoveryStatusErr error
+	regenCodes        []string
+	regenErr          error
 }
 
 func (s *stubAuthService) Register(_ context.Context, req dto.RegisterUserReq) (*userModel.User, error) {
@@ -92,12 +98,38 @@ func (s *stubAuthService) Setup2FA(_ context.Context, _ string) (*dto.Setup2FARe
 	return s.setup2FAResp, s.setup2FAErr
 }
 
-func (s *stubAuthService) Enable2FA(_ context.Context, _, _ string) error {
-	return s.enable2FAErr
+func (s *stubAuthService) Enable2FA(_ context.Context, _, _ string) ([]string, error) {
+	if s.enable2FAErr != nil {
+		return nil, s.enable2FAErr
+	}
+	if s.enable2FAResp != nil {
+		return s.enable2FAResp, nil
+	}
+	return []string{"AAAAA-BBBBB"}, nil
 }
 
 func (s *stubAuthService) Disable2FA(_ context.Context, _, _ string) error {
 	return s.disable2FAErr
+}
+
+func (s *stubAuthService) GetRecoveryCodeStatus(_ context.Context, _ string) (*service.RecoveryCodeStatus, error) {
+	if s.recoveryStatusErr != nil {
+		return nil, s.recoveryStatusErr
+	}
+	if s.recoveryStatus != nil {
+		return s.recoveryStatus, nil
+	}
+	return &service.RecoveryCodeStatus{Enabled: true, Remaining: 8}, nil
+}
+
+func (s *stubAuthService) RegenerateRecoveryCodes(_ context.Context, _, _ string) ([]string, error) {
+	if s.regenErr != nil {
+		return nil, s.regenErr
+	}
+	if s.regenCodes != nil {
+		return s.regenCodes, nil
+	}
+	return []string{"CCCCC-DDDDD"}, nil
 }
 
 func newAuthRouter(stub *stubAuthService) http.Handler {
@@ -319,6 +351,8 @@ func newTwoFactorRouter(stub *stubAuthService) http.Handler {
 	r.Post("/2fa/setup", h.Setup2FA)
 	r.Post("/2fa/enable", h.Enable2FA)
 	r.Post("/2fa/disable", h.Disable2FA)
+	r.Get("/2fa/recovery-codes", h.RecoveryCodeStatus)
+	r.Post("/2fa/recovery-codes/regenerate", h.RegenerateRecoveryCodes)
 	return r
 }
 
@@ -383,6 +417,57 @@ func TestDisable2FA_Success(t *testing.T) {
 	w := doAuth(t, router, "/2fa/disable", `{"code":"123456"}`, withUser("u-1"))
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "已关闭")
+}
+
+func TestEnable2FA_Success_ReturnsRecoveryCodes(t *testing.T) {
+	stub := &stubAuthService{enable2FAResp: []string{"AAAAA-BBBBB", "CCCCC-DDDDD"}}
+	router := newTwoFactorRouter(stub)
+	w := doAuth(t, router, "/2fa/enable", `{"code":"123456"}`, withUser("u-1"))
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "AAAAA-BBBBB")
+	assert.Contains(t, w.Body.String(), "CCCCC-DDDDD")
+}
+
+// doAuthGet 以 GET 方式请求（携带用户上下文头）。
+func doAuthGet(t *testing.T, router http.Handler, path, uid string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	if uid != "" {
+		req.Header.Set("X-Test-User", uid)
+	}
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
+func TestRecoveryCodeStatus_Unauthorized_Returns401(t *testing.T) {
+	router := newTwoFactorRouter(&stubAuthService{})
+	w := doAuthGet(t, router, "/2fa/recovery-codes", "")
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestRecoveryCodeStatus_Success(t *testing.T) {
+	stub := &stubAuthService{recoveryStatus: &service.RecoveryCodeStatus{Enabled: true, Remaining: 5}}
+	router := newTwoFactorRouter(stub)
+	w := doAuthGet(t, router, "/2fa/recovery-codes", "u-1")
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"remaining":5`)
+}
+
+func TestRegenerateRecoveryCodes_Success(t *testing.T) {
+	stub := &stubAuthService{regenCodes: []string{"EEEEE-FFFFF"}}
+	router := newTwoFactorRouter(stub)
+	w := doAuth(t, router, "/2fa/recovery-codes/regenerate", `{"code":"123456"}`, withUser("u-1"))
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "EEEEE-FFFFF")
+}
+
+func TestRegenerateRecoveryCodes_InvalidCode_Returns400(t *testing.T) {
+	stub := &stubAuthService{regenErr: service.Err2FAInvalidCode}
+	router := newTwoFactorRouter(stub)
+	w := doAuth(t, router, "/2fa/recovery-codes/regenerate", `{"code":"000000"}`, withUser("u-1"))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "验证码错误")
 }
 
 // ---------- 公开接口审计覆盖 ----------

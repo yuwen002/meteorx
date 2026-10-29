@@ -540,3 +540,77 @@ func TestUpdateLastLogin(t *testing.T) {
 	err := repo.UpdateLastLogin(context.Background(), "u-001")
 	assert.NoError(t, err)
 }
+
+// ---------- 备份恢复码 ----------
+
+func TestReplaceRecoveryCodes_ClearOnly(t *testing.T) {
+	gormDB, mock := newTestDB(t)
+	repo := NewUserRepository(gormDB)
+
+	// hashes 为空：仅执行物理清空
+	mock.ExpectExec("DELETE FROM `user_recovery_codes` WHERE user_id = \\?").
+		WithArgs("u-001").
+		WillReturnResult(sqlmock.NewResult(0, 2))
+
+	err := repo.ReplaceRecoveryCodes(context.Background(), "u-001", nil)
+	assert.NoError(t, err)
+}
+
+func TestReplaceRecoveryCodes_ClearThenInsert(t *testing.T) {
+	gormDB, mock := newTestDB(t)
+	repo := NewUserRepository(gormDB)
+
+	mock.ExpectExec("DELETE FROM `user_recovery_codes` WHERE user_id = \\?").
+		WithArgs("u-001").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO `user_recovery_codes`").
+		WillReturnResult(sqlmock.NewResult(1, 2))
+
+	err := repo.ReplaceRecoveryCodes(context.Background(), "u-001", []string{"h1", "h2"})
+	assert.NoError(t, err)
+}
+
+func TestConsumeRecoveryCode_Found(t *testing.T) {
+	gormDB, mock := newTestDB(t)
+	repo := NewUserRepository(gormDB)
+
+	now := time.Now()
+	rows := sqlmock.NewRows([]string{"id", "user_id", "code_hash", "used_at", "created_at"}).
+		AddRow("rc-001", "u-001", "hash1", nil, now)
+	mock.ExpectQuery("SELECT .+ FROM `user_recovery_codes` WHERE .+ LIMIT \\?").
+		WithArgs("u-001", "hash1", 1).
+		WillReturnRows(rows)
+	mock.ExpectExec("UPDATE `user_recovery_codes` SET .+ WHERE id = \\?").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	ok, err := repo.ConsumeRecoveryCode(context.Background(), "u-001", "hash1")
+	assert.NoError(t, err)
+	assert.True(t, ok)
+}
+
+func TestConsumeRecoveryCode_NotFound(t *testing.T) {
+	gormDB, mock := newTestDB(t)
+	repo := NewUserRepository(gormDB)
+
+	mock.ExpectQuery("SELECT .+ FROM `user_recovery_codes` WHERE .+ LIMIT \\?").
+		WithArgs("u-001", "missing", 1).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	ok, err := repo.ConsumeRecoveryCode(context.Background(), "u-001", "missing")
+	assert.NoError(t, err)
+	assert.False(t, ok)
+}
+
+func TestCountRecoveryCodes(t *testing.T) {
+	gormDB, mock := newTestDB(t)
+	repo := NewUserRepository(gormDB)
+
+	countRows := sqlmock.NewRows([]string{"count"}).AddRow(7)
+	mock.ExpectQuery("SELECT count.+FROM `user_recovery_codes` WHERE user_id = \\? AND used_at IS NULL").
+		WithArgs("u-001").
+		WillReturnRows(countRows)
+
+	count, err := repo.CountRecoveryCodes(context.Background(), "u-001")
+	assert.NoError(t, err)
+	assert.Equal(t, int64(7), count)
+}

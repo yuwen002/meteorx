@@ -9,11 +9,11 @@ import (
 
 // UserListFilter 租户内用户列表查询过滤条件（空零值均表示该维度不设限）。
 type UserListFilter struct {
-	Keyword string     // 按用户名/昵称/邮箱模糊搜索
-	Status  *int       // 按状态筛选
-	RoleID  string     // 按角色筛选：仅返回拥有该角色的用户（user_roles 关联）
-	SortBy  string     // 排序列：created_at/updated_at/username/status/email/last_login_at；空=created_at
-	Desc    bool      // 排序方向，true 为降序
+	Keyword     string     // 按用户名/昵称/邮箱模糊搜索
+	Status      *int       // 按状态筛选
+	RoleID      string     // 按角色筛选：仅返回拥有该角色的用户（user_roles 关联）
+	SortBy      string     // 排序列：created_at/updated_at/username/status/email/last_login_at；空=created_at
+	Desc        bool       // 排序方向，true 为降序
 	CreatedFrom *time.Time // 注册时间下限（含），nil 不限
 	CreatedTo   *time.Time // 注册时间上限（含），nil 不限
 }
@@ -80,4 +80,10 @@ type UserRepository interface {
 	UpdateLastLogin(ctx context.Context, userID string) error
 	// UpdateTOTP 更新用户双因素认证密钥与启用状态（secret 为空且 enabled=false 表示解除绑定）
 	UpdateTOTP(ctx context.Context, userID, secret string, enabled bool) error
+	// ReplaceRecoveryCodes 用给定哈希集合覆盖用户的全部备份恢复码（先清空再写入）；hashes 为空表示仅清空。
+	ReplaceRecoveryCodes(ctx context.Context, userID string, hashes []string) error
+	// ConsumeRecoveryCode 校验并核销一条未使用的恢复码：命中则标记核销时间并返回 true，未命中返回 false。
+	ConsumeRecoveryCode(ctx context.Context, userID, codeHash string) (bool, error)
+	// CountRecoveryCodes 统计用户剩余未使用的备份恢复码数量。
+	CountRecoveryCodes(ctx context.Context, userID string) (int64, error)
 }

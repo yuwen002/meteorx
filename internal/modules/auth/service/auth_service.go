@@ -246,8 +246,16 @@ func (s *AuthService) Login(ctx context.Context, req dto.LoginReq) (*model.User,
 			return nil, nil, nil, "", &LoginError{Message: "请输入双因素验证码", Require2FA: true}
 		}
 		ok, verr := totp.Validate(user.TOTPSecret, req.OTP)
-		if verr != nil || !ok {
-			// 验证码错误：计入失败次数，抵御 6 位口令暴力猜测
+		passed := verr == nil && ok
+		if !passed {
+			// TOTP 不匹配：回退尝试一次性备份恢复码（命中即核销）
+			codeHash := security.HashRecoveryCode(req.OTP)
+			if consumed, cerr := s.userRepo.ConsumeRecoveryCode(ctx, user.ID, codeHash); cerr == nil && consumed {
+				passed = true
+			}
+		}
+		if !passed {
+			// 验证码与恢复码均无效：计入失败次数，抵御口令暴力猜测
 			_ = s.lockout.RecordFailedAttempt(ctx, lockoutKey)
 			remaining := s.lockout.GetRemainingAttempts(ctx, lockoutKey)
 			return nil, nil, nil, "", &LoginError{
@@ -546,36 +554,42 @@ func (s *AuthService) Setup2FA(ctx context.Context, userID string) (*dto.Setup2F
 	return &dto.Setup2FAResp{Secret: secret, OTPAuthURL: totp.OTPAuthURL(secret, totpIssuer, account)}, nil
 }
 
-// Enable2FA 确认绑定双因素认证：校验验证器口令，通过后持久化密钥并置为启用，清除待绑定缓存。
-func (s *AuthService) Enable2FA(ctx context.Context, userID, code string) error {
+// Enable2FA 确认绑定双因素认证：校验验证器口令，通过后持久化密钥并置为启用，清除待绑定缓存，
+// 同时生成一批备份恢复码（明文仅在此返回一次，供用户抄录）。
+func (s *AuthService) Enable2FA(ctx context.Context, userID, code string) ([]string, error) {
 	if s.redis == nil || !s.redis.IsAvailable() {
-		return Err2FAStorageUnavailable
+		return nil, Err2FAStorageUnavailable
 	}
 	key := totpPendingPrefix + userID
 	secret, err := s.redis.Get(ctx, key)
 	if errors.Is(err, cache.ErrRedisUnavailable) {
-		return Err2FAStorageUnavailable
+		return nil, Err2FAStorageUnavailable
 	}
 	if err != nil || secret == "" {
-		return Err2FASetupExpired
+		return nil, Err2FASetupExpired
 	}
 
 	ok, verr := totp.Validate(secret, code)
 	if verr != nil {
-		return Err2FAInvalidCode
+		return nil, Err2FAInvalidCode
 	}
 	if !ok {
-		return Err2FAInvalidCode
+		return nil, Err2FAInvalidCode
 	}
 
 	if err := s.userRepo.UpdateTOTP(ctx, userID, secret, true); err != nil {
-		return err
+		return nil, err
 	}
 	_ = s.redis.Delete(ctx, key)
-	return nil
+
+	codes, err := s.issueRecoveryCodes(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return codes, nil
 }
 
-// Disable2FA 关闭双因素认证：需当前有效验证码，校验通过后清除密钥并置为未启用。
+// Disable2FA 关闭双因素认证：需当前有效验证码，校验通过后清除密钥并置为未启用，级联作废全部恢复码。
 func (s *AuthService) Disable2FA(ctx context.Context, userID, code string) error {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil || user == nil {
@@ -590,5 +604,61 @@ func (s *AuthService) Disable2FA(ctx context.Context, userID, code string) error
 		return Err2FAInvalidCode
 	}
 
-	return s.userRepo.UpdateTOTP(ctx, userID, "", false)
+	if err := s.userRepo.UpdateTOTP(ctx, userID, "", false); err != nil {
+		return err
+	}
+	// 级联作废：关闭 2FA 后恢复码一并清空，避免残留可用的一次性口令
+	_ = s.userRepo.ReplaceRecoveryCodes(ctx, userID, nil)
+	return nil
+}
+
+// RecoveryCodeStatus 备份恢复码状态：是否已启用 2FA 及剩余未使用数量。
+type RecoveryCodeStatus struct {
+	Enabled   bool
+	Remaining int64
+}
+
+// GetRecoveryCodeStatus 查询当前用户的备份恢复码状态（供前端展示剩余可用数量）。
+func (s *AuthService) GetRecoveryCodeStatus(ctx context.Context, userID string) (*RecoveryCodeStatus, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil || user == nil {
+		return nil, ErrUserNotFound
+	}
+	remaining, err := s.userRepo.CountRecoveryCodes(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &RecoveryCodeStatus{Enabled: user.TOTPEnabled, Remaining: remaining}, nil
+}
+
+// RegenerateRecoveryCodes 重新生成备份恢复码：需当前有效 TOTP 验证码，旧码全部作废并下发新码（明文仅此返回一次）。
+func (s *AuthService) RegenerateRecoveryCodes(ctx context.Context, userID, code string) ([]string, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil || user == nil {
+		return nil, ErrUserNotFound
+	}
+	if !user.TOTPEnabled {
+		return nil, Err2FANotEnabled
+	}
+	ok, verr := totp.Validate(user.TOTPSecret, code)
+	if verr != nil || !ok {
+		return nil, Err2FAInvalidCode
+	}
+	return s.issueRecoveryCodes(ctx, userID)
+}
+
+// issueRecoveryCodes 生成一批备份恢复码，哈希后覆盖入库，返回明文（仅生成时可见）。
+func (s *AuthService) issueRecoveryCodes(ctx context.Context, userID string) ([]string, error) {
+	codes, err := security.GenerateRecoveryCodes(security.RecoveryCodeCount)
+	if err != nil {
+		return nil, err
+	}
+	hashes := make([]string, 0, len(codes))
+	for _, c := range codes {
+		hashes = append(hashes, security.HashRecoveryCode(c))
+	}
+	if err := s.userRepo.ReplaceRecoveryCodes(ctx, userID, hashes); err != nil {
+		return nil, err
+	}
+	return codes, nil
 }

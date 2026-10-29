@@ -21,6 +21,8 @@ import {
   setup2FA,
   enable2FA,
   disable2FA,
+  getRecoveryCodeStatus,
+  regenerateRecoveryCodes,
   type LoginParams,
   type RegisterParams,
   type OAuthAccountItem,
@@ -253,14 +255,29 @@ describe('Auth core API', () => {
   })
 
   it('enable2FA should POST /auth/2fa/enable with code', async () => {
-    vi.mocked(post).mockResolvedValue({ message: 'enabled' })
-    await enable2FA('123456')
+    vi.mocked(post).mockResolvedValue({ message: 'enabled', recovery_codes: ['AAAAA-BBBBB'] })
+    const result = await enable2FA('123456')
     expect(post).toHaveBeenCalledWith('/auth/2fa/enable', { code: '123456' })
+    expect(result.recovery_codes).toEqual(['AAAAA-BBBBB'])
   })
 
   it('disable2FA should POST /auth/2fa/disable with code', async () => {
     vi.mocked(post).mockResolvedValue({ message: 'disabled' })
     await disable2FA('123456')
     expect(post).toHaveBeenCalledWith('/auth/2fa/disable', { code: '123456' })
+  })
+
+  it('getRecoveryCodeStatus should GET /auth/2fa/recovery-codes', async () => {
+    vi.mocked(get).mockResolvedValue({ enabled: true, remaining: 6 })
+    const result = await getRecoveryCodeStatus()
+    expect(get).toHaveBeenCalledWith('/auth/2fa/recovery-codes')
+    expect(result.remaining).toBe(6)
+  })
+
+  it('regenerateRecoveryCodes should POST /auth/2fa/recovery-codes/regenerate with code', async () => {
+    vi.mocked(post).mockResolvedValue({ recovery_codes: ['CCCCC-DDDDD'] })
+    const result = await regenerateRecoveryCodes('123456')
+    expect(post).toHaveBeenCalledWith('/auth/2fa/recovery-codes/regenerate', { code: '123456' })
+    expect(result.recovery_codes).toEqual(['CCCCC-DDDDD'])
   })
 })

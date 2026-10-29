@@ -29,8 +29,10 @@ type AuthService interface {
 	SendEmailVerification(ctx context.Context, email string, currentUserID string) error
 	VerifyEmail(ctx context.Context, token string) error
 	Setup2FA(ctx context.Context, userID string) (*dto.Setup2FAResp, error)
-	Enable2FA(ctx context.Context, userID, code string) error
+	Enable2FA(ctx context.Context, userID, code string) ([]string, error)
 	Disable2FA(ctx context.Context, userID, code string) error
+	GetRecoveryCodeStatus(ctx context.Context, userID string) (*service.RecoveryCodeStatus, error)
+	RegenerateRecoveryCodes(ctx context.Context, userID, code string) ([]string, error)
 }
 
 // AuthHandler 认证处理器
@@ -396,7 +398,7 @@ func (h *AuthHandler) Enable2FA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.svc.Enable2FA(r.Context(), userID, req.Code)
+	codes, err := h.svc.Enable2FA(r.Context(), userID, req.Code)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.Err2FASetupExpired):
@@ -411,7 +413,67 @@ func (h *AuthHandler) Enable2FA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.Success(w, map[string]string{"message": "双因素认证已启用"})
+	response.Success(w, dto.Enable2FAResp{
+		Message:       "双因素认证已启用，请妥善保存以下备份恢复码（仅展示一次）",
+		RecoveryCodes: codes,
+	})
+}
+
+// RecoveryCodeStatus 查询备份恢复码状态：是否启用 2FA 及剩余可用数量（需登录）
+// GET /api/v1/auth/2fa/recovery-codes
+func (h *AuthHandler) RecoveryCodeStatus(w http.ResponseWriter, r *http.Request) {
+	userID := contextx.GetUserID(r.Context())
+	if userID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
+
+	status, err := h.svc.GetRecoveryCodeStatus(r.Context(), userID)
+	if err != nil {
+		if errors.Is(err, service.ErrUserNotFound) {
+			response.Fail(w, http.StatusNotFound, "用户不存在")
+			return
+		}
+		response.Fail(w, http.StatusInternalServerError, "查询备份恢复码状态失败")
+		return
+	}
+
+	response.Success(w, dto.RecoveryCodeStatusResp{
+		Enabled:   status.Enabled,
+		Remaining: status.Remaining,
+	})
+}
+
+// RegenerateRecoveryCodes 重新生成备份恢复码：需当前有效验证码，旧码全部作废（需登录）
+// POST /api/v1/auth/2fa/recovery-codes/regenerate
+func (h *AuthHandler) RegenerateRecoveryCodes(w http.ResponseWriter, r *http.Request) {
+	userID := contextx.GetUserID(r.Context())
+	if userID == "" {
+		response.Fail(w, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
+
+	var req dto.RegenerateRecoveryCodesReq
+	if !validator.ValidateJSON(w, r, &req) {
+		return
+	}
+
+	codes, err := h.svc.RegenerateRecoveryCodes(r.Context(), userID, req.Code)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrUserNotFound):
+			response.Fail(w, http.StatusNotFound, "用户不存在")
+		case errors.Is(err, service.Err2FANotEnabled):
+			response.Fail(w, http.StatusBadRequest, "双因素认证未启用")
+		case errors.Is(err, service.Err2FAInvalidCode):
+			response.Fail(w, http.StatusBadRequest, "验证码错误，请重试")
+		default:
+			response.Fail(w, http.StatusInternalServerError, "重新生成备份恢复码失败")
+		}
+		return
+	}
+
+	response.Success(w, dto.RegenerateRecoveryCodesResp{RecoveryCodes: codes})
 }
 
 // Disable2FA 关闭双因素认证：需当前有效验证码（需登录）

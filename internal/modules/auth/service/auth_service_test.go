@@ -13,6 +13,7 @@ import (
 	rbacModel "meteorx/internal/modules/rbac/model"
 	userModel "meteorx/internal/modules/user/model"
 	"meteorx/pkg/crypto"
+	"meteorx/pkg/security"
 	"meteorx/pkg/totp"
 
 	"github.com/alicebob/miniredis/v2"
@@ -568,11 +569,14 @@ func (s *AuthServiceTestSuite) TestEnable2FA_Success() {
 	code, err := totp.At(resp.Secret, time.Now())
 	s.Require().NoError(err)
 
-	err = s.svc.Enable2FA(s.ctx, "user-alice", code)
+	codes, err := s.svc.Enable2FA(s.ctx, "user-alice", code)
 	s.NoError(err)
+	s.Len(codes, security.RecoveryCodeCount)
 	u := s.userRepo.users["user-alice"]
 	s.True(u.TOTPEnabled)
 	s.Equal(resp.Secret, u.TOTPSecret)
+	// 恢复码已按哈希入库，数量与下发明文一致
+	s.Len(s.userRepo.recoveryCodes["user-alice"], security.RecoveryCodeCount)
 	// 待绑定缓存已清除
 	s.False(mr.Exists(totpPendingPrefix + "user-alice"))
 }
@@ -585,7 +589,7 @@ func (s *AuthServiceTestSuite) TestEnable2FA_InvalidCode() {
 	_, err := s.svc.Setup2FA(s.ctx, "user-alice")
 	s.Require().NoError(err)
 
-	err = s.svc.Enable2FA(s.ctx, "user-alice", "000001")
+	_, err = s.svc.Enable2FA(s.ctx, "user-alice", "000001")
 	s.True(errors.Is(err, Err2FAInvalidCode))
 	s.False(s.userRepo.users["user-alice"].TOTPEnabled)
 }
@@ -595,6 +599,104 @@ func (s *AuthServiceTestSuite) TestEnable2FA_SetupExpired() {
 	s.withMiniredis()
 	s.seedUser("alice", "Passw0rd123!", false, 1)
 
-	err := s.svc.Enable2FA(s.ctx, "user-alice", "123456")
+	_, err := s.svc.Enable2FA(s.ctx, "user-alice", "123456")
 	s.True(errors.Is(err, Err2FASetupExpired))
+}
+
+// ---------- 备份恢复码 ----------
+
+// TestLogin2FA_RecoveryCode TOTP 不匹配时，有效备份恢复码可兜底登录，并核销该码（剩余数减一）。
+func (s *AuthServiceTestSuite) TestLogin2FA_RecoveryCode() {
+	u := s.seedTOTPUser("alice")
+	codes, err := security.GenerateRecoveryCodes(2)
+	s.Require().NoError(err)
+	var hashes []string
+	for _, c := range codes {
+		hashes = append(hashes, security.HashRecoveryCode(c))
+	}
+	s.Require().NoError(s.userRepo.ReplaceRecoveryCodes(s.ctx, u.ID, hashes))
+
+	_, _, _, token, err := s.svc.Login(s.ctx, dto.LoginReq{
+		TenantID: "tenant-001", Username: "alice", Password: "Passw0rd123!", OTP: codes[0],
+	})
+	s.NoError(err)
+	s.NotEmpty(token)
+	// 命中的恢复码被核销，剩余一个
+	remaining, err := s.userRepo.CountRecoveryCodes(s.ctx, u.ID)
+	s.NoError(err)
+	s.Equal(int64(1), remaining)
+}
+
+// TestLogin2FA_RecoveryCodeReuse 已核销的恢复码不可重复使用。
+func (s *AuthServiceTestSuite) TestLogin2FA_RecoveryCodeReuse() {
+	u := s.seedTOTPUser("alice")
+	codes, err := security.GenerateRecoveryCodes(1)
+	s.Require().NoError(err)
+	s.Require().NoError(s.userRepo.ReplaceRecoveryCodes(s.ctx, u.ID, []string{security.HashRecoveryCode(codes[0])}))
+
+	// 首次使用成功
+	_, _, _, _, err = s.svc.Login(s.ctx, dto.LoginReq{
+		TenantID: "tenant-001", Username: "alice", Password: "Passw0rd123!", OTP: codes[0],
+	})
+	s.NoError(err)
+
+	// 重复使用被拒
+	_, _, _, token, err := s.svc.Login(s.ctx, dto.LoginReq{
+		TenantID: "tenant-001", Username: "alice", Password: "Passw0rd123!", OTP: codes[0],
+	})
+	s.Error(err)
+	s.Empty(token)
+}
+
+// TestRegenerateRecoveryCodes_Success 有效 TOTP 验证码下重新生成恢复码，旧码作废。
+func (s *AuthServiceTestSuite) TestRegenerateRecoveryCodes_Success() {
+	u := s.seedTOTPUser("alice")
+	s.Require().NoError(s.userRepo.ReplaceRecoveryCodes(s.ctx, u.ID, []string{"stale-hash"}))
+	code, err := totp.Now(testTOTPSecret)
+	s.Require().NoError(err)
+
+	newCodes, err := s.svc.RegenerateRecoveryCodes(s.ctx, u.ID, code)
+	s.NoError(err)
+	s.Len(newCodes, security.RecoveryCodeCount)
+	remaining, err := s.userRepo.CountRecoveryCodes(s.ctx, u.ID)
+	s.NoError(err)
+	s.Equal(int64(security.RecoveryCodeCount), remaining)
+}
+
+// TestRegenerateRecoveryCodes_InvalidCode 验证码错误时拒绝重生成。
+func (s *AuthServiceTestSuite) TestRegenerateRecoveryCodes_InvalidCode() {
+	u := s.seedTOTPUser("alice")
+
+	_, err := s.svc.RegenerateRecoveryCodes(s.ctx, u.ID, "000001")
+	s.True(errors.Is(err, Err2FAInvalidCode))
+}
+
+// TestGetRecoveryCodeStatus 返回启用状态与剩余可用数量。
+func (s *AuthServiceTestSuite) TestGetRecoveryCodeStatus() {
+	u := s.seedTOTPUser("alice")
+	codes, err := security.GenerateRecoveryCodes(3)
+	s.Require().NoError(err)
+	var hashes []string
+	for _, c := range codes {
+		hashes = append(hashes, security.HashRecoveryCode(c))
+	}
+	s.Require().NoError(s.userRepo.ReplaceRecoveryCodes(s.ctx, u.ID, hashes))
+
+	status, err := s.svc.GetRecoveryCodeStatus(s.ctx, u.ID)
+	s.NoError(err)
+	s.True(status.Enabled)
+	s.Equal(int64(3), status.Remaining)
+}
+
+// TestDisable2FA_ClearsRecoveryCodes 关闭 2FA 后恢复码级联作废。
+func (s *AuthServiceTestSuite) TestDisable2FA_ClearsRecoveryCodes() {
+	u := s.seedTOTPUser("alice")
+	s.Require().NoError(s.userRepo.ReplaceRecoveryCodes(s.ctx, u.ID, []string{"h1", "h2"}))
+	code, err := totp.Now(testTOTPSecret)
+	s.Require().NoError(err)
+
+	s.Require().NoError(s.svc.Disable2FA(s.ctx, u.ID, code))
+	remaining, err := s.userRepo.CountRecoveryCodes(s.ctx, u.ID)
+	s.NoError(err)
+	s.Equal(int64(0), remaining)
 }

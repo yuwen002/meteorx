@@ -8,7 +8,7 @@ type LoginReq struct {
 	TenantID string `json:"tenant_id" validate:"omitempty" label:"租户ID"` // 👈 改为 omitempty，上帝账号不需要租户ID
 	Username string `json:"username" validate:"required" label:"用户名"`
 	Password string `json:"password" validate:"required" label:"密码"`
-	OTP      string `json:"otp" validate:"omitempty,number,len=6" label:"双因素验证码"` // 启用 2FA 时必填
+	OTP      string `json:"otp" validate:"omitempty,max=32" label:"双因素验证码"` // 启用 2FA 时必填：6 位 TOTP 口令或备份恢复码
 }
 
 // RegisterUserReq 新用户注册请求
@@ -50,6 +50,28 @@ type Enable2FAReq struct {
 // Disable2FAReq 关闭双因素认证请求（需当前有效验证码）
 type Disable2FAReq struct {
 	Code string `json:"code" validate:"required,number,len=6" label:"验证码"`
+}
+
+// Enable2FAResp 确认启用双因素认证响应：提示语 + 一次性展示的备份恢复码（仅此一次返回明文，请及时抄录）。
+type Enable2FAResp struct {
+	Message       string   `json:"message"`
+	RecoveryCodes []string `json:"recovery_codes"`
+}
+
+// RecoveryCodeStatusResp 备份恢复码状态响应（是否启用 2FA 与剩余未使用数量）。
+type RecoveryCodeStatusResp struct {
+	Enabled   bool  `json:"enabled"`
+	Remaining int64 `json:"remaining"`
+}
+
+// RegenerateRecoveryCodesReq 重新生成备份恢复码请求（需当前有效 TOTP 验证码）。
+type RegenerateRecoveryCodesReq struct {
+	Code string `json:"code" validate:"required,number,len=6" label:"验证码"`
+}
+
+// RegenerateRecoveryCodesResp 重新生成备份恢复码响应（旧码作废，新码仅返回一次）。
+type RegenerateRecoveryCodesResp struct {
+	RecoveryCodes []string `json:"recovery_codes"`
 }
 
 // ForgotPasswordReq 忘记密码请求（发送重置链接到邮箱）

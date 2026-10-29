@@ -26,12 +26,14 @@ func RegisterEmailVerificationRoutes(r chi.Router, h *handler.AuthHandler) {
 	})
 }
 
-// RegisterTwoFactorRoutes 注册双因素认证管理路由（需登录）：开启第一步、确认启用、关闭。
+// RegisterTwoFactorRoutes 注册双因素认证管理路由（需登录）：开启第一步、确认启用、关闭、备份恢复码。
 func RegisterTwoFactorRoutes(r chi.Router, h *handler.AuthHandler) {
 	r.Route("/auth/2fa", func(r chi.Router) {
 		r.Post("/setup", h.Setup2FA)
 		r.Post("/enable", h.Enable2FA)
 		r.Post("/disable", h.Disable2FA)
+		r.Get("/recovery-codes", h.RecoveryCodeStatus)
+		r.Post("/recovery-codes/regenerate", h.RegenerateRecoveryCodes)
 	})
 }
 
