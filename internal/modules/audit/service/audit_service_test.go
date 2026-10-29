@@ -200,7 +200,7 @@ func (s *AuditServiceTestSuite) TestGetStats() {
 		s.NoError(err)
 	}
 
-	stats, err := s.svc.GetStats(s.ctx)
+	stats, err := s.svc.GetStats(s.ctx, "")
 	s.NoError(err)
 	s.Equal(int64(5), stats.TotalCount)
 	s.Equal(int64(2), stats.ActionStats[model.ActionTypeLogin])
@@ -231,7 +231,7 @@ func (s *AuditServiceTestSuite) TestCleanupLogs() {
 	s.Equal(int64(5), affected)
 
 	// 验证已清空
-	stats, _ := s.svc.GetStats(s.ctx)
+	stats, _ := s.svc.GetStats(s.ctx, "")
 	s.Equal(int64(0), stats.TotalCount)
 }
 

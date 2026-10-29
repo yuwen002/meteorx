@@ -281,6 +281,9 @@ type UserTimelineReq struct {
 	UserID    string `json:"user_id" form:"user_id" binding:"required"`
 	StartTime string `json:"start_time" form:"start_time"`
 	EndTime   string `json:"end_time" form:"end_time"`
+	// TenantID 由 handler 依据登录上下文注入（非客户端可传），用于租户隔离：
+	// 非空时时间线强制限定在该租户内，防止跨租户翻阅他人操作记录。
+	TenantID string `json:"-"`
 }
 
 // TimelineItem 时间线条目（按天聚合）

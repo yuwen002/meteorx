@@ -9,19 +9,19 @@ import (
 
 // stubAuditService 桩实现 handler.AuditService
 type stubAuditService struct {
-	Err         error
-	Created     *model.AuditLog
-	LogResp     *dto.AuditLogResp
-	ListResp    *dto.AuditLogListResp
-	Stats       *dto.AuditLogStatsResp
-	Dashboard   *dto.DashboardResp
-	Affected    int64
+	Err       error
+	Created   *model.AuditLog
+	LogResp   *dto.AuditLogResp
+	ListResp  *dto.AuditLogListResp
+	Stats     *dto.AuditLogStatsResp
+	Dashboard *dto.DashboardResp
+	Affected  int64
 
-	GotID         string
-	GotTenant     string
-	GotDays       int
-	GotQuery      *dto.ListAuditLogsQuery
-	GotCreateReq  *dto.CreateAuditLogReq
+	GotID        string
+	GotTenant    string
+	GotDays      int
+	GotQuery     *dto.ListAuditLogsQuery
+	GotCreateReq *dto.CreateAuditLogReq
 }
 
 func (s *stubAuditService) CreateLog(_ context.Context, req dto.CreateAuditLogReq) (*model.AuditLog, error) {
@@ -39,7 +39,8 @@ func (s *stubAuditService) ListLogs(_ context.Context, query *dto.ListAuditLogsQ
 	return s.ListResp, s.Err
 }
 
-func (s *stubAuditService) GetStats(_ context.Context) (*dto.AuditLogStatsResp, error) {
+func (s *stubAuditService) GetStats(_ context.Context, tenantID string) (*dto.AuditLogStatsResp, error) {
+	s.GotTenant = tenantID
 	return s.Stats, s.Err
 }
 
@@ -57,32 +58,34 @@ func (s *stubAuditService) GetUserTimeline(_ context.Context, req *dto.UserTimel
 	return &dto.UserTimelineResp{Items: []*dto.TimelineItem{}, Total: 0, Pages: 0}, s.Err
 }
 
-func (s *stubAuditService) GetDetailedStats(_ context.Context, days int) (*dto.DetailedStatsResp, error) {
+func (s *stubAuditService) GetDetailedStats(_ context.Context, tenantID string, days int) (*dto.DetailedStatsResp, error) {
+	s.GotTenant, s.GotDays = tenantID, days
 	return &dto.DetailedStatsResp{}, s.Err
 }
 
-func (s *stubAuditService) GetAnomalyLogs(_ context.Context, threshold int, windowMinutes int) ([]*dto.AnomalyLogResp, error) {
+func (s *stubAuditService) GetAnomalyLogs(_ context.Context, tenantID string, threshold int, windowMinutes int) ([]*dto.AnomalyLogResp, error) {
+	s.GotTenant = tenantID
 	return []*dto.AnomalyLogResp{}, s.Err
 }
 
 // stubAlertService 桩实现 handler.AlertService
 type stubAlertService struct {
-	Err      error
-	Rule     *model.AlertRule
-	Rules    []*model.AlertRule
-	Alerts   []*model.AuditAlert
-	Stats    *model.AlertStats
-	Total    int64
+	Err    error
+	Rule   *model.AlertRule
+	Rules  []*model.AlertRule
+	Alerts []*model.AuditAlert
+	Stats  *model.AlertStats
+	Total  int64
 
-	GotID         string
-	GotPage       int
-	GotPageSize   int
-	GotRuleID     string
-	GotUserID     string
-	GotRiskLevel  string
-	GotDays       int
-	GotCreateReq  *dto.CreateAlertRuleReq
-	GotUpdateReq  *dto.UpdateAlertRuleReq
+	GotID        string
+	GotPage      int
+	GotPageSize  int
+	GotRuleID    string
+	GotUserID    string
+	GotRiskLevel string
+	GotDays      int
+	GotCreateReq *dto.CreateAlertRuleReq
+	GotUpdateReq *dto.UpdateAlertRuleReq
 }
 
 func (s *stubAlertService) CreateRule(_ context.Context, req dto.CreateAlertRuleReq) (*model.AlertRule, error) {

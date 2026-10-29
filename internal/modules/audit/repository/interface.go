@@ -22,14 +22,14 @@ type AuditLogRepository interface {
 	// List 分页查询审计日志
 	List(ctx context.Context, query *AuditLogQuery) ([]*model.AuditLog, int64, error)
 
-	// GetStats 获取审计日志统计信息
-	GetStats(ctx context.Context) (*model.AuditLogStats, error)
+	// GetStats 获取审计日志统计信息（tenantID 为空表示全局，非空收窄到该租户）
+	GetStats(ctx context.Context, tenantID string) (*model.AuditLogStats, error)
 
 	// GetActionStats 按操作类型统计
-	GetActionStats(ctx context.Context) (map[string]int64, error)
+	GetActionStats(ctx context.Context, tenantID string) (map[string]int64, error)
 
 	// GetModuleStats 按模块统计
-	GetModuleStats(ctx context.Context) (map[string]int64, error)
+	GetModuleStats(ctx context.Context, tenantID string) (map[string]int64, error)
 
 	// GetTrendStats 获取趋势统计
 	GetTrendStats(ctx context.Context, tenantID string, days int) ([]model.AuditTrendPoint, error)
@@ -49,20 +49,20 @@ type AuditLogRepository interface {
 	// ListSessions 获取会话摘要列表
 	ListSessions(ctx context.Context, page, pageSize int, userID string) ([]model.SessionSummary, int64, error)
 
-	// GetUserTimeline 获取用户操作时间线（按天分组，按时间降序）
-	GetUserTimeline(ctx context.Context, userID string, page, pageSize int, startTime, endTime string) ([]*model.AuditLog, int64, error)
+	// GetUserTimeline 获取用户操作时间线（按天分组，按时间降序；tenantID 非空时强制隔离到该租户）
+	GetUserTimeline(ctx context.Context, tenantID, userID string, page, pageSize int, startTime, endTime string) ([]*model.AuditLog, int64, error)
 
 	// GetHourlyStats 获取小时级统计
-	GetHourlyStats(ctx context.Context, days int) (map[string]int64, error)
+	GetHourlyStats(ctx context.Context, tenantID string, days int) (map[string]int64, error)
 
 	// GetUserActivityStats 获取用户活跃度统计
-	GetUserActivityStats(ctx context.Context, days, limit int) ([]model.UserActivityStat, error)
+	GetUserActivityStats(ctx context.Context, tenantID string, days, limit int) ([]model.UserActivityStat, error)
 
 	// GetRiskLevelStats 获取风险等级分布
-	GetRiskLevelStats(ctx context.Context, days int) (map[string]int64, error)
+	GetRiskLevelStats(ctx context.Context, tenantID string, days int) (map[string]int64, error)
 
-	// GetAnomalyLogs 检测异常日志（短时高频失败、异地登录等）
-	GetAnomalyLogs(ctx context.Context, threshold int, windowMinutes int) ([]*model.AnomalyLog, error)
+	// GetAnomalyLogs 检测异常日志（短时高频失败、暴力破解、异地登录等；tenantID 非空时收窄到该租户）
+	GetAnomalyLogs(ctx context.Context, tenantID string, threshold int, windowMinutes int) ([]*model.AnomalyLog, error)
 }
 
 // AuditLogQuery 审计日志分页查询条件，支持按用户/租户/模块/操作/结果/风险等级及时间范围筛选。

@@ -29,12 +29,12 @@ type AuditService interface {
 	CreateLog(ctx context.Context, req dto.CreateAuditLogReq) (*model.AuditLog, error)
 	GetLog(ctx context.Context, id string) (*dto.AuditLogResp, error)
 	ListLogs(ctx context.Context, query *dto.ListAuditLogsQuery) (*dto.AuditLogListResp, error)
-	GetStats(ctx context.Context) (*dto.AuditLogStatsResp, error)
+	GetStats(ctx context.Context, tenantID string) (*dto.AuditLogStatsResp, error)
 	CleanupLogs(ctx context.Context, days int) (int64, error)
 	GetDashboard(ctx context.Context, tenantID string, days int) (*dto.DashboardResp, error)
 	GetUserTimeline(ctx context.Context, req *dto.UserTimelineReq) (*dto.UserTimelineResp, error)
-	GetDetailedStats(ctx context.Context, days int) (*dto.DetailedStatsResp, error)
-	GetAnomalyLogs(ctx context.Context, threshold int, windowMinutes int) ([]*dto.AnomalyLogResp, error)
+	GetDetailedStats(ctx context.Context, tenantID string, days int) (*dto.DetailedStatsResp, error)
+	GetAnomalyLogs(ctx context.Context, tenantID string, threshold int, windowMinutes int) ([]*dto.AnomalyLogResp, error)
 }
 
 // AuditHandler 审计日志处理器
@@ -117,10 +117,21 @@ func (h *AuditHandler) ListLogs(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, paginatedResult)
 }
 
+// resolveTenantScope 依据登录上下文推导本次查询的租户范围：
+// 上下文带租户 → 强制锁定到该租户（无法通过查询参数越权切换）；
+// 上下文无租户（超管 / 上帝账号）→ 允许用 ?tenant_id 指定目标租户，仍为空则全局。
+func (h *AuditHandler) resolveTenantScope(r *http.Request) string {
+	tenantID := contextx.GetTenantID(r.Context())
+	if tenantID == "" {
+		tenantID = r.URL.Query().Get("tenant_id")
+	}
+	return tenantID
+}
+
 // GetStats 获取审计日志统计
 // GET /api/v1/audit/stats
 func (h *AuditHandler) GetStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := h.svc.GetStats(r.Context())
+	stats, err := h.svc.GetStats(r.Context(), h.resolveTenantScope(r))
 	if err != nil {
 		response.Fail(w, http.StatusInternalServerError, "获取审计日志统计失败")
 		return
@@ -244,12 +255,7 @@ func (h *AuditHandler) GetDashboard(w http.ResponseWriter, r *http.Request) {
 	daysStr := r.URL.Query().Get("days")
 	days, _ := strconv.Atoi(daysStr)
 
-	tenantID := contextx.GetTenantID(r.Context())
-	if tenantID == "" {
-		tenantID = r.URL.Query().Get("tenant_id")
-	}
-
-	data, err := h.svc.GetDashboard(r.Context(), tenantID, days)
+	data, err := h.svc.GetDashboard(r.Context(), h.resolveTenantScope(r), days)
 	if err != nil {
 		response.Fail(w, http.StatusInternalServerError, "获取仪表盘数据失败")
 		return
@@ -278,6 +284,7 @@ func (h *AuditHandler) GetUserTimeline(w http.ResponseWriter, r *http.Request) {
 		UserID:    userID,
 		StartTime: r.URL.Query().Get("start_time"),
 		EndTime:   r.URL.Query().Get("end_time"),
+		TenantID:  h.resolveTenantScope(r),
 	}
 
 	result, err := h.svc.GetUserTimeline(r.Context(), req)
@@ -295,7 +302,7 @@ func (h *AuditHandler) GetDetailedStats(w http.ResponseWriter, r *http.Request) 
 	daysStr := r.URL.Query().Get("days")
 	days, _ := strconv.Atoi(daysStr)
 
-	result, err := h.svc.GetDetailedStats(r.Context(), days)
+	result, err := h.svc.GetDetailedStats(r.Context(), h.resolveTenantScope(r), days)
 	if err != nil {
 		response.Fail(w, http.StatusInternalServerError, "获取详细统计数据失败")
 		return
@@ -312,7 +319,7 @@ func (h *AuditHandler) GetAnomalyLogs(w http.ResponseWriter, r *http.Request) {
 	threshold, _ := strconv.Atoi(thresholdStr)
 	windowMinutes, _ := strconv.Atoi(windowStr)
 
-	result, err := h.svc.GetAnomalyLogs(r.Context(), threshold, windowMinutes)
+	result, err := h.svc.GetAnomalyLogs(r.Context(), h.resolveTenantScope(r), threshold, windowMinutes)
 	if err != nil {
 		response.Fail(w, http.StatusInternalServerError, "获取异常日志失败")
 		return

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"regexp"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -111,4 +113,61 @@ func TestAuditLogRepo_GetByID(t *testing.T) {
 	assert.Equal(t, "al-001", log.ID)
 	assert.Equal(t, "alice", log.Username)
 	assert.Equal(t, "auth", log.Module)
+}
+
+// TestAuditLogRepo_GetAnomalyLogs_ThreeTypes 异常检测应同时产出高频失败、暴力破解、异地登录三类，
+// 且各自落到正确的风险等级/详情。以 sqlmock 按序喂三张分组查询的结果行。
+func TestAuditLogRepo_GetAnomalyLogs_ThreeTypes(t *testing.T) {
+	gormDB, mock := newAuditTestDB(t)
+	repo := NewAuditLogRepository(gormDB)
+	now := time.Now()
+
+	// 1. 高频失败：alice 8 次失败（未达 5*3，中风险）
+	mock.ExpectQuery(regexp.QuoteMeta("as total")).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id", "username", "count", "total", "min_time", "max_time"}).
+			AddRow("u-001", "alice", int64(10), int64(8), now.Add(-5*time.Minute), now))
+	// 2. 暴力破解：单 IP 6 次登录失败、命中 3 个账号（未达 5*3，高风险）
+	mock.ExpectQuery(regexp.QuoteMeta("as distinct_users")).
+		WillReturnRows(sqlmock.NewRows([]string{"client_ip", "failures", "distinct_users", "min_time", "max_time"}).
+			AddRow("1.2.3.4", int64(6), int64(3), now.Add(-3*time.Minute), now))
+	// 3. 异地登录：bob 窗口内 2 个不同地点成功登录（高风险）
+	mock.ExpectQuery(regexp.QuoteMeta("as loc_count")).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id", "username", "loc_count", "min_time", "max_time"}).
+			AddRow("u-002", "bob", int64(2), now.Add(-10*time.Minute), now))
+
+	anomalies, err := repo.GetAnomalyLogs(context.Background(), "", 5, 30)
+	require.NoError(t, err)
+	require.Len(t, anomalies, 3)
+
+	byType := map[string]*model.AnomalyLog{}
+	for _, a := range anomalies {
+		byType[a.AnomalyType] = a
+	}
+	require.Contains(t, byType, model.AnomalyTypeHighFailure)
+	require.Contains(t, byType, model.AnomalyTypeBruteForce)
+	require.Contains(t, byType, model.AnomalyTypeGeoAnomaly)
+
+	assert.Equal(t, model.RiskMedium, byType[model.AnomalyTypeHighFailure].RiskLevel)
+	assert.Equal(t, model.RiskHigh, byType[model.AnomalyTypeBruteForce].RiskLevel)
+	assert.Equal(t, int64(3), byType[model.AnomalyTypeBruteForce].TotalCount)
+	assert.Contains(t, byType[model.AnomalyTypeBruteForce].Details, "1.2.3.4")
+	assert.Equal(t, model.RiskHigh, byType[model.AnomalyTypeGeoAnomaly].RiskLevel)
+	assert.NotEmpty(t, byType[model.AnomalyTypeHighFailure].Details)
+}
+
+// TestAuditLogRepo_GetAnomalyLogs_TenantScoped 传入 tenantID 时三类查询都必须带 tenant_id 过滤，
+// 否则 sqlmock 因“tenant_id”正则不匹配而报错——以此锁定跨租户隔离。
+func TestAuditLogRepo_GetAnomalyLogs_TenantScoped(t *testing.T) {
+	gormDB, mock := newAuditTestDB(t)
+	repo := NewAuditLogRepository(gormDB)
+
+	// 三张分组查询的 SQL 均需含 tenant_id = ?，命中即返回空集。
+	for i := 0; i < 3; i++ {
+		mock.ExpectQuery("tenant_id = \\?").
+			WillReturnRows(sqlmock.NewRows([]string{"user_id", "username", "count", "total", "min_time", "max_time"}))
+	}
+
+	anomalies, err := repo.GetAnomalyLogs(context.Background(), "t-001", 5, 30)
+	require.NoError(t, err)
+	require.Empty(t, anomalies)
 }

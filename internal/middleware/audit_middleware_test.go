@@ -63,6 +63,35 @@ func TestAuditRiskLevel_BatchDeleteIsCritical(t *testing.T) {
 		evaluateRiskLevel("/api/v1/messages/batch/read", "PUT", "messages", model.ActionTypeUpdate))
 }
 
+// TestAuditRiskLevel_SecuritySensitiveOps 2FA 状态变更须为 critical、密码变更须为 high，
+// 二者都是账号接管的高信号事件；只读的恢复码查询（GET）不得被抬为高危。
+func TestAuditRiskLevel_SecuritySensitiveOps(t *testing.T) {
+	require.Equal(t, model.RiskCritical,
+		evaluateRiskLevel("/api/v1/auth/2fa/enable", "POST", "auth", model.ActionTypeOther))
+	require.Equal(t, model.RiskCritical,
+		evaluateRiskLevel("/api/v1/auth/2fa/disable", "POST", "auth", model.ActionTypeOther))
+	require.Equal(t, model.RiskCritical,
+		evaluateRiskLevel("/api/v1/auth/2fa/recovery-codes/regenerate", "POST", "auth", model.ActionTypeOther))
+
+	// 只读状态查询维持低风险
+	require.Equal(t, model.RiskLow,
+		evaluateRiskLevel("/api/v1/auth/2fa/recovery-codes", "GET", "auth", model.ActionTypeQuery))
+
+	// 自助改密 / 重置抬到高风险
+	require.Equal(t, model.RiskHigh,
+		evaluateRiskLevel("/api/v1/users/password", "PUT", "user", model.ActionTypeUpdate))
+	require.Equal(t, model.RiskHigh,
+		evaluateRiskLevel("/api/v1/auth/reset-password", "POST", "auth", model.ActionTypeUpdate))
+}
+
+// TestBuildTags_SecurityMarkers 2FA 变更与密码变更须各自带上可检索标签。
+func TestBuildTags_SecurityMarkers(t *testing.T) {
+	require.Contains(t,
+		buildTags("auth", model.ActionTypeOther, model.ResultSuccess, "POST", "/api/v1/auth/2fa/enable"), `"2fa_change"`)
+	require.Contains(t,
+		buildTags("user", model.ActionTypeUpdate, model.ResultSuccess, "PUT", "/api/v1/users/password"), `"password_change"`)
+}
+
 // TestShouldSkipAudit_BatchMessagesKept 批量写操作必须进审计；
 // 跳过规则只针对健康检查与审计接口自身，不能按前缀误伤业务路径。
 func TestShouldSkipAudit_BatchMessagesKept(t *testing.T) {

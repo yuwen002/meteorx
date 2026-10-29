@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"meteorx/internal/common/contextx"
 	"meteorx/internal/middleware"
 	"meteorx/internal/modules/audit/dto"
 	"meteorx/internal/modules/audit/handler"
@@ -137,6 +138,50 @@ func TestGetStats_ServiceError_Returns500(t *testing.T) {
 	w := doReq(t, router, http.MethodGet, "/stats", "", []string{"admin"})
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// doReqAs 发送携带指定租户上下文的请求（区别于 doReq 固定 tenant-1）。
+func doReqAs(h http.Handler, method, path, tenant string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, nil)
+	req = req.WithContext(contextx.SetVars(req.Context(), tenant, "user-1", []string{"admin"}))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	return w
+}
+
+// scopeRouter 把统计/详细/异常三个接口挂到同一内存路由，复用同一 stub 观察传递的租户。
+func scopeRouter(stub *stubAuditService) http.Handler {
+	h := handler.NewAuditHandler(stub)
+	r := chi.NewRouter()
+	r.Get("/stats", h.GetStats)
+	r.Get("/detailed-stats", h.GetDetailedStats)
+	r.Get("/anomalies", h.GetAnomalyLogs)
+	return r
+}
+
+// TestAuditHandler_TenantScopeIsolation 统计类接口的租户范围必须取自登录上下文：
+// 租户用户即便伪造 ?tenant_id 也只看本租户；无租户的超管方可用 ?tenant_id 指定目标租户。
+func TestAuditHandler_TenantScopeIsolation(t *testing.T) {
+	stub := &stubAuditService{}
+	w := doReqAs(scopeRouter(stub), http.MethodGet, "/stats?tenant_id=evil", "tenant-1")
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Equal(t, "tenant-1", stub.GotTenant, "租户用户应锁定自身租户，忽略越权 query")
+
+	stub2 := &stubAuditService{}
+	w2 := doReqAs(scopeRouter(stub2), http.MethodGet, "/detailed-stats?days=7&tenant_id=evil", "tenant-1")
+	require.Equal(t, http.StatusOK, w2.Code, w2.Body.String())
+	assert.Equal(t, "tenant-1", stub2.GotTenant)
+
+	stub3 := &stubAuditService{}
+	w3 := doReqAs(scopeRouter(stub3), http.MethodGet, "/anomalies?tenant_id=evil", "tenant-1")
+	require.Equal(t, http.StatusOK, w3.Code, w3.Body.String())
+	assert.Equal(t, "tenant-1", stub3.GotTenant)
+
+	// 超管（上下文无租户）可用 ?tenant_id 指定目标租户
+	stub4 := &stubAuditService{}
+	w4 := doReqAs(scopeRouter(stub4), http.MethodGet, "/stats?tenant_id=tenant-7", "")
+	require.Equal(t, http.StatusOK, w4.Code, w4.Body.String())
+	assert.Equal(t, "tenant-7", stub4.GotTenant, "超管应能按 query 指定目标租户")
 }
 
 func TestCleanupLogs_NonSuperadmin_Returns403(t *testing.T) {

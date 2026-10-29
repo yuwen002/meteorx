@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"meteorx/internal/modules/audit/model"
 	"strings"
 	"time"
@@ -224,32 +225,41 @@ func (r *auditLogRepository) List(ctx context.Context, query *AuditLogQuery) ([]
 }
 
 // GetStats 汇总审计日志整体统计：总量、今日量、动作分布、模块分布及成功/失败结果分布。
-func (r *auditLogRepository) GetStats(ctx context.Context) (*model.AuditLogStats, error) {
+// tenantID 非空时所有统计维度均收窄到该租户，避免跨租户数据泄漏；为空则维持全局。
+func (r *auditLogRepository) GetStats(ctx context.Context, tenantID string) (*model.AuditLogStats, error) {
+	newQuery := func() *gorm.DB {
+		q := r.db.WithContext(ctx).Model(&AuditLogPO{})
+		if tenantID != "" {
+			q = q.Where("tenant_id = ?", tenantID)
+		}
+		return q
+	}
+
 	var totalCount int64
-	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).Count(&totalCount).Error; err != nil {
+	if err := newQuery().Count(&totalCount).Error; err != nil {
 		return nil, err
 	}
 
 	var todayCount int64
 	today := time.Now().Format("2006-01-02")
-	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).Where("DATE(created_at) = ?", today).Count(&todayCount).Error; err != nil {
+	if err := newQuery().Where("DATE(created_at) = ?", today).Count(&todayCount).Error; err != nil {
 		return nil, err
 	}
 
-	actionStats, err := r.GetActionStats(ctx)
+	actionStats, err := r.GetActionStats(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
 
-	moduleStats, err := r.GetModuleStats(ctx)
+	moduleStats, err := r.GetModuleStats(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
 
 	var resultStats = make(map[string]int64)
 	var successCount, failureCount int64
-	r.db.WithContext(ctx).Model(&AuditLogPO{}).Where("result = ?", model.ResultSuccess).Count(&successCount)
-	r.db.WithContext(ctx).Model(&AuditLogPO{}).Where("result = ?", model.ResultFailure).Count(&failureCount)
+	newQuery().Where("result = ?", model.ResultSuccess).Count(&successCount)
+	newQuery().Where("result = ?", model.ResultFailure).Count(&failureCount)
 	resultStats[model.ResultSuccess] = successCount
 	resultStats[model.ResultFailure] = failureCount
 
@@ -262,15 +272,18 @@ func (r *auditLogRepository) GetStats(ctx context.Context) (*model.AuditLogStats
 	}, nil
 }
 
-// GetActionStats 按操作动作分组统计审计日志数量。
-func (r *auditLogRepository) GetActionStats(ctx context.Context) (map[string]int64, error) {
+// GetActionStats 按操作动作分组统计审计日志数量（tenantID 非空时收窄到该租户）。
+func (r *auditLogRepository) GetActionStats(ctx context.Context, tenantID string) (map[string]int64, error) {
 	type result struct {
 		Action string
 		Count  int64
 	}
+	q := r.db.WithContext(ctx).Model(&AuditLogPO{})
+	if tenantID != "" {
+		q = q.Where("tenant_id = ?", tenantID)
+	}
 	var results []result
-	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).
-		Select("action, COUNT(*) as count").
+	if err := q.Select("action, COUNT(*) as count").
 		Group("action").
 		Scan(&results).Error; err != nil {
 		return nil, err
@@ -283,15 +296,18 @@ func (r *auditLogRepository) GetActionStats(ctx context.Context) (map[string]int
 	return stats, nil
 }
 
-// GetModuleStats 按操作模块分组统计审计日志数量。
-func (r *auditLogRepository) GetModuleStats(ctx context.Context) (map[string]int64, error) {
+// GetModuleStats 按操作模块分组统计审计日志数量（tenantID 非空时收窄到该租户）。
+func (r *auditLogRepository) GetModuleStats(ctx context.Context, tenantID string) (map[string]int64, error) {
 	type result struct {
 		Module string
 		Count  int64
 	}
+	q := r.db.WithContext(ctx).Model(&AuditLogPO{})
+	if tenantID != "" {
+		q = q.Where("tenant_id = ?", tenantID)
+	}
 	var results []result
-	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).
-		Select("module, COUNT(*) as count").
+	if err := q.Select("module, COUNT(*) as count").
 		Group("module").
 		Scan(&results).Error; err != nil {
 		return nil, err
@@ -399,12 +415,12 @@ func (r *auditLogRepository) GetDashboardData(ctx context.Context, tenantID stri
 		return nil, err
 	}
 
-	actionStats, err := r.GetActionStats(ctx)
+	actionStats, err := r.GetActionStats(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
 
-	moduleStats, err := r.GetModuleStats(ctx)
+	moduleStats, err := r.GetModuleStats(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -527,9 +543,12 @@ func (r *auditLogRepository) ListSessions(ctx context.Context, page, pageSize in
 	return summaries, total, nil
 }
 
-// GetUserTimeline 获取用户操作时间线
-func (r *auditLogRepository) GetUserTimeline(ctx context.Context, userID string, page, pageSize int, startTime, endTime string) ([]*model.AuditLog, int64, error) {
+// GetUserTimeline 获取用户操作时间线（tenantID 非空时强制隔离到该租户，防止跨租户翻阅他人时间线）
+func (r *auditLogRepository) GetUserTimeline(ctx context.Context, tenantID, userID string, page, pageSize int, startTime, endTime string) ([]*model.AuditLog, int64, error) {
 	db := r.db.WithContext(ctx).Model(&AuditLogPO{}).Where("user_id = ? OR username = ?", userID, userID)
+	if tenantID != "" {
+		db = db.Where("tenant_id = ?", tenantID)
+	}
 
 	if startTime != "" {
 		db = db.Where("created_at >= ?", startTime)
@@ -555,17 +574,20 @@ func (r *auditLogRepository) GetUserTimeline(ctx context.Context, userID string,
 	return logs, total, nil
 }
 
-// GetHourlyStats 获取小时级统计
-func (r *auditLogRepository) GetHourlyStats(ctx context.Context, days int) (map[string]int64, error) {
+// GetHourlyStats 获取小时级统计（tenantID 非空时收窄到该租户）
+func (r *auditLogRepository) GetHourlyStats(ctx context.Context, tenantID string, days int) (map[string]int64, error) {
 	type result struct {
 		Hour  string
 		Count int64
 	}
 
 	cutoff := time.Now().AddDate(0, 0, -days)
+	q := r.db.WithContext(ctx).Model(&AuditLogPO{})
+	if tenantID != "" {
+		q = q.Where("tenant_id = ?", tenantID)
+	}
 	var results []result
-	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).
-		Select("DATE_FORMAT(created_at, '%Y-%m-%d %H:00') as hour, COUNT(*) as count").
+	if err := q.Select("DATE_FORMAT(created_at, '%Y-%m-%d %H:00') as hour, COUNT(*) as count").
 		Where("created_at >= ?", cutoff).
 		Group("hour").
 		Order("hour ASC").
@@ -580,8 +602,8 @@ func (r *auditLogRepository) GetHourlyStats(ctx context.Context, days int) (map[
 	return stats, nil
 }
 
-// GetUserActivityStats 获取用户活跃度统计
-func (r *auditLogRepository) GetUserActivityStats(ctx context.Context, days, limit int) ([]model.UserActivityStat, error) {
+// GetUserActivityStats 获取用户活跃度统计（tenantID 非空时收窄到该租户）
+func (r *auditLogRepository) GetUserActivityStats(ctx context.Context, tenantID string, days, limit int) ([]model.UserActivityStat, error) {
 	type result struct {
 		UserID   string
 		Username string
@@ -590,9 +612,12 @@ func (r *auditLogRepository) GetUserActivityStats(ctx context.Context, days, lim
 	}
 
 	cutoff := time.Now().AddDate(0, 0, -days)
+	q := r.db.WithContext(ctx).Model(&AuditLogPO{})
+	if tenantID != "" {
+		q = q.Where("tenant_id = ?", tenantID)
+	}
 	var results []result
-	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).
-		Select("user_id, username, COUNT(*) as count, SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) as failures").
+	if err := q.Select("user_id, username, COUNT(*) as count, SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) as failures").
 		Where("created_at >= ? AND user_id != ''", cutoff).
 		Group("user_id, username").
 		Order("count DESC").
@@ -613,17 +638,20 @@ func (r *auditLogRepository) GetUserActivityStats(ctx context.Context, days, lim
 	return stats, nil
 }
 
-// GetRiskLevelStats 获取风险等级分布
-func (r *auditLogRepository) GetRiskLevelStats(ctx context.Context, days int) (map[string]int64, error) {
+// GetRiskLevelStats 获取风险等级分布（tenantID 非空时收窄到该租户）
+func (r *auditLogRepository) GetRiskLevelStats(ctx context.Context, tenantID string, days int) (map[string]int64, error) {
 	type result struct {
 		RiskLevel string
 		Count     int64
 	}
 
 	cutoff := time.Now().AddDate(0, 0, -days)
+	q := r.db.WithContext(ctx).Model(&AuditLogPO{})
+	if tenantID != "" {
+		q = q.Where("tenant_id = ?", tenantID)
+	}
 	var results []result
-	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).
-		Select("risk_level, COUNT(*) as count").
+	if err := q.Select("risk_level, COUNT(*) as count").
 		Where("created_at >= ? AND risk_level != ''", cutoff).
 		Group("risk_level").
 		Scan(&results).Error; err != nil {
@@ -637,8 +665,22 @@ func (r *auditLogRepository) GetRiskLevelStats(ctx context.Context, days int) (m
 	return stats, nil
 }
 
-// GetAnomalyLogs 检测异常日志
-func (r *auditLogRepository) GetAnomalyLogs(ctx context.Context, threshold int, windowMinutes int) ([]*model.AnomalyLog, error) {
+// GetAnomalyLogs 检测异常日志：在指定时间窗口内并行产出三类安全异常——
+// 高频失败（按用户）、暴力破解（按来源 IP 跨多账号）、异地登录（按用户多地成功登录）。
+// tenantID 非空时三类检测均收窄到该租户；为空则全局扫描（供超管视图）。
+func (r *auditLogRepository) GetAnomalyLogs(ctx context.Context, tenantID string, threshold int, windowMinutes int) ([]*model.AnomalyLog, error) {
+	cutoff := time.Now().Add(-time.Duration(windowMinutes) * time.Minute)
+
+	// withTenant 在基础查询上按需追加租户过滤。
+	withTenant := func(q *gorm.DB) *gorm.DB {
+		if tenantID != "" {
+			return q.Where("tenant_id = ?", tenantID)
+		}
+		return q
+	}
+
+	var anomalies []*model.AnomalyLog
+
 	// 1. 高频失败检测：在指定时间窗口内，同一用户失败次数超过阈值
 	type failureResult struct {
 		UserID   string
@@ -648,19 +690,15 @@ func (r *auditLogRepository) GetAnomalyLogs(ctx context.Context, threshold int, 
 		MinTime  time.Time
 		MaxTime  time.Time
 	}
-
-	cutoff := time.Now().Add(-time.Duration(windowMinutes) * time.Minute)
 	var failures []failureResult
-	if err := r.db.WithContext(ctx).Model(&AuditLogPO{}).
+	fq := withTenant(r.db.WithContext(ctx).Model(&AuditLogPO{}).
 		Select("user_id, username, COUNT(*) as count, SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) as total, MIN(created_at) as min_time, MAX(created_at) as max_time").
 		Where("created_at >= ? AND user_id != ''", cutoff).
 		Group("user_id, username").
-		Having("total >= ?", threshold).
-		Scan(&failures).Error; err != nil {
+		Having("total >= ?", threshold))
+	if err := fq.Scan(&failures).Error; err != nil {
 		return nil, err
 	}
-
-	var anomalies []*model.AnomalyLog
 	for _, f := range failures {
 		riskLevel := model.RiskMedium
 		if f.Total >= int64(threshold*3) {
@@ -676,7 +714,72 @@ func (r *auditLogRepository) GetAnomalyLogs(ctx context.Context, threshold int, 
 			FirstSeen:     f.MinTime,
 			LastSeen:      f.MaxTime,
 			RiskLevel:     riskLevel,
-			Details:       "",
+			Details:       fmt.Sprintf("窗口 %d 分钟内操作失败 %d 次（共 %d 次操作）", windowMinutes, f.Total, f.Count),
+		})
+	}
+
+	// 2. 暴力破解检测：同一来源 IP 在窗口内对多个不同账号造成登录失败（凭证填充 / 撞库特征）
+	type bruteResult struct {
+		ClientIP      string
+		Failures      int64
+		DistinctUsers int64
+		MinTime       time.Time
+		MaxTime       time.Time
+	}
+	var brute []bruteResult
+	bq := withTenant(r.db.WithContext(ctx).Model(&AuditLogPO{}).
+		Select("client_ip, SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) as failures, COUNT(DISTINCT username) as distinct_users, MIN(created_at) as min_time, MAX(created_at) as max_time").
+		Where("created_at >= ? AND action = ? AND client_ip != ''", cutoff, model.ActionTypeLogin).
+		Group("client_ip").
+		Having("failures >= ? AND distinct_users >= 2", threshold))
+	if err := bq.Scan(&brute).Error; err != nil {
+		return nil, err
+	}
+	for _, b := range brute {
+		riskLevel := model.RiskHigh
+		if b.Failures >= int64(threshold*3) {
+			riskLevel = model.RiskCritical
+		}
+		anomalies = append(anomalies, &model.AnomalyLog{
+			AnomalyType:   model.AnomalyTypeBruteForce,
+			FailureCount:  b.Failures,
+			TotalCount:    b.DistinctUsers,
+			WindowMinutes: windowMinutes,
+			FirstSeen:     b.MinTime,
+			LastSeen:      b.MaxTime,
+			RiskLevel:     riskLevel,
+			Details:       fmt.Sprintf("来源 IP %s 在窗口 %d 分钟内对 %d 个账号造成 %d 次登录失败", b.ClientIP, windowMinutes, b.DistinctUsers, b.Failures),
+		})
+	}
+
+	// 3. 异地登录检测：同一用户在窗口内从多个不同地理位置成功登录（不可思议的移动 / 账号共享）
+	type geoResult struct {
+		UserID   string
+		Username string
+		LocCount int64
+		MinTime  time.Time
+		MaxTime  time.Time
+	}
+	var geo []geoResult
+	gq := withTenant(r.db.WithContext(ctx).Model(&AuditLogPO{}).
+		Select("user_id, username, COUNT(DISTINCT ip_location) as loc_count, MIN(created_at) as min_time, MAX(created_at) as max_time").
+		Where("created_at >= ? AND action = ? AND result = ? AND ip_location != '' AND user_id != ''", cutoff, model.ActionTypeLogin, model.ResultSuccess).
+		Group("user_id, username").
+		Having("loc_count >= 2"))
+	if err := gq.Scan(&geo).Error; err != nil {
+		return nil, err
+	}
+	for _, g := range geo {
+		anomalies = append(anomalies, &model.AnomalyLog{
+			UserID:        g.UserID,
+			Username:      g.Username,
+			AnomalyType:   model.AnomalyTypeGeoAnomaly,
+			TotalCount:    g.LocCount,
+			WindowMinutes: windowMinutes,
+			FirstSeen:     g.MinTime,
+			LastSeen:      g.MaxTime,
+			RiskLevel:     model.RiskHigh,
+			Details:       fmt.Sprintf("用户 %s 在窗口 %d 分钟内从 %d 个不同地点成功登录", g.Username, windowMinutes, g.LocCount),
 		})
 	}
 

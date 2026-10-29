@@ -8,6 +8,9 @@
 ## [Unreleased]
 
 ### 新增
+- **工作台聚合接口并行化 + Redis 短缓存（性能）**：`GetTenantOverview`/`GetOverview` 由多次串行查询改为 `errgroup` 并发拉取，并叠加 Redis 短 TTL 缓存（读失败 fail-open 降级，不影响正确性），显著降低管理端与租户端首屏延迟。
+- **两步验证（2FA）一次性备份恢复码**：开启 2FA 时生成 10 枚 `XXXXX-XXXXX` 恢复码（去歧义字母表），仅以 SHA-256 哈希落库；登录 TOTP 校验失败时回退校验恢复码（`hmac.Equal` 恒定时间比较、用后即焚）；新增查看状态与重新生成端点，避免用户丢失验证器后被锁死。
+- **审计异常检测收口 + 统计接口租户隔离 + 风险等级强化**：异常检测在原有 `high_failure_rate` 之外补齐 `brute_force`（同 IP 跨多账号登录失败）与 `geo_anomaly`（同用户多地点成功登录）两类真实产出；`stats`/`detailed-stats`/`anomalies`/`user-timeline` 等统计类接口按租户上下文收窄，堵住平台维度数据跨租户泄漏；2FA 变更审计记为 `critical` 并打 `2fa_change` 标签、修改密码记为 `high`。
 - **协作即时消息（IM）模块**：全新 `internal/modules/chat` 模块（`model→dto→repository→service→handler→module`），基于 `internal/ws` Hub 实时投递。首版落地 **1:1 私聊**（打开/创建会话、发送、历史、已读水位与未读）；**加固批次**新增消息撤回、输入中提示、在线状态（`GET /chat/presence`）；**群聊批次**新增 `Conversation.Type=group` 与 `ConversationMember.Role=owner/member` 成员规则（建群/改名/加减成员/退群，末位离开软删会话），会话元信息经 `MsgTypeChatConversation` 推送驱动前端刷新。前端新增会话列表、聊天面板、群成员管理抽屉与在线/输入中/撤回交互，补 `stores/chat.test.ts`（9 用例）。
 - **Wiki 评论深化**：在既有「根评论 + 一级回复 + @提及 + 状态位」基线上补齐**表情回应**与**解决/重开**。新增 `CommentReaction` 模型（`(comment_id, user_id, emoji)` 复合唯一）与 `POST /wiki/documents/comments/{id}/reactions`（幂等切换，返回最新聚合）、`.../resolve`（仅根评论，作者或具删除权限者可操作）；批量聚合避免 N+1，评论删除级联清理 reactions，列表过滤由 `status = Active` 改为 `status <> Deleted` 使已解决评论仍可见。前端 `CommentSection.vue` 重写，新增表情回应 chip + 快捷面板、解决/重开徽标、作者编辑、@提及远程多选。
 - **前端 i18n 全站铺开**：将约 30 个硬编码中文业务页迁移到 `stores/i18n.ts` 扁平点分 locale key（`import useI18n` + `t()` 范式，locale key zh/en 对称由 vitest 校验），覆盖认证、用户/租户/邀请、任务/告警/健康/导出/文件、RBAC/套餐、系统管理、审计、公告/设置、登录/看板、消息/个人中心、Wiki 等，并收口全站运行期文案与注释；租户端批量操作路径以真实栈浏览器目视验证 5 项全 PASS。

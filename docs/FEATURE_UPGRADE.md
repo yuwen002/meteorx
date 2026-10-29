@@ -1863,3 +1863,31 @@ i18n 此前只铺了全局外壳（`App.vue`、`DefaultLayout.vue`），`web-adm
 
 - 租户端批量操作路径为文档登记的「已知未验证」项：本地以 miniredis + 真实后端/前端栈启动后做浏览器目视验证，5 项检查全部 PASS（中/英路由标题、面包屑、批量条文案完全本地化）。
 - ✅ 全站改动：`vue-tsc --noEmit` 退出 0；`vitest run` 全绿；中文硬编码扫描 `HITS=0`。
+
+---
+
+## 五十二、工作台性能、2FA 恢复码与审计强化
+
+本轮按三张独立提交的卡片推进：① 工作台聚合优化、② 2FA 备份恢复码、③ 审计强化（异常检测收口 + 统计接口租户隔离 + 风险等级）。
+
+### 52.1 工作台聚合并行化 + Redis 短缓存（性能，`f969bc4`）
+
+- `GetTenantOverview`/`GetOverview` 中多个相互独立的统计查询由串行改为 `golang.org/x/sync/errgroup` 并发拉取，减少首屏线性等待。
+- 叠加 Redis 短 TTL 缓存（泛型 `cacheGet[T]` + 变参选项 `WithCache` 注入），缓存读/写失败一律 **fail-open** 降级回源查询，不因缓存故障影响正确性。
+
+### 52.2 两步验证（2FA）一次性备份恢复码（`b2918ca`）
+
+- **新包** `pkg/security/recovery.go`：`GenerateRecoveryCodes` 生成 10 枚 `XXXXX-XXXXX` 格式恢复码（去歧义字母表 `ABCDEFGHJKMNPQRSTUVWXYZ23456789`）；`HashRecoveryCode` 以 SHA-256 hex 落库；`VerifyRecoveryCode` 用 `hmac.Equal` 恒定时间比较；`NormalizeRecoveryCode` 归一化用户输入。
+- **Service**（`auth_service.go`）：`Enable2FA` 首次开启时生成并通过 `issueRecoveryCodes` 哈希覆盖入库、明文随响应返回一次；`Login` 在 TOTP 校验失败时回退用恢复码（命中即 `ConsumeRecoveryCode` 用后即焚）；`Disable2FA` 清空恢复码；新增 `GetRecoveryCodeStatus`/`RegenerateRecoveryCodes`。
+- **路由**：新增查看状态与重新生成两个端点；前端 `api/modules/auth.ts` + `login/index.vue`（恢复码登录入口）+ `profile/index.vue`（查看/重新生成）同步。
+
+### 52.3 审计强化（异常检测 + 租户隔离 + 风险等级）
+
+- **异常检测收口**（`audit_repository.go` `GetAnomalyLogs` 全量重写）：在原有 `high_failure_rate`（按用户失败率）之外补齐 `brute_force`（`action=login`，按 `client_ip` 分组跨 ≥ 2 个账号失败）与 `geo_anomaly`（`action=login AND result=success`，按用户分组 `COUNT(DISTINCT ip_location) >= 2`）两类真实产出，风险等级按阈值倍数上浮。前端 `anomaly.vue` 与 service `getAnomalyLabel` 早已支持三类型，缺口仅在后端产出层，故无需前端改动。
+- **统计接口租户隔离**：`GetStats`/`GetActionStats`/`GetModuleStats`/`GetHourlyStats`/`GetUserActivityStats`/`GetRiskLevelStats`/`GetUserTimeline`/`GetAnomalyLogs` 八个仓储方法新增 `tenantID` 参数并加 `WHERE tenant_id = ?` 过滤；service/handler 逐层透传；handler 新增 `resolveTenantScope`（上下文有租户即锁定，上帝账号可经 `?tenant_id` 指定），`GetDashboard` 亦修复既有全局泄漏。
+- **风险等级强化**（`audit_middleware.go`）：`evaluateRiskLevel` 对 `/2fa/` 写操作返回 `critical`、`password` 的 POST/PUT 返回 `high`；`buildTags` 对 2FA 变更追加 `2fa_change` 标签。
+
+### 52.4 验证状态
+
+- ✅ 后端 `go build ./...`/`go vet ./...` 干净；`go test ./...` 全部通过（新增 repo `GetAnomalyLogs` 三类型/租户隔离用例、handler 租户隔离用例、middleware 风险/标签用例）。
+- ✅ 前端 `vue-tsc --noEmit` 干净；`vitest run` 27 文件 289 用例全绿。

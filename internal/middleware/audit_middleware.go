@@ -406,6 +406,20 @@ func evaluateRiskLevel(path, method, module, action string) string {
 		}
 	}
 
+	// 严重风险：双因素认证状态变更（开启/关闭、重生成恢复码）。
+	// 第二因子被关掉或恢复码被重置，往往意味着账号已被接管后的“消除痕迹”，
+	// 风险不亚于权限变更，须按 critical 留痕供实时告警捕获。
+	isWrite := method == "POST" || method == "PUT" || method == "DELETE"
+	if strings.Contains(path, "/2fa/") && isWrite {
+		return model.RiskCritical
+	}
+
+	// 高风险：密码变更 / 重置（自助改密、管理员重置、忘记密码重置）。
+	// 改密同样是账号接管的高信号事件，统一抬到 high。
+	if strings.Contains(path, "password") && (method == "POST" || method == "PUT") {
+		return model.RiskHigh
+	}
+
 	// 高风险：用户管理、租户管理、登录失败
 	if module == "user" && (method == "POST" || method == "DELETE") {
 		return model.RiskHigh
@@ -472,6 +486,10 @@ func buildTags(module, action, result, method, path string) string {
 	}
 	if strings.Contains(path, "password") && (method == "POST" || method == "PUT") {
 		tags = append(tags, "password_change")
+	}
+	// 双因素认证状态变更单独打标签，便于按标签整类检索 2FA 开关/恢复码重生成。
+	if strings.Contains(path, "/2fa/") && (method == "POST" || method == "PUT" || method == "DELETE") {
+		tags = append(tags, "2fa_change")
 	}
 	if len(tags) == 0 {
 		return ""

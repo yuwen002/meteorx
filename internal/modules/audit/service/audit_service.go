@@ -192,9 +192,9 @@ func (s *AuditService) ListLogs(ctx context.Context, query *dto.ListAuditLogsQue
 	}, nil
 }
 
-// GetStats 获取审计日志统计
-func (s *AuditService) GetStats(ctx context.Context) (*dto.AuditLogStatsResp, error) {
-	stats, err := s.repo.GetStats(ctx)
+// GetStats 获取审计日志统计（tenantID 非空时收窄到该租户）
+func (s *AuditService) GetStats(ctx context.Context, tenantID string) (*dto.AuditLogStatsResp, error) {
+	stats, err := s.repo.GetStats(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +262,7 @@ func (s *AuditService) GetUserTimeline(ctx context.Context, req *dto.UserTimelin
 		req.PageSize = 20
 	}
 
-	logs, total, err := s.repo.GetUserTimeline(ctx, req.UserID, req.Page, req.PageSize, req.StartTime, req.EndTime)
+	logs, total, err := s.repo.GetUserTimeline(ctx, req.TenantID, req.UserID, req.Page, req.PageSize, req.StartTime, req.EndTime)
 	if err != nil {
 		return nil, err
 	}
@@ -313,33 +313,33 @@ func (s *AuditService) GetUserTimeline(ctx context.Context, req *dto.UserTimelin
 	}, nil
 }
 
-// GetDetailedStats 获取详细统计
-func (s *AuditService) GetDetailedStats(ctx context.Context, days int) (*dto.DetailedStatsResp, error) {
+// GetDetailedStats 获取详细统计（tenantID 非空时所有维度收窄到该租户）
+func (s *AuditService) GetDetailedStats(ctx context.Context, tenantID string, days int) (*dto.DetailedStatsResp, error) {
 	if days <= 0 {
 		days = 7
 	}
 
-	stats, err := s.repo.GetStats(ctx)
+	stats, err := s.repo.GetStats(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
 
-	hourlyStats, err := s.repo.GetHourlyStats(ctx, days)
+	hourlyStats, err := s.repo.GetHourlyStats(ctx, tenantID, days)
 	if err != nil {
 		return nil, err
 	}
 
-	userActivity, err := s.repo.GetUserActivityStats(ctx, days, 20)
+	userActivity, err := s.repo.GetUserActivityStats(ctx, tenantID, days, 20)
 	if err != nil {
 		return nil, err
 	}
 
-	riskLevelStats, err := s.repo.GetRiskLevelStats(ctx, days)
+	riskLevelStats, err := s.repo.GetRiskLevelStats(ctx, tenantID, days)
 	if err != nil {
 		return nil, err
 	}
 
-	trend, err := s.repo.GetTrendStats(ctx, "", days)
+	trend, err := s.repo.GetTrendStats(ctx, tenantID, days)
 	if err != nil {
 		return nil, err
 	}
@@ -377,8 +377,8 @@ func (s *AuditService) GetDetailedStats(ctx context.Context, days int) (*dto.Det
 	}, nil
 }
 
-// GetAnomalyLogs 获取异常日志
-func (s *AuditService) GetAnomalyLogs(ctx context.Context, threshold int, windowMinutes int) ([]*dto.AnomalyLogResp, error) {
+// GetAnomalyLogs 获取异常日志（tenantID 非空时收窄到该租户）
+func (s *AuditService) GetAnomalyLogs(ctx context.Context, tenantID string, threshold int, windowMinutes int) ([]*dto.AnomalyLogResp, error) {
 	if threshold <= 0 {
 		threshold = 5
 	}
@@ -386,7 +386,7 @@ func (s *AuditService) GetAnomalyLogs(ctx context.Context, threshold int, window
 		windowMinutes = 30
 	}
 
-	anomalies, err := s.repo.GetAnomalyLogs(ctx, threshold, windowMinutes)
+	anomalies, err := s.repo.GetAnomalyLogs(ctx, tenantID, threshold, windowMinutes)
 	if err != nil {
 		return nil, err
 	}

@@ -102,15 +102,15 @@ func (m *MockAuditLogRepository) List(ctx context.Context, query *AuditLogQuery)
 	return result[start:end], int64(len(result)), nil
 }
 
-func (m *MockAuditLogRepository) GetStats(ctx context.Context) (*model.AuditLogStats, error) {
+func (m *MockAuditLogRepository) GetStats(ctx context.Context, tenantID string) (*model.AuditLogStats, error) {
 	return m.stats, nil
 }
 
-func (m *MockAuditLogRepository) GetActionStats(ctx context.Context) (map[string]int64, error) {
+func (m *MockAuditLogRepository) GetActionStats(ctx context.Context, tenantID string) (map[string]int64, error) {
 	return m.stats.ActionStats, nil
 }
 
-func (m *MockAuditLogRepository) GetModuleStats(ctx context.Context) (map[string]int64, error) {
+func (m *MockAuditLogRepository) GetModuleStats(ctx context.Context, tenantID string) (map[string]int64, error) {
 	return m.stats.ModuleStats, nil
 }
 
@@ -239,10 +239,13 @@ func (m *MockAuditLogRepository) ListSessions(ctx context.Context, page, pageSiz
 }
 
 // GetUserTimeline Mock 实现
-func (m *MockAuditLogRepository) GetUserTimeline(ctx context.Context, userID string, page, pageSize int, startTime, endTime string) ([]*model.AuditLog, int64, error) {
+func (m *MockAuditLogRepository) GetUserTimeline(ctx context.Context, tenantID, userID string, page, pageSize int, startTime, endTime string) ([]*model.AuditLog, int64, error) {
 	var result []*model.AuditLog
 	for _, log := range m.logs {
 		if log.UserID != userID {
+			continue
+		}
+		if tenantID != "" && log.TenantID != tenantID {
 			continue
 		}
 		if startTime != "" && log.CreatedAt.Format("2006-01-02") < startTime {
@@ -267,19 +270,22 @@ func (m *MockAuditLogRepository) GetUserTimeline(ctx context.Context, userID str
 }
 
 // GetHourlyStats Mock 实现
-func (m *MockAuditLogRepository) GetHourlyStats(ctx context.Context, days int) (map[string]int64, error) {
+func (m *MockAuditLogRepository) GetHourlyStats(ctx context.Context, tenantID string, days int) (map[string]int64, error) {
 	return map[string]int64{}, nil
 }
 
 // GetUserActivityStats Mock 实现
-func (m *MockAuditLogRepository) GetUserActivityStats(ctx context.Context, days, limit int) ([]model.UserActivityStat, error) {
+func (m *MockAuditLogRepository) GetUserActivityStats(ctx context.Context, tenantID string, days, limit int) ([]model.UserActivityStat, error) {
 	return []model.UserActivityStat{}, nil
 }
 
 // GetRiskLevelStats Mock 实现
-func (m *MockAuditLogRepository) GetRiskLevelStats(ctx context.Context, days int) (map[string]int64, error) {
+func (m *MockAuditLogRepository) GetRiskLevelStats(ctx context.Context, tenantID string, days int) (map[string]int64, error) {
 	stats := make(map[string]int64)
 	for _, log := range m.logs {
+		if tenantID != "" && log.TenantID != tenantID {
+			continue
+		}
 		if log.RiskLevel != "" {
 			stats[log.RiskLevel]++
 		}
@@ -288,7 +294,7 @@ func (m *MockAuditLogRepository) GetRiskLevelStats(ctx context.Context, days int
 }
 
 // GetAnomalyLogs Mock 实现
-func (m *MockAuditLogRepository) GetAnomalyLogs(ctx context.Context, threshold int, windowMinutes int) ([]*model.AnomalyLog, error) {
+func (m *MockAuditLogRepository) GetAnomalyLogs(ctx context.Context, tenantID string, threshold int, windowMinutes int) ([]*model.AnomalyLog, error) {
 	return []*model.AnomalyLog{}, nil
 }
 
