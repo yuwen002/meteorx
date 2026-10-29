@@ -67,7 +67,7 @@ type TenantMemberChecker interface {
 type ChatServiceInterface interface {
 	OpenDirect(ctx context.Context, tenantID, userID, participantID string) (*model.Conversation, error)
 	ListConversations(ctx context.Context, tenantID, userID string) ([]*model.Conversation, error)
-	SendMessage(ctx context.Context, tenantID, userID, conversationID, content string) (*model.ChatMessage, error)
+	SendMessage(ctx context.Context, tenantID, userID, conversationID, content, mentionIDs string) (*model.ChatMessage, error)
 	ListMessages(ctx context.Context, tenantID, userID, conversationID string, page, pageSize int) ([]*model.ChatMessage, int64, error)
 	MarkRead(ctx context.Context, tenantID, userID, conversationID string) error
 	RecallMessage(ctx context.Context, tenantID, userID, conversationID, messageID string) error
@@ -141,7 +141,8 @@ func (s *ChatService) ListConversations(ctx context.Context, tenantID, userID st
 }
 
 // SendMessage 发送一条消息：校验成员归属后落库，并经 WS 实时投递给会话其他成员。
-func (s *ChatService) SendMessage(ctx context.Context, tenantID, userID, conversationID, content string) (*model.ChatMessage, error) {
+// mentionIDs 为逗号分隔的 @提及用户 ID，仅保留属于本会话的有效成员（剔除自己与非成员）。
+func (s *ChatService) SendMessage(ctx context.Context, tenantID, userID, conversationID, content, mentionIDs string) (*model.ChatMessage, error) {
 	content = strings.TrimSpace(content)
 	if content == "" {
 		return nil, ErrEmptyContent
@@ -158,6 +159,7 @@ func (s *ChatService) SendMessage(ctx context.Context, tenantID, userID, convers
 		SenderID:       userID,
 		Content:        content,
 		Type:           model.MessageTypeText,
+		MentionIDs:     s.filterMentionIDs(ctx, conversationID, userID, mentionIDs),
 		CreatedAt:      now,
 	}
 	if err := s.repo.SendMessage(ctx, msg); err != nil {
@@ -534,6 +536,40 @@ func (s *ChatService) ensureTenantMembers(ctx context.Context, tenantID string, 
 	return nil
 }
 
+// filterMentionIDs 保留 @提及中属于本会话的有效成员：去重、剔除空白、发送人自己与非成员。
+// 无有效提及或查询失败时返回空串（@提及为增强信息，不阻断发送）。
+func (s *ChatService) filterMentionIDs(ctx context.Context, conversationID, senderID, raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	members, err := s.repo.ListMembers(ctx, conversationID)
+	if err != nil {
+		return ""
+	}
+	valid := make(map[string]struct{}, len(members))
+	for _, m := range members {
+		valid[m.UserID] = struct{}{}
+	}
+	seen := make(map[string]struct{})
+	kept := make([]string, 0, len(members))
+	for _, id := range strings.Split(raw, ",") {
+		id = strings.TrimSpace(id)
+		if id == "" || id == senderID {
+			continue
+		}
+		if _, ok := valid[id]; !ok {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		kept = append(kept, id)
+	}
+	return strings.Join(kept, ",")
+}
+
 // ensureMember 校验用户为指定会话（同租户）成员，否则返回 ErrConversationNotFound。
 func (s *ChatService) ensureMember(ctx context.Context, conversationID, tenantID, userID string) error {
 	ok, err := s.repo.IsMember(ctx, conversationID, tenantID, userID)
@@ -632,6 +668,7 @@ func ToMessageResp(m *model.ChatMessage) *dto.ChatMessageResp {
 		SenderName:     m.SenderName,
 		Content:        m.Content,
 		Type:           m.Type,
+		MentionIDs:     m.MentionIDs,
 		Recalled:       m.Deleted,
 		CreatedAt:      m.CreatedAt.Format("2006-01-02 15:04:05"),
 	}

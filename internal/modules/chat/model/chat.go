@@ -79,6 +79,7 @@ type ChatMessage struct {
 	SenderID       string     // 发送人用户 ID
 	Content        string     // 消息正文（撤回后置空）
 	Type           string     // 消息类型：text
+	MentionIDs     string     // @提及的用户 ID 列表（逗号分隔，仅保留会话内有效成员）
 	Deleted        bool       // 是否已撤回（软撤回标记，保留行以维持审计可追溯）
 	DeletedAt      *time.Time // 撤回时间
 	CreatedAt      time.Time  // 发送时间

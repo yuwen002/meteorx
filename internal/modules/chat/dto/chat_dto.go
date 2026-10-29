@@ -24,7 +24,8 @@ type AddMembersReq struct {
 
 // SendMessageReq 发送消息请求。
 type SendMessageReq struct {
-	Content string `json:"content" validate:"required,max=2000" label:"消息内容"` // 消息正文
+	Content    string `json:"content" validate:"required,max=2000" label:"消息内容"` // 消息正文
+	MentionIDs string `json:"mention_ids" validate:"max=2000" label:"@提及用户ID"`   // @提及的用户 ID（逗号分隔，服务层过滤为会话内有效成员）
 }
 
 // TypingReq 输入中提示请求（瞬态事件，不落库）。
@@ -94,6 +95,7 @@ type ChatMessageResp struct {
 	SenderName     string `json:"sender_name,omitempty"`
 	Content        string `json:"content"`
 	Type           string `json:"type"`
-	Recalled       bool   `json:"recalled"` // 是否已被发送人撤回（软撤回，正文为空）
+	MentionIDs     string `json:"mention_ids,omitempty"` // @提及的用户 ID（逗号分隔）
+	Recalled       bool   `json:"recalled"`              // 是否已被发送人撤回（软撤回，正文为空）
 	CreatedAt      string `json:"created_at"`
 }

@@ -31,6 +31,7 @@
               <span class="conv-time">{{ formatTime(conv.last_at) }}</span>
             </div>
             <div class="conv-line2">
+              <el-tag v-if="conv.mentioned" size="small" type="danger" class="conv-mention">{{ t('chat.mentionMe') }}</el-tag>
               <span class="conv-preview">{{ conv.last_message }}</span>
               <el-badge v-if="conv.unread_count > 0" :value="conv.unread_count" :max="99" class="conv-unread" />
             </div>
@@ -79,7 +80,9 @@
             <div class="msg-bubble">
               <div class="msg-meta">{{ displayName(msg) }} · {{ formatClock(msg.created_at) }}</div>
               <div v-if="msg.recalled" class="msg-recalled">{{ t('chat.recalled') }}</div>
-              <div v-else class="msg-text">{{ msg.content }}</div>
+              <div v-else class="msg-text">
+                <span v-for="(seg, si) in renderSegments(msg)" :key="si" :class="{ mention: seg.hi }">{{ seg.text }}</span>
+              </div>
               <div v-if="canRecall(msg)" class="msg-actions">
                 <el-button link size="small" :class="isMine(msg) ? 'recall-mine' : 'recall-theirs'" @click="doRecall(msg)">
                   {{ t('chat.recall') }}
@@ -94,6 +97,18 @@
         </div>
 
         <footer class="msg-input">
+          <div v-if="mentionMenuOpen" class="mention-menu">
+            <div
+              v-for="m in mentionCandidates"
+              :key="m.user_id"
+              class="mention-item"
+              @mousedown.prevent="pickMention(m)"
+            >
+              <el-avatar :size="22">{{ (m.name || m.user_id).charAt(0) }}</el-avatar>
+              <span>{{ m.name || m.user_id }}</span>
+            </div>
+            <div v-if="!mentionCandidates.length" class="mention-empty">{{ t('chat.mentionNoMatch') }}</div>
+          </div>
           <el-input
             v-model="draft"
             type="textarea"
@@ -291,6 +306,85 @@ const memberNameMap = computed<Record<string, string>>(() => {
   return map
 })
 
+// ---- @提及 ----
+// 待发送消息累积的 @提及用户 ID（发送后清空）
+const pendingMentions = ref<string[]>([])
+// @ 弹层开关与当前过滤词（@ 后紧跟的不含空白的片段）
+const mentionMenuOpen = ref(false)
+const mentionQuery = ref('')
+
+// 候选成员：按当前群成员过滤掉自己，再按 mentionQuery 前缀/子串匹配展示名
+const mentionCandidates = computed(() => {
+  const q = mentionQuery.value.trim().toLowerCase()
+  const self = myId()
+  return activeMembers.value
+    .filter((m) => m.user_id !== self)
+    .filter((m) => !q || (m.name || '').toLowerCase().includes(q))
+    .slice(0, 8)
+})
+
+// 输入变化时探测末尾是否正处于 @token 中（@ 前需为行首或空白）
+watch(draft, (val) => {
+  if (!isActiveGroup.value) {
+    mentionMenuOpen.value = false
+    return
+  }
+  const m = /(?:^|\s)@([^\s@]*)$/.exec(val)
+  if (m) {
+    mentionQuery.value = m[1]
+    mentionMenuOpen.value = true
+  } else {
+    mentionMenuOpen.value = false
+  }
+})
+
+// 选中候选：把末尾的 @query 替换为 @展示名 ，并记录其 ID
+function pickMention(m: MemberItem) {
+  const name = m.name || m.user_id
+  draft.value = draft.value.replace(/@([^\s@]*)$/, '@' + name + ' ')
+  if (!pendingMentions.value.includes(m.user_id)) pendingMentions.value.push(m.user_id)
+  mentionMenuOpen.value = false
+}
+
+interface Seg {
+  text: string
+  hi: boolean
+}
+
+// 将消息正文按 @提及成员展示名切分为普通段与高亮段（无 @ 时单段）
+function renderSegments(msg: ChatMessageItem): Seg[] {
+  const content = msg.content || ''
+  if (!msg.mention_ids) return [{ text: content, hi: false }]
+  const names = msg.mention_ids
+    .split(',')
+    .map((id) => memberNameMap.value[id.trim()])
+    .filter((n): n is string => !!n)
+  if (!names.length) return [{ text: content, hi: false }]
+  const marks: Array<[number, number]> = []
+  for (const name of names) {
+    const token = '@' + name
+    let from = 0
+    let idx = content.indexOf(token, from)
+    while (idx >= 0) {
+      marks.push([idx, idx + token.length])
+      from = idx + token.length
+      idx = content.indexOf(token, from)
+    }
+  }
+  if (!marks.length) return [{ text: content, hi: false }]
+  marks.sort((a, b) => a[0] - b[0])
+  const segs: Seg[] = []
+  let pos = 0
+  for (const [s, e] of marks) {
+    if (s < pos) continue // 跳过重叠区间
+    if (s > pos) segs.push({ text: content.slice(pos, s), hi: false })
+    segs.push({ text: content.slice(s, e), hi: true })
+    pos = e
+  }
+  if (pos < content.length) segs.push({ text: content.slice(pos), hi: false })
+  return segs
+}
+
 // 当前会话内正在输入的成员展示名（逗号分隔）
 const activeTypingNames = computed(() => {
   const ids = chatStore.typingUsers[chatStore.activeId] || []
@@ -363,14 +457,22 @@ function formatTime(raw?: string): string {
 async function doSend() {
   const text = draft.value.trim()
   if (!text) return
-  const ok = await chatStore.send(text)
+  const ok = await chatStore.send(text, pendingMentions.value.join(','))
   if (ok) {
     draft.value = ''
+    pendingMentions.value = []
+    mentionMenuOpen.value = false
     stopTyping()
     scrollToBottom()
   }
 }
 function onKeydown(e: KeyboardEvent) {
+  // @ 弹层展开时，Enter 选中首个候选而非发送
+  if (e.key === 'Enter' && !e.shiftKey && mentionMenuOpen.value && mentionCandidates.value.length) {
+    e.preventDefault()
+    pickMention(mentionCandidates.value[0])
+    return
+  }
   // Enter 发送，Shift+Enter 换行
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
@@ -788,8 +890,55 @@ onUnmounted(() => {
   color: #fff;
 }
 .msg-input {
+  position: relative;
   border-top: 1px solid var(--mx-header-border);
   padding: 10px 14px;
+}
+/* @提及候选菜单：锚定在输入区上方弹出 */
+.mention-menu {
+  position: absolute;
+  left: 14px;
+  bottom: 100%;
+  z-index: 10;
+  min-width: 200px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+  margin-bottom: 4px;
+  background: var(--mx-header-bg);
+  border: 1px solid var(--mx-header-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+.mention-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--mx-text-strong);
+}
+.mention-item:hover {
+  background: var(--el-color-primary-light-9);
+}
+.mention-empty {
+  padding: 8px;
+  font-size: 12px;
+  color: var(--mx-text-muted);
+  text-align: center;
+}
+/* 消息正文中的 @提及高亮 */
+.msg-text .mention {
+  color: var(--el-color-primary);
+  font-weight: 600;
+}
+.msg-row.mine .msg-text .mention {
+  color: #ffe58f;
+}
+.conv-mention {
+  flex-shrink: 0;
+  margin-left: 6px;
 }
 .msg-input-actions {
   display: flex;

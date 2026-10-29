@@ -27,6 +27,8 @@ export interface ConversationItem {
   last_message: string
   last_at?: string
   unread_count: number
+  /** 本会话最后一条未读消息中是否 @ 了当前用户（前端派生标记，用于侧栏 @我 徽标） */
+  mentioned?: boolean
   member_count?: number
   my_role?: MemberRole
   created_at: string
@@ -56,6 +58,8 @@ export interface ChatMessageItem {
   sender_name?: string
   content: string
   type: string
+  /** @提及的用户 ID（逗号分隔） */
+  mention_ids?: string
   /** 是否已被发送人撤回（后端软撤回，正文为空） */
   recalled?: boolean
   created_at: string
@@ -82,9 +86,9 @@ export function listConversations() {
   return get<ConversationItem[]>('/chat/conversations')
 }
 
-/** 发送一条消息，返回落库后的消息（含服务端生成的 id/时间/发送人姓名） */
-export function sendChatMessage(conversationId: string, content: string) {
-  return post<ChatMessageItem>(`/chat/conversations/${conversationId}/messages`, { content })
+/** 发送一条消息，返回落库后的消息（含服务端生成的 id/时间/发送人姓名）；mentionIds 为逗号分隔的 @提及用户 ID */
+export function sendChatMessage(conversationId: string, content: string, mentionIds = '') {
+  return post<ChatMessageItem>(`/chat/conversations/${conversationId}/messages`, { content, mention_ids: mentionIds })
 }
 
 /** 分页拉取会话历史消息（后端页内按时间升序返回） */

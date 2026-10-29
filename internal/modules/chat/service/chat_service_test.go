@@ -233,7 +233,7 @@ func TestOpenDirect_HappyPath(t *testing.T) {
 
 func TestSendMessage_EmptyContent(t *testing.T) {
 	svc, _, _ := newService()
-	_, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "   ")
+	_, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "   ", "")
 	if err != ErrEmptyContent {
 		t.Fatalf("期望 ErrEmptyContent, got %v", err)
 	}
@@ -242,7 +242,7 @@ func TestSendMessage_EmptyContent(t *testing.T) {
 func TestSendMessage_NonMember(t *testing.T) {
 	svc, repo, _ := newService()
 	repo.memberOK = false
-	_, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "hi")
+	_, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "hi", "")
 	if err != ErrConversationNotFound {
 		t.Fatalf("非成员期望 ErrConversationNotFound, got %v", err)
 	}
@@ -254,7 +254,7 @@ func TestSendMessage_NonMember(t *testing.T) {
 func TestSendMessage_HappyPathNilHubNoPanic(t *testing.T) {
 	svc, repo, _ := newService()
 	repo.memberOK = true
-	msg, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "hello")
+	msg, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "hello", "")
 	if err != nil {
 		t.Fatalf("期望成功, got %v", err)
 	}
@@ -263,6 +263,27 @@ func TestSendMessage_HappyPathNilHubNoPanic(t *testing.T) {
 	}
 	if len(repo.sent) != 1 {
 		t.Fatalf("应落库 1 条消息, got %d", len(repo.sent))
+	}
+}
+
+func TestSendMessage_FilterMentions(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = true
+	// 默认真仓成员为 u1、u2；提及 u2 有效，u9 非成员、u1 发送人、重复项均被剔除
+	msg, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "hey", "u2, u9, u1 ,u2,")
+	if err != nil {
+		t.Fatalf("期望成功, got %v", err)
+	}
+	if msg.MentionIDs != "u2" {
+		t.Fatalf("@提及应仅保留有效成员 u2, got %q", msg.MentionIDs)
+	}
+	// 无提及→空串
+	msg2, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "plain", "")
+	if err != nil {
+		t.Fatalf("期望成功, got %v", err)
+	}
+	if msg2.MentionIDs != "" {
+		t.Fatalf("无提及应为空串, got %q", msg2.MentionIDs)
 	}
 }
 

@@ -31,9 +31,11 @@ import {
   listChatMessages,
   markConversationRead,
   getConversationReadStatus,
-  getPresence
+  getPresence,
+  sendChatMessage
 } from '@/api/modules/chat'
 import type { ChatMessageItem, ConversationItem, MemberItem } from '@/api/modules/chat'
+import { useUserStore } from '@/stores/user'
 import { useChatStore } from './chat'
 
 function groupConv(over: Partial<ConversationItem> = {}): ConversationItem {
@@ -333,5 +335,69 @@ describe('chat store 已读回执', () => {
     // 登出重置
     s.reset()
     expect(Object.keys(s.readStates)).toHaveLength(0)
+  })
+})
+
+// ---- @提及 ----
+
+describe('chat store @提及', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.resetAllMocks()
+    vi.mocked(markConversationRead).mockResolvedValue({ ok: true })
+    vi.mocked(getPresence).mockResolvedValue({ online_user_ids: [] })
+    vi.mocked(listChatMessages).mockResolvedValue(readPage([], 0) as never)
+    vi.mocked(getConversationReadStatus).mockResolvedValue([])
+    // 当前登录用户 u1：myId 取自 user store
+    const us = useUserStore()
+    us.userInfo = { id: 'u1', username: 'u1' }
+  })
+
+  it('mentionsMe 仅当 mention_ids 含当前用户时为真', () => {
+    const s = useChatStore()
+    expect(s.mentionsMe({ mention_ids: 'u2,u1' })).toBe(true)
+    expect(s.mentionsMe({ mention_ids: 'u1' })).toBe(true)
+    expect(s.mentionsMe({ mention_ids: 'u2, u3' })).toBe(false) // 带空格分隔也不会误判
+    expect(s.mentionsMe({ mention_ids: '' })).toBe(false)
+    expect(s.mentionsMe({})).toBe(false)
+  })
+
+  it('未登录时 mentionsMe 恒为假', () => {
+    useUserStore().userInfo = null
+    const s = useChatStore()
+    expect(s.mentionsMe({ mention_ids: 'u1' })).toBe(false)
+  })
+
+  it('send 将 mentionIds 透传给发送接口', async () => {
+    const s = useChatStore()
+    s.activeId = 'g1'
+    vi.mocked(sendChatMessage).mockResolvedValue(msg('m1'))
+    const ok = await s.send('hi @乙', 'u2')
+    expect(ok).toBe(true)
+    expect(sendChatMessage).toHaveBeenCalledWith('g1', 'hi @乙', 'u2')
+  })
+
+  it('receiveChatPush 非当前会话被 @ 时打 mentioned 标', () => {
+    const s = useChatStore()
+    s.activeId = 'g2'
+    s.conversations = [groupConv({ id: 'g1' })]
+    s.receiveChatPush({ ...msg('m1', 'g1'), mention_ids: 'u1' })
+    expect(s.conversations[0].mentioned).toBe(true)
+    expect(s.conversations[0].unread_count).toBe(1)
+  })
+
+  it('receiveChatPush 未被 @ 时不打标', () => {
+    const s = useChatStore()
+    s.activeId = 'g2'
+    s.conversations = [groupConv({ id: 'g1' })]
+    s.receiveChatPush({ ...msg('m1', 'g1'), mention_ids: 'u9' })
+    expect(s.conversations[0].mentioned).toBeFalsy()
+  })
+
+  it('selectConversation 选中后清除会话的 mentioned 标', async () => {
+    const s = useChatStore()
+    s.conversations = [groupConv({ id: 'g1', mentioned: true })]
+    await s.selectConversation('g1')
+    expect(s.conversations[0].mentioned).toBe(false)
   })
 })

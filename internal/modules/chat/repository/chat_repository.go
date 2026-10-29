@@ -53,6 +53,7 @@ type ChatMessagePO struct {
 	SenderID       string     `gorm:"column:user_id;size:26;not null;comment:发送人ID"`
 	Content        string     `gorm:"type:text;comment:消息正文（撤回后置空）"`
 	Type           string     `gorm:"size:20;default:text;comment:消息类型"`
+	MentionIDs     string     `gorm:"column:mention_ids;type:text;comment:@提及用户ID(逗号分隔)"`
 	Deleted        bool       `gorm:"default:false;comment:是否已撤回"`
 	DeletedAt      *time.Time `gorm:"comment:撤回时间"`
 	CreatedAt      time.Time  `gorm:"autoCreateTime;index:idx_chat_msg_conv;comment:发送时间"`
@@ -95,6 +96,7 @@ func (p ChatMessagePO) toDomain() *model.ChatMessage {
 		SenderID:       p.SenderID,
 		Content:        p.Content,
 		Type:           p.Type,
+		MentionIDs:     p.MentionIDs,
 		Deleted:        p.Deleted,
 		DeletedAt:      p.DeletedAt,
 		CreatedAt:      p.CreatedAt,
@@ -421,6 +423,7 @@ func (r *chatRepository) SendMessage(ctx context.Context, msg *model.ChatMessage
 		SenderID:       msg.SenderID,
 		Content:        msg.Content,
 		Type:           msg.Type,
+		MentionIDs:     msg.MentionIDs,
 		CreatedAt:      msg.CreatedAt,
 	}
 	return r.db.WithContext(ctx).Create(&p).Error

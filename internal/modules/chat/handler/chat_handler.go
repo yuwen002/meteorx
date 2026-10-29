@@ -78,7 +78,7 @@ func (h *ChatHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	if !validator.ValidateJSON(w, r, &req) {
 		return
 	}
-	msg, err := h.svc.SendMessage(r.Context(), tenantID, userID, id, req.Content)
+	msg, err := h.svc.SendMessage(r.Context(), tenantID, userID, id, req.Content, req.MentionIDs)
 	if err != nil {
 		h.writeErr(w, err, "发送消息失败")
 		return

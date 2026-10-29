@@ -22,6 +22,7 @@ import {
   type ReadStateItem
 } from '@/api/modules/chat'
 import { toPageResult, asArray } from '@/types/pagination'
+import { useUserStore } from '@/stores/user'
 
 // 输入中提示自动消退时长（无停止事件时多久后不再展示）
 const TYPING_TTL_MS = 4000
@@ -36,6 +37,7 @@ const MESSAGE_PAGE_SIZE = 50
  * - 打开会话拉取历史后标记已读，清零该会话未读。
  */
 export const useChatStore = defineStore('chat', () => {
+  const userStore = useUserStore()
   const conversations = ref<ConversationItem[]>([])
   const activeId = ref<string>('')
   const messages = ref<ChatMessageItem[]>([])
@@ -72,6 +74,16 @@ export const useChatStore = defineStore('chat', () => {
   /** 判定用户是否在线 */
   function isOnline(userId: string): boolean {
     return onlineUserIds.value.includes(userId)
+  }
+
+  /** 当前登录用户 ID（用于 @提及判定），未登录为空串 */
+  const myId = () => userStore.userInfo?.id || ''
+
+  /** 判定一条消息是否 @ 了当前用户 */
+  function mentionsMe(msg: { mention_ids?: string }): boolean {
+    const me = myId()
+    if (!me || !msg.mention_ids) return false
+    return msg.mention_ids.split(',').some((id) => id.trim() === me)
   }
 
   /** 拉取在线用户集合（拉取式，选中会话或收到 chat 事件时刷新，不做轮询） */
@@ -130,9 +142,12 @@ export const useChatStore = defineStore('chat', () => {
       messagePage.value = 1
       // 后端返回 total；total 缺失时以「取满一页」推断还有更早消息
       hasMoreMessages.value = page.total > 0 ? messages.value.length < page.total : page.list.length === MESSAGE_PAGE_SIZE
-      // 拉到历史即视为已读，清零本地未读并推进服务端水位
+      // 拉到历史即视为已读，清零本地未读与 @我 标记并推进服务端水位
       const conv = conversations.value.find((c) => c.id === id)
-      if (conv) conv.unread_count = 0
+      if (conv) {
+        conv.unread_count = 0
+        conv.mentioned = false
+      }
       void markConversationRead(id).catch(() => {})
       void loadPresence()
       void loadReadStates(id)
@@ -194,13 +209,13 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  /** 发送消息，成功后追加到当前会话并更新会话摘要 */
-  async function send(content: string): Promise<boolean> {
+  /** 发送消息，成功后追加到当前会话并更新会话摘要；mentionIds 为逗号分隔的 @提及用户 ID */
+  async function send(content: string, mentionIds = ''): Promise<boolean> {
     const text = content.trim()
     if (!activeId.value || !text) return false
     sending.value = true
     try {
-      const msg = await sendChatMessage(activeId.value, text)
+      const msg = await sendChatMessage(activeId.value, text, mentionIds)
       messages.value = [...messages.value, msg]
       const conv = conversations.value.find((c) => c.id === activeId.value)
       if (conv) {
@@ -232,6 +247,8 @@ export const useChatStore = defineStore('chat', () => {
       conv.unread_count = (conv.unread_count || 0) + 1
       conv.last_message = msg.content
       conv.last_at = msg.created_at
+      // 被 @ 时在会话上打标，供侧栏“@我”徽标提醒
+      if (mentionsMe(msg)) conv.mentioned = true
     } else {
       void loadConversations()
     }
@@ -391,6 +408,7 @@ export const useChatStore = defineStore('chat', () => {
     totalUnread,
     activeConversation,
     isOnline,
+    mentionsMe,
     loadPresence,
     loadConversations,
     openWith,
