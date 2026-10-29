@@ -24,8 +24,9 @@ type AddMembersReq struct {
 
 // SendMessageReq 发送消息请求。
 type SendMessageReq struct {
-	Content    string `json:"content" validate:"required,max=2000" label:"消息内容"` // 消息正文
-	MentionIDs string `json:"mention_ids" validate:"max=2000" label:"@提及用户ID"`   // @提及的用户 ID（逗号分隔，服务层过滤为会话内有效成员）
+	Content    string `json:"content" validate:"required,max=2000" label:"消息内容"`            // 消息正文（媒体消息为元信息 JSON 字符串）
+	MentionIDs string `json:"mention_ids" validate:"max=2000" label:"@提及用户ID"`              // @提及的用户 ID（逗号分隔，服务层过滤为会话内有效成员）
+	Type       string `json:"type" validate:"omitempty,oneof=text image file" label:"消息类型"` // 缺省为 text；image/file 时 Content 须为合法媒体 JSON
 }
 
 // TypingReq 输入中提示请求（瞬态事件，不落库）。
@@ -60,16 +61,17 @@ type PresenceResp struct {
 
 // ConversationResp 会话响应。
 type ConversationResp struct {
-	ID          string `json:"id"`
-	Type        string `json:"type"`         // direct / group
-	PeerUserID  string `json:"peer_user_id"` // 仅 direct 会话返回对方 ID
-	PeerName    string `json:"peer_name"`    // 展示名：direct 为对方昵称，group 为群名称
-	LastMessage string `json:"last_message"`
-	LastAt      string `json:"last_at,omitempty"`
-	UnreadCount int64  `json:"unread_count"`
-	MemberCount int64  `json:"member_count"` // 成员数（仅 group 有意义）
-	MyRole      string `json:"my_role"`      // 当前用户在该会话的角色：owner / member
-	CreatedAt   string `json:"created_at"`
+	ID              string `json:"id"`
+	Type            string `json:"type"`         // direct / group
+	PeerUserID      string `json:"peer_user_id"` // 仅 direct 会话返回对方 ID
+	PeerName        string `json:"peer_name"`    // 展示名：direct 为对方昵称，group 为群名称
+	LastMessage     string `json:"last_message"`
+	LastMessageType string `json:"last_message_type,omitempty"` // 最后一条消息类型（text/image/file），供前端格式化摘要
+	LastAt          string `json:"last_at,omitempty"`
+	UnreadCount     int64  `json:"unread_count"`
+	MemberCount     int64  `json:"member_count"` // 成员数（仅 group 有意义）
+	MyRole          string `json:"my_role"`      // 当前用户在该会话的角色：owner / member
+	CreatedAt       string `json:"created_at"`
 }
 
 // MemberResp 会话成员响应。
@@ -97,5 +99,6 @@ type ChatMessageResp struct {
 	Type           string `json:"type"`
 	MentionIDs     string `json:"mention_ids,omitempty"` // @提及的用户 ID（逗号分隔）
 	Recalled       bool   `json:"recalled"`              // 是否已被发送人撤回（软撤回，正文为空）
+	URL            string `json:"url,omitempty"`         // 媒体消息（image/file）的短时效访问 URL；未启用签名时为空
 	CreatedAt      string `json:"created_at"`
 }

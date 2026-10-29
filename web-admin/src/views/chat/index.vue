@@ -32,7 +32,7 @@
             </div>
             <div class="conv-line2">
               <el-tag v-if="conv.mentioned" size="small" type="danger" class="conv-mention">{{ t('chat.mentionMe') }}</el-tag>
-              <span class="conv-preview">{{ conv.last_message }}</span>
+              <span class="conv-preview">{{ previewText(conv) }}</span>
               <el-badge v-if="conv.unread_count > 0" :value="conv.unread_count" :max="99" class="conv-unread" />
             </div>
           </div>
@@ -80,6 +80,24 @@
             <div class="msg-bubble">
               <div class="msg-meta">{{ displayName(msg) }} · {{ formatClock(msg.created_at) }}</div>
               <div v-if="msg.recalled" class="msg-recalled">{{ t('chat.recalled') }}</div>
+              <!-- 图片消息：可预览则缩略图点击新窗口查看，否则降级为文件名卡片 -->
+              <div v-else-if="msg.type === 'image'" class="msg-media">
+                <a v-if="msg.url" :href="msg.url" target="_blank" rel="noopener">
+                  <img :src="msg.url" :alt="mediaInfo(msg)?.name || ''" class="msg-image" loading="lazy" />
+                </a>
+                <div v-else class="msg-file-card">
+                  <el-icon class="file-icon"><Picture /></el-icon>
+                  <span class="file-name">{{ t('chat.imageMsg') }} {{ mediaInfo(msg)?.name || '' }}</span>
+                </div>
+              </div>
+              <!-- 文件消息：名称 + 大小卡片，可下载时包链接 -->
+              <div v-else-if="msg.type === 'file'" class="msg-file-card">
+                <el-icon class="file-icon"><Document /></el-icon>
+                <component :is="msg.url ? 'a' : 'span'" :href="msg.url" target="_blank" rel="noopener" class="msg-file-link">
+                  <span class="file-name">{{ mediaInfo(msg)?.name || t('chat.fileMsg') }}</span>
+                  <span v-if="mediaInfo(msg)?.size" class="file-size">{{ formatSize(mediaInfo(msg)!.size) }}</span>
+                </component>
+              </div>
               <div v-else class="msg-text">
                 <span v-for="(seg, si) in renderSegments(msg)" :key="si" :class="{ mention: seg.hi }">{{ seg.text }}</span>
               </div>
@@ -118,6 +136,11 @@
             @keydown="onKeydown"
           />
           <div class="msg-input-actions">
+            <div class="msg-input-tools">
+              <el-button link :icon="Picture" :title="t('chat.pickImage')" :disabled="uploading" @click="triggerPick('image')" />
+              <el-button link :icon="Paperclip" :title="t('chat.pickFile')" :disabled="uploading" @click="triggerPick('file')" />
+              <span v-if="uploading" class="uploading-tip">{{ t('chat.uploading') }}</span>
+            </div>
             <el-button
               type="primary"
               :loading="chatStore.sending"
@@ -127,6 +150,8 @@
               {{ t('chat.send') }}
             </el-button>
           </div>
+          <input ref="imageInputRef" type="file" accept="image/*" class="hidden-file-input" @change="onFilePicked($event, 'image')" />
+          <input ref="fileInputRef" type="file" class="hidden-file-input" @change="onFilePicked($event, 'file')" />
         </footer>
       </template>
 
@@ -245,13 +270,14 @@
 import { nextTick, onMounted, onUnmounted, ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
-import { Plus, UserFilled, EditPen } from '@element-plus/icons-vue'
+import { Plus, UserFilled, EditPen, Picture, Paperclip, Document } from '@element-plus/icons-vue'
 import { useI18n } from '@/composables/useI18n'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { getUserList, type UserItem } from '@/api/modules/user'
+import { uploadFile } from '@/api/modules/file'
 import { toPageResult } from '@/types/pagination'
-import type { ChatMessageItem, MemberItem } from '@/api/modules/chat'
+import type { ChatMessageItem, ConversationItem, MemberItem } from '@/api/modules/chat'
 
 const { t } = useI18n()
 const chatStore = useChatStore()
@@ -408,6 +434,77 @@ watch(
     else activeMembers.value = []
   }
 )
+
+// ---- 图片/文件消息 ----
+// 上传中状态与两个隐藏文件选择器（图片限定 accept）
+const uploading = ref(false)
+const imageInputRef = ref<HTMLInputElement | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+function triggerPick(kind: 'image' | 'file') {
+  ;(kind === 'image' ? imageInputRef : fileInputRef).value?.click()
+}
+
+/** 选完文件：先传文件模块拿存储文件名，再以媒体 JSON 正文发送 image/file 消息 */
+async function onFilePicked(e: Event, kind: 'image' | 'file') {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // 允许连续选同一文件
+  if (!file || !chatStore.activeId) return
+  uploading.value = true
+  try {
+    const resp = await uploadFile(file)
+    const content = JSON.stringify({
+      file: resp.file_name,
+      name: resp.original_name || file.name,
+      size: typeof resp.file_size === 'number' ? resp.file_size : file.size
+    })
+    const ok = await chatStore.send(content, '', kind)
+    if (ok) scrollToBottom()
+  } catch {
+    ElMessage.error(t('chat.uploadFailed'))
+  } finally {
+    uploading.value = false
+  }
+}
+
+/** 解析媒体消息正文元信息；非法/非媒体返回 null（渲染降级） */
+function mediaInfo(msg: ChatMessageItem): { name: string; size: number } | null {
+  if (msg.type !== 'image' && msg.type !== 'file') return null
+  try {
+    const p = JSON.parse(msg.content || '')
+    if (typeof p?.file === 'string' && p.file) {
+      return { name: typeof p.name === 'string' && p.name ? p.name : p.file, size: Number(p.size) || 0 }
+    }
+  } catch {
+    /* 正文非法 JSON：按不可预览处理 */
+  }
+  return null
+}
+
+/** 字节数可读化（B/KB/MB/GB，保留一位小数） */
+function formatSize(bytes: number): string {
+  if (!bytes || bytes < 0) return ''
+  const units = ['B', 'KB', 'MB', 'GB']
+  let v = bytes
+  let i = 0
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024
+    i++
+  }
+  return `${i === 0 ? v : v.toFixed(1)} ${units[i]}`
+}
+
+/** 会话列表摘要：媒体消息按类型展示占位标签 + 文件名，文本消息原样 */
+function previewText(conv: ConversationItem): string {
+  if (!conv.last_message) return ''
+  if (conv.last_message_type === 'image' || conv.last_message_type === 'file') {
+    const label = conv.last_message_type === 'image' ? t('chat.imageMsg') : t('chat.fileMsg')
+    const info = mediaInfo({ type: conv.last_message_type, content: conv.last_message } as ChatMessageItem)
+    return info?.name ? `${label} ${info.name}` : label
+  }
+  return conv.last_message
+}
 
 // ---- 消息撤回 ----
 // 与后端 service.RecallWindow 保持一致：发送后 5 分钟内可撤回
@@ -880,6 +977,54 @@ onUnmounted(() => {
   text-align: right;
   margin-top: 2px;
 }
+/* 图片消息缩略图 */
+.msg-image {
+  display: block;
+  max-width: 240px;
+  max-height: 240px;
+  border-radius: 8px;
+  cursor: zoom-in;
+}
+/* 文件/降级消息卡片 */
+.msg-file-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 8px 10px;
+  border: 1px solid var(--mx-header-border);
+  border-radius: 8px;
+  background: var(--mx-main-bg);
+}
+.msg-row.mine .msg-file-card {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+.msg-file-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+a.msg-file-link:hover .file-name {
+  text-decoration: underline;
+}
+.file-icon {
+  flex-shrink: 0;
+}
+.file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-size {
+  flex-shrink: 0;
+  font-size: 12px;
+  opacity: 0.7;
+}
 .recall-theirs {
   color: var(--mx-text-muted);
 }
@@ -943,7 +1088,22 @@ onUnmounted(() => {
 .msg-input-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
   margin-top: 8px;
+}
+.msg-input-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;
+}
+.uploading-tip {
+  font-size: 12px;
+  color: var(--mx-text-muted);
+}
+.hidden-file-input {
+  display: none;
 }
 .msg-placeholder {
   margin: auto;

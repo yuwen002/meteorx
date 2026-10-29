@@ -25,6 +25,8 @@ export interface ConversationItem {
   peer_user_id: string
   peer_name: string
   last_message: string
+  /** 最后一条消息类型（text/image/file），媒体消息的 last_message 为元信息 JSON，前端按类型格式化摘要 */
+  last_message_type?: string
   last_at?: string
   unread_count: number
   /** 本会话最后一条未读消息中是否 @ 了当前用户（前端派生标记，用于侧栏 @我 徽标） */
@@ -58,6 +60,8 @@ export interface ChatMessageItem {
   sender_name?: string
   content: string
   type: string
+  /** 媒体消息（image/file）的短时效访问 URL；后端未启用签名时为空 */
+  url?: string
   /** @提及的用户 ID（逗号分隔） */
   mention_ids?: string
   /** 是否已被发送人撤回（后端软撤回，正文为空） */
@@ -86,9 +90,9 @@ export function listConversations() {
   return get<ConversationItem[]>('/chat/conversations')
 }
 
-/** 发送一条消息，返回落库后的消息（含服务端生成的 id/时间/发送人姓名）；mentionIds 为逗号分隔的 @提及用户 ID */
-export function sendChatMessage(conversationId: string, content: string, mentionIds = '') {
-  return post<ChatMessageItem>(`/chat/conversations/${conversationId}/messages`, { content, mention_ids: mentionIds })
+/** 发送一条消息，返回落库后的消息（含服务端生成的 id/时间/发送人姓名）；mentionIds 为逗号分隔的 @提及用户 ID；msgType 缺省 text，image/file 时 content 须为媒体 JSON */
+export function sendChatMessage(conversationId: string, content: string, mentionIds = '', msgType = 'text') {
+  return post<ChatMessageItem>(`/chat/conversations/${conversationId}/messages`, { content, mention_ids: mentionIds, type: msgType })
 }
 
 /** 分页拉取会话历史消息（后端页内按时间升序返回） */

@@ -32,8 +32,12 @@ const (
 
 // 消息类型常量
 const (
-	// MessageTypeText 纯文本消息（首版唯一支持的类型）
+	// MessageTypeText 纯文本消息
 	MessageTypeText = "text"
+	// MessageTypeImage 图片消息：Content 存媒体元信息 JSON，访问 URL 读取时临时签发
+	MessageTypeImage = "image"
+	// MessageTypeFile 文件消息：同图片，正文为 {file,name,size} JSON
+	MessageTypeFile = "file"
 )
 
 // Conversation 会话领域模型。
@@ -49,13 +53,14 @@ type Conversation struct {
 	UpdatedAt time.Time // 更新时间
 
 	// 以下为读取响应时由服务层富化的非持久化字段
-	PeerUserID  string // 对方用户 ID（仅 direct 会话填充；group 为空）
-	PeerName    string // 展示名：direct 为对方昵称，group 为群名称
-	LastMessage string // 会话最后一条消息摘要（无消息时为空）
-	LastAt      *time.Time
-	UnreadCount int64  // 当前用户在该会话的未读数
-	MemberCount int64  // 成员数（仅 group 富化）
-	MyRole      string // 当前用户在该会话中的角色：owner / member（列表富化）
+	PeerUserID      string // 对方用户 ID（仅 direct 会话填充；group 为空）
+	PeerName        string // 展示名：direct 为对方昵称，group 为群名称
+	LastMessage     string // 会话最后一条消息摘要（无消息时为空；媒体消息为元信息 JSON，前端按类型渲染）
+	LastMessageType string // 最后一条消息类型（text/image/file），供前端格式化摘要
+	LastAt          *time.Time
+	UnreadCount     int64  // 当前用户在该会话的未读数
+	MemberCount     int64  // 成员数（仅 group 富化）
+	MyRole          string // 当前用户在该会话中的角色：owner / member（列表富化）
 }
 
 // ConversationMember 会话成员领域模型。
@@ -85,6 +90,7 @@ type ChatMessage struct {
 	CreatedAt      time.Time  // 发送时间
 
 	SenderName string // 发送人展示名（富化字段，不持久化）
+	FileURL    string // 媒体消息的短时效访问 URL（富化字段，不持久化；未启用签名时为空）
 }
 
 // DirectKey 依据两个参与者 ID 生成 1:1 私聊会话的去重键。

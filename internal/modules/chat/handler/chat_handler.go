@@ -78,7 +78,7 @@ func (h *ChatHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	if !validator.ValidateJSON(w, r, &req) {
 		return
 	}
-	msg, err := h.svc.SendMessage(r.Context(), tenantID, userID, id, req.Content, req.MentionIDs)
+	msg, err := h.svc.SendMessage(r.Context(), tenantID, userID, id, req.Content, req.MentionIDs, req.Type)
 	if err != nil {
 		h.writeErr(w, err, "发送消息失败")
 		return
@@ -339,6 +339,10 @@ func (h *ChatHandler) writeErr(w http.ResponseWriter, err error, fallback string
 		response.BadRequest(w, "不能移除自己，请使用退群")
 	case errors.Is(err, service.ErrNotGroupMember):
 		response.BadRequest(w, "该用户不在群内")
+	case errors.Is(err, service.ErrInvalidMessageType):
+		response.BadRequest(w, "不支持的消息类型")
+	case errors.Is(err, service.ErrInvalidMediaContent):
+		response.BadRequest(w, "媒体消息内容不合法")
 	default:
 		response.Fail(w, http.StatusInternalServerError, fallback)
 	}

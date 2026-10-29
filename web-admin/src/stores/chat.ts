@@ -209,17 +209,18 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  /** 发送消息，成功后追加到当前会话并更新会话摘要；mentionIds 为逗号分隔的 @提及用户 ID */
-  async function send(content: string, mentionIds = ''): Promise<boolean> {
+  /** 发送消息，成功后追加到当前会话并更新会话摘要；mentionIds 为逗号分隔的 @提及用户 ID，msgType 缺省 text */
+  async function send(content: string, mentionIds = '', msgType = 'text'): Promise<boolean> {
     const text = content.trim()
     if (!activeId.value || !text) return false
     sending.value = true
     try {
-      const msg = await sendChatMessage(activeId.value, text, mentionIds)
+      const msg = await sendChatMessage(activeId.value, text, mentionIds, msgType)
       messages.value = [...messages.value, msg]
       const conv = conversations.value.find((c) => c.id === activeId.value)
       if (conv) {
         conv.last_message = msg.content
+        conv.last_message_type = msg.type || msgType
         conv.last_at = msg.created_at
       }
       return true
@@ -236,6 +237,7 @@ export const useChatStore = defineStore('chat', () => {
       const conv = conversations.value.find((c) => c.id === activeId.value)
       if (conv) {
         conv.last_message = msg.content
+        conv.last_message_type = msg.type
         conv.last_at = msg.created_at
       }
       void markConversationRead(msg.conversation_id).catch(() => {})
@@ -246,6 +248,7 @@ export const useChatStore = defineStore('chat', () => {
     if (conv) {
       conv.unread_count = (conv.unread_count || 0) + 1
       conv.last_message = msg.content
+      conv.last_message_type = msg.type
       conv.last_at = msg.created_at
       // 被 @ 时在会话上打标，供侧栏“@我”徽标提醒
       if (mentionsMe(msg)) conv.mentioned = true

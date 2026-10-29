@@ -4,6 +4,7 @@
 package chat
 
 import (
+	"meteorx/internal/config"
 	"meteorx/internal/modules/chat/handler"
 	"meteorx/internal/modules/chat/repository"
 	"meteorx/internal/modules/chat/service"
@@ -15,10 +16,12 @@ import (
 
 // InitModule 装配聊天依赖并注册需登录的聊天路由。
 // hub 可为 nil（WS 未启用时发送仅落库、不做实时推送，用户下次拉取历史即可补上）。
-func InitModule(r chi.Router, db *gorm.DB, hub *ws.Hub) {
+// cfg 提供 /uploads 短时效签名参数，媒体消息（图片/文件）读取时现签访问 URL。
+func InitModule(r chi.Router, db *gorm.DB, hub *ws.Hub, cfg config.Config) {
 	repo := repository.NewChatRepository(db)
 	dir := repository.NewUserDirectory(db)
 	svc := service.NewChatService(repo, dir, hub)
+	svc.SetUploadSigner(cfg.File.UploadURL, cfg.File.UploadSignKey(cfg.JWT.Secret))
 	h := handler.NewChatHandler(svc)
 	RegisterRoutes(r, h)
 }

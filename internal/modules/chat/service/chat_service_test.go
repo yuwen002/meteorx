@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -233,7 +234,7 @@ func TestOpenDirect_HappyPath(t *testing.T) {
 
 func TestSendMessage_EmptyContent(t *testing.T) {
 	svc, _, _ := newService()
-	_, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "   ", "")
+	_, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "   ", "", "")
 	if err != ErrEmptyContent {
 		t.Fatalf("期望 ErrEmptyContent, got %v", err)
 	}
@@ -242,7 +243,7 @@ func TestSendMessage_EmptyContent(t *testing.T) {
 func TestSendMessage_NonMember(t *testing.T) {
 	svc, repo, _ := newService()
 	repo.memberOK = false
-	_, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "hi", "")
+	_, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "hi", "", "")
 	if err != ErrConversationNotFound {
 		t.Fatalf("非成员期望 ErrConversationNotFound, got %v", err)
 	}
@@ -254,7 +255,7 @@ func TestSendMessage_NonMember(t *testing.T) {
 func TestSendMessage_HappyPathNilHubNoPanic(t *testing.T) {
 	svc, repo, _ := newService()
 	repo.memberOK = true
-	msg, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "hello", "")
+	msg, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "hello", "", "")
 	if err != nil {
 		t.Fatalf("期望成功, got %v", err)
 	}
@@ -270,7 +271,7 @@ func TestSendMessage_FilterMentions(t *testing.T) {
 	svc, repo, _ := newService()
 	repo.memberOK = true
 	// 默认真仓成员为 u1、u2；提及 u2 有效，u9 非成员、u1 发送人、重复项均被剔除
-	msg, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "hey", "u2, u9, u1 ,u2,")
+	msg, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "hey", "u2, u9, u1 ,u2,", "")
 	if err != nil {
 		t.Fatalf("期望成功, got %v", err)
 	}
@@ -278,12 +279,91 @@ func TestSendMessage_FilterMentions(t *testing.T) {
 		t.Fatalf("@提及应仅保留有效成员 u2, got %q", msg.MentionIDs)
 	}
 	// 无提及→空串
-	msg2, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "plain", "")
+	msg2, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "plain", "", "")
 	if err != nil {
 		t.Fatalf("期望成功, got %v", err)
 	}
 	if msg2.MentionIDs != "" {
 		t.Fatalf("无提及应为空串, got %q", msg2.MentionIDs)
+	}
+}
+
+// ---- 媒体消息（图片/文件） ----
+
+func TestSendMessage_InvalidMessageType(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = true
+	_, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", "hi", "", "audio")
+	if err != ErrInvalidMessageType {
+		t.Fatalf("期望 ErrInvalidMessageType, got %v", err)
+	}
+	if len(repo.sent) != 0 {
+		t.Fatalf("非法类型不应落库, got %d", len(repo.sent))
+	}
+}
+
+func TestSendMessage_MediaContentValidation(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = true
+	cases := []string{
+		"not a json",                                   // 非法 JSON
+		`{"file":"","name":"a.png","size":1}`,          // file 缺失
+		`{"file":"../etc/passwd","name":"a","size":1}`, // 路径穿越
+		`{"file":"a.png","name":"","size":1}`,          // name 为空
+		`{"file":"a.png","name":"a","size":-2}`,        // size 负值
+	}
+	for _, content := range cases {
+		_, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", content, "", model.MessageTypeImage)
+		if err != ErrInvalidMediaContent {
+			t.Fatalf("内容 %q 期望 ErrInvalidMediaContent, got %v", content, err)
+		}
+	}
+	if len(repo.sent) != 0 {
+		t.Fatalf("非法媒体内容不应落库, got %d", len(repo.sent))
+	}
+}
+
+func TestSendMessage_ImageSignsMediaURL(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = true
+	svc.SetUploadSigner("http://host:8081/uploads/", "test-sign-key")
+	content := `{"file":"01ABC.PNG","name":"照片.png","size":123}`
+	msg, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", content, "", model.MessageTypeImage)
+	if err != nil {
+		t.Fatalf("期望成功, got %v", err)
+	}
+	if msg.Type != model.MessageTypeImage {
+		t.Fatalf("消息类型应为 image, got %q", msg.Type)
+	}
+	if !strings.HasPrefix(msg.FileURL, "http://host:8081/uploads/01ABC.PNG?") {
+		t.Fatalf("应现签短时效访问 URL（尾部斜杠已归一）, got %q", msg.FileURL)
+	}
+	if resp := ToMessageResp(msg); resp.URL != msg.FileURL {
+		t.Fatalf("响应应携带访问 URL, got %q", resp.URL)
+	}
+}
+
+func TestSendMessage_MediaWithoutSignerKeepsURLBlank(t *testing.T) {
+	svc, repo, _ := newService()
+	repo.memberOK = true
+	// 未注入签名参数：发送仍成功，但不签发访问 URL（前端降级展示）
+	msg, err := svc.SendMessage(context.Background(), "t1", "u1", "c1", `{"file":"a.png","name":"a.png","size":9}`, "", model.MessageTypeFile)
+	if err != nil {
+		t.Fatalf("期望成功, got %v", err)
+	}
+	if msg.FileURL != "" {
+		t.Fatalf("未配置签名时 URL 应为空, got %q", msg.FileURL)
+	}
+}
+
+func TestToMessageResp_RecalledHidesMediaURL(t *testing.T) {
+	resp := ToMessageResp(&model.ChatMessage{
+		ID: "m1", ConversationID: "c1", SenderID: "u1",
+		Content: `{"file":"a.png","name":"a.png","size":9}`, Type: model.MessageTypeImage,
+		Deleted: true, FileURL: "http://host/uploads/a.png?e=1&s=x", CreatedAt: time.Now(),
+	})
+	if resp.URL != "" || resp.Content != "" {
+		t.Fatalf("已撤回消息不应外泄正文与 URL, content=%q url=%q", resp.Content, resp.URL)
 	}
 }
 

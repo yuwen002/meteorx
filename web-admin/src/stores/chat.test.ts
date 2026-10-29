@@ -374,7 +374,7 @@ describe('chat store @提及', () => {
     vi.mocked(sendChatMessage).mockResolvedValue(msg('m1'))
     const ok = await s.send('hi @乙', 'u2')
     expect(ok).toBe(true)
-    expect(sendChatMessage).toHaveBeenCalledWith('g1', 'hi @乙', 'u2')
+    expect(sendChatMessage).toHaveBeenCalledWith('g1', 'hi @乙', 'u2', 'text')
   })
 
   it('receiveChatPush 非当前会话被 @ 时打 mentioned 标', () => {
@@ -399,5 +399,47 @@ describe('chat store @提及', () => {
     s.conversations = [groupConv({ id: 'g1', mentioned: true })]
     await s.selectConversation('g1')
     expect(s.conversations[0].mentioned).toBe(false)
+  })
+})
+
+// ---- 图片/文件消息 ----
+
+describe('chat store 媒体消息', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.resetAllMocks()
+    vi.mocked(markConversationRead).mockResolvedValue({ ok: true })
+  })
+
+  const mediaContent = '{"file":"a.png","name":"相册.png","size":9}'
+
+  it('send 透传 msgType 并同步会话摘要类型', async () => {
+    const s = useChatStore()
+    s.activeId = 'g1'
+    s.conversations = [groupConv()]
+    vi.mocked(sendChatMessage).mockResolvedValue({
+      ...msg('m9'),
+      type: 'image',
+      content: mediaContent
+    })
+    const ok = await s.send(mediaContent, '', 'image')
+    expect(ok).toBe(true)
+    expect(sendChatMessage).toHaveBeenCalledWith('g1', mediaContent, '', 'image')
+    expect(s.conversations[0].last_message).toBe(mediaContent)
+    expect(s.conversations[0].last_message_type).toBe('image')
+  })
+
+  it('receiveChatPush 当前与非当前会话均同步 last_message_type', () => {
+    const s = useChatStore()
+    s.conversations = [groupConv({ id: 'g1' }), groupConv({ id: 'g2', peer_name: '另一群' })]
+    // 当前会话
+    s.activeId = 'g1'
+    s.receiveChatPush({ ...msg('m1', 'g1'), type: 'file', content: mediaContent })
+    expect(s.conversations[0].last_message_type).toBe('file')
+    // 非当前会话（累加未读分支）
+    s.activeId = 'g1'
+    s.receiveChatPush({ ...msg('m2', 'g2'), type: 'image', content: mediaContent })
+    expect(s.conversations[1].last_message_type).toBe('image')
+    expect(s.conversations[1].unread_count).toBe(1)
   })
 })

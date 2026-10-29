@@ -375,6 +375,7 @@ func (r *chatRepository) ListConversations(ctx context.Context, tenantID, userID
 			Where("conversation_id = ?", conv.ID).
 			Order("created_at DESC").Limit(1).First(&last).Error; err == nil {
 			conv.LastMessage = last.Content
+			conv.LastMessageType = last.Type
 			t := last.CreatedAt
 			conv.LastAt = &t
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {

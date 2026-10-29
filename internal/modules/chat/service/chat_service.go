@@ -5,10 +5,13 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"regexp"
 	"strings"
 	"time"
 
+	"meteorx/internal/common/signedurl"
 	"meteorx/internal/modules/chat/dto"
 	"meteorx/internal/modules/chat/model"
 	"meteorx/internal/modules/chat/repository"
@@ -48,10 +51,25 @@ var (
 	ErrCannotRemoveSelf = errors.New("cannot remove yourself, use leave instead")
 	// ErrNotGroupMember 目标用户不在群内
 	ErrNotGroupMember = errors.New("user is not a member of the group")
+	// ErrInvalidMessageType 不支持的消息类型
+	ErrInvalidMessageType = errors.New("unsupported message type")
+	// ErrInvalidMediaContent 媒体消息正文不是合法的结构化元信息
+	ErrInvalidMediaContent = errors.New("invalid media message content")
 )
 
 // RecallWindow 发送人可撤回自身消息的时间窗口，超时后拒绝撤回。
 const RecallWindow = 5 * time.Minute
+
+// mediaFileRe 媒体消息引用的存储文件名：仅允许单段安全字符，杜绝路径穿越与任意名签名。
+var mediaFileRe = regexp.MustCompile(`^[A-Za-z0-9._-]{1,120}$`)
+
+// mediaPayload 图片/文件消息的正文结构（以 JSON 字符串持久化于 Content）：
+// file 为文件模块返回的存储文件名（/uploads 下），name/size 仅供展示。
+type mediaPayload struct {
+	File string `json:"file"` // 存储文件名（不含目录）
+	Name string `json:"name"` // 原始文件名（展示用）
+	Size int64  `json:"size"` // 字节数（展示用）
+}
 
 // UserNameResolver 批量解析用户展示名，供会话/消息响应富化姓名。
 type UserNameResolver interface {
@@ -67,7 +85,7 @@ type TenantMemberChecker interface {
 type ChatServiceInterface interface {
 	OpenDirect(ctx context.Context, tenantID, userID, participantID string) (*model.Conversation, error)
 	ListConversations(ctx context.Context, tenantID, userID string) ([]*model.Conversation, error)
-	SendMessage(ctx context.Context, tenantID, userID, conversationID, content, mentionIDs string) (*model.ChatMessage, error)
+	SendMessage(ctx context.Context, tenantID, userID, conversationID, content, mentionIDs, msgType string) (*model.ChatMessage, error)
 	ListMessages(ctx context.Context, tenantID, userID, conversationID string, page, pageSize int) ([]*model.ChatMessage, int64, error)
 	MarkRead(ctx context.Context, tenantID, userID, conversationID string) error
 	RecallMessage(ctx context.Context, tenantID, userID, conversationID, messageID string) error
@@ -90,6 +108,16 @@ type ChatService struct {
 	dir     UserNameResolver
 	members TenantMemberChecker
 	pusher  *ws.Hub // 可为 nil：WS 未启用时仅落库不实时推送
+
+	// /uploads 静态资源签名参数（媒体消息访问 URL 临时签发用），为空时不签发
+	uploadBaseURL string
+	uploadSignKey string
+}
+
+// SetUploadSigner 注入 /uploads 短时效签名参数（与 wiki 图片签名同源配置），仅模块初始化时调用。
+func (s *ChatService) SetUploadSigner(uploadBaseURL, signKey string) {
+	s.uploadBaseURL = strings.TrimSuffix(strings.TrimSpace(uploadBaseURL), "/")
+	s.uploadSignKey = strings.TrimSpace(signKey)
 }
 
 // NewChatService 创建聊天业务服务实例。
@@ -142,10 +170,24 @@ func (s *ChatService) ListConversations(ctx context.Context, tenantID, userID st
 
 // SendMessage 发送一条消息：校验成员归属后落库，并经 WS 实时投递给会话其他成员。
 // mentionIDs 为逗号分隔的 @提及用户 ID，仅保留属于本会话的有效成员（剔除自己与非成员）。
-func (s *ChatService) SendMessage(ctx context.Context, tenantID, userID, conversationID, content, mentionIDs string) (*model.ChatMessage, error) {
+// msgType 缺省为 text；image/file 时 content 须为合法媒体 JSON（发送时校验，读取时现签访问 URL）。
+func (s *ChatService) SendMessage(ctx context.Context, tenantID, userID, conversationID, content, mentionIDs, msgType string) (*model.ChatMessage, error) {
 	content = strings.TrimSpace(content)
 	if content == "" {
 		return nil, ErrEmptyContent
+	}
+	if msgType == "" {
+		msgType = model.MessageTypeText
+	}
+	switch msgType {
+	case model.MessageTypeText, model.MessageTypeImage, model.MessageTypeFile:
+	default:
+		return nil, ErrInvalidMessageType
+	}
+	if msgType != model.MessageTypeText {
+		if _, err := parseMediaPayload(content); err != nil {
+			return nil, ErrInvalidMediaContent
+		}
 	}
 	if err := s.ensureMember(ctx, conversationID, tenantID, userID); err != nil {
 		return nil, err
@@ -158,7 +200,7 @@ func (s *ChatService) SendMessage(ctx context.Context, tenantID, userID, convers
 		TenantID:       tenantID,
 		SenderID:       userID,
 		Content:        content,
-		Type:           model.MessageTypeText,
+		Type:           msgType,
 		MentionIDs:     s.filterMentionIDs(ctx, conversationID, userID, mentionIDs),
 		CreatedAt:      now,
 	}
@@ -166,8 +208,9 @@ func (s *ChatService) SendMessage(ctx context.Context, tenantID, userID, convers
 		return nil, err
 	}
 
-	// 富化发送人姓名后再返回并推送
+	// 富化发送人姓名与媒体访问 URL 后再返回并推送
 	s.enrichMessageNames(ctx, []*model.ChatMessage{msg})
+	s.attachMediaURL(msg)
 
 	// 实时投递给会话其他成员（排除发送人本人）；hub 为 nil 时跳过（离线用户下次拉历史即可）
 	s.pushToOthers(ctx, conversationID, userID, ws.NewMessage(ws.MsgTypeChat, ToMessageResp(msg)))
@@ -201,6 +244,9 @@ func (s *ChatService) ListMessages(ctx context.Context, tenantID, userID, conver
 		return nil, 0, err
 	}
 	s.enrichMessageNames(ctx, msgs)
+	for _, m := range msgs {
+		s.attachMediaURL(m)
+	}
 	return msgs, total, nil
 }
 
@@ -570,6 +616,37 @@ func (s *ChatService) filterMentionIDs(ctx context.Context, conversationID, send
 	return strings.Join(kept, ",")
 }
 
+// parseMediaPayload 解析并校验媒体消息正文：file 须为单段安全文件名，name 非空，size 非负。
+func parseMediaPayload(content string) (mediaPayload, error) {
+	var p mediaPayload
+	if err := json.Unmarshal([]byte(content), &p); err != nil {
+		return p, err
+	}
+	if !mediaFileRe.MatchString(p.File) || strings.ContainsAny(p.File, `/\`) {
+		return p, errors.New("invalid file name")
+	}
+	if strings.TrimSpace(p.Name) == "" || p.Size < 0 {
+		return p, errors.New("invalid media metadata")
+	}
+	return p, nil
+}
+
+// attachMediaURL 为媒体消息现签短时效访问 URL（与 wiki 内嵌图片同源机制）；
+// 未配置签名参数、非媒体类型或正文解析失败时保持为空，前端降级为不可预览展示。
+func (s *ChatService) attachMediaURL(m *model.ChatMessage) {
+	if s.uploadBaseURL == "" || s.uploadSignKey == "" || m.Deleted {
+		return
+	}
+	if m.Type != model.MessageTypeImage && m.Type != model.MessageTypeFile {
+		return
+	}
+	p, err := parseMediaPayload(m.Content)
+	if err != nil {
+		return
+	}
+	m.FileURL = signedurl.Build(s.uploadBaseURL, p.File, s.uploadSignKey, signedurl.Expires(signedurl.DefaultTTL))
+}
+
 // ensureMember 校验用户为指定会话（同租户）成员，否则返回 ErrConversationNotFound。
 func (s *ChatService) ensureMember(ctx context.Context, conversationID, tenantID, userID string) error {
 	ok, err := s.repo.IsMember(ctx, conversationID, tenantID, userID)
@@ -630,15 +707,16 @@ func (s *ChatService) enrichMessageNames(ctx context.Context, msgs []*model.Chat
 // ToConversationResp 将领域会话转换为响应对象。
 func ToConversationResp(c *model.Conversation) *dto.ConversationResp {
 	resp := &dto.ConversationResp{
-		ID:          c.ID,
-		Type:        c.Type,
-		PeerUserID:  c.PeerUserID,
-		PeerName:    c.PeerName,
-		LastMessage: c.LastMessage,
-		UnreadCount: c.UnreadCount,
-		MemberCount: c.MemberCount,
-		MyRole:      c.MyRole,
-		CreatedAt:   c.CreatedAt.Format("2006-01-02 15:04:05"),
+		ID:              c.ID,
+		Type:            c.Type,
+		PeerUserID:      c.PeerUserID,
+		PeerName:        c.PeerName,
+		LastMessage:     c.LastMessage,
+		LastMessageType: c.LastMessageType,
+		UnreadCount:     c.UnreadCount,
+		MemberCount:     c.MemberCount,
+		MyRole:          c.MyRole,
+		CreatedAt:       c.CreatedAt.Format("2006-01-02 15:04:05"),
 	}
 	if c.LastAt != nil {
 		resp.LastAt = c.LastAt.Format("2006-01-02 15:04:05")
@@ -670,11 +748,13 @@ func ToMessageResp(m *model.ChatMessage) *dto.ChatMessageResp {
 		Type:           m.Type,
 		MentionIDs:     m.MentionIDs,
 		Recalled:       m.Deleted,
+		URL:            m.FileURL,
 		CreatedAt:      m.CreatedAt.Format("2006-01-02 15:04:05"),
 	}
-	// 已撤回的消息不外泄正文（正文已在软撤回时清空，此处再防一层存量脏数据）
+	// 已撤回的消息不外泄正文与媒体访问 URL（正文已在软撤回时清空，此处再防一层存量脏数据）
 	if resp.Recalled {
 		resp.Content = ""
+		resp.URL = ""
 	}
 	return resp
 }
