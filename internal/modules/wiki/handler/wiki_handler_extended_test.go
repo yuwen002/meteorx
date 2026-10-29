@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"testing"
 
+	"meteorx/internal/modules/wiki"
 	"meteorx/internal/modules/wiki/dto"
 	"meteorx/internal/modules/wiki/handler"
 	apperrors "meteorx/internal/pkg/apperrors"
@@ -859,4 +860,37 @@ func TestWikiImportDocument_ServiceError_Returns500(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "import failed")
+}
+
+// TestWikiExtendedRoutesMountedInProduction 防“影子路由”陷阱：测试影子 RegisterExtendedRoutes
+// 注册的每一条路由，都必须被生产实际挂载的 wiki.RegisterRoutes 覆盖。
+// 避免新接口只加进影子路由而漏加生产路由（导致测试绿但线上 404）。
+func TestWikiExtendedRoutesMountedInProduction(t *testing.T) {
+	stub := newStubWiki()
+
+	// 生产路由：module.go InitModule 实际调用的 wiki.RegisterRoutes
+	prod := chi.NewRouter()
+	wiki.RegisterRoutes(prod, handler.NewWikiHandler(stub), handler.NewWikiHandlerExtended(stub))
+
+	// 影子路由：测试使用的扩展路由注册
+	ext := chi.NewRouter()
+	handler.NewWikiHandlerExtended(stub).RegisterExtendedRoutes(ext)
+
+	prodSet := walkChiRoutes(t, prod)
+	extSet := walkChiRoutes(t, ext)
+
+	for key := range extSet {
+		assert.True(t, prodSet[key], "扩展路由 %s 未被生产 RegisterRoutes 挂载（影子路由漂移）", key)
+	}
+}
+
+// walkChiRoutes 枚举路由器上所有 “METHOD 完整路径” 路由（含嵌套 Route 子路由）。
+func walkChiRoutes(t *testing.T, r chi.Router) map[string]bool {
+	t.Helper()
+	out := map[string]bool{}
+	require.NoError(t, chi.Walk(r, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		out[method+" "+route] = true
+		return nil
+	}))
+	return out
 }

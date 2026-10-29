@@ -53,24 +53,8 @@ func RegisterRoutes(r chi.Router, h *handler.WikiHandler, extH *handler.WikiHand
 			})
 
 			// 扩展路由 - Spaces（标签、模板、通知、订阅、批量操作）
-			r.Post("/tags", extH.CreateTag)        // 创建标签
-			r.Get("/tags", extH.ListTags)          // 获取标签列表
-			r.Delete("/tags/{id}", extH.DeleteTag) // 删除标签
-
-			r.Post("/nodes/batch", extH.BatchOperation) // 批量操作（移动/删除）
-
-			r.Post("/templates", extH.CreateTemplate)        // 创建文档模板
-			r.Get("/templates", extH.ListTemplates)          // 获取模板列表
-			r.Get("/templates/{id}", extH.GetTemplate)       // 获取模板详情
-			r.Put("/templates/{id}", extH.UpdateTemplate)    // 更新模板
-			r.Delete("/templates/{id}", extH.DeleteTemplate) // 删除模板
-
-			r.Get("/notifications", extH.ListNotifications)                       // 获取通知列表
-			r.Put("/notifications/read-all", extH.MarkAllNotificationsAsRead)     // 全部标记已读
-			r.Get("/notifications/unread-count", extH.GetUnreadNotificationCount) // 未读通知数
-			r.Put("/notifications/{id}/read", extH.MarkNotificationAsRead)        // 标记单条已读
-
-			r.Get("/subscriptions", extH.ListUserSubscriptions) // 获取用户订阅列表
+			// 单一来源：与测试共用 extH.RegisterSpaceExtendedRoutes，避免两处路由定义漂移
+			extH.RegisterSpaceExtendedRoutes(r)
 		})
 
 		// Documents 文档管理
@@ -92,44 +76,8 @@ func RegisterRoutes(r chi.Router, h *handler.WikiHandler, extH *handler.WikiHand
 			r.Delete("/attachments/{id}", h.DeleteAttachment)     // 删除附件
 
 			// 扩展路由 - Documents（标签、评论、分享、统计、访问日志）
-			r.Post("/{id}/tags/{tagId}", extH.AddDocumentTag)      // 为文档添加标签
-			r.Delete("/{id}/tags/{tagId}", extH.RemoveDocumentTag) // 移除文档标签
-			r.Get("/{id}/tags", extH.ListDocumentTags)             // 获取文档标签列表
-
-			r.Post("/{id}/comments", extH.CreateComment)                   // 创建评论
-			r.Get("/{id}/comments", extH.ListComments)                     // 获取评论列表
-			r.Put("/comments/{id}", extH.UpdateComment)                    // 更新评论
-			r.Delete("/comments/{id}", extH.DeleteComment)                 // 删除评论
-			r.Post("/comments/{id}/reactions", extH.ToggleCommentReaction) // 切换评论表情回应
-			r.Post("/comments/{id}/resolve", extH.ResolveComment)          // 解决/重开根评论
-
-			r.Post("/{id}/share", extH.CreateShareLink)    // 创建分享链接
-			r.Get("/{id}/shares", extH.ListShareLinks)     // 获取分享链接列表
-			r.Delete("/shares/{id}", extH.DeleteShareLink) // 删除分享链接
-
-			r.Get("/{id}/stats", extH.GetDocumentStats)     // 获取文档访问统计
-			r.Get("/{id}/access-logs", extH.ListAccessLogs) // 获取文档访问日志
-
-			r.Post("/{id}/subscribe", extH.SubscribeDocument)     // 订阅文档变更通知
-			r.Delete("/{id}/subscribe", extH.UnsubscribeDocument) // 取消订阅文档
-
-			r.Post("/{id}/edit-lock", extH.AcquireEditLock)   // 获取编辑锁
-			r.Delete("/{id}/edit-lock", extH.ReleaseEditLock) // 释放编辑锁
-			r.Put("/{id}/edit-lock", extH.RefreshEditLock)    // 刷新编辑锁
-			r.Get("/{id}/edit-lock", extH.GetEditLock)        // 查询编辑锁状态
-
-			r.Post("/{id}/export", extH.ExportDocument) // 导出文档
-			r.Post("/{id}/import", extH.ImportDocument) // 导入文档
-
-			r.Get("/{id}/revisions/compare", extH.CompareRevisions) // 版本对比
-
-			r.Post("/{id}/submit-review", extH.SubmitForReview)     // 提交审核
-			r.Post("/{id}/approve", extH.ApproveDocument)           // 审核通过
-			r.Post("/{id}/reject", extH.RejectDocument)             // 审核驳回
-			r.Post("/{id}/publish", extH.PublishDocument)           // 发布文档
-			r.Post("/{id}/unpublish", extH.UnpublishDocument)       // 取消发布
-			r.Post("/{id}/archive", extH.ArchiveDocument)           // 归档文档
-			r.Get("/{id}/review-comments", extH.ListReviewComments) // 获取审核评论
+			// 单一来源：与测试共用 extH.RegisterDocumentExtendedRoutes，避免两处路由定义漂移
+			extH.RegisterDocumentExtendedRoutes(r)
 		})
 
 		r.Get("/pending-reviews", extH.ListPendingReviews) // 获取待审核列表

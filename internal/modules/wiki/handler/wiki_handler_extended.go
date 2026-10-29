@@ -700,73 +700,79 @@ func (h *WikiHandlerExtended) ListPendingReviews(w http.ResponseWriter, r *http.
 	})
 }
 
-// RegisterExtendedRoutes 将扩展接口挂载到 /wiki 路由分组（需登录，免登录分享已单独注册）。
+// RegisterSpaceExtendedRoutes 将扩展接口中属于 /wiki/spaces 分组的叶子路由注册到给定路由器。
+// 单一来源：生产 routes.go 与测试 RegisterExtendedRoutes 均调用本函数，避免两处路由定义漂移。
+func (h *WikiHandlerExtended) RegisterSpaceExtendedRoutes(r chi.Router) {
+	r.Post("/tags", h.CreateTag)
+	r.Get("/tags", h.ListTags)
+	r.Delete("/tags/{id}", h.DeleteTag)
+
+	r.Post("/nodes/batch", h.BatchOperation)
+
+	r.Post("/templates", h.CreateTemplate)
+	r.Get("/templates", h.ListTemplates)
+	r.Get("/templates/{id}", h.GetTemplate)
+	r.Put("/templates/{id}", h.UpdateTemplate)
+	r.Delete("/templates/{id}", h.DeleteTemplate)
+
+	r.Get("/notifications", h.ListNotifications)
+	r.Put("/notifications/read-all", h.MarkAllNotificationsAsRead)
+	r.Get("/notifications/unread-count", h.GetUnreadNotificationCount)
+	r.Put("/notifications/{id}/read", h.MarkNotificationAsRead)
+
+	r.Get("/subscriptions", h.ListUserSubscriptions)
+}
+
+// RegisterDocumentExtendedRoutes 将扩展接口中属于 /wiki/documents 分组的叶子路由注册到给定路由器。
+// 单一来源：生产 routes.go 与测试 RegisterExtendedRoutes 均调用本函数，避免两处路由定义漂移。
+func (h *WikiHandlerExtended) RegisterDocumentExtendedRoutes(r chi.Router) {
+	r.Post("/{id}/tags/{tagId}", h.AddDocumentTag)
+	r.Delete("/{id}/tags/{tagId}", h.RemoveDocumentTag)
+	r.Get("/{id}/tags", h.ListDocumentTags)
+
+	r.Post("/{id}/comments", h.CreateComment)
+	r.Get("/{id}/comments", h.ListComments)
+	r.Put("/comments/{id}", h.UpdateComment)
+	r.Delete("/comments/{id}", h.DeleteComment)
+	r.Post("/comments/{id}/reactions", h.ToggleCommentReaction)
+	r.Post("/comments/{id}/resolve", h.ResolveComment)
+
+	r.Post("/{id}/share", h.CreateShareLink)
+	r.Get("/{id}/shares", h.ListShareLinks)
+	r.Delete("/shares/{id}", h.DeleteShareLink)
+
+	r.Get("/{id}/stats", h.GetDocumentStats)
+	r.Get("/{id}/access-logs", h.ListAccessLogs)
+
+	r.Post("/{id}/subscribe", h.SubscribeDocument)
+	r.Delete("/{id}/subscribe", h.UnsubscribeDocument)
+
+	r.Post("/{id}/edit-lock", h.AcquireEditLock)
+	r.Delete("/{id}/edit-lock", h.ReleaseEditLock)
+	r.Put("/{id}/edit-lock", h.RefreshEditLock)
+	r.Get("/{id}/edit-lock", h.GetEditLock)
+
+	r.Post("/{id}/export", h.ExportDocument)
+	r.Post("/{id}/import", h.ImportDocument)
+
+	r.Get("/{id}/revisions/compare", h.CompareRevisions)
+
+	r.Post("/{id}/submit-review", h.SubmitForReview)
+	r.Post("/{id}/approve", h.ApproveDocument)
+	r.Post("/{id}/reject", h.RejectDocument)
+	r.Post("/{id}/publish", h.PublishDocument)
+	r.Post("/{id}/unpublish", h.UnpublishDocument)
+	r.Post("/{id}/archive", h.ArchiveDocument)
+	r.Get("/{id}/review-comments", h.ListReviewComments)
+}
+
+// RegisterExtendedRoutes 仅用于测试装配扩展路由（生产由 routes.go 的 RegisterRoutes 挂载）。
+// 它复用与生产完全相同的两个叶子注册函数，因此不可能与线上路由产生偏差。
+// 注意：免登录分享 GET /wiki/share/{token} 已在公开分组注册（见 public_routes.go），此处不重复注册。
 func (h *WikiHandlerExtended) RegisterExtendedRoutes(r chi.Router) {
 	r.Route("/wiki", func(r chi.Router) {
-		// 注意：免登录分享 GET /wiki/share/{token} 已在公开分组注册（见 public_routes.go），
-		// 此处不再重复注册，避免与公共路由冲突。
-		r.Route("/spaces", func(r chi.Router) {
-			r.Post("/tags", h.CreateTag)
-			r.Get("/tags", h.ListTags)
-			r.Delete("/tags/{id}", h.DeleteTag)
-
-			r.Post("/nodes/batch", h.BatchOperation)
-
-			r.Post("/templates", h.CreateTemplate)
-			r.Get("/templates", h.ListTemplates)
-			r.Get("/templates/{id}", h.GetTemplate)
-			r.Put("/templates/{id}", h.UpdateTemplate)
-			r.Delete("/templates/{id}", h.DeleteTemplate)
-
-			r.Get("/notifications", h.ListNotifications)
-			r.Put("/notifications/read-all", h.MarkAllNotificationsAsRead)
-			r.Get("/notifications/unread-count", h.GetUnreadNotificationCount)
-			r.Put("/notifications/{id}/read", h.MarkNotificationAsRead)
-
-			r.Get("/subscriptions", h.ListUserSubscriptions)
-		})
-
-		r.Route("/documents", func(r chi.Router) {
-			r.Post("/{id}/tags/{tagId}", h.AddDocumentTag)
-			r.Delete("/{id}/tags/{tagId}", h.RemoveDocumentTag)
-			r.Get("/{id}/tags", h.ListDocumentTags)
-
-			r.Post("/{id}/comments", h.CreateComment)
-			r.Get("/{id}/comments", h.ListComments)
-			r.Put("/comments/{id}", h.UpdateComment)
-			r.Delete("/comments/{id}", h.DeleteComment)
-			r.Post("/comments/{id}/reactions", h.ToggleCommentReaction)
-			r.Post("/comments/{id}/resolve", h.ResolveComment)
-
-			r.Post("/{id}/share", h.CreateShareLink)
-			r.Get("/{id}/shares", h.ListShareLinks)
-			r.Delete("/shares/{id}", h.DeleteShareLink)
-
-			r.Get("/{id}/stats", h.GetDocumentStats)
-			r.Get("/{id}/access-logs", h.ListAccessLogs)
-
-			r.Post("/{id}/subscribe", h.SubscribeDocument)
-			r.Delete("/{id}/subscribe", h.UnsubscribeDocument)
-
-			r.Post("/{id}/edit-lock", h.AcquireEditLock)
-			r.Delete("/{id}/edit-lock", h.ReleaseEditLock)
-			r.Put("/{id}/edit-lock", h.RefreshEditLock)
-			r.Get("/{id}/edit-lock", h.GetEditLock)
-
-			r.Post("/{id}/export", h.ExportDocument)
-			r.Post("/{id}/import", h.ImportDocument)
-
-			r.Get("/{id}/revisions/compare", h.CompareRevisions)
-
-			r.Post("/{id}/submit-review", h.SubmitForReview)
-			r.Post("/{id}/approve", h.ApproveDocument)
-			r.Post("/{id}/reject", h.RejectDocument)
-			r.Post("/{id}/publish", h.PublishDocument)
-			r.Post("/{id}/unpublish", h.UnpublishDocument)
-			r.Post("/{id}/archive", h.ArchiveDocument)
-			r.Get("/{id}/review-comments", h.ListReviewComments)
-		})
-
+		r.Route("/spaces", h.RegisterSpaceExtendedRoutes)
+		r.Route("/documents", h.RegisterDocumentExtendedRoutes)
 		r.Get("/pending-reviews", h.ListPendingReviews)
 	})
 }
