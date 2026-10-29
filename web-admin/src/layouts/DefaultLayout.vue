@@ -37,7 +37,7 @@
             <template #title>
               <span class="menu-title-with-badge">
                 {{ t('nav.messages') }}
-                <el-badge v-if="messageStore.hasUnread" :value="messageStore.total" :max="99" class="menu-badge" />
+                <span v-if="messageStore.hasUnread" class="menu-count">{{ messageStore.total > 99 ? '99+' : messageStore.total }}</span>
               </span>
             </template>
           </el-menu-item>
@@ -46,7 +46,7 @@
             <template #title>
               <span class="menu-title-with-badge">
                 {{ t('nav.chat') }}
-                <el-badge v-if="chatStore.totalUnread > 0" :value="chatStore.totalUnread" :max="99" class="menu-badge" />
+                <span v-if="chatStore.totalUnread > 0" class="menu-count">{{ chatStore.totalUnread > 99 ? '99+' : chatStore.totalUnread }}</span>
               </span>
             </template>
           </el-menu-item>
@@ -431,10 +431,19 @@ async function handleCommand(cmd: string) {
   align-items: center;
   gap: 8px;
 }
-.menu-title-with-badge .menu-badge :deep(.el-badge__content) {
-  position: static;
-  transform: none;
+.menu-title-with-badge .menu-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
   background-color: #f56c6c;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 500;
 }
 
 .sidebar :deep(.el-menu::-webkit-scrollbar) {
