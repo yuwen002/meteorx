@@ -49,3 +49,20 @@ export function toPageResult<T>(raw: unknown): PageResult<T> {
   const total = Number(pagination.total ?? r.total ?? list.length) || 0
   return { list, total }
 }
+
+/**
+ * 将非分页列表接口的响应归一化为数组。
+ *
+ * 后端列表接口空结果时 nil 切片会序列化为 { data: null }，经响应拦截器
+ * `res.data ?? res` 回退后会得到信封对象 { data: null }（非空时才是数组本体），
+ * 直接 .length / .filter 会得到 undefined 或抛错。此处统一兜底为空数组，
+ * 兼容 数组本体 / { data: T[] } / { data: null } / null 四种形态。
+ */
+export function asArray<T>(raw: unknown): T[] {
+  if (Array.isArray(raw)) return raw as T[]
+  if (raw && typeof raw === 'object') {
+    const data = (raw as Record<string, unknown>).data
+    if (Array.isArray(data)) return data as T[]
+  }
+  return []
+}

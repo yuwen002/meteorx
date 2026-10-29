@@ -147,7 +147,7 @@ import {
   type ReactionItem
 } from '@/api/modules/wiki'
 import { getUserList, type UserItem } from '@/api/modules/user'
-import { toPageResult } from '@/types/pagination'
+import { toPageResult, asArray } from '@/types/pagination'
 import { useUserStore } from '@/stores/user'
 import { useI18n } from '@/composables/useI18n'
 
@@ -201,7 +201,8 @@ function isResolved(c: Comment): boolean {
 
 async function loadComments() {
   try {
-    comments.value = await listComments(props.documentId)
+    // 空评论时后端返回 { data: null }，经拦截器回退为信封对象，直接赋值会使 rootComments 计算中的 .filter 抛错，须 asArray 兜底
+    comments.value = asArray<Comment>(await listComments(props.documentId))
   } catch {
     ElMessage.error(t('wiki.comment.loadFailed'))
   }

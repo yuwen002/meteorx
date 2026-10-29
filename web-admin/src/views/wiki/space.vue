@@ -583,6 +583,7 @@ import { uploadFile, downloadFile } from '@/api/modules/file'
 import { useUserStore } from '@/stores/user'
 import { useI18n } from '@/composables/useI18n'
 import { sanitizeHtml } from '@/utils/sanitize'
+import { asArray } from '@/types/pagination'
 import MembersDialog from './components/MembersDialog.vue'
 import NodePermissionDialog from './components/NodePermissionDialog.vue'
 import TagManager from './components/TagManager.vue'
@@ -1047,7 +1048,8 @@ async function loadDocumentTags() {
   if (!currentDocument.value) return
   try {
     const { listDocumentTags } = await import('@/api/modules/wiki')
-    documentTags.value = await listDocumentTags(currentDocument.value.id)
+    // 空结果时后端返回 { data: null }，须经 asArray 兜底为数组，否则 tab 计数 .length 为 undefined
+    documentTags.value = asArray<DocumentTag>(await listDocumentTags(currentDocument.value.id))
   } catch (error) {
     console.error('Failed to load document tags:', error)
   }
@@ -1090,7 +1092,8 @@ const attachments = ref<WikiAttachment[]>([])
 
 async function loadAttachments() {
   if (!currentDocument.value) return
-  attachments.value = (await listAttachments(currentDocument.value.id).catch(() => [])) ?? []
+  // 空结果时后端返回 { data: null }，须经 asArray 兜底为数组，否则 tab 计数 .length 为 undefined
+  attachments.value = asArray<WikiAttachment>(await listAttachments(currentDocument.value.id).catch(() => []))
 }
 
 async function handleAttachmentAdd(file: File) {
@@ -1188,7 +1191,8 @@ async function loadRevisions() {
   if (!currentDocument.value) return
   loadingRevisions.value = true
   try {
-    revisions.value = (await listRevisions(currentDocument.value.id)) ?? []
+    // 空结果时后端返回 { data: null }，须经 asArray 兜底为数组，否则 tab 计数 .length 为 undefined
+    revisions.value = asArray<DocumentRevision>(await listRevisions(currentDocument.value.id))
   } catch {
     revisions.value = []
   } finally {
