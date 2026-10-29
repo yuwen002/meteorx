@@ -294,7 +294,7 @@ function handleDelete(id: string) {
 
 // 编辑仅作者可见：弹出输入框预填原内容，提交后回拉列表
 async function handleEdit(comment: Comment) {
-  let value = ''
+  let value: string
   try {
     const r = await ElMessageBox.prompt(t('wiki.comment.editTitle'), t('wiki.comment.edit'), {
       inputValue: comment.content,

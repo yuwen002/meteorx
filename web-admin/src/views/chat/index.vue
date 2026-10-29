@@ -777,7 +777,7 @@ async function doLeave() {
 async function doRename() {
   const id = chatStore.activeId
   if (!id) return
-  let value = ''
+  let value: string
   try {
     const r = await ElMessageBox.prompt(t('chat.renameTitle'), t('chat.rename'), {
       inputValue: chatStore.activeConversation?.peer_name || '',

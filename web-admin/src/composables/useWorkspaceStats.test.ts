@@ -142,4 +142,50 @@ describe('useWorkspaceStats 租户工作台装载', () => {
     expect(ws.unreadChats).toBe(6)
     expect(ws.mentionChats).toBe(1)
   })
+
+  it('聚合接口返回空对象时各字段逐项兜底为零值', async () => {
+    // ov 为真值但缺子字段：命中 member/wiki/storage/task 各自的 ?. x ?? 0 分支，且不再回退独立接口
+    vi.mocked(getTenantOverview).mockResolvedValue(
+      {} as unknown as Awaited<ReturnType<typeof getTenantOverview>>
+    )
+    const ws = useWorkspaceStats()
+    await ws.load()
+    expect(ws.memberCount).toBe(0)
+    expect(ws.wiki.total_documents).toBe(0)
+    expect(ws.storageUsed).toBe(0)
+    expect(ws.tenantTask.total).toBe(0)
+    expect(getUserStats).not.toHaveBeenCalled()
+    expect(getWikiStats).not.toHaveBeenCalled()
+  })
+
+  it('未读接口返回缺字段时按零处理', async () => {
+    vi.mocked(getUnreadCount).mockResolvedValue(
+      { by_category: {} } as unknown as Awaited<ReturnType<typeof getUnreadCount>>
+    )
+    vi.mocked(getUnreadNotificationCount).mockResolvedValue(
+      {} as unknown as Awaited<ReturnType<typeof getUnreadNotificationCount>>
+    )
+    const ws = useWorkspaceStats()
+    await ws.load()
+    expect(ws.unreadMessages).toBe(0)
+    expect(ws.unreadNotifications).toBe(0)
+  })
+
+  it('聚合返回 null 时回退独立接口，独立接口缺字段/为空各自兜底零值', async () => {
+    vi.mocked(getTenantOverview).mockResolvedValue(
+      null as unknown as Awaited<ReturnType<typeof getTenantOverview>>
+    )
+    vi.mocked(getUserStats).mockResolvedValue(
+      {} as unknown as Awaited<ReturnType<typeof getUserStats>>
+    )
+    vi.mocked(getWikiStats).mockResolvedValue(
+      null as unknown as Awaited<ReturnType<typeof getWikiStats>>
+    )
+    const ws = useWorkspaceStats()
+    await ws.load()
+    expect(getUserStats).toHaveBeenCalledTimes(1)
+    expect(getWikiStats).toHaveBeenCalledTimes(1)
+    expect(ws.memberCount).toBe(0)
+    expect(ws.wiki.total_documents).toBe(0)
+  })
 })
