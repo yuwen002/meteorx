@@ -17,6 +17,7 @@ import (
 	notificationrepo "meteorx/internal/modules/notification/repository"
 	planrepo "meteorx/internal/modules/plan/repository"
 	rbacrepo "meteorx/internal/modules/rbac/repository"
+	settingsrepo "meteorx/internal/modules/settings/repository"
 	taskrepo "meteorx/internal/modules/task/repository"
 	tenantrepo "meteorx/internal/modules/tenant/repository"
 	authrepo "meteorx/internal/modules/user/repository"
@@ -43,6 +44,7 @@ func AutoMigrate(db *gorm.DB) error {
 		{"tenant_settings", tenantrepo.AutoMigrateTenantSettings},
 		{"cancel_requests", tenantrepo.CancelRequestsAutoMigrate},
 		{"plans", planrepo.AutoMigrate},
+		{"system_settings", settingsrepo.AutoMigrate},
 		{"rbac", rbacrepo.AutoMigrate},
 	}
 

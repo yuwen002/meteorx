@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### 新增
+- **平台运行时配置中心（Settings）**：全新 `internal/modules/settings` 模块（`model→dto→repository→service→handler→routes→module`），数据库持久化 + Redis 整表缓存（TTL 5min、写入失效），提供管理接口 `GET/PUT /admin/settings`（权限码 `admin:settings:list`/`update`、requireMaster）与公开接口 `GET /settings/public`（免鉴权、Public 分组不受维护模式拦截）。注册表白名单模式杜绝死配置，启动 `SeedDefaults` 自动播种。接入两个真实消费者：① 注册开关——控制 `POST /auth/register`（用户注册）与 `POST /tenants/register`（租户开户）两处公开入口，关闭返回 403，后台 AdminCreate 不受限；② 维护模式——`middleware.MaintenanceGate` 令非超管业务请求 503 + 可配文案，超管豁免保证闭环。前端新增管理页 `/system/settings`（draft 差量机制，按类型渲染编辑器、仅提交变更、成功重建基线）；登录页消费维护公告与注册入口隐藏；两个注册页增加 URL 直达守卫。后端单测/集成测试覆盖全链路，前端新增 API/页面/守卫 16 用例。
 - **工作台聚合接口并行化 + Redis 短缓存（性能）**：`GetTenantOverview`/`GetOverview` 由多次串行查询改为 `errgroup` 并发拉取，并叠加 Redis 短 TTL 缓存（读失败 fail-open 降级，不影响正确性），显著降低管理端与租户端首屏延迟。
 - **两步验证（2FA）一次性备份恢复码**：开启 2FA 时生成 10 枚 `XXXXX-XXXXX` 恢复码（去歧义字母表），仅以 SHA-256 哈希落库；登录 TOTP 校验失败时回退校验恢复码（`hmac.Equal` 恒定时间比较、用后即焚）；新增查看状态与重新生成端点，避免用户丢失验证器后被锁死。
 - **审计异常检测收口 + 统计接口租户隔离 + 风险等级强化**：异常检测在原有 `high_failure_rate` 之外补齐 `brute_force`（同 IP 跨多账号登录失败）与 `geo_anomaly`（同用户多地点成功登录）两类真实产出；`stats`/`detailed-stats`/`anomalies`/`user-timeline` 等统计类接口按租户上下文收窄，堵住平台维度数据跨租户泄漏；2FA 变更审计记为 `critical` 并打 `2fa_change` 标签、修改密码记为 `high`。

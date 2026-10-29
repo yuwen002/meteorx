@@ -144,6 +144,12 @@ func buildTestRouter() *chi.Mux {
 				r.Get("/{id}", noop)
 				r.Put("/{id}", noop)
 			})
+
+			// 平台运行时配置中心
+			r.Route("/settings", func(r chi.Router) {
+				r.Get("/", noop)
+				r.Put("/", noop)
+			})
 		})
 
 		// 审计日志路由
@@ -404,6 +410,26 @@ func TestDerivePermissionCode_AdminTenantPlan(t *testing.T) {
 	cases := []testCase{
 		{"tenant plan read", http.MethodGet, "/api/v1/admin/tenants-plan/{id}", "admin:plan:read"},
 		{"tenant plan assign", http.MethodPut, "/api/v1/admin/tenants-plan/{id}", "admin:plan:assign"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := doRequest(r, c.method, c.path)
+			if got != c.want {
+				t.Errorf("derivePermissionCode(%s %s) = %q, want %q", c.method, c.path, got, c.want)
+			}
+		})
+	}
+}
+
+// TestDerivePermissionCode_AdminSettings 锁定配置中心权限码推导：
+// 必须与 permissions.go 播种的 admin:settings:* 一致（"settings" 不在单数化映射表，原样返回）。
+func TestDerivePermissionCode_AdminSettings(t *testing.T) {
+	r := buildTestRouter()
+
+	cases := []testCase{
+		{"settings list", http.MethodGet, "/api/v1/admin/settings", "admin:settings:list"},
+		{"settings update", http.MethodPut, "/api/v1/admin/settings", "admin:settings:update"},
 	}
 
 	for _, c := range cases {

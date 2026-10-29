@@ -177,6 +177,55 @@ func (s *TenantServiceTestSuite) TestAdminCreateAssignsDefaultRole() {
 	s.Equal([]string{"role-tenant_admin"}, s.repo.lastRoleIDs)
 }
 
+// gateStub 注册开关桩：实现 RegistrationGate
+type gateStub bool
+
+func (g gateStub) RegistrationEnabled(context.Context) bool { return bool(g) }
+
+// 开关关闭时公开开户直接拒绝，不触达后续域名/用户名校验
+func (s *TenantServiceTestSuite) TestRegisterBlockedByGate() {
+	s.seedRole("tenant_admin", 1)
+	s.svc.SetRegistrationGate(gateStub(false))
+	req := tenantDto.RegisterTenantReq{}
+	req.Name = "Acme"
+	req.Domain = "acme"
+	req.AdminUser.Username = "admin"
+	req.AdminUser.Password = "Admin@123456"
+
+	_, err := s.svc.Register(s.ctx, req)
+	s.ErrorIs(err, ErrRegistrationDisabled)
+	s.Empty(s.repo.tenants, "开关拦截不得落库")
+}
+
+// 开关开启时照常放行
+func (s *TenantServiceTestSuite) TestRegisterAllowedByGate() {
+	s.seedRole("tenant_admin", 1)
+	s.svc.SetRegistrationGate(gateStub(true))
+	req := tenantDto.RegisterTenantReq{}
+	req.Name = "Acme"
+	req.Domain = "acme"
+	req.AdminUser.Username = "admin"
+	req.AdminUser.Password = "Admin@123456"
+
+	_, err := s.svc.Register(s.ctx, req)
+	s.NoError(err)
+}
+
+// 后台建户不受注册开关限制（仅拦截公开自助开户）
+func (s *TenantServiceTestSuite) TestAdminCreateNotGated() {
+	s.seedRole("tenant_admin", 1)
+	s.svc.SetRegistrationGate(gateStub(false))
+	req := tenantDto.AdminCreateTenantReq{}
+	req.Name = "Acme"
+	req.Domain = "acme"
+	req.Status = tenantModel.StatusEnabled
+	req.AdminUser.Username = "boss"
+	req.AdminUser.Password = "Admin@123456"
+
+	_, err := s.svc.AdminCreate(s.ctx, req)
+	s.NoError(err)
+}
+
 // ---------- 查询类 ----------
 
 func (s *TenantServiceTestSuite) TestAdminDetailNotFound() {

@@ -28,6 +28,8 @@ var (
 	ErrNameConflict     = errors.New("tenant name already exists")
 	ErrTenantNotDeleted = errors.New("tenant not found or not in deleted state")
 	ErrUsernameConflict = errors.New("username already exists in tenant")
+	// ErrRegistrationDisabled 平台运行时配置关闭了自助注册（与 auth 模块同名语义，配置键 registration_enabled）
+	ErrRegistrationDisabled = errors.New("registration is disabled")
 )
 
 // TenantPlanProvider 租户套餐摘要查询接口（由 plan 模块实现，避免循环依赖）
@@ -44,6 +46,7 @@ type TenantService struct {
 	planProvider       TenantPlanProvider
 	planAssignProvider TenantPlanAssignProvider
 	subRepo            planRepo.SubscriptionRepository
+	registrationGate   RegistrationGate
 }
 
 // NewTenantService 创建租户服务实例。
@@ -73,6 +76,15 @@ func (s *TenantService) SetSubscriptionRepository(sub planRepo.SubscriptionRepos
 type TenantPlanAssignProvider interface {
 	AssignPlan(ctx context.Context, tenantID string, req planDto.AssignPlanReq) error
 }
+
+// RegistrationGate 注册开放能力（由 settings 配置服务提供），拦截公开自助开户。
+// 未注入时不拦截；仅作用于 Register（公开注册），后台 AdminCreate 不受限。
+type RegistrationGate interface {
+	RegistrationEnabled(ctx context.Context) bool
+}
+
+// SetRegistrationGate 注入注册开关依赖（平台运行时配置中心 registration_enabled）
+func (s *TenantService) SetRegistrationGate(g RegistrationGate) { s.registrationGate = g }
 
 // planAssignProvider 套餐分配器（由 bootstrap 组装注入）
 func (s *TenantService) SetPlanAssignProvider(p TenantPlanAssignProvider) {
@@ -106,6 +118,11 @@ func (s *TenantService) GetTenantUserCounts(ctx context.Context, tenantIDs []str
 // Register 注册新租户及其管理员用户
 // 该方法会生成租户ID和用户ID，加密管理员密码，创建租户和管理员用户模型，并通过事务持久化到数据库
 func (s *TenantService) Register(ctx context.Context, req dto.RegisterTenantReq) (*tenantModel.Tenant, error) {
+	// 注册开关拦截：平台配置关闭自助注册后拒绝开户（未注入时不拦截）
+	if s.registrationGate != nil && !s.registrationGate.RegistrationEnabled(ctx) {
+		return nil, ErrRegistrationDisabled
+	}
+
 	// 1. 检查租户域名是否已被占用
 	existingTenant, err := s.repo.GetByDomain(ctx, req.Domain)
 	if err == nil && existingTenant != nil {

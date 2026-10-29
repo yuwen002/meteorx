@@ -117,6 +117,14 @@ const (
 )
 
 // ============================================================
+// 平台运行时配置中心权限码（/api/v1/admin/settings 相关，平台后台）
+// ============================================================
+const (
+	SettingsList   = "admin:settings:list"   // 查询系统配置列表
+	SettingsUpdate = "admin:settings:update" // 批量更新系统配置
+)
+
+// ============================================================
 // 审计日志权限码（/api/v1/audit 相关）
 // ============================================================
 const (
@@ -360,6 +368,10 @@ func GetPermissionDefs() []PermissionDef {
 		{Name: "编辑第三方登录配置", Code: OAuthProviderUpdate, Description: "修改第三方登录提供商配置", Resource: "oauth_provider", Action: "update"},
 		{Name: "删除第三方登录配置", Code: OAuthProviderDelete, Description: "删除第三方登录提供商配置", Resource: "oauth_provider", Action: "delete"},
 		{Name: "切换第三方登录启用状态", Code: OAuthProviderStatus, Description: "启用/禁用第三方登录提供商", Resource: "oauth_provider", Action: "status"},
+
+		// 平台运行时配置中心（平台后台）
+		{Name: "查询系统配置列表", Code: SettingsList, Description: "平台后台查询运行时配置列表", Resource: "settings", Action: "list"},
+		{Name: "更新系统配置", Code: SettingsUpdate, Description: "平台后台批量更新运行时配置", Resource: "settings", Action: "update"},
 
 		// 文件管理
 		{Name: "查询文件列表", Code: FileList, Description: "查询租户文件列表", Resource: "file", Action: "list"},

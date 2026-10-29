@@ -194,6 +194,17 @@ func TestRegister_ServiceError_Returns500(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "用户注册失败")
 }
 
+// 注册入口被平台配置关闭：映射为 403 业务拦截，不泄露内部错误形态
+func TestRegister_DisabledByPlatform_Returns403(t *testing.T) {
+	stub := &stubAuthService{registerErr: service.ErrRegistrationDisabled}
+	router := newAuthRouter(stub)
+
+	w := doAuth(t, router, "/register", `{"tenant_id":"t","username":"alice123","password":"pass1234","nickname":"爱丽丝","email":"a@x.com"}`, nil)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), "自助注册已关闭")
+}
+
 func TestLogin_Success_ReturnsTokenAndPermissions(t *testing.T) {
 	stub := &stubAuthService{loginUser: sampleUser("u-1", "alice"), token: "jwt-token", permCodes: []string{"wiki:create", "wiki:read"}}
 	router := newAuthRouter(stub)

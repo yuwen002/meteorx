@@ -107,11 +107,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { registerUser } from '@/api/auth'
+import { getPublicSettings } from '@/api/modules/settings'
 import { useI18n } from '@/composables/useI18n'
 
 const { t } = useI18n()
@@ -191,6 +192,19 @@ const goLogin = () => {
 const goTenantRegister = () => {
   router.push('/register')
 }
+
+// 用户注册入口同受平台注册开关约束：关闭时直达 URL 也跳回登录页（后端同步 403 拦截）
+onMounted(async () => {
+  try {
+    const data = await getPublicSettings()
+    if (data?.registration_enabled === false) {
+      ElMessage.warning(t('registration.closed'))
+      router.replace('/login')
+    }
+  } catch {
+    // 配置接口不可达时不拦截，提交仍会被后端 403 拦截
+  }
+})
 </script>
 
 <style scoped>

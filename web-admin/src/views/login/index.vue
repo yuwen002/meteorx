@@ -1,6 +1,17 @@
 <template>
   <div class="login-page">
     <div class="login-box">
+      <!-- 平台维护模式公告（运行时配置中心公开配置，登录接口不受限故仍可登录） -->
+      <el-alert
+        v-if="maintenanceMode"
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 16px"
+        :title="t('loginPage.maintenanceTitle')"
+        :description="maintenanceMessage || t('loginPage.maintenanceDefault')"
+      />
+
       <div class="login-title">
         <h2>{{ t('loginPage.adminTitle') }}</h2>
         <p>{{ loginMode === 'admin' ? t('loginPage.adminSubtitle') : t('loginPage.tenantSubtitle') }}</p>
@@ -86,7 +97,8 @@
           </el-link>
         </div>
 
-        <div class="register-link">
+        <!-- 自助注册入口：平台配置关闭注册时隐藏（后端同步 403 拦截，前端仅为体验优化） -->
+        <div v-if="registrationEnabled" class="register-link">
           <span>{{ t('loginPage.noAccount') }}</span>
           <el-dropdown trigger="click" @command="handleRegisterCommand">
             <el-link type="primary" :underline="false">
@@ -167,6 +179,7 @@ import { InfoFilled, Warning, Avatar, OfficeBuilding, ArrowDown } from '@element
 import { useUserStore } from '@/stores/user'
 import { getOAuthRedirectURL, getOAuthTenants, type LoginParams, type LoginErrorData } from '@/api/auth'
 import { listOAuthProviders, type ProviderMeta } from '@/api/modules/oauth'
+import { getPublicSettings } from '@/api/modules/settings'
 import { providerColor } from '@/providers'
 import { useI18n } from '@/composables/useI18n'
 
@@ -198,7 +211,30 @@ async function loadOAuthProviders() {
   }
 }
 
-onMounted(loadOAuthProviders)
+// 平台运行时公开配置：默认放行注册/不展示公告，接口失败不影响登录页可用（与后端 fail-open 口径一致）
+const registrationEnabled = ref(true)
+const maintenanceMode = ref(false)
+const maintenanceMessage = ref('')
+
+async function loadPublicSettings() {
+  try {
+    const data = await getPublicSettings()
+    if (typeof data?.registration_enabled === 'boolean') {
+      registrationEnabled.value = data.registration_enabled
+    }
+    maintenanceMode.value = data?.maintenance_mode === true
+    if (typeof data?.maintenance_message === 'string') {
+      maintenanceMessage.value = data.maintenance_message
+    }
+  } catch {
+    // 公开配置不可达时保持默认展示
+  }
+}
+
+onMounted(() => {
+  loadOAuthProviders()
+  loadPublicSettings()
+})
 
 type LoginMode = 'admin' | 'tenant'
 const loginMode = ref<LoginMode>('admin')

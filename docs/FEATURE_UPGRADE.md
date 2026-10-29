@@ -1891,3 +1891,48 @@ i18n 此前只铺了全局外壳（`App.vue`、`DefaultLayout.vue`），`web-adm
 
 - ✅ 后端 `go build ./...`/`go vet ./...` 干净；`go test ./...` 全部通过（新增 repo `GetAnomalyLogs` 三类型/租户隔离用例、handler 租户隔离用例、middleware 风险/标签用例）。
 - ✅ 前端 `vue-tsc --noEmit` 干净；`vitest run` 27 文件 289 用例全绿。
+
+---
+
+## 五十三、平台运行时配置中心（Settings）
+
+提供数据库持久化 + Redis 缓存的运行时配置管理，管理员可在后台随时调整全局开关而**无需重启服务**。
+
+### 53.1 后端核心（`internal/modules/settings`）
+
+- **注册表白名单**：`model/registry.go` 定义配置键元数据（key、defaultValue、valueType、isPublic、description）；未登记键写入拒绝，杜绝「可编辑却无效」的死配置。
+- **三层回退**：DB 行 → 注册表默认值 →（读取本身失败）消费者各自按失败开放口径处理。
+- **整表 Redis 缓存**：key=`settings:all`、TTL=5 分钟；写入成功后 `invalidateCache` 即时失效。读写失败均 fail-open 降级回源 DB。
+- **启动播种**：`SeedDefaults` 在 bootstrap 阶段把注册表键 UPSERT 到 DB（已存在则跳过），保证首次部署即有行可编辑。
+- **类型化读取**：`GetBool`/`GetInt`/`GetString`/`GetDuration` 从缓存/DB 取行后按 `valueType` 解析；公开接口 `GetPublicMap` 仅暴露 `IsPublic` 键且还原原生 JSON 类型。
+- **路由与权限**：`GET/PUT /admin/settings` → `admin:settings:list`/`update`（`AutoRequirePermission`）；`GET /settings/public` 免鉴权且在 Public 分组不受维护模式拦截。
+
+### 53.2 消费者接入
+
+| 消费者 | 位置 | 行为 |
+|--------|------|------|
+| 注册开关（用户） | `auth_service.go` → `RegistrationGate` 接口 + 函数选项注入 | `Register` 开头检查；关闭返回 `ErrRegistrationDisabled` → handler 403 |
+| 注册开关（开户） | `tenant_service.go` → setter 注入同一接口 | `Register` 开头检查；`AdminCreate` 不查 gate（后台建户不受限） |
+| 维护模式 | `middleware.MaintenanceGate`（Protected 组 Auth 后、TenantStatusGate 前） | 开启时非超管业务请求 503 + 可配文案；超管豁免保证闭环 |
+
+### 53.3 前端管理页（`views/system/settings/index.vue`）
+
+- **draft 差量机制**：加载全量后以 `reactive<Record<string,string>>` 维护草稿；编辑器按 `valueType` 渲染（bool→`el-switch`、int→`el-input-number`、其余 `el-input`）；只提交差量，保存成功后用后端返回全量重建基线，失败保留草稿。
+- **路由/菜单**：`/system/settings`（requireMaster、permission `admin:settings:list`）。
+- **API 模块**：`api/modules/settings.ts`（listSystemSettings / updateSystemSettings / getPublicSettings）。
+
+### 53.4 前端消费面
+
+- **登录页**：`loadPublicSettings` → `maintenanceMode` 渲染 el-alert 公告 + `registrationEnabled` 隐藏注册入口；接口失败 fail-open。
+- **注册页（双入口）**：`register/index.vue` 与 `register-user/index.vue` 挂载时读取公开配置，关闭时提示并 `router.replace('/login')`。
+
+### 53.5 测试覆盖
+
+- **后端单测**：service 层（类型化读写/缓存/播种/注册表校验）、handler 层（接口形状/错误映射）、中间件 `maintenance_gate_test.go`（6 表驱动用例）、tenant/auth 各层 gate 用例。
+- **集成测试**：`settings_consumers_test.go`——注册开关端到端（auth+tenant 双入口关/开）、维护模式全链路（普通用户 503/超管豁免/公开接口可达/关闭恢复）、管理接口权限与数据形状。
+- **前端单测**：`settings.test.ts`（API 3 用例）、`settings/index.test.ts`（管理页 5 用例）、`login/index.test.ts`（登录页消费 5 用例）、`register/index.test.ts`/`register-user/index.test.ts`（守卫各 3 用例）。
+
+### 53.6 验证状态
+
+- ✅ 后端 `go build ./...`/`go vet ./...`/`gofmt -l` 干净；`go test ./...` 全部通过。
+- ✅ 前端 `vue-tsc --noEmit` 干净；`vitest run` 全量通过（新增 11 用例）。

@@ -36,6 +36,7 @@ import (
 	planSvc "meteorx/internal/modules/plan/service"
 	"meteorx/internal/modules/rbac"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
+	"meteorx/internal/modules/settings"
 	"meteorx/internal/modules/task"
 	"meteorx/internal/modules/tenant"
 	tenantRepo "meteorx/internal/modules/tenant/repository"
@@ -77,6 +78,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 
 	// 初始化默认套餐（幂等）
 	initPlans(db)
+
+	// 初始化默认系统配置（幂等，仅补缺失键；配置中心三层回退的 DB 层）
+	initSettings(db, rdb)
 
 	// 健康检查（基础）
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -175,13 +179,16 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			authH = auth.InitModule(r, db, *cfg, rdb)
 
 			// 2. 租户公开接口（仅限注册）
-			tenant.InitPublicModule(r, db)
+			tenant.InitPublicModule(r, db, rdb)
 
 			// 3. OAuth2 第三方登录（免登录，公开接口）
 			oauth.InitModule(r, db, *cfg, tokenHelper, rdb)
 
 			// 3.1 邀请接受公开接口（免登录，凭 token 接受邀请）
 			invitation.InitPublicModule(r, db, *cfg)
+
+			// 3.2 平台公开运行时配置（免登录，登录/注册页读取注册开关与维护提示）
+			settings.InitPublicModule(r, db, rdb)
 
 			// 4. Wiki 文档公开分享（免登录，凭 token/密码访问）
 			wiki.RegisterPublicShareRoute(r, db, txManager, cfg)
@@ -196,6 +203,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			apiTokenRepo := authRepo.NewAPITokenRepository(db)
 			apiTokenValidator := authSvc.NewAPITokenService(apiTokenRepo, userRepo.NewUserRepository(db), rbacRepo.NewUserRoleRepository(db), rbacRepo.NewRolePermissionRepository(db), rdb, cfg.Auth)
 			r.Use(middleware.Auth(tokenHelper, blacklistChecker, cfg.Server.Mode, cfg.Server.TestBypass, apiTokenValidator))
+
+			// 【维护模式门禁】平台运行时配置 maintenance_mode 开启时，除平台超管外全部已登录请求返回 503（免重启生效）
+			r.Use(middleware.MaintenanceGate(settings.NewSettingService(db, rdb)))
 
 			// 【租户状态门禁】被平台暂停/禁用的租户，其成员所有业务请求返回 403（租户不存在/查询失败 fail-open 放行）
 			r.Use(middleware.TenantStatusGate(tenantRepo.NewTenantRepository(db)))
@@ -231,7 +241,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			}
 
 			// 3. 租户私有接口（租户管理员登录后：管理本公司信息、查看套餐等）
-			tenant.InitPrivateModule(r, db)
+			tenant.InitPrivateModule(r, db, rdb)
 
 			// 3.1 租户设置接口
 			tenantSettingsHandler := tenant.NewTenantSettingsHandler(db)
@@ -304,7 +314,7 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 				r.Use(middleware.RequiresMasterAdmin())
 
 				// 5. 租户管理特权接口（后台手动新建租户、禁用/启用、软删除等）
-				tenant.InitAdminModule(r, db)
+				tenant.InitAdminModule(r, db, rdb)
 
 				// 6. 系统管理员管理接口
 				user.InitAdminModule(r, db, cfg.Security.PasswordPolicy)
@@ -326,6 +336,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 
 				// 12. 第三方登录提供商配置管理（仅平台超管）+ 注册表定时刷新（免重启生效）
 				oauth.InitAdminModule(ctx, r, db, *cfg, tokenHelper, rdb)
+
+				// 13. 平台运行时配置中心（仅平台超管可操作）
+				settings.InitAdminModule(r, db, rdb)
 			})
 		})
 	})
@@ -340,6 +353,11 @@ func initPlans(db *gorm.DB) {
 	uRepo := userRepo.NewUserRepository(db)
 	svc := planSvc.NewPlanService(pRepo, subRepo, uRepo)
 	plan.SeedPlans(context.Background(), svc)
+}
+
+// initSettings 初始化默认系统配置（幂等：仅插入注册表中缺失的键）
+func initSettings(db *gorm.DB, rdb *cache.Redis) {
+	settings.SeedSettings(context.Background(), settings.NewSettingService(db, rdb))
 }
 
 // StartPlanExpiryJob 启动订阅到期自动禁用租户的定时任务

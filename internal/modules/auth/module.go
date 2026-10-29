@@ -13,6 +13,7 @@ import (
 	"meteorx/internal/modules/auth/repository"
 	"meteorx/internal/modules/auth/service"
 	rbacRepo "meteorx/internal/modules/rbac/repository"
+	"meteorx/internal/modules/settings"
 	tenantRepo "meteorx/internal/modules/tenant/repository"
 	userrepo "meteorx/internal/modules/user/repository"
 	"meteorx/pkg/logger"
@@ -27,7 +28,9 @@ func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, rdb *cache.Redis) 
 	urRepo := rbacRepo.NewUserRoleRepository(db)
 	rpRepo := rbacRepo.NewRolePermissionRepository(db)
 	svc := service.NewAuthService(uRepo, rRepo, urRepo, rpRepo, tokenHelper, rdb, cfg.Security, cfg.Email, cfg.Client,
-		service.WithTenantStatusProvider(tenantRepo.NewTenantRepository(db)))
+		service.WithTenantStatusProvider(tenantRepo.NewTenantRepository(db)),
+		// 注册开关：消费平台运行时配置 registration_enabled，免重启生效
+		service.WithRegistrationGate(settings.NewSettingService(db, rdb)))
 	h := handler.NewAuthHandler(svc)
 
 	RegisterRoutes(r, h)

@@ -185,6 +185,46 @@ func (s *AuthServiceTestSuite) TestRegisterUserCreateFailure() {
 	s.Empty(s.urRepo.assigned)
 }
 
+// gateStub 注册开关桩：实现 RegistrationGate
+
+type gateStub bool
+
+func (g gateStub) RegistrationEnabled(context.Context) bool { return bool(g) }
+
+// 开关关闭时直接拒绝，且不触达后续密码校验与建号落库
+func (s *AuthServiceTestSuite) TestRegisterBlockedByGate() {
+	s.seedRole("tenant_admin", 1)
+	s.svc.registrationGate = gateStub(false)
+
+	_, err := s.svc.Register(s.ctx, dto.RegisterUserReq{
+		TenantID: "tenant-001",
+		Username: "alice",
+		Password: "Passw0rd123!",
+		Nickname: "Alice",
+		Email:    "alice@example.com",
+	})
+
+	s.ErrorIs(err, ErrRegistrationDisabled)
+	s.Empty(s.userRepo.users, "开关拦截不得留下半成品账号")
+}
+
+// 开关开启时注册照常成功；未注入开关的存量套件（其余用例）也不拦截
+func (s *AuthServiceTestSuite) TestRegisterAllowedByGate() {
+	s.seedRole("tenant_admin", 1)
+	s.svc.registrationGate = gateStub(true)
+
+	_, err := s.svc.Register(s.ctx, dto.RegisterUserReq{
+		TenantID: "tenant-001",
+		Username: "alice",
+		Password: "Passw0rd123!",
+		Nickname: "Alice",
+		Email:    "alice@example.com",
+	})
+
+	s.NoError(err)
+	s.Len(s.userRepo.users, 1)
+}
+
 // ---------- Login 登录 ----------
 
 func (s *AuthServiceTestSuite) TestLoginSuccess() {

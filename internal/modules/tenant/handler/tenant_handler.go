@@ -72,6 +72,8 @@ func (h *TenantHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// 分门别类处理错误
 		switch {
+		case errors.Is(err, service.ErrRegistrationDisabled):
+			response.Fail(w, http.StatusForbidden, "自助注册已关闭，请联系管理员开通")
 		case errors.Is(err, service.ErrDomainConflict):
 			response.Fail(w, http.StatusConflict, "该域名已被其他租户占用")
 		case errors.Is(err, service.ErrUsernameConflict):

@@ -163,6 +163,10 @@
             <el-icon><Link /></el-icon>
             <template #title>{{ t('nav.oauthProvider') }}</template>
           </el-menu-item>
+          <el-menu-item index="/system/settings">
+            <el-icon><Tools /></el-icon>
+            <template #title>{{ t('nav.settings') }}</template>
+          </el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>
@@ -321,6 +325,7 @@ import {
   Sunny,
   SwitchButton,
   Timer,
+  Tools,
   User,
   UserFilled,
   Warning

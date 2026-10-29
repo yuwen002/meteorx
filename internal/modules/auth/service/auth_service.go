@@ -49,6 +49,8 @@ var (
 	ErrUserNotFound         = errors.New("user not found")
 	ErrEmailAlreadyVerified = errors.New("email already verified")
 	ErrEmailNotOwned        = errors.New("email does not belong to current user")
+	// ErrRegistrationDisabled 平台运行时配置关闭了自助注册入口（配置中心 registration_enabled）
+	ErrRegistrationDisabled = errors.New("registration is disabled")
 	// 双因素认证相关错误
 	Err2FAAlreadyEnabled     = errors.New("two-factor authentication is already enabled")
 	Err2FANotEnabled         = errors.New("two-factor authentication is not enabled")
@@ -85,6 +87,17 @@ func WithTenantStatusProvider(p TenantStatusProvider) AuthServiceOption {
 	return func(s *AuthService) { s.tenantStatus = p }
 }
 
+// RegistrationGate 注册开放能力（由 settings 配置服务提供），用于注册接口拦截。
+// 未注入时不拦截，保持向后兼容；实现方应在内部故障时自行回退安全默认值（fail-open）。
+type RegistrationGate interface {
+	RegistrationEnabled(ctx context.Context) bool
+}
+
+// WithRegistrationGate 注入注册开关依赖（平台运行时配置中心 registration_enabled）。
+func WithRegistrationGate(g RegistrationGate) AuthServiceOption {
+	return func(s *AuthService) { s.registrationGate = g }
+}
+
 // AuthService 认证服务，处理注册、登录、登出、密码重置等业务逻辑
 type AuthService struct {
 	userRepo           repository.UserRepository
@@ -99,6 +112,7 @@ type AuthService struct {
 	clientBaseURL      string
 	emailEnabled       bool
 	tenantStatus       TenantStatusProvider
+	registrationGate   RegistrationGate
 }
 
 // NewAuthService 创建认证服务实例
@@ -129,6 +143,11 @@ func NewAuthService(ur repository.UserRepository, rr rbacRepo.RoleRepository, ur
 
 // Register 用户注册，校验密码策略并分配默认角色
 func (s *AuthService) Register(ctx context.Context, req dto.RegisterUserReq) (*model.User, error) {
+	// 注册开关拦截：平台配置关闭自助注册后拒绝新建账号（未注入时不拦截）
+	if s.registrationGate != nil && !s.registrationGate.RegistrationEnabled(ctx) {
+		return nil, ErrRegistrationDisabled
+	}
+
 	// 校验密码策略
 	if err := security.ValidatePassword(req.Password, s.securityCfg.PasswordPolicy); err != nil {
 		return nil, err

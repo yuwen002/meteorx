@@ -2,11 +2,13 @@
 package tenant
 
 import (
+	"meteorx/internal/cache"
 	"meteorx/internal/middleware"
 	planrepo "meteorx/internal/modules/plan/repository"
 	plansvc "meteorx/internal/modules/plan/service"
 	rbacrepo "meteorx/internal/modules/rbac/repository"
 	rbacsvc "meteorx/internal/modules/rbac/service"
+	"meteorx/internal/modules/settings"
 	"meteorx/internal/modules/tenant/handler"
 	tenantrepo "meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/tenant/service"
@@ -25,12 +27,15 @@ func NewTenantSettingsHandler(db *gorm.DB) *handler.TenantSettingsHandler {
 	return handler.NewTenantSettingsHandler(svc)
 }
 
-// 提取公共工厂方法，保持不变
-func initHandler(db *gorm.DB) *handler.TenantHandler {
+// 提取公共工厂方法；rdb 供配置中心缓存使用（注册开关消费）
+func initHandler(db *gorm.DB, rdb *cache.Redis) *handler.TenantHandler {
 	tenantRepo := tenantrepo.NewTenantRepository(db)
 	userRepo := userrepository.NewUserRepository(db)
 	roleRepo := rbacrepo.NewRoleRepository(db)
 	svc := service.NewTenantService(tenantRepo, userRepo, roleRepo)
+
+	// 公开开户 Register 消费平台注册开关（后台 AdminCreate 不受限），免重启生效
+	svc.SetRegistrationGate(settings.NewSettingService(db, rdb))
 
 	// 注入套餐摘要查询器 & 套餐分配器（PlanService 实现了两个接口）
 	planRepo := planrepo.NewPlanRepository(db)
@@ -55,20 +60,20 @@ func initPermissionChecker(db *gorm.DB) middleware.PermissionChecker {
 }
 
 // InitPublicModule 1. 完全公开的租户接口入口
-func InitPublicModule(r chi.Router, db *gorm.DB) {
-	h := initHandler(db)
+func InitPublicModule(r chi.Router, db *gorm.DB, rdb *cache.Redis) {
+	h := initHandler(db, rdb)
 	RegisterPublicRoutes(r, h)
 }
 
 // InitPrivateModule 2. 租户内部的管理私有接口入口
-func InitPrivateModule(r chi.Router, db *gorm.DB) {
-	h := initHandler(db)
+func InitPrivateModule(r chi.Router, db *gorm.DB, rdb *cache.Redis) {
+	h := initHandler(db, rdb)
 	RegisterPrivateRoutes(r, h)
 }
 
 // InitAdminModule 3. MaaS 平台超级管理员的控制台接口入口
-func InitAdminModule(r chi.Router, db *gorm.DB) {
-	h := initHandler(db)
+func InitAdminModule(r chi.Router, db *gorm.DB, rdb *cache.Redis) {
+	h := initHandler(db, rdb)
 	checker := initPermissionChecker(db)
 	RegisterAdminRoutes(r, h, checker)
 }

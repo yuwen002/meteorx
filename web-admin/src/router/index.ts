@@ -284,6 +284,12 @@ const routes: RouteRecordRaw[] = [
         name: 'OAuthProvider',
         component: () => import('@/views/system/oauth-provider/index.vue'),
         meta: { titleKey: 'route.oauthProvider', icon: 'Link', permission: 'admin:oauth_provider:list', requireMaster: true }
+      },
+      {
+        path: 'system/settings',
+        name: 'SystemSettings',
+        component: () => import('@/views/system/settings/index.vue'),
+        meta: { titleKey: 'route.settings', icon: 'Tools', permission: 'admin:settings:list', requireMaster: true }
       }
     ]
   },

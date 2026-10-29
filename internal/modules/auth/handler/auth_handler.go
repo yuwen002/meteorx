@@ -69,11 +69,20 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	auditReq.Duration = time.Since(start).Milliseconds()
 
 	if err != nil {
-		auditReq.StatusCode = http.StatusInternalServerError
+		// 注册入口被平台配置关闭：403 业务拦截，区别于真正的服务内部故障 500
+		httpStatus := http.StatusInternalServerError
+		if errors.Is(err, service.ErrRegistrationDisabled) {
+			httpStatus = http.StatusForbidden
+		}
+		auditReq.StatusCode = httpStatus
 		auditReq.Result = auditmodel.ResultFailure
 		auditReq.ErrorMessage = err.Error()
 		middleware.RecordAuditLog(r.Context(), &auditReq)
-		response.Fail(w, http.StatusInternalServerError, "用户注册失败: "+err.Error())
+		if httpStatus == http.StatusForbidden {
+			response.Fail(w, httpStatus, "自助注册已关闭，请联系管理员开通")
+			return
+		}
+		response.Fail(w, httpStatus, "用户注册失败: "+err.Error())
 		return
 	}
 

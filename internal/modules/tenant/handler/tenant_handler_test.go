@@ -312,6 +312,16 @@ func TestTenantRegister_DomainConflict_Returns409(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "该域名已被其他租户占用")
 }
 
+func TestTenantRegister_RegistrationDisabled_Returns403(t *testing.T) {
+	stub := newTenantStub().failWith(service.ErrRegistrationDisabled)
+	router := newTenantRouter(stub, false)
+
+	w := doTenant(t, router, http.MethodPost, "/tenants/register", `{"name":"Acme 科技","domain":"acme","admin_user":{"username":"boss01","password":"pass1234","nickname":"管理员"}}`)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), "自助注册已关闭")
+}
+
 func TestTenantRegister_UsernameConflict_Returns409(t *testing.T) {
 	stub := newTenantStub().failWith(service.ErrUsernameConflict)
 	router := newTenantRouter(stub, false)

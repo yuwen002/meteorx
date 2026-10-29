@@ -18,6 +18,7 @@
 - [导出 API](api/export-api.md) - 异步数据导出与下载中心
 - [站内消息 API](api/message-api.md) - 收件箱、未读角标、离线补推、已读与批量已读/删除、重复投递去重与接收偏好
 - [OAuth 提供商 API](api/oauth-provider-api.md) - 第三方登录提供商配置管理
+- [系统配置 API](api/settings-api.md) - 平台运行时配置中心（注册开关/维护模式）
 
 ### 架构设计文档
 - [多租户隔离架构](architecture/tenant.md)
@@ -67,6 +68,7 @@ docs/
 │   ├── export-api.md
 │   ├── message-api.md
 │   ├── oauth-provider-api.md
+│   ├── settings-api.md
 │   └── announcement-api.md
 ├── architecture/                # 架构设计文档
 │   ├── tenant.md
