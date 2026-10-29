@@ -13,7 +13,7 @@ import { getTaskStats, type TaskStats } from '@/api/modules/task'
 import { getWikiStats, type WikiStats, getUnreadNotificationCount } from '@/api/modules/wiki'
 import { getUserStats } from '@/api/modules/user'
 import { getUnreadCount } from '@/api/modules/message'
-import { getTenantOverview } from '@/api/modules/dashboard'
+import { getTenantOverview, type TenantOverview } from '@/api/modules/dashboard'
 
 /** 单卡失败时的零值兜底（字段与 TaskStats/WikiStats 对齐） */
 const EMPTY_TASK: TaskStats = {
@@ -27,12 +27,25 @@ const EMPTY_TASK: TaskStats = {
 }
 const EMPTY_WIKI: WikiStats = { total_spaces: 0, total_nodes: 0, total_documents: 0, total_views: 0 }
 
+/** 团队级任务分布零值兜底（字段与 TenantOverview['task'] 对齐） */
+type TenantTask = TenantOverview['task']
+const EMPTY_TENANT_TASK: TenantTask = {
+  pending: 0,
+  in_progress: 0,
+  completed: 0,
+  overdue: 0,
+  total: 0,
+  completion_rate: 0
+}
+
 export function useWorkspaceStats() {
   const chatStore = useChatStore()
 
   // reactive 收纳：模板里 ws.task.total 等可直接读取（内部 ref 自动解包）
   const state = reactive({
     task: ref<TaskStats>({ ...EMPTY_TASK }),
+    // 团队级任务分布：随 tenant-overview 一并返回，供“团队任务概况”卡消费
+    tenantTask: ref<TenantTask>({ ...EMPTY_TENANT_TASK }),
     wiki: ref<WikiStats>({ ...EMPTY_WIKI }),
     memberCount: ref(0),
     storageUsed: ref(0),
@@ -58,6 +71,7 @@ export function useWorkspaceStats() {
           total_views: ov.wiki?.views ?? 0
         }
         state.storageUsed = ov.storage_used ?? 0
+        state.tenantTask = ov.task ?? { ...EMPTY_TENANT_TASK }
         return
       }
     } catch {

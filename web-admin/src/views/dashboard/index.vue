@@ -255,7 +255,38 @@
         </el-col>
       </el-row>
 
-      <!-- 第二行：待我处理 + 快捷入口 -->
+      <!-- 第二行：团队任务概况（消费 tenant-overview 的租户级任务分布） -->
+      <el-row :gutter="16">
+        <el-col :span="24">
+          <el-card shadow="hover" class="section-card">
+            <template #header><span><el-icon><Grid /></el-icon> {{ t('dashboardPage.ws.teamTaskTitle') }}</span></template>
+            <div class="sub-stats">
+              <div class="sub-item">
+                <div class="sub-num">{{ ws.tenantTask.pending }}</div>
+                <div class="sub-label">{{ t('dashboardPage.ws.taskPending') }}</div>
+              </div>
+              <div class="sub-item">
+                <div class="sub-num" style="color:#3b82f6">{{ ws.tenantTask.in_progress }}</div>
+                <div class="sub-label">{{ t('dashboardPage.ws.taskDoing') }}</div>
+              </div>
+              <div class="sub-item">
+                <div class="sub-num" style="color:#10b981">{{ ws.tenantTask.completed }}</div>
+                <div class="sub-label">{{ t('dashboardPage.ws.taskDone') }}</div>
+              </div>
+              <div class="sub-item">
+                <div class="sub-num" :class="{ 'overdue-red': ws.tenantTask.overdue > 0 }">{{ ws.tenantTask.overdue }}</div>
+                <div class="sub-label">{{ t('dashboardPage.ws.taskOverdue') }}</div>
+              </div>
+              <div class="sub-item">
+                <div class="sub-num">{{ ws.tenantTask.total }}</div>
+                <div class="sub-label">{{ t('dashboardPage.ws.taskTotal') }}</div>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+
+      <!-- 第三行：待我处理 + 快捷入口 -->
       <el-row :gutter="16">
         <el-col :span="12">
           <el-card shadow="hover" class="section-card">
@@ -344,7 +375,8 @@ import {
   ChatDotRound,
   Promotion,
   Checked,
-  Plus
+  Plus,
+  Grid
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { useUserStore } from '@/stores/user'

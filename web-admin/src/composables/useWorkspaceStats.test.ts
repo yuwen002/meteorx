@@ -71,6 +71,9 @@ describe('useWorkspaceStats 租户工作台装载', () => {
     expect(ws.wiki.total_spaces).toBe(4)
     expect(ws.memberCount).toBe(9)
     expect(ws.storageUsed).toBe(12345)
+    // 团队级任务分布随聚合接口一并消费
+    expect(ws.tenantTask.total).toBe(15)
+    expect(ws.tenantTask.completed).toBe(10)
     expect(ws.unreadMessages).toBe(5)
     expect(ws.unreadNotifications).toBe(2)
     // 聚合成功时不应再各自回退到独立接口
@@ -95,6 +98,8 @@ describe('useWorkspaceStats 租户工作台装载', () => {
     expect(ws.wiki.total_documents).toBe(42)
     // 兜底路径不含存储维度，保持零值
     expect(ws.storageUsed).toBe(0)
+    // 兜底路径亦无团队任务分布，保持零值
+    expect(ws.tenantTask.total).toBe(0)
   })
 
   it('单路失败仅该卡降级为零值，其余照常', async () => {
