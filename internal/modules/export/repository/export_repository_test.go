@@ -298,9 +298,16 @@ func TestExportRepo_ReclaimExpiredLeases_LegacyNullLease(t *testing.T) {
 	require.Equal(t, model.ExportStatusPending, got.Status, "无租约但 started_at 已旧的 running 行应被回收")
 }
 
-// TestExportRepo_ReclaimExpiredLeases_NoOpWhenNothingStale 无 stale 行时不得误动任何任务。
+// TestExportRepo_ReclaimExpiredLeases_NoOpWhenNothingStale 无 stale 行时不得误动任何任务，
+// 且不得发出任何 UPDATE（先探测后回收：避免空转写库并在 SQL 日志开启时刷屏）。
 func TestExportRepo_ReclaimExpiredLeases_NoOpWhenNothingStale(t *testing.T) {
 	db := newExportTestDB(t)
+	var updates int
+	require.NoError(t, db.Callback().Update().After("gorm:update").Register("test:count_updates", func(tx *gorm.DB) {
+		if tx.Statement.Table == "export_jobs" {
+			updates++
+		}
+	}))
 	repo := NewExportRepository(db)
 	ctx := context.Background()
 	now := time.Now().Truncate(time.Millisecond)
@@ -312,6 +319,7 @@ func TestExportRepo_ReclaimExpiredLeases_NoOpWhenNothingStale(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(0), requeued)
 	require.Equal(t, int64(0), aborted)
+	require.Equal(t, 0, updates, "无僵死行时回收应只探测不写库")
 }
 
 func TestExportRepo_MarkCompleted_Failed(t *testing.T) {

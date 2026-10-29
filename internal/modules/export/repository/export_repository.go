@@ -234,6 +234,15 @@ func (r *exportRepository) ReclaimExpiredLeases(ctx context.Context, now time.Ti
 			Where("status = ?", model.ExportStatusRunning).
 			Where(staleLeaseWhere(), now, now.Add(-leaseTTL))
 	}
+	// 先探测再回收：绝大多数轮次并无僵死行，空转 UPDATE 除产生写负担外，
+	// 在 SQL 日志（db.debug）开启时每 2s 刷两条噪声，探测命中 0 即直接返回。
+	var staleCount int64
+	if err := stale().Count(&staleCount).Error; err != nil {
+		return 0, 0, err
+	}
+	if staleCount == 0 {
+		return 0, 0, nil
+	}
 	// 先处理超限行：不回 pending，避免必然撞死进程的导出形成崩溃循环
 	abortedRes := stale().Where("attempts >= ?", maxAttempts).Updates(map[string]any{
 		"status":           model.ExportStatusFailed,
