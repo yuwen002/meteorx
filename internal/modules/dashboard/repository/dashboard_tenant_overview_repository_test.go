@@ -17,6 +17,11 @@ func newOverviewTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: glogger.Discard})
 	require.NoError(t, err)
+	// GetTenantOverview 各维度经 errgroup 并行下发；内存 SQLite 每条新连接是独立空库，
+	// 限为单连接让并发查询共享同一份数据，避免新连接上 no such table。
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
 
 	stmts := []string{
 		`CREATE TABLE users (id TEXT PRIMARY KEY, tenant_id TEXT, status INTEGER, created_at DATETIME, deleted_at DATETIME)`,

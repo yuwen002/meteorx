@@ -4,10 +4,12 @@ package repository
 import (
 	"context"
 	"log/slog"
+	"meteorx/internal/cache"
 	"meteorx/internal/modules/dashboard/model"
 	"meteorx/pkg/timeutil"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 )
 
@@ -31,40 +33,71 @@ const trendMaxDays = 365
 // dashboardRepository 数据看板仓库实现
 type dashboardRepository struct {
 	db *gorm.DB
+	// rdb 为可选的 Redis 缓存客户端，nil 或不可用时缓存路径整体降级为直接查库；
+	// cacheTTL 为聚合结果短缓存时长，仅经 WithCache 注入后置为正值。
+	rdb      *cache.Redis
+	cacheTTL time.Duration
 }
 
-// NewDashboardRepository 创建数据看板仓库
-func NewDashboardRepository(db *gorm.DB) DashboardRepository {
-	return &dashboardRepository{db: db}
+// NewDashboardRepository 创建数据看板仓库。
+// 可变选项（如 WithCache）用于注入可选依赖，不传时行为与旧签名一致，保持既有调用点/测试向后兼容。
+func NewDashboardRepository(db *gorm.DB, opts ...RepoOption) DashboardRepository {
+	r := &dashboardRepository{db: db}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r
 }
 
 // GetOverview 获取运营数据总览
-// 采用容错策略：单个模块查询失败不影响其他模块，失败时返回零值并记录日志
+// 采用容错策略：单个模块查询失败不影响其他模块，失败时返回零值并记录日志。
+// 四个维度是彼此独立的聚合，经 errgroup 并行下发；结果按短 TTL 缓存，命中直接返回。
 func (r *dashboardRepository) GetOverview(ctx context.Context) (*model.DashboardOverview, error) {
+	if cached, ok := cacheGet[model.DashboardOverview](ctx, r.rdb, cacheKeyOverview); ok {
+		return &cached, nil
+	}
+
 	overview := &model.DashboardOverview{}
+	var g errgroup.Group
+	g.Go(func() error {
+		stats, err := r.getTenantStats(ctx)
+		if err != nil {
+			slog.Warn("Dashboard: tenant stats query failed", "error", err)
+			return nil
+		}
+		overview.TenantStats = stats
+		return nil
+	})
+	g.Go(func() error {
+		stats, err := r.getUserStats(ctx)
+		if err != nil {
+			slog.Warn("Dashboard: user stats query failed", "error", err)
+			return nil
+		}
+		overview.UserStats = stats
+		return nil
+	})
+	g.Go(func() error {
+		stats, err := r.getSubscriptionStats(ctx)
+		if err != nil {
+			slog.Warn("Dashboard: subscription stats query failed", "error", err)
+			return nil
+		}
+		overview.SubscriptionStats = stats
+		return nil
+	})
+	g.Go(func() error {
+		stats, err := r.getAuditStats(ctx)
+		if err != nil {
+			slog.Warn("Dashboard: audit stats query failed", "error", err)
+			return nil
+		}
+		overview.AuditStats = stats
+		return nil
+	})
+	_ = g.Wait()
 
-	var err error
-
-	overview.TenantStats, err = r.getTenantStats(ctx)
-	if err != nil {
-		slog.Warn("Dashboard: tenant stats query failed", "error", err)
-	}
-
-	overview.UserStats, err = r.getUserStats(ctx)
-	if err != nil {
-		slog.Warn("Dashboard: user stats query failed", "error", err)
-	}
-
-	overview.SubscriptionStats, err = r.getSubscriptionStats(ctx)
-	if err != nil {
-		slog.Warn("Dashboard: subscription stats query failed", "error", err)
-	}
-
-	overview.AuditStats, err = r.getAuditStats(ctx)
-	if err != nil {
-		slog.Warn("Dashboard: audit stats query failed", "error", err)
-	}
-
+	cacheSet(ctx, r.rdb, cacheKeyOverview, overview, r.cacheTTL)
 	return overview, nil
 }
 

@@ -6,32 +6,54 @@ import (
 	"log/slog"
 	"meteorx/internal/modules/dashboard/model"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // GetTenantOverview 聚合单个租户的总览：成员/任务/Wiki/存储。
 // 复用健康度的批量聚合助手（aggregateUsers/aggregateStorage）取租户级慢变事实，
 // 任务分布、Wiki 空间/文档/浏览量以专用条件聚合补齐。
 // 沿用容错策略：单维度查询失败仅记日志、按零值降级，不影响其余维度返回。
+// 四个维度互不依赖，经 errgroup 并行下发；结果按租户短 TTL 缓存，命中直接返回。
 // SQL 全部使用 COUNT/SUM 条件聚合，兼容 MySQL 与 SQLite。
 func (r *dashboardRepository) GetTenantOverview(ctx context.Context, tenantID string) (*model.TenantOverview, error) {
-	ids := []string{tenantID}
-
-	overview := &model.TenantOverview{}
-
-	// 成员：复用租户级用户聚合（total/active）
-	if u, ok := r.aggregateUsers(ctx, ids)[tenantID]; ok {
-		overview.Member = model.TenantMemberOverview{Total: u.total, Active: u.active}
+	key := tenantOverviewCacheKey(tenantID)
+	if cached, ok := cacheGet[model.TenantOverview](ctx, r.rdb, key); ok {
+		return &cached, nil
 	}
 
+	ids := []string{tenantID}
+	overview := &model.TenantOverview{}
+	var g errgroup.Group
+
+	// 成员：复用租户级用户聚合（total/active）
+	g.Go(func() error {
+		if u, ok := r.aggregateUsers(ctx, ids)[tenantID]; ok {
+			overview.Member = model.TenantMemberOverview{Total: u.total, Active: u.active}
+		}
+		return nil
+	})
+
 	// 存储：复用租户级文件体积聚合
-	overview.StorageUsed = r.aggregateStorage(ctx, ids)[tenantID]
+	g.Go(func() error {
+		overview.StorageUsed = r.aggregateStorage(ctx, ids)[tenantID]
+		return nil
+	})
 
 	// Wiki：文档数与浏览量合并为一次扫描，空间数在另一张表单独统计
-	overview.Wiki = r.aggregateTenantWiki(ctx, tenantID)
+	g.Go(func() error {
+		overview.Wiki = r.aggregateTenantWiki(ctx, tenantID)
+		return nil
+	})
 
 	// 任务：按状态条件聚合出分布 + 逾期，完成率在 Go 侧计算（保持与任务模块一致的 4 位精度）
-	overview.Task = r.aggregateTenantTasks(ctx, tenantID)
+	g.Go(func() error {
+		overview.Task = r.aggregateTenantTasks(ctx, tenantID)
+		return nil
+	})
+	_ = g.Wait()
 
+	cacheSet(ctx, r.rdb, key, overview, r.cacheTTL)
 	return overview, nil
 }
 

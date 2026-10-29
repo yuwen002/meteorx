@@ -20,6 +20,9 @@ func newDashTestDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	t.Helper()
 	sqlDB, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
+	// GetOverview 各维度经 errgroup 并行下发，限为单连接把并发查询串行到同一 mock 会话，
+	// 配合按表名区分的期望 + 非顺序匹配，保证跨维度乱序时各表返回值仍各归其位。
+	sqlDB.SetMaxOpenConns(1)
 	t.Cleanup(func() {
 		_ = sqlDB.Close()
 	})
@@ -31,47 +34,57 @@ func newDashTestDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	return gormDB, mock
 }
 
-var countQuery = regexp.QuoteMeta("SELECT count(*) FROM")
+// countFor 生成匹配指定表 COUNT 查询的正则（GORM MySQL 反引号包裹表名，非锚定子串匹配）。
+func countFor(table string) string {
+	return regexp.QuoteMeta("SELECT count(*) FROM `" + table + "`")
+}
 
 func expectTenantStats(mock sqlmock.Sqlmock) {
-	mock.ExpectQuery(countQuery).WithArgs().WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(10))
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(8))
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(5))
+	p := countFor("tenants")
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(10))
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(8))
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(5))
 }
 
 func expectUserStats(mock sqlmock.Sqlmock) {
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(50))
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(5))
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(10))
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(20))
+	p := countFor("users")
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(50))
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(5))
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(10))
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(20))
 }
 
 func expectSubscriptionStats(mock sqlmock.Sqlmock) {
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(15))
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(12))
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery("SELECT COUNT\\(DISTINCT").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(7))
+	p := countFor("tenant_subscriptions")
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(15))
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(12))
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(DISTINCT")).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(7))
 }
 
 func expectAuditStats(mock sqlmock.Sqlmock) {
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(100))
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(30))
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(90))
-	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(10))
-	mock.ExpectQuery("SELECT .* as key, COUNT\\(\\*\\) as count FROM").WillReturnRows(
+	p := countFor("audit_logs")
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(100))
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(30))
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(90))
+	mock.ExpectQuery(p).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(10))
+	// 两个分组查询按列名区分（action / module），保证并行下各自命中正确的聚合结果
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT action as key, COUNT(*) as count FROM")).WillReturnRows(
 		sqlmock.NewRows([]string{"key", "count"}).AddRow("login", 50).AddRow("create", 40),
 	)
-	mock.ExpectQuery("SELECT .* as key, COUNT\\(\\*\\) as count FROM").WillReturnRows(
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT module as key, COUNT(*) as count FROM")).WillReturnRows(
 		sqlmock.NewRows([]string{"key", "count"}).AddRow("auth", 60).AddRow("wiki", 30),
 	)
 }
 
 func TestDashboardRepo_GetOverview(t *testing.T) {
 	gormDB, mock := newDashTestDB(t)
+	// 各维度并行下发，乱序消费期望；按表名区分的期望以非顺序匹配即可各归其位。
+	mock.MatchExpectationsInOrder(false)
 
 	expectTenantStats(mock)
 	expectUserStats(mock)
@@ -95,8 +108,10 @@ func TestDashboardRepo_GetOverview(t *testing.T) {
 
 func TestDashboardRepo_GetOverview_PartialFailure(t *testing.T) {
 	gormDB, mock := newDashTestDB(t)
+	mock.MatchExpectationsInOrder(false)
 
-	mock.ExpectQuery(countQuery).WillReturnError(gorm.ErrInvalidDB)
+	// 仅 tenants 首个 COUNT 报错，getTenantStats 立即返回错误并降级零值，其余维度不受影响。
+	mock.ExpectQuery(countFor("tenants")).WillReturnError(gorm.ErrInvalidDB)
 
 	expectUserStats(mock)
 	expectSubscriptionStats(mock)

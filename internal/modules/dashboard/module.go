@@ -2,6 +2,7 @@
 package dashboard
 
 import (
+	"meteorx/internal/cache"
 	"meteorx/internal/middleware"
 	"meteorx/internal/modules/dashboard/handler"
 	"meteorx/internal/modules/dashboard/repository"
@@ -15,8 +16,9 @@ import (
 
 // InitModule 初始化数据看板模块
 // 挂载在平台管理员路由组下，需要超级管理员权限
-func InitModule(r chi.Router, db *gorm.DB) {
-	repo := repository.NewDashboardRepository(db)
+// rdb 用于运营总览聚合结果的短 TTL 缓存，可为 nil（不可用时降级为直接查库）。
+func InitModule(r chi.Router, db *gorm.DB, rdb *cache.Redis) {
+	repo := repository.NewDashboardRepository(db, repository.WithCache(rdb))
 	svc := service.NewDashboardService(repo)
 	h := handler.NewDashboardHandler(svc)
 
@@ -27,8 +29,9 @@ func InitModule(r chi.Router, db *gorm.DB) {
 // InitTenantModule 初始化租户侧看板模块（仅登录，不挂 RBAC 权限码）。
 // 与 task/wiki/message 同款“仅登录 + 以 JWT 租户身份为准”范式，
 // 注册在 /api/v1 登录组内、RequiresMasterAdmin 分组之外。
-func InitTenantModule(r chi.Router, db *gorm.DB) {
-	repo := repository.NewDashboardRepository(db)
+// rdb 用于租户总览聚合结果的短 TTL 缓存，可为 nil（不可用时降级为直接查库）。
+func InitTenantModule(r chi.Router, db *gorm.DB, rdb *cache.Redis) {
+	repo := repository.NewDashboardRepository(db, repository.WithCache(rdb))
 	svc := service.NewDashboardService(repo)
 	h := handler.NewDashboardHandler(svc)
 
