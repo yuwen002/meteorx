@@ -187,11 +187,18 @@
           <el-card shadow="hover" class="stat-card">
             <div class="stat-content">
               <div class="stat-icon user-icon">
-                <el-icon><User /></el-icon>
+                <el-icon><List /></el-icon>
               </div>
               <div class="stat-info">
-                <div class="stat-label">{{ t('dashboardPage.ws.myUsers') }}</div>
-                <div class="stat-value">{{ stats.users }}</div>
+                <div class="stat-label">{{ t('dashboardPage.ws.taskTitle') }}</div>
+                <div class="stat-value">{{ ws.task.total }}</div>
+                <div class="stat-sub">
+                  {{ t('dashboardPage.ws.taskPending') }} {{ ws.task.pending }} ·
+                  {{ t('dashboardPage.ws.taskDoing') }} {{ ws.task.in_progress }} ·
+                  <span :class="{ 'overdue-red': ws.task.overdue > 0 }">
+                    {{ t('dashboardPage.ws.taskOverdue') }} {{ ws.task.overdue }}
+                  </span>
+                </div>
               </div>
             </div>
           </el-card>
@@ -200,11 +207,15 @@
           <el-card shadow="hover" class="stat-card">
             <div class="stat-content">
               <div class="stat-icon role-icon">
-                <el-icon><UserFilled /></el-icon>
+                <el-icon><Reading /></el-icon>
               </div>
               <div class="stat-info">
-                <div class="stat-label">{{ t('dashboardPage.ws.myRoles') }}</div>
-                <div class="stat-value">{{ stats.roles }}</div>
+                <div class="stat-label">{{ t('dashboardPage.ws.wikiTitle') }}</div>
+                <div class="stat-value">{{ ws.wiki.total_documents }}</div>
+                <div class="stat-sub">
+                  {{ t('dashboardPage.ws.wikiSpaces') }} {{ ws.wiki.total_spaces }} ·
+                  {{ t('dashboardPage.ws.wikiViews') }} {{ ws.wiki.total_views }}
+                </div>
               </div>
             </div>
           </el-card>
@@ -213,11 +224,12 @@
           <el-card shadow="hover" class="stat-card">
             <div class="stat-content">
               <div class="stat-icon perm-icon">
-                <el-icon><Lock /></el-icon>
+                <el-icon><UserFilled /></el-icon>
               </div>
               <div class="stat-info">
-                <div class="stat-label">{{ t('dashboardPage.ws.myPerm') }}</div>
-                <div class="stat-value">{{ stats.my_permission }}</div>
+                <div class="stat-label">{{ t('dashboardPage.ws.memberTitle') }}</div>
+                <div class="stat-value">{{ ws.memberCount }}</div>
+                <div class="stat-sub">{{ t('dashboardPage.ws.tenantLabel') }} {{ userStore.userInfo?.tenant_id || '-' }}</div>
               </div>
             </div>
           </el-card>
@@ -226,19 +238,63 @@
           <el-card shadow="hover" class="stat-card">
             <div class="stat-content">
               <div class="stat-icon info-icon">
-                <el-icon><InfoFilled /></el-icon>
+                <el-icon><Aim /></el-icon>
               </div>
               <div class="stat-info">
-                <div class="stat-label">{{ t('dashboardPage.ws.currentTenant') }}</div>
-                <div class="stat-value">{{ userStore.userInfo?.tenant_id || '-' }}</div>
+                <div class="stat-label">{{ t('dashboardPage.ws.completion') }}</div>
+                <el-progress
+                  type="dashboard"
+                  :width="72"
+                  :percentage="completionPercent"
+                  :stroke-width="6"
+                />
+                <div class="stat-sub">{{ t('dashboardPage.ws.avgHandle') }} {{ avgHandleText }}</div>
               </div>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+
+      <!-- 第二行：待我处理 + 快捷入口 -->
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-card shadow="hover" class="section-card">
+            <template #header><span><el-icon><Bell /></el-icon> {{ t('dashboardPage.ws.todoTitle') }}</span></template>
+            <div class="todo-list">
+              <router-link to="/messages" class="todo-item">
+                <span class="todo-label"><el-icon><Message /></el-icon> {{ t('dashboardPage.ws.todoMessages') }}</span>
+                <el-badge :value="ws.unreadMessages" :hidden="!ws.unreadMessages" :max="99" />
+              </router-link>
+              <router-link to="/wiki" class="todo-item">
+                <span class="todo-label"><el-icon><Reading /></el-icon> {{ t('dashboardPage.ws.todoNotifications') }}</span>
+                <el-badge :value="ws.unreadNotifications" :hidden="!ws.unreadNotifications" :max="99" />
+              </router-link>
+              <router-link to="/chat" class="todo-item">
+                <span class="todo-label"><el-icon><ChatDotRound /></el-icon> {{ t('dashboardPage.ws.todoChats') }}</span>
+                <span class="todo-right">
+                  <el-tag v-if="ws.mentionChats" size="small" type="danger" effect="light">
+                    {{ t('dashboardPage.ws.mentionBadge', ws.mentionChats) }}
+                  </el-tag>
+                  <el-badge :value="ws.unreadChats" :hidden="!ws.unreadChats" :max="99" />
+                </span>
+              </router-link>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="12">
+          <el-card shadow="hover" class="section-card">
+            <template #header><span><el-icon><Promotion /></el-icon> {{ t('dashboardPage.ws.quickTitle') }}</span></template>
+            <div class="quick-grid">
+              <el-button v-for="q in quickEntries" :key="q.path" text class="quick-btn" @click="go(q.path)">
+                <el-icon><component :is="q.icon" /></el-icon>&nbsp;{{ q.label }}
+              </el-button>
             </div>
           </el-card>
         </el-col>
       </el-row>
     </template>
 
-    <el-card class="welcome-card" shadow="never">
+    <el-card v-if="isAdmin" class="welcome-card" shadow="never">
       <template #header>
         <span><el-icon><TrendCharts /></el-icon>{{ isAdmin ? t('dashboardPage.welcome.overview') : t('dashboardPage.welcome.workspace') }}</span>
       </template>
@@ -270,6 +326,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   OfficeBuilding,
   UserFilled,
@@ -279,22 +336,30 @@ import {
   Coin,
   Odometer,
   DataAnalysis,
-  User,
-  Lock,
-  InfoFilled
+  List,
+  Reading,
+  Aim,
+  Bell,
+  Message,
+  ChatDotRound,
+  Promotion,
+  Checked,
+  Plus
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index'
 import { useUserStore } from '@/stores/user'
-import { getUserStats } from '@/api/modules/user'
 import { getRBACStats } from '@/api/modules/role'
 import { getDashboardOverview, getGrowthTrend, type DashboardOverview, type GrowthTrend } from '@/api/modules/dashboard'
+import { useWorkspaceStats } from '@/composables/useWorkspaceStats'
 import { useI18n } from '@/composables/useI18n'
 
 const { t } = useI18n()
 
 const userStore = useUserStore()
-const stats = ref({ users: 0, roles: 0, permissions: 0, my_permission: 0 })
+const router = useRouter()
 const overview = ref<DashboardOverview>({} as DashboardOverview)
+// 租户工作台统计（仅非超管分支使用）
+const ws = useWorkspaceStats()
 
 const isAdmin = computed(() => !!userStore.userInfo?.is_master)
 
@@ -362,6 +427,33 @@ const trendChart = computed(() => {
   return { width, height, padLeft, padRight, baseY, bars }
 })
 
+// ---------- 租户工作台（非超管） ----------
+// 完成率百分比化（后端返 0~1，el-progress 需 0~100 整数）
+const completionPercent = computed(() => Math.round((ws.task.completion_rate || 0) * 100))
+
+/** 平均处理时长可读化：按量级切换 分钟/小时/天，保留整数 */
+const avgHandleText = computed(() => {
+  const s = ws.task.avg_handle_seconds || 0
+  if (!s) return '-'
+  if (s < 3600) return Math.max(1, Math.round(s / 60)) + ' ' + t('dashboardPage.ws.unitMinute')
+  if (s < 86400) return Math.round(s / 3600) + ' ' + t('dashboardPage.ws.unitHour')
+  return Math.round(s / 86400) + ' ' + t('dashboardPage.ws.unitDay')
+})
+
+// 快捷入口：替代原静态欢迎语文案，直达各业务页
+const quickEntries = computed(() => [
+  { path: '/task', label: t('dashboardPage.ws.quickTask'), icon: Checked },
+  { path: '/chat', label: t('dashboardPage.ws.quickChat'), icon: ChatDotRound },
+  { path: '/wiki', label: t('dashboardPage.ws.quickWiki'), icon: Reading },
+  { path: '/export', label: t('dashboardPage.ws.quickExport'), icon: Goods },
+  { path: '/profile', label: t('dashboardPage.ws.quickProfile'), icon: UserFilled },
+  { path: '/invitation', label: t('dashboardPage.ws.quickInvite'), icon: Plus }
+])
+
+function go(path: string) {
+  void router.push(path)
+}
+
 onMounted(async () => {
   try {
     if (isAdmin.value) {
@@ -372,19 +464,12 @@ onMounted(async () => {
         ElMessage.warning(t('dashboardPage.msg.overviewFailed'))
       }
       loadTrend()
-      // 兼容旧统计接口，作为兜底
+      // 兼容旧统计接口，作为兑底
       const rbacStats = await getRBACStats()
-      if (rbacStats) {
-        stats.value.roles = rbacStats.role_count ?? 0
-        stats.value.permissions = rbacStats.permission_count ?? 0
-        stats.value.my_permission = rbacStats.my_permission ?? 0
-      }
+      if (!rbacStats) ElMessage.warning(t('dashboardPage.msg.statsPartialFailed'))
     } else {
-      const userStats = await getUserStats()
-      stats.value.users = userStats.user_count ?? 0
-      stats.value.roles = 0
-      stats.value.permissions = 0
-      stats.value.my_permission = userStore.permissions.length
+      // 租户工作台：五路统计并发拉取，单路失败仅该卡降级为零值
+      await ws.load()
     }
   } catch (e) {
     ElMessage.warning(t('dashboardPage.msg.statsPartialFailed'))
@@ -430,6 +515,54 @@ onMounted(async () => {
   font-size: 26px;
   font-weight: 600;
   color: #111827;
+}
+.stat-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+.overdue-red {
+  color: #ef4444;
+  font-weight: 600;
+}
+.todo-list {
+  display: flex;
+  flex-direction: column;
+}
+.todo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 4px;
+  border-bottom: 1px solid #f1f5f9;
+  text-decoration: none;
+  color: inherit;
+}
+.todo-item:last-child {
+  border-bottom: none;
+}
+.todo-item:hover {
+  background: #f8fafc;
+}
+.todo-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #374151;
+}
+.todo-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.quick-btn {
+  height: 56px;
+  font-size: 14px;
 }
 .section-card {
   min-height: 180px;
