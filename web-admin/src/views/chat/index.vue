@@ -63,8 +63,13 @@
           <span v-if="activeTypingNames" class="typing-hint">{{ activeTypingNames }} {{ t('chat.typing') }}</span>
         </header>
 
-        <div ref="scrollRef" class="msg-body" v-loading="chatStore.loadingMessages">
+        <div ref="scrollRef" class="msg-body" v-loading="chatStore.loadingMessages" @scroll="onBodyScroll">
           <el-empty v-if="!chatStore.messages.length" :description="t('chat.emptyMessages')" :image-size="80" />
+          <!-- 滚动到顶加载更早历史的反馈：加载中 / 已到底 -->
+          <div v-if="chatStore.loadingOlder" class="msg-older-tip">{{ t('chat.loadingOlder') }}</div>
+          <div v-else-if="chatStore.messagePage > 1 && !chatStore.hasMoreMessages" class="msg-older-tip">
+            {{ t('chat.noMoreMessages') }}
+          </div>
           <div
             v-for="msg in chatStore.messages"
             :key="msg.id"
@@ -391,6 +396,29 @@ function scrollToBottom() {
   })
 }
 
+// 滚动接近顶部时加载更早的历史消息；前插后回补滚动高度，保持视口停留在原消息上
+const OLDER_SCROLL_THRESHOLD_PX = 60
+let loadingOlderGuard = false
+async function onBodyScroll() {
+  const el = scrollRef.value
+  if (!el || loadingOlderGuard) return
+  if (el.scrollTop > OLDER_SCROLL_THRESHOLD_PX) return
+  if (!chatStore.hasMoreMessages || chatStore.loadingOlder || chatStore.loadingMessages) return
+  loadingOlderGuard = true
+  try {
+    const prevHeight = el.scrollHeight
+    const prevTop = el.scrollTop
+    const added = await chatStore.loadOlderMessages()
+    if (added > 0) {
+      await nextTick()
+      // 前插内容抬高 scrollHeight，按差值补偿scrollTop避免视口跳转
+      el.scrollTop = el.scrollHeight - prevHeight + prevTop
+    }
+  } finally {
+    loadingOlderGuard = false
+  }
+}
+
 // ---- 发起会话：成员选择（私聊/群聊） ----
 const memberDialogVisible = ref(false)
 const memberLoading = ref(false)
@@ -678,6 +706,12 @@ onUnmounted(() => {
   overflow-y: auto;
   padding: 16px;
   background: var(--mx-main-bg);
+}
+.msg-older-tip {
+  text-align: center;
+  font-size: 12px;
+  color: var(--mx-text-muted);
+  padding: 4px 0 12px;
 }
 .msg-row {
   display: flex;

@@ -26,9 +26,12 @@ import {
   removeConversationMember,
   leaveGroup,
   renameGroup,
-  listConversationMembers
+  listConversationMembers,
+  listChatMessages,
+  markConversationRead,
+  getPresence
 } from '@/api/modules/chat'
-import type { ConversationItem, MemberItem } from '@/api/modules/chat'
+import type { ChatMessageItem, ConversationItem, MemberItem } from '@/api/modules/chat'
 import { useChatStore } from './chat'
 
 function groupConv(over: Partial<ConversationItem> = {}): ConversationItem {
@@ -140,5 +143,114 @@ describe('chat store 群聊', () => {
     // 触发一次列表回拉（异步）
     await Promise.resolve()
     expect(listConversations).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ---- 历史消息分页加载 ----
+
+function msg(id: string, convId = 'g1'): ChatMessageItem {
+  return {
+    id,
+    conversation_id: convId,
+    sender_id: 'u1',
+    sender_name: '甲',
+    content: `m-${id}`,
+    type: 'text',
+    created_at: '2026-01-01 10:00:00'
+  }
+}
+
+/** 构造后端分页信封（页内升序 + pagination.total） */
+function pageRes(ids: string[], page: number, total: number) {
+  return {
+    data: ids.map((id) => msg(id)),
+    pagination: { page, page_size: 50, total }
+  }
+}
+
+describe('chat store 历史消息分页', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.resetAllMocks()
+    vi.mocked(markConversationRead).mockResolvedValue({ ok: true })
+    vi.mocked(getPresence).mockResolvedValue({ online_user_ids: [] })
+  })
+
+  it('selectConversation 载入首页并置分页状态', async () => {
+    const ids = Array.from({ length: 50 }, (_, i) => `p1-${i}`)
+    vi.mocked(listChatMessages).mockResolvedValue(pageRes(ids, 1, 120) as never)
+    const s = useChatStore()
+    await s.selectConversation('g1')
+    expect(listChatMessages).toHaveBeenCalledWith('g1', { page: 1, page_size: 50 })
+    expect(s.messages).toHaveLength(50)
+    expect(s.messagePage).toBe(1)
+    expect(s.hasMoreMessages).toBe(true)
+  })
+
+  it('首页未取满一页判定无更多', async () => {
+    vi.mocked(listChatMessages).mockResolvedValue(pageRes(['a', 'b'], 1, 2) as never)
+    const s = useChatStore()
+    await s.selectConversation('g1')
+    expect(s.hasMoreMessages).toBe(false)
+  })
+
+  it('loadOlderMessages 前插更早页并推进页码', async () => {
+    vi.mocked(listChatMessages).mockResolvedValueOnce(pageRes(Array.from({ length: 50 }, (_, i) => `p1-${i}`), 1, 120) as never)
+    const s = useChatStore()
+    await s.selectConversation('g1')
+    vi.mocked(listChatMessages).mockResolvedValueOnce(pageRes(Array.from({ length: 50 }, (_, i) => `p2-${i}`), 2, 120) as never)
+    const added = await s.loadOlderMessages()
+    expect(added).toBe(50)
+    expect(s.messagePage).toBe(2)
+    expect(s.messages).toHaveLength(100)
+    expect(s.messages[0].id).toBe('p2-0') // 更早页在前
+    expect(s.hasMoreMessages).toBe(true)
+  })
+
+  it('loadOlderMessages 按 id 去重防偏移漂移重复', async () => {
+    vi.mocked(listChatMessages).mockResolvedValueOnce(pageRes(Array.from({ length: 50 }, (_, i) => `p1-${i}`), 1, 120) as never)
+    const s = useChatStore()
+    await s.selectConversation('g1')
+    // 第二页含 1 条与首页重叠的消息（新消息插入导致后端偏移漂移）
+    const overlap = ['p1-49', ...Array.from({ length: 49 }, (_, i) => `p2-${i}`)]
+    vi.mocked(listChatMessages).mockResolvedValueOnce(pageRes(overlap, 2, 120) as never)
+    const added = await s.loadOlderMessages()
+    expect(added).toBe(49)
+    expect(s.messages).toHaveLength(99)
+    expect(s.messages.filter((m) => m.id === 'p1-49')).toHaveLength(1)
+  })
+
+  it('末页加载后 hasMoreMessages 归位且不再请求', async () => {
+    vi.mocked(listChatMessages).mockResolvedValueOnce(pageRes(Array.from({ length: 50 }, (_, i) => `p1-${i}`), 1, 60) as never)
+    const s = useChatStore()
+    await s.selectConversation('g1')
+    expect(s.hasMoreMessages).toBe(true)
+    vi.mocked(listChatMessages).mockResolvedValueOnce(pageRes(Array.from({ length: 10 }, (_, i) => `p2-${i}`), 2, 60) as never)
+    await s.loadOlderMessages()
+    expect(s.hasMoreMessages).toBe(false)
+    // 无更多时再次调用不发起请求
+    vi.mocked(listChatMessages).mockClear()
+    expect(await s.loadOlderMessages()).toBe(0)
+    expect(listChatMessages).not.toHaveBeenCalled()
+  })
+
+  it('加载失败不推进页码，可重试', async () => {
+    vi.mocked(listChatMessages).mockResolvedValueOnce(pageRes(Array.from({ length: 50 }, (_, i) => `p1-${i}`), 1, 120) as never)
+    const s = useChatStore()
+    await s.selectConversation('g1')
+    vi.mocked(listChatMessages).mockRejectedValueOnce(new Error('network'))
+    expect(await s.loadOlderMessages()).toBe(0)
+    expect(s.messagePage).toBe(1)
+    expect(s.loadingOlder).toBe(false)
+    // 重试成功
+    vi.mocked(listChatMessages).mockResolvedValueOnce(pageRes(Array.from({ length: 50 }, (_, i) => `p2-${i}`), 2, 120) as never)
+    expect(await s.loadOlderMessages()).toBe(50)
+    expect(s.messagePage).toBe(2)
+  })
+
+  it('未选中会话时 loadOlderMessages 直接返回 0', async () => {
+    const s = useChatStore()
+    expect(await s.loadOlderMessages()).toBe(0)
+    expect(listChatMessages).not.toHaveBeenCalled()
   })
 })

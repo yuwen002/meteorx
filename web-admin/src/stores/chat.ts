@@ -23,6 +23,8 @@ import { toPageResult } from '@/types/pagination'
 
 // 输入中提示自动消退时长（无停止事件时多久后不再展示）
 const TYPING_TTL_MS = 4000
+// 历史消息单页条数（首屏与「加载更早」共用）
+const MESSAGE_PAGE_SIZE = 50
 
 /**
  * 协作即时消息（1:1 私聊）状态。
@@ -38,6 +40,14 @@ export const useChatStore = defineStore('chat', () => {
   const loadingConversations = ref(false)
   const loadingMessages = ref(false)
   const sending = ref(false)
+
+  // ---- 历史消息分页状态（page 基于后端 created_at DESC 分页，加载更早即取更大页码后前插） ----
+  /** 已加载到的页码（0 表示尚未加载） */
+  const messagePage = ref(0)
+  /** 是否还有更早的历史消息可加载 */
+  const hasMoreMessages = ref(false)
+  /** 正在加载更早的历史消息 */
+  const loadingOlder = ref(false)
 
   /** 当前在线（持有 WS 连接）的用户 ID 集合 */
   const onlineUserIds = ref<string[]>([])
@@ -98,14 +108,20 @@ export const useChatStore = defineStore('chat', () => {
     else conversations.value = [conv, ...conversations.value]
   }
 
-  /** 选中会话并加载历史、标记已读 */
+  /** 选中会话并加载首页历史、标记已读 */
   async function selectConversation(id: string) {
     activeId.value = id
     messages.value = []
+    messagePage.value = 0
+    hasMoreMessages.value = false
     loadingMessages.value = true
     try {
-      const res = await listChatMessages(id, { page: 1, page_size: 50 })
-      messages.value = toPageResult<ChatMessageItem>(res).list
+      const res = await listChatMessages(id, { page: 1, page_size: MESSAGE_PAGE_SIZE })
+      const page = toPageResult<ChatMessageItem>(res)
+      messages.value = page.list
+      messagePage.value = 1
+      // 后端返回 total；total 缺失时以「取满一页」推断还有更早消息
+      hasMoreMessages.value = page.total > 0 ? messages.value.length < page.total : page.list.length === MESSAGE_PAGE_SIZE
       // 拉到历史即视为已读，清零本地未读并推进服务端水位
       const conv = conversations.value.find((c) => c.id === id)
       if (conv) conv.unread_count = 0
@@ -113,6 +129,34 @@ export const useChatStore = defineStore('chat', () => {
       void loadPresence()
     } finally {
       loadingMessages.value = false
+    }
+  }
+
+  /**
+   * 加载更早的历史消息并前插到当前列表。
+   * 返回本次新增条数（0 表示无更多或正在加载），供视图据此保持滚动位置。
+   */
+  async function loadOlderMessages(): Promise<number> {
+    if (!activeId.value || !hasMoreMessages.value || loadingOlder.value || messagePage.value < 1) return 0
+    loadingOlder.value = true
+    try {
+      const nextPage = messagePage.value + 1
+      const res = await listChatMessages(activeId.value, { page: nextPage, page_size: MESSAGE_PAGE_SIZE })
+      const page = toPageResult<ChatMessageItem>(res)
+      // 期间有新消息插入会使后端偏移漂移，按 id 去重防重复前插
+      const held = new Set(messages.value.map((m) => m.id))
+      const older = page.list.filter((m) => !held.has(m.id))
+      messages.value = [...older, ...messages.value]
+      messagePage.value = nextPage
+      hasMoreMessages.value = page.total > 0
+        ? messages.value.length < page.total
+        : page.list.length === MESSAGE_PAGE_SIZE
+      return older.length
+    } catch {
+      // 加载失败不改变分页状态，用户可再次滚动重试
+      return 0
+    } finally {
+      loadingOlder.value = false
     }
   }
 
@@ -280,6 +324,8 @@ export const useChatStore = defineStore('chat', () => {
     conversations.value = []
     messages.value = []
     activeId.value = ''
+    messagePage.value = 0
+    hasMoreMessages.value = false
     onlineUserIds.value = []
     typingUsers.value = {}
     Object.values(typingTimers).forEach((t) => clearTimeout(t))
@@ -291,6 +337,9 @@ export const useChatStore = defineStore('chat', () => {
     messages,
     loadingConversations,
     loadingMessages,
+    loadingOlder,
+    hasMoreMessages,
+    messagePage,
     sending,
     onlineUserIds,
     typingUsers,
@@ -302,6 +351,7 @@ export const useChatStore = defineStore('chat', () => {
     openWith,
     createGroup,
     selectConversation,
+    loadOlderMessages,
     send,
     recall,
     notifyTyping,
