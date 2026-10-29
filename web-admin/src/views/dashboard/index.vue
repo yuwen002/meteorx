@@ -440,12 +440,16 @@ const avgHandleText = computed(() => {
   return Math.round(s / 86400) + ' ' + t('dashboardPage.ws.unitDay')
 })
 
-/** 存储占用可读化：按 1024 进制换算 B/KB/MB/GB/TB */
+/** 存储占用可读化：按 1024 进制逐次相除换算 B/KB/MB/GB/TB（循环避免 Math.log 的浮点边界，如 1024 误显为 "1024 B"） */
 function formatBytes(n: number): string {
   if (!n || n < 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1)
-  const val = n / Math.pow(1024, i)
+  let val = n
+  let i = 0
+  while (val >= 1024 && i < units.length - 1) {
+    val /= 1024
+    i++
+  }
   return `${i === 0 ? val : val.toFixed(1)} ${units[i]}`
 }
 const storageText = computed(() => formatBytes(ws.storageUsed))

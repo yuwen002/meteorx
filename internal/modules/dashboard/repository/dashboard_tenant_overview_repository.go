@@ -9,10 +9,10 @@ import (
 )
 
 // GetTenantOverview 聚合单个租户的总览：成员/任务/Wiki/存储。
-// 复用健康度的批量聚合助手（aggregateUsers/aggregateStorage/aggregateWikiDocs）取
-// 租户级慢变事实，另以状态条件聚合补齐任务分布与 Wiki 空间/浏览量。
+// 复用健康度的批量聚合助手（aggregateUsers/aggregateStorage）取租户级慢变事实，
+// 任务分布、Wiki 空间/文档/浏览量以专用条件聚合补齐。
 // 沿用容错策略：单维度查询失败仅记日志、按零值降级，不影响其余维度返回。
-// SQL 全部使用 COUNT/SUM(CASE...) 条件聚合，兼容 MySQL 与 SQLite。
+// SQL 全部使用 COUNT/SUM 条件聚合，兼容 MySQL 与 SQLite。
 func (r *dashboardRepository) GetTenantOverview(ctx context.Context, tenantID string) (*model.TenantOverview, error) {
 	ids := []string{tenantID}
 
@@ -26,10 +26,8 @@ func (r *dashboardRepository) GetTenantOverview(ctx context.Context, tenantID st
 	// 存储：复用租户级文件体积聚合
 	overview.StorageUsed = r.aggregateStorage(ctx, ids)[tenantID]
 
-	// Wiki：文档数复用聚合助手，空间数/浏览量单独统计
-	overview.Wiki.Documents = r.aggregateWikiDocs(ctx, ids)[tenantID]
-	overview.Wiki.Spaces = r.countWikiSpaces(ctx, tenantID)
-	overview.Wiki.Views = r.sumWikiViews(ctx, tenantID)
+	// Wiki：文档数与浏览量合并为一次扫描，空间数在另一张表单独统计
+	overview.Wiki = r.aggregateTenantWiki(ctx, tenantID)
 
 	// 任务：按状态条件聚合出分布 + 逾期，完成率在 Go 侧计算（保持与任务模块一致的 4 位精度）
 	overview.Task = r.aggregateTenantTasks(ctx, tenantID)
@@ -84,19 +82,27 @@ func (r *dashboardRepository) countWikiSpaces(ctx context.Context, tenantID stri
 	return count
 }
 
-// sumWikiViews 汇总租户内未软删文档的累计浏览量。
-func (r *dashboardRepository) sumWikiViews(ctx context.Context, tenantID string) int64 {
-	var views int64
+// aggregateTenantWiki 一次扫描 wiki_documents 得到文档数与累计浏览量（COALESCE 保证空租户返回 0），
+// 空间数在 wiki_spaces 单独统计；均排除软删除行。替代此前对 wiki_documents 的两次单遍扫描。
+func (r *dashboardRepository) aggregateTenantWiki(ctx context.Context, tenantID string) model.TenantWikiOverview {
+	// 空间数与文档/浏览量分属两张表，先取空间数，wiki_documents 查询失败不影响已得部分
+	wiki := model.TenantWikiOverview{Spaces: r.countWikiSpaces(ctx, tenantID)}
+	var row struct {
+		Documents int64 `gorm:"column:documents"`
+		Views     int64 `gorm:"column:views"`
+	}
 	err := r.db.WithContext(ctx).Table("wiki_documents").
-		Select("COALESCE(SUM(view_count), 0)").
+		Select(`COUNT(*) AS documents, COALESCE(SUM(view_count), 0) AS views`).
 		Where("tenant_id = ?", tenantID).
 		Where("deleted_at IS NULL").
-		Scan(&views).Error
+		Scan(&row).Error
 	if err != nil {
-		slog.Warn("Dashboard: tenant overview wiki views aggregation failed", "error", err)
-		return 0
+		slog.Warn("Dashboard: tenant overview wiki aggregation failed", "error", err)
+		return wiki
 	}
-	return views
+	wiki.Documents = row.Documents
+	wiki.Views = row.Views
+	return wiki
 }
 
 // overviewCompletionRate 计算完成率（0~1，保留四位小数）；总数为 0 时返回 0。
