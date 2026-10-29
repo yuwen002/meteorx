@@ -45,6 +45,10 @@
         <div class="card-header">
           <span>{{ t('taskPage.title') }}</span>
           <div>
+            <el-radio-group v-model="viewMode" size="small" style="margin-right: 12px;" @change="handleViewModeChange">
+              <el-radio-button label="list">{{ t('taskPage.view.list') }}</el-radio-button>
+              <el-radio-button label="board">{{ t('taskPage.view.board') }}</el-radio-button>
+            </el-radio-group>
             <el-tooltip :disabled="aiEnabled" :content="t('taskPage.aiDisabledTip')" placement="bottom">
               <span>
                 <el-button :disabled="!aiEnabled" @click="openSummary">
@@ -68,7 +72,8 @@
           <el-option :label="t('taskPage.scope.personal')" value="personal" />
           <el-option :label="t('taskPage.scope.tenant')" value="tenant" />
         </el-select>
-        <el-select v-model="statusFilter" :placeholder="t('taskPage.filter.statusPlaceholder')" clearable style="width: 120px; margin-right: 12px;" @change="loadList">
+        <!-- 看板视图下状态列由列本身表达，隐藏状态筛选避免“筛某状态→其余列全空”的歧义 -->
+        <el-select v-if="viewMode === 'list'" v-model="statusFilter" :placeholder="t('taskPage.filter.statusPlaceholder')" clearable style="width: 120px; margin-right: 12px;" @change="loadList">
           <el-option :label="t('taskPage.stat.pending')" value="pending" />
           <el-option :label="t('taskPage.stat.in_progress')" value="in_progress" />
           <el-option :label="t('taskPage.stat.completed')" value="completed" />
@@ -113,7 +118,44 @@
         <el-button type="danger" size="small" @click="handleBatchDelete">{{ t('taskPage.batch.delete') }}</el-button>
       </div>
 
-      <el-table v-loading="loading" :data="list" stripe style="width: 100%;" @selection-change="handleSelectionChange">
+      <!-- 看板视图：三列 = 状态；卡片拖拽换列即改状态（复用 /tasks/batch/status） -->
+      <div v-if="viewMode === 'board'" v-loading="boardLoading" class="board">
+        <div
+          v-for="col in boardColumns"
+          :key="col.status"
+          class="board-col"
+          :class="{ 'board-col--dragover': dragOverStatus === col.status }"
+          @dragover.prevent="dragOverStatus = col.status"
+          @dragleave="dragOverStatus = ''"
+          @drop.prevent="handleDrop(col.status)"
+        >
+          <div class="board-col__header">
+            <span class="board-col__dot" :class="`board-col__dot--${col.status}`" />
+            <span class="board-col__title">{{ statusLabel(col.status) }}</span>
+            <span class="board-col__count">{{ col.tasks.length }}</span>
+          </div>
+          <div
+            v-for="task in col.tasks"
+            :key="task.id"
+            class="board-card"
+            :class="{ 'board-card--dragging': dragTaskId === task.id }"
+            :draggable="!boardSubmitting"
+            @dragstart="handleDragStart(task)"
+            @dragend="handleDragEnd"
+          >
+            <div class="board-card__title">{{ task.title }}</div>
+            <div class="board-card__meta">
+              <el-tag size="small" :type="priorityTagType(task.priority)" effect="plain">{{ priorityLabel(task.priority) }}</el-tag>
+              <el-tag v-if="task.recurrence" size="small" type="success" effect="plain">{{ recurrenceLabel(task.recurrence) }}</el-tag>
+              <span v-if="task.due_date" class="board-card__due" :class="{ 'board-card__due--overdue': isOverdue(task) }">{{ task.due_date }}</span>
+            </div>
+          </div>
+          <div v-if="!col.tasks.length" class="board-col__empty">{{ t('taskPage.board.emptyCol') }}</div>
+        </div>
+        <div v-if="boardTruncatedTip" class="board-truncated">{{ boardTruncatedTip }}</div>
+      </div>
+
+      <el-table v-if="viewMode === 'list'" v-loading="loading" :data="list" stripe style="width: 100%;" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="45" />
         <el-table-column prop="title" :label="t('taskPage.col.title')" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">
@@ -160,7 +202,7 @@
         </el-table-column>
       </el-table>
 
-      <div class="pagination-bar">
+      <div v-if="viewMode === 'list'" class="pagination-bar">
         <el-pagination
           v-model:current-page="page"
           v-model:page-size="pageSize"
@@ -452,6 +494,126 @@ async function loadList() {
   }
 }
 
+// ===== 看板视图（三列 = 状态，拖拽换列即改状态） =====
+const VIEW_MODE_KEY = 'meteorx.task.viewMode'
+function initialViewMode(): 'list' | 'board' {
+  try {
+    return localStorage.getItem(VIEW_MODE_KEY) === 'board' ? 'board' : 'list'
+  } catch {
+    return 'list'
+  }
+}
+const viewMode = ref<'list' | 'board'>(initialViewMode())
+const boardLoading = ref(false)
+const boardTasks = ref<TaskItem[]>([])
+const boardTotal = ref(0)
+// 后端分页上限 100，看板一次性拉足一页分列；超出部分以截断提示告知。
+const BOARD_PAGE_SIZE = 100
+
+// 拖拽不依赖 dataTransfer 读数据（jsdom/浏览器差异），仅用组件内状态追踪拖起项与悬停列。
+const dragTaskId = ref('')
+const dragOverStatus = ref<TaskStatus | ''>('')
+const boardSubmitting = ref(false)
+
+async function loadBoard() {
+  boardLoading.value = true
+  try {
+    const raw = await getTaskList({
+      page: 1,
+      page_size: BOARD_PAGE_SIZE,
+      keyword: keyword.value || undefined,
+      priority: priorityFilter.value || undefined,
+      visibility: visibilityFilter.value || undefined,
+      tag: tagFilter.value || undefined,
+      due_from: dueRange.value?.[0] || undefined,
+      due_to: dueRange.value?.[1] || undefined,
+      // 看板以状态分列，不传 status（尤其规避 overdue 伪状态过滤掉列）
+    })
+    const result = toPageResult<TaskItem>(raw)
+    boardTasks.value = result.list
+    boardTotal.value = result.total
+    loadStats()
+  } catch {
+    ElMessage.error(t('taskPage.loadListFailed'))
+  } finally {
+    boardLoading.value = false
+  }
+}
+
+const boardColumns = computed(() => {
+  const buckets: Record<TaskStatus, TaskItem[]> = { pending: [], in_progress: [], completed: [] }
+  for (const task of boardTasks.value) {
+    if (buckets[task.status]) buckets[task.status].push(task)
+  }
+  return [
+    { status: 'pending' as TaskStatus, tasks: buckets.pending },
+    { status: 'in_progress' as TaskStatus, tasks: buckets.in_progress },
+    { status: 'completed' as TaskStatus, tasks: buckets.completed },
+  ]
+})
+
+const boardTruncatedTip = computed(() => {
+  if (boardTotal.value > boardTasks.value.length) {
+    return t('taskPage.board.truncated', boardTasks.value.length, boardTotal.value)
+  }
+  return ''
+})
+
+// isOverdue 卡片逾期判定：有截止日、未完成且已过当前时刻。
+function isOverdue(task: TaskItem) {
+  if (!task.due_date || task.status === 'completed') return false
+  const d = new Date(task.due_date.replace(' ', 'T'))
+  return !Number.isNaN(d.getTime()) && d.getTime() < Date.now()
+}
+
+function handleViewModeChange(mode: 'list' | 'board') {
+  try {
+    localStorage.setItem(VIEW_MODE_KEY, mode)
+  } catch {
+    /* 隐私模式下写入失败仅影响下次默认视图，忽略 */
+  }
+  // 切换视图清空列表选择态，避免残留的批量条在看板下造成误操作
+  selected.value = []
+  if (mode === 'board') loadBoard()
+  else loadList()
+}
+
+// refreshCurrent 供跨视图共享操作（如新建）刷新当前可见数据。
+function refreshCurrent() {
+  return viewMode.value === 'board' ? loadBoard() : loadList()
+}
+
+function handleDragStart(task: TaskItem) {
+  if (boardSubmitting.value) return
+  dragTaskId.value = task.id
+}
+
+function handleDragEnd() {
+  dragTaskId.value = ''
+  dragOverStatus.value = ''
+}
+
+// handleDrop 卡片放入不同状态列时复用批量改状态接口（单条）改状态；
+// 无论成败都重拉看板，避免乐观移动与后端不一致（失败提示由拦截器统一弹出）。
+async function handleDrop(status: TaskStatus) {
+  dragOverStatus.value = ''
+  const id = dragTaskId.value
+  dragTaskId.value = ''
+  if (!id || boardSubmitting.value) return
+  const task = boardTasks.value.find((x) => x.id === id)
+  if (!task || task.status === status) return
+  boardSubmitting.value = true
+  try {
+    await batchUpdateTaskStatus({ ids: [id], status })
+    ElMessage.success(t('taskPage.board.moved', statusLabel(status)))
+  } catch {
+    /* 错提由拦截器弹出 */
+  } finally {
+    await loadBoard()
+    boardSubmitting.value = false
+  }
+}
+
 const dialogVisible = ref(false)
 const submitLoading = ref(false)
 const formRef = ref<FormInstance>()
@@ -522,7 +684,7 @@ async function submitForm() {
         ElMessage.success(t('taskPage.created'))
       }
       dialogVisible.value = false
-      loadList()
+      refreshCurrent()
     } catch (e) {
       ElMessage.error((e as Error).message || t('taskPage.opFailed'))
     } finally {
@@ -629,6 +791,15 @@ async function handleBatchDelete() {
 
 // filterOverdue 点击"已逾期"统计卡：将状态筛选切为逾期伪状态并重查（再次点击取消）。
 function filterOverdue() {
+  // 逾期是列表专属的伪状态筛选，看板下点卡片先切回列表视图再下钻。
+  if (viewMode.value !== 'list') {
+    viewMode.value = 'list'
+    try {
+      localStorage.setItem(VIEW_MODE_KEY, 'list')
+    } catch {
+      /* ignore */
+    }
+  }
   statusFilter.value = statusFilter.value === 'overdue' ? '' : 'overdue'
   page.value = 1
   loadList()
@@ -779,7 +950,7 @@ async function loadSummary() {
 }
 
 onMounted(() => {
-  loadList()
+  refreshCurrent()
   loadAICapabilities()
 })
 
@@ -917,5 +1088,105 @@ watch(
   padding-left: 20px;
   color: #606266;
   line-height: 1.6;
+}
+/* ===== 看板视图 ===== */
+.board {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.board-col {
+  flex: 1 0 260px;
+  min-width: 260px;
+  background: #f6f7f9;
+  border-radius: 8px;
+  padding: 8px;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.board-col--dragover {
+  background: #eef4ff;
+  box-shadow: inset 0 0 0 2px #b5d0ff;
+}
+.board-col__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 10px;
+  font-weight: 600;
+  color: #303133;
+}
+.board-col__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #909399;
+}
+.board-col__dot--pending {
+  background: #909399;
+}
+.board-col__dot--in_progress {
+  background: #e6a23c;
+}
+.board-col__dot--completed {
+  background: #67c23a;
+}
+.board-col__title {
+  flex: 1;
+}
+.board-col__count {
+  font-size: 12px;
+  color: #909399;
+  background: #fff;
+  border-radius: 10px;
+  padding: 0 8px;
+  line-height: 18px;
+}
+.board-card {
+  background: #fff;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  cursor: grab;
+}
+.board-card:active {
+  cursor: grabbing;
+}
+.board-card--dragging {
+  opacity: 0.5;
+}
+.board-card__title {
+  font-size: 14px;
+  color: #303133;
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+.board-card__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.board-card__due {
+  font-size: 12px;
+  color: #909399;
+}
+.board-card__due--overdue {
+  color: #ef4444;
+}
+.board-col__empty {
+  padding: 16px;
+  text-align: center;
+  color: #c0c4cc;
+  font-size: 13px;
+}
+.board-truncated {
+  width: 100%;
+  padding: 8px;
+  text-align: center;
+  color: #e6a23c;
+  font-size: 12px;
 }
 </style>
