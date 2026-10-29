@@ -4,6 +4,7 @@ package validator
 import (
 	"encoding/json"
 	"meteorx/internal/common/response"
+	"meteorx/internal/pkg/apperrors"
 	"meteorx/pkg/logger"
 	"net/http"
 	"reflect"
@@ -52,10 +53,19 @@ func ValidateAndResponse(w http.ResponseWriter, s interface{}) bool {
 		// 转换验证错误为更友好的消息
 		if validationErrors, ok := err.(validator.ValidationErrors); ok {
 			errors := make(map[string]string)
+			reasons := make([]string, 0, len(validationErrors))
 			for _, e := range validationErrors {
-				errors[e.Field()] = getFieldErrorMessage(s, e)
+				msg := getFieldErrorMessage(s, e)
+				errors[e.Field()] = msg
+				reasons = append(reasons, msg)
 			}
-			response.JSON(w, http.StatusBadRequest, http.StatusBadRequest, "请求参数验证失败", errors)
+			// 将字段级原因拼为顶层 message，便于前端直接提示具体不合法字段；
+			// 完整的 字段→原因 映射置于 details，供需要精确定位的调用方使用。
+			message := "请求参数验证失败"
+			if len(reasons) > 0 {
+				message = strings.Join(reasons, "；")
+			}
+			response.FailError(w, apperrors.ErrBadRequest(message).WithDetails(errors))
 		} else {
 			response.Fail(w, http.StatusBadRequest, "请求参数验证失败")
 		}

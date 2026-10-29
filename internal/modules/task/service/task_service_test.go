@@ -1073,3 +1073,86 @@ func TestUpdate_SetRecurrenceWithoutDueRejected(t *testing.T) {
 		dto.UpdateTaskReq{Recurrence: ptr(model.TaskRecurrenceDaily)})
 	assert.ErrorIs(t, err, ErrRecurrenceNeedsDue)
 }
+
+// ---- Update / 前端整表回传回归（编辑保存链路） ----
+
+// TestUpdate_FrontendFullPayloadNoDue 模拟前端编辑普通无重复任务的完整提交体：
+// recurrence 为指针指向空串、due_date 未提交（nil）。旧版在 DTO 层就被 oneof 拒成 400，
+// 此后 service 层也曾误报 ErrRecurrenceNeedsDue：空串 recurrence 必须解释为“不重复”而非非法。
+func TestUpdate_FrontendFullPayloadNoDue(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1",
+		Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusPending}
+	task, err := svc.Update(context.Background(), "t1", "u1", "a", dto.UpdateTaskReq{
+		Title:      ptr("改名"),
+		Visibility: ptr(model.TaskVisibilityPersonal),
+		Priority:   ptr(model.TaskPriorityNormal),
+		Recurrence: ptr(""),
+		Tags:       &[]string{},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "改名", task.Title)
+	assert.Equal(t, "", task.Recurrence)
+}
+
+// TestUpdate_RecurringTaskEchoDueDateRoundTrip 回归：“截止时间 + 重复周期”任务改标题保存时，
+// 前端会原样回传接口输出的 "2006-01-02 15:04:05" 日期，必须解析成功且不触发 ErrRecurrenceNeedsDue。
+func TestUpdate_RecurringTaskEchoDueDateRoundTrip(t *testing.T) {
+	svc, repo := newService()
+	due := time.Date(2026, 3, 15, 9, 30, 0, 0, time.Local)
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1",
+		Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusPending,
+		DueDate: &due, Recurrence: model.TaskRecurrenceWeekly}
+	task, err := svc.Update(context.Background(), "t1", "u1", "a", dto.UpdateTaskReq{
+		Title:        ptr("改标题"),
+		DueDate:      ptr(due.Format("2006-01-02 15:04:05")), // 接口输出格式原样回传
+		RemindBefore: ptr("2h0m0s"),                          // Go Duration 回环
+		Recurrence:   ptr(model.TaskRecurrenceWeekly),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "改标题", task.Title)
+	require.NotNil(t, task.DueDate)
+	assert.True(t, task.DueDate.Equal(due), "原值回传不应改变截止日，got=%v", *task.DueDate)
+	require.NotNil(t, task.RemindBefore)
+	assert.Equal(t, 2*time.Hour, *task.RemindBefore)
+}
+
+// TestUpdate_CancelRecurrenceByEmptyString 验证“取消重复”语义：重复任务回传 recurrence:"" 且保留截止日，
+// 应成功清空 Recurrence（DTO 注释承诺的空串语义）。
+func TestUpdate_CancelRecurrenceByEmptyString(t *testing.T) {
+	svc, repo := newService()
+	due := time.Date(2026, 3, 15, 9, 30, 0, 0, time.Local)
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1",
+		Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusPending,
+		DueDate: &due, Recurrence: model.TaskRecurrenceDaily}
+	task, err := svc.Update(context.Background(), "t1", "u1", "a", dto.UpdateTaskReq{
+		Recurrence: ptr(""),
+		DueDate:    ptr(due.Format("2006-01-02 15:04:05")),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "", task.Recurrence, "空串应清空重复周期")
+}
+
+// TestUpdate_InvalidRecurrenceValueRejected 验证枚举合法性由 service 把关：
+// 非空非法值（yearly）返回 ErrInvalidRecurrence（handler 映射 400）。
+func TestUpdate_InvalidRecurrenceValueRejected(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1",
+		Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusPending}
+	_, err := svc.Update(context.Background(), "t1", "u1", "a",
+		dto.UpdateTaskReq{Recurrence: ptr("yearly")})
+	assert.ErrorIs(t, err, ErrInvalidRecurrence)
+}
+
+// TestUpdate_ClearDueDateOnRecurringRejected 验证守住“重复必带截止日”不变量：
+// 重复任务清空截止日应被 ErrRecurrenceNeedsDue 拒绝，避免后续完成时无法推算下一周期。
+func TestUpdate_ClearDueDateOnRecurringRejected(t *testing.T) {
+	svc, repo := newService()
+	due := time.Date(2026, 3, 15, 9, 30, 0, 0, time.Local)
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1",
+		Visibility: model.TaskVisibilityPersonal, Status: model.TaskStatusPending,
+		DueDate: &due, Recurrence: model.TaskRecurrenceMonthly}
+	_, err := svc.Update(context.Background(), "t1", "u1", "a",
+		dto.UpdateTaskReq{DueDate: ptr("")})
+	assert.ErrorIs(t, err, ErrRecurrenceNeedsDue)
+}

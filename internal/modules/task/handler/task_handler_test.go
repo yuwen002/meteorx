@@ -214,6 +214,45 @@ func TestTaskUpdate_InvalidDueDate(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+// TestTaskUpdate_EmptyRecurrenceAllowed 回归：前端编辑无重复任务时无条件提交 recurrence:""，
+// 旧版 DTO 的 *string+omitempty,oneof 会把它拒成 400（保存不了）；
+// 枚举合法性改由 service 把关后，空串应放行并透传到服务层。
+func TestTaskUpdate_EmptyRecurrenceAllowed(t *testing.T) {
+	var got dto.UpdateTaskReq
+	stub := &stubTaskService{updateFn: func(_ context.Context, _, _, _ string, req dto.UpdateTaskReq) (*model.Task, error) {
+		got = req
+		return sampleTask(), nil
+	}}
+	router := newTaskRouter(stub)
+	// 模拟前端真实提交体：recurrence 为空字符串
+	req := withCtx(httptest.NewRequest(http.MethodPut, "/tasks/id1",
+		bytesReader([]byte(`{"title":"改名","visibility":"personal","priority":"normal","recurrence":"","tags":[]}`))), "t1", "u1")
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.NotNil(t, got.Recurrence)
+	assert.Equal(t, "", *got.Recurrence, "空串应原样透传，由 service 解释为取消重复")
+}
+
+// TestTaskUpdate_InvalidStatusStillRejectedAtBoundary 验证指针枚举字段的
+// 非空非法值（status:"bogus"）仍被 DTO oneof 拦截为 400，不因 recurrence 放宽而退化。
+func TestTaskUpdate_InvalidStatusStillRejectedAtBoundary(t *testing.T) {
+	stub := &stubTaskService{updateFn: func(context.Context, string, string, string, dto.UpdateTaskReq) (*model.Task, error) {
+		t.Fatal("校验失败时不应进入 service")
+		return nil, nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodPut, "/tasks/id1",
+		bytesReader([]byte(`{"status":"bogus"}`))), "t1", "u1")
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
 func TestTaskComplete_Success(t *testing.T) {
 	stub := &stubTaskService{completeFn: func(context.Context, string, string, string) (*model.Task, error) {
 		tk := sampleTask()

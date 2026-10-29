@@ -27,7 +27,11 @@ type UpdateTaskReq struct {
 	Tags         *[]string `json:"tags" validate:"omitempty,max=10" label:"标签"`
 	Visibility   *string   `json:"visibility" validate:"omitempty,oneof=personal tenant" label:"可见范围"`
 	AssigneeID   *string   `json:"assignee_id" validate:"omitempty,max=26" label:"负责人"`
-	Recurrence   *string   `json:"recurrence" validate:"omitempty,oneof=daily weekly monthly" label:"重复周期"` // 传空字符串表示取消重复
+	// Recurrence 传空字符串表示取消重复。注意：go-playground 的 omitempty 对指针只判 nil、
+	// 不判所指的值，故非 nil 指向 "" 仍会跑后续规则；若在此加 oneof=daily weekly monthly，
+	// 前端编辑无重复任务时无条件提交的 recurrence:"" 会被 oneof 拒绝成 400。改由 service 层
+	// IsValidRecurrence 统一校验（放行空串、非法值经 writeServiceError 映射 400）。
+	Recurrence *string `json:"recurrence" validate:"omitempty" label:"重复周期"` // 完成时自动按周期生成下一条任务；传空字符串表示取消重复
 }
 
 // TaskResp 任务响应，返回给前端的任务详情。
