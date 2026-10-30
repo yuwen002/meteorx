@@ -5548,6 +5548,84 @@
         ]
       }
     },
+    "/api/v1/admin/oauth-providers": {
+      "get": {
+        "description": "权限码: `admin:oauth_provider:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "OAuth 提供商列表",
+        "tags": [
+          "Auth"
+        ]
+      },
+      "post": {
+        "description": "权限码: `admin:oauth_provider:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "创建 OAuth 提供商",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/admin/oauth-providers/{code}": {
+      "delete": {
+        "description": "权限码: `admin:oauth_provider:delete`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "删除 OAuth 提供商",
+        "tags": [
+          "Auth"
+        ]
+      },
+      "get": {
+        "description": "权限码: `admin:oauth_provider:read`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "OAuth 提供商详情",
+        "tags": [
+          "Auth"
+        ]
+      },
+      "put": {
+        "description": "权限码: `admin:oauth_provider:update`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "更新 OAuth 提供商",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/admin/oauth-providers/{code}/status": {
+      "put": {
+        "description": "权限码: `admin:oauth_provider:status`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "启用/停用 OAuth 提供商",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/admin/plans": {
       "get": {
         "parameters": [
@@ -5706,6 +5784,32 @@
         "summary": "更新套餐",
         "tags": [
           "套餐管理"
+        ]
+      }
+    },
+    "/api/v1/admin/settings": {
+      "get": {
+        "description": "权限码: `admin:settings:list`\n\n接口文档: `docs/api/settings-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "平台配置列表",
+        "tags": [
+          "Settings"
+        ]
+      },
+      "put": {
+        "description": "权限码: `admin:settings:update`\n\n接口文档: `docs/api/settings-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "批量更新平台配置",
+        "tags": [
+          "Settings"
         ]
       }
     },
@@ -8208,6 +8312,104 @@
         ]
       }
     },
+    "/api/v1/auth/2fa/disable": {
+      "post": {
+        "description": "权限码: `auth:create`\n\n接口文档: `docs/api/auth-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "关闭 2FA",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/2fa/enable": {
+      "post": {
+        "description": "权限码: `auth:create`\n\n接口文档: `docs/api/auth-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "确认启用 2FA",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/2fa/recovery-codes": {
+      "get": {
+        "description": "权限码: `auth:list`\n\n接口文档: `docs/api/auth-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "查询备份恢复码状态",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/2fa/recovery-codes/regenerate": {
+      "post": {
+        "description": "权限码: `auth:create`\n\n接口文档: `docs/api/auth-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "重新生成备份恢复码",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/2fa/setup": {
+      "post": {
+        "description": "权限码: `auth:create`\n\n接口文档: `docs/api/auth-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "初始化 2FA（生成密钥）",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/email/send-verification": {
+      "post": {
+        "description": "权限码: `auth:create`\n\n接口文档: `docs/api/auth-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "发送邮箱验证邮件",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/email/verify": {
+      "post": {
+        "description": "权限码: `auth:create`\n\n接口文档: `docs/api/auth-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "验证邮箱",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/auth/forgot-password": {
       "post": {
         "requestBody": {
@@ -8878,6 +9080,240 @@
         ]
       }
     },
+    "/api/v1/chat/conversations": {
+      "get": {
+        "description": "权限码: `chat:list`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "会话列表",
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations/direct": {
+      "post": {
+        "description": "权限码: `chat:create`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "打开或创建单聊会话",
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations/group": {
+      "post": {
+        "description": "权限码: `chat:create`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "创建群聊会话",
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations/{id}": {
+      "put": {
+        "description": "权限码: `chat:update`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "修改群名称",
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations/{id}/leave": {
+      "post": {
+        "description": "权限码: `chat:create`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "退出群聊",
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations/{id}/members": {
+      "get": {
+        "description": "权限码: `chat:list`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "群成员列表",
+        "tags": [
+          "Chat"
+        ]
+      },
+      "post": {
+        "description": "权限码: `chat:create`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "添加群成员",
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations/{id}/members/{userId}": {
+      "delete": {
+        "description": "权限码: `chat:delete`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "移除群成员",
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations/{id}/messages": {
+      "get": {
+        "description": "权限码: `chat:list`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "历史消息分页",
+        "tags": [
+          "Chat"
+        ]
+      },
+      "post": {
+        "description": "权限码: `chat:create`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "发送消息",
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations/{id}/messages/{msgId}": {
+      "delete": {
+        "description": "权限码: `chat:delete`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "撤回消息",
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations/{id}/read": {
+      "post": {
+        "description": "权限码: `chat:create`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "标记会话已读",
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations/{id}/read-status": {
+      "get": {
+        "description": "权限码: `chat:list`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "会话已读状态",
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations/{id}/typing": {
+      "post": {
+        "description": "权限码: `chat:create`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "输入中提示",
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/v1/chat/presence": {
+      "get": {
+        "description": "权限码: `chat:list`\n\n接口文档: `docs/api/chat-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "在线状态",
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/v1/csp-report": {
+      "post": {
+        "description": "权限码: `csp-report:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "上报 CSP 违规",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/dashboard/tenant-overview": {
+      "get": {
+        "description": "权限码: `dashboard:list`\n\n接口文档: `docs/api/dashboard-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "租户工作台总览",
+        "tags": [
+          "Dashboard"
+        ]
+      }
+    },
     "/api/v1/exports": {
       "get": {
         "description": "权限码: `exports:list`",
@@ -9341,6 +9777,254 @@
         "summary": "恢复已删除文件",
         "tags": [
           "文件管理"
+        ]
+      }
+    },
+    "/api/v1/invitations": {
+      "get": {
+        "description": "权限码: `invitation:list`\n\n接口文档: `docs/api/invitation-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "邀请列表",
+        "tags": [
+          "Invitation"
+        ]
+      },
+      "post": {
+        "description": "权限码: `invitation:create`\n\n接口文档: `docs/api/invitation-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "创建邀请",
+        "tags": [
+          "Invitation"
+        ]
+      }
+    },
+    "/api/v1/invitations/accept": {
+      "post": {
+        "description": "权限码: `invitation:create`\n\n接口文档: `docs/api/invitation-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "接受邀请",
+        "tags": [
+          "Invitation"
+        ]
+      }
+    },
+    "/api/v1/invitations/batch": {
+      "post": {
+        "description": "权限码: `invitation:create`\n\n接口文档: `docs/api/invitation-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "批量创建邀请",
+        "tags": [
+          "Invitation"
+        ]
+      }
+    },
+    "/api/v1/invitations/info": {
+      "get": {
+        "description": "权限码: `invitation:list`\n\n接口文档: `docs/api/invitation-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "邀请信息",
+        "tags": [
+          "Invitation"
+        ]
+      }
+    },
+    "/api/v1/invitations/roles": {
+      "get": {
+        "description": "权限码: `invitation:get_roles`\n\n接口文档: `docs/api/invitation-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "可分配角色列表",
+        "tags": [
+          "Invitation"
+        ]
+      }
+    },
+    "/api/v1/invitations/{id}/cancel": {
+      "put": {
+        "description": "权限码: `invitation:update`\n\n接口文档: `docs/api/invitation-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "取消邀请",
+        "tags": [
+          "Invitation"
+        ]
+      }
+    },
+    "/api/v1/invitations/{id}/delete": {
+      "delete": {
+        "description": "权限码: `invitation:delete`\n\n接口文档: `docs/api/invitation-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "删除邀请",
+        "tags": [
+          "Invitation"
+        ]
+      }
+    },
+    "/api/v1/invitations/{id}/resend": {
+      "put": {
+        "description": "权限码: `invitation:update`\n\n接口文档: `docs/api/invitation-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "重发邀请",
+        "tags": [
+          "Invitation"
+        ]
+      }
+    },
+    "/api/v1/messages": {
+      "get": {
+        "description": "权限码: `messages:list`\n\n接口文档: `docs/api/message-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "收件箱列表",
+        "tags": [
+          "Message"
+        ]
+      }
+    },
+    "/api/v1/messages/batch/delete": {
+      "delete": {
+        "description": "权限码: `messages:batch_delete`\n\n接口文档: `docs/api/message-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "批量删除消息",
+        "tags": [
+          "Message"
+        ]
+      }
+    },
+    "/api/v1/messages/batch/read": {
+      "put": {
+        "description": "权限码: `messages:batch_status`\n\n接口文档: `docs/api/message-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "批量标记已读",
+        "tags": [
+          "Message"
+        ]
+      }
+    },
+    "/api/v1/messages/preferences": {
+      "get": {
+        "description": "权限码: `messages:list`\n\n接口文档: `docs/api/message-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "接收偏好",
+        "tags": [
+          "Message"
+        ]
+      },
+      "put": {
+        "description": "权限码: `messages:update`\n\n接口文档: `docs/api/message-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "更新接收偏好",
+        "tags": [
+          "Message"
+        ]
+      }
+    },
+    "/api/v1/messages/read-all": {
+      "put": {
+        "description": "权限码: `messages:update`\n\n接口文档: `docs/api/message-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "全部标记已读",
+        "tags": [
+          "Message"
+        ]
+      }
+    },
+    "/api/v1/messages/unread-count": {
+      "get": {
+        "description": "权限码: `messages:list`\n\n接口文档: `docs/api/message-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "未读消息数量",
+        "tags": [
+          "Message"
+        ]
+      }
+    },
+    "/api/v1/messages/{id}": {
+      "delete": {
+        "description": "权限码: `messages:delete`\n\n接口文档: `docs/api/message-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "删除消息",
+        "tags": [
+          "Message"
+        ]
+      }
+    },
+    "/api/v1/messages/{id}/read": {
+      "put": {
+        "description": "权限码: `messages:update`\n\n接口文档: `docs/api/message-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "标记单条消息已读",
+        "tags": [
+          "Message"
         ]
       }
     },
@@ -10845,6 +11529,20 @@
         ]
       }
     },
+    "/api/v1/settings/public": {
+      "get": {
+        "description": "权限码: `settings:list`\n\n接口文档: `docs/api/settings-api.md`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "公开运行时配置",
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
     "/api/v1/tasks": {
       "get": {
         "description": "权限码: `tasks:list`",
@@ -10871,6 +11569,90 @@
         ]
       }
     },
+    "/api/v1/tasks/ai/capabilities": {
+      "get": {
+        "description": "权限码: `tasks:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "AI 能力探测",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/ai/expand": {
+      "post": {
+        "description": "权限码: `tasks:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "AI 任务拆解",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/ai/parse": {
+      "post": {
+        "description": "权限码: `tasks:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "AI 解析自然语言为任务",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/ai/suggest": {
+      "post": {
+        "description": "权限码: `tasks:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "AI 任务建议",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/ai/summary": {
+      "post": {
+        "description": "权限码: `tasks:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "AI 任务总结",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/batch/assign": {
+      "post": {
+        "description": "权限码: `tasks:batch_assign`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "批量指派任务",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
     "/api/v1/tasks/batch/complete": {
       "post": {
         "description": "权限码: `tasks:create`",
@@ -10879,7 +11661,7 @@
             "description": "成功"
           }
         },
-        "summary": "创建complete",
+        "summary": "批量完成任务",
         "tags": [
           "Task"
         ]
@@ -10893,7 +11675,21 @@
             "description": "成功"
           }
         },
-        "summary": "创建delete",
+        "summary": "批量删除任务",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/batch/status": {
+      "post": {
+        "description": "权限码: `tasks:batch_status`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "批量更新任务状态",
         "tags": [
           "Task"
         ]
@@ -11818,6 +12614,34 @@
         ]
       }
     },
+    "/api/v1/wiki/documents/comments/{id}/reactions": {
+      "post": {
+        "description": "权限码: `wiki:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "评论点赞切换",
+        "tags": [
+          "Wiki"
+        ]
+      }
+    },
+    "/api/v1/wiki/documents/comments/{id}/resolve": {
+      "post": {
+        "description": "权限码: `wiki:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "标记评论已解决",
+        "tags": [
+          "Wiki"
+        ]
+      }
+    },
     "/api/v1/wiki/documents/nodes/{nodeId}": {
       "get": {
         "parameters": [
@@ -12216,6 +13040,34 @@
         ]
       }
     },
+    "/api/v1/wiki/documents/{id}/approve": {
+      "post": {
+        "description": "权限码: `wiki:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "审核通过文档",
+        "tags": [
+          "Wiki"
+        ]
+      }
+    },
+    "/api/v1/wiki/documents/{id}/archive": {
+      "post": {
+        "description": "权限码: `wiki:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "归档文档",
+        "tags": [
+          "Wiki"
+        ]
+      }
+    },
     "/api/v1/wiki/documents/{id}/comments": {
       "get": {
         "parameters": [
@@ -12489,6 +13341,48 @@
         ]
       }
     },
+    "/api/v1/wiki/documents/{id}/publish": {
+      "post": {
+        "description": "权限码: `wiki:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "发布文档",
+        "tags": [
+          "Wiki"
+        ]
+      }
+    },
+    "/api/v1/wiki/documents/{id}/reject": {
+      "post": {
+        "description": "权限码: `wiki:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "驳回文档审核",
+        "tags": [
+          "Wiki"
+        ]
+      }
+    },
+    "/api/v1/wiki/documents/{id}/review-comments": {
+      "get": {
+        "description": "权限码: `wiki:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "文档审核评论列表",
+        "tags": [
+          "Wiki"
+        ]
+      }
+    },
     "/api/v1/wiki/documents/{id}/revisions/compare": {
       "get": {
         "parameters": [
@@ -12638,6 +13532,20 @@
         "summary": "文档统计数据",
         "tags": [
           "知识库"
+        ]
+      }
+    },
+    "/api/v1/wiki/documents/{id}/submit-review": {
+      "post": {
+        "description": "权限码: `wiki:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "提交文档审核",
+        "tags": [
+          "Wiki"
         ]
       }
     },
@@ -12816,6 +13724,34 @@
         "summary": "为文档绑定标签",
         "tags": [
           "知识库"
+        ]
+      }
+    },
+    "/api/v1/wiki/documents/{id}/unpublish": {
+      "post": {
+        "description": "权限码: `wiki:create`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "取消发布文档",
+        "tags": [
+          "Wiki"
+        ]
+      }
+    },
+    "/api/v1/wiki/pending-reviews": {
+      "get": {
+        "description": "权限码: `wiki:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "待审核文档列表",
+        "tags": [
+          "Wiki"
         ]
       }
     },
