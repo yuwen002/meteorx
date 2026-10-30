@@ -9,29 +9,11 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"meteorx/internal/middleware"
-	audit "meteorx/internal/modules/audit"
-	auditHandler "meteorx/internal/modules/audit/handler"
-	auth "meteorx/internal/modules/auth"
-	authHandler "meteorx/internal/modules/auth/handler"
-	dashboard "meteorx/internal/modules/dashboard"
-	dashboardHandler "meteorx/internal/modules/dashboard/handler"
-	export "meteorx/internal/modules/export"
-	exportHandler "meteorx/internal/modules/export/handler"
-	notification "meteorx/internal/modules/notification"
-	notificationHandler "meteorx/internal/modules/notification/handler"
-	oauth "meteorx/internal/modules/oauth"
-	oauthHandler "meteorx/internal/modules/oauth/handler"
-	plan "meteorx/internal/modules/plan"
-	planHandler "meteorx/internal/modules/plan/handler"
-	rbac "meteorx/internal/modules/rbac"
-	rbacHandler "meteorx/internal/modules/rbac/handler"
-	tenant "meteorx/internal/modules/tenant"
-	tenantHandler "meteorx/internal/modules/tenant/handler"
-	user "meteorx/internal/modules/user"
-	userHandler "meteorx/internal/modules/user/handler"
+	"meteorx/internal/routetable"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -41,12 +23,19 @@ import (
 // 加 -apply 参数可自动补齐缺失路由、删除多余路由，保持文档与代码一致。
 func main() {
 	applyFlag := flag.Bool("apply", false, "自动修复文档（添加缺失路由 / 删除多余路由）")
+	checkFlag := flag.Bool("check", false, "门禁模式：存在差异时以非 0 退出码结束（供 CI 使用，与 -apply 同用时不做失败判定）")
 	flag.Parse()
 
 	codeSet := buildCodeRouteSet()
 
-	syncOpenAPI(codeSet, *applyFlag)
-	syncApifox(codeSet, *applyFlag)
+	openapiDiff := syncOpenAPI(codeSet, *applyFlag)
+	apifoxDiff := syncApifox(codeSet, *applyFlag)
+
+	// 不加 -check 时保持旧行为（仅打印差异、退出码为 0）；CI 用 -check 把漂移变成失败。
+	if *checkFlag && !*applyFlag && (openapiDiff || apifoxDiff) {
+		fmt.Fprintln(os.Stderr, "\n❌ 文档与代码路由不一致（-check 模式判定失败）")
+		os.Exit(1)
+	}
 }
 
 // routeEntry 描述一条路由的方法与已归一化的路径。
@@ -82,7 +71,8 @@ func buildCodeRouteSet() map[string]routeEntry {
 }
 
 // syncOpenAPI 对比代码路由与 OpenAPI 文档差异，apply 为 true 时将修复写回文件。
-func syncOpenAPI(codeSet map[string]routeEntry, apply bool) {
+// 返回值为 true 表示本次对比发现差异（无论是否已修复）。
+func syncOpenAPI(codeSet map[string]routeEntry, apply bool) bool {
 	data, err := os.ReadFile("docs/apifox/MeteorX-backend.openapi.json")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "读取 OpenAPI 文件失败: %v\n", err)
@@ -151,7 +141,7 @@ func syncOpenAPI(codeSet map[string]routeEntry, apply bool) {
 
 	if len(missingKeys) == 0 && len(extraKeys) == 0 {
 		fmt.Println("\n🎉 完美匹配！")
-		return
+		return false
 	}
 
 	if apply {
@@ -191,6 +181,7 @@ func syncOpenAPI(codeSet map[string]routeEntry, apply bool) {
 	} else {
 		fmt.Println("\n💡 加 -apply 参数可自动修复")
 	}
+	return true
 }
 
 // addMissingRoute 向 OpenAPI paths 中补充一条缺失路由的操作定义。
@@ -205,11 +196,15 @@ func addMissingRoute(paths map[string]interface{}, method, pattern string) {
 
 	tags := inferTags(pattern)
 	perm := middleware.DerivePermissionCode(method, pattern)
+	description := fmt.Sprintf("权限码: `%s`", perm)
+	if doc := inferDocPath(pattern); doc != "" {
+		description += fmt.Sprintf("\n\n接口文档: `%s`", doc)
+	}
 
 	op := map[string]interface{}{
 		"summary":     inferSummary(method, pattern),
 		"tags":        tags,
-		"description": fmt.Sprintf("权限码: `%s`", perm),
+		"description": description,
 		"responses": map[string]interface{}{
 			"200": map[string]interface{}{
 				"description": "成功",
@@ -220,6 +215,25 @@ func addMissingRoute(paths map[string]interface{}, method, pattern string) {
 	methodsMap[methodLower] = op
 }
 
+// inferDocPath 根据路径前缀返回对应的 Markdown 接口文档路径（无对应文档时返回空串）。
+func inferDocPath(pattern string) string {
+	switch {
+	case strings.HasPrefix(pattern, "/api/v1/chat"):
+		return "docs/api/chat-api.md"
+	case strings.HasPrefix(pattern, "/api/v1/messages"):
+		return "docs/api/message-api.md"
+	case strings.HasPrefix(pattern, "/api/v1/invitations"):
+		return "docs/api/invitation-api.md"
+	case strings.HasPrefix(pattern, "/api/v1/settings") || strings.HasPrefix(pattern, "/api/v1/admin/settings"):
+		return "docs/api/settings-api.md"
+	case strings.HasPrefix(pattern, "/api/v1/auth"):
+		return "docs/api/auth-api.md"
+	case strings.HasPrefix(pattern, "/api/v1/dashboard"):
+		return "docs/api/dashboard-api.md"
+	}
+	return ""
+}
+
 // inferTags 根据路径前缀推断 OpenAPI 分组标签。
 func inferTags(pattern string) []string {
 	if strings.HasPrefix(pattern, "/health") || strings.HasPrefix(pattern, "/metrics") {
@@ -227,6 +241,9 @@ func inferTags(pattern string) []string {
 	}
 	if strings.HasPrefix(pattern, "/api/v1/auth") || strings.HasPrefix(pattern, "/api/v1/oauth") {
 		return []string{"Auth"}
+	}
+	if strings.HasPrefix(pattern, "/api/v1/csp-report") {
+		return []string{"System"}
 	}
 	if strings.HasPrefix(pattern, "/api/v1/users") {
 		return []string{"User"}
@@ -245,6 +262,27 @@ func inferTags(pattern string) []string {
 	}
 	if strings.HasPrefix(pattern, "/api/v1/files") {
 		return []string{"File"}
+	}
+	if strings.HasPrefix(pattern, "/api/v1/admin/settings") {
+		return []string{"Settings"}
+	}
+	if strings.HasPrefix(pattern, "/api/v1/settings") {
+		return []string{"Settings"}
+	}
+	if strings.HasPrefix(pattern, "/api/v1/chat") {
+		return []string{"Chat"}
+	}
+	if strings.HasPrefix(pattern, "/api/v1/messages") {
+		return []string{"Message"}
+	}
+	if strings.HasPrefix(pattern, "/api/v1/invitations") {
+		return []string{"Invitation"}
+	}
+	if strings.HasPrefix(pattern, "/api/v1/dashboard") {
+		return []string{"Dashboard"}
+	}
+	if strings.HasPrefix(pattern, "/api/v1/admin/oauth") {
+		return []string{"Auth"}
 	}
 	if strings.HasPrefix(pattern, "/api/v1/admin") {
 		return []string{"Admin"}
@@ -267,32 +305,102 @@ func inferTags(pattern string) []string {
 // inferSummary 优先使用已知路由的中文摘要，否则根据方法与末段路径生成。
 func inferSummary(method, pattern string) string {
 	knownSummaries := map[string]string{
-		"GET /health":                                "健康检查",
-		"GET /health/ready":                          "就绪检查",
-		"GET /metrics":                               "Prometheus 指标",
-		"GET /api/v1/ws":                             "WebSocket 连接",
-		"POST /api/v1/auth/register":                 "用户注册",
-		"POST /api/v1/auth/login":                    "用户登录",
-		"POST /api/v1/auth/logout":                   "用户登出",
-		"POST /api/v1/auth/forgot-password":          "忘记密码（发送重置邮件）",
-		"POST /api/v1/auth/reset-password":           "重置密码（通过邮件令牌）",
-		"GET /api/v1/auth/tokens":                    "API Token 列表",
-		"POST /api/v1/auth/tokens":                   "创建 API Token",
-		"POST /api/v1/auth/tokens/revoke":            "撤销 API Token",
-		"GET /api/v1/auth/oauth/{provider}/redirect": "获取 OAuth2 跳转链接",
-		"POST /api/v1/auth/oauth/callback":           "OAuth2 登录回调",
-		"GET /api/v1/auth/oauth/tenants":             "获取可用租户列表",
-		"GET /api/v1/auth/oauth/accounts":            "已绑定的第三方账号列表",
-		"POST /api/v1/auth/oauth/bind":               "绑定第三方账号",
-		"POST /api/v1/auth/oauth/unbind":             "解绑第三方账号",
-		"POST /api/v1/auth/oauth/token/refresh":      "刷新 OAuth Token",
-		"GET /api/v1/exports":                        "导出任务列表",
-		"POST /api/v1/exports":                       "创建导出任务",
-		"GET /api/v1/exports/{id}":                   "导出任务详情",
-		"GET /api/v1/exports/{id}/download":          "下载导出文件",
-		"DELETE /api/v1/exports/{id}":                "删除导出任务",
-		"POST /api/v1/users/import":                  "批量导入用户（CSV/XLSX）",
-		"POST /api/v1/admin/tenant-users/import":     "跨租户批量导入用户（CSV/XLSX）",
+		"GET /health":                                             "健康检查",
+		"GET /health/ready":                                       "就绪检查",
+		"GET /metrics":                                            "Prometheus 指标",
+		"GET /api/v1/ws":                                          "WebSocket 连接",
+		"POST /api/v1/auth/register":                              "用户注册",
+		"POST /api/v1/auth/login":                                 "用户登录",
+		"POST /api/v1/auth/logout":                                "用户登出",
+		"POST /api/v1/auth/forgot-password":                       "忘记密码（发送重置邮件）",
+		"POST /api/v1/auth/reset-password":                        "重置密码（通过邮件令牌）",
+		"GET /api/v1/auth/tokens":                                 "API Token 列表",
+		"POST /api/v1/auth/tokens":                                "创建 API Token",
+		"POST /api/v1/auth/tokens/revoke":                         "撤销 API Token",
+		"GET /api/v1/auth/oauth/{provider}/redirect":              "获取 OAuth2 跳转链接",
+		"POST /api/v1/auth/oauth/callback":                        "OAuth2 登录回调",
+		"GET /api/v1/auth/oauth/tenants":                          "获取可用租户列表",
+		"GET /api/v1/auth/oauth/accounts":                         "已绑定的第三方账号列表",
+		"POST /api/v1/auth/oauth/bind":                            "绑定第三方账号",
+		"POST /api/v1/auth/oauth/unbind":                          "解绑第三方账号",
+		"POST /api/v1/auth/oauth/token/refresh":                   "刷新 OAuth Token",
+		"GET /api/v1/exports":                                     "导出任务列表",
+		"POST /api/v1/exports":                                    "创建导出任务",
+		"GET /api/v1/exports/{id}":                                "导出任务详情",
+		"GET /api/v1/exports/{id}/download":                       "下载导出文件",
+		"DELETE /api/v1/exports/{id}":                             "删除导出任务",
+		"POST /api/v1/users/import":                               "批量导入用户（CSV/XLSX）",
+		"POST /api/v1/admin/tenant-users/import":                  "跨租户批量导入用户（CSV/XLSX）",
+		"GET /api/v1/dashboard/tenant-overview":                   "租户工作台总览",
+		"GET /api/v1/settings/public":                             "公开运行时配置",
+		"GET /api/v1/admin/settings":                              "平台配置列表",
+		"PUT /api/v1/admin/settings":                              "批量更新平台配置",
+		"POST /api/v1/auth/email/send-verification":               "发送邮箱验证邮件",
+		"POST /api/v1/auth/email/verify":                          "验证邮箱",
+		"POST /api/v1/auth/2fa/setup":                             "初始化 2FA（生成密钥）",
+		"POST /api/v1/auth/2fa/enable":                            "确认启用 2FA",
+		"POST /api/v1/auth/2fa/disable":                           "关闭 2FA",
+		"GET /api/v1/auth/2fa/recovery-codes":                     "查询备份恢复码状态",
+		"POST /api/v1/auth/2fa/recovery-codes/regenerate":         "重新生成备份恢复码",
+		"GET /api/v1/messages":                                    "收件箱列表",
+		"GET /api/v1/messages/preferences":                        "接收偏好",
+		"PUT /api/v1/messages/preferences":                        "更新接收偏好",
+		"GET /api/v1/messages/unread-count":                       "未读消息数量",
+		"PUT /api/v1/messages/read-all":                           "全部标记已读",
+		"PUT /api/v1/messages/batch/read":                         "批量标记已读",
+		"DELETE /api/v1/messages/batch/delete":                    "批量删除消息",
+		"PUT /api/v1/messages/{id}/read":                          "标记单条消息已读",
+		"DELETE /api/v1/messages/{id}":                            "删除消息",
+		"GET /api/v1/invitations":                                 "邀请列表",
+		"POST /api/v1/invitations":                                "创建邀请",
+		"POST /api/v1/invitations/batch":                          "批量创建邀请",
+		"GET /api/v1/invitations/roles":                           "可分配角色列表",
+		"PUT /api/v1/invitations/{id}/cancel":                     "取消邀请",
+		"PUT /api/v1/invitations/{id}/resend":                     "重发邀请",
+		"DELETE /api/v1/invitations/{id}/delete":                  "删除邀请",
+		"POST /api/v1/invitations/accept":                         "接受邀请",
+		"GET /api/v1/invitations/info":                            "邀请信息",
+		"POST /api/v1/chat/conversations/direct":                  "打开或创建单聊会话",
+		"POST /api/v1/chat/conversations/group":                   "创建群聊会话",
+		"GET /api/v1/chat/conversations":                          "会话列表",
+		"PUT /api/v1/chat/conversations/{id}":                     "修改群名称",
+		"GET /api/v1/chat/conversations/{id}/messages":            "历史消息分页",
+		"POST /api/v1/chat/conversations/{id}/messages":           "发送消息",
+		"DELETE /api/v1/chat/conversations/{id}/messages/{msgId}": "撤回消息",
+		"GET /api/v1/chat/conversations/{id}/members":             "群成员列表",
+		"POST /api/v1/chat/conversations/{id}/members":            "添加群成员",
+		"DELETE /api/v1/chat/conversations/{id}/members/{userId}": "移除群成员",
+		"POST /api/v1/chat/conversations/{id}/leave":              "退出群聊",
+		"POST /api/v1/chat/conversations/{id}/read":               "标记会话已读",
+		"GET /api/v1/chat/conversations/{id}/read-status":         "会话已读状态",
+		"POST /api/v1/chat/conversations/{id}/typing":             "输入中提示",
+		"GET /api/v1/chat/presence":                               "在线状态",
+		"POST /api/v1/csp-report":                                 "上报 CSP 违规",
+		"GET /api/v1/admin/oauth-providers":                       "OAuth 提供商列表",
+		"POST /api/v1/admin/oauth-providers":                      "创建 OAuth 提供商",
+		"GET /api/v1/admin/oauth-providers/{code}":                "OAuth 提供商详情",
+		"PUT /api/v1/admin/oauth-providers/{code}":                "更新 OAuth 提供商",
+		"DELETE /api/v1/admin/oauth-providers/{code}":             "删除 OAuth 提供商",
+		"PUT /api/v1/admin/oauth-providers/{code}/status":         "启用/停用 OAuth 提供商",
+		"GET /api/v1/tasks/ai/capabilities":                       "AI 能力探测",
+		"POST /api/v1/tasks/ai/parse":                             "AI 解析自然语言为任务",
+		"POST /api/v1/tasks/ai/suggest":                           "AI 任务建议",
+		"POST /api/v1/tasks/ai/expand":                            "AI 任务拆解",
+		"POST /api/v1/tasks/ai/summary":                           "AI 任务总结",
+		"POST /api/v1/tasks/batch/assign":                         "批量指派任务",
+		"POST /api/v1/tasks/batch/status":                         "批量更新任务状态",
+		"POST /api/v1/tasks/batch/complete":                       "批量完成任务",
+		"POST /api/v1/tasks/batch/delete":                         "批量删除任务",
+		"GET /api/v1/wiki/pending-reviews":                        "待审核文档列表",
+		"POST /api/v1/wiki/documents/{id}/submit-review":          "提交文档审核",
+		"POST /api/v1/wiki/documents/{id}/approve":                "审核通过文档",
+		"POST /api/v1/wiki/documents/{id}/reject":                 "驳回文档审核",
+		"POST /api/v1/wiki/documents/{id}/publish":                "发布文档",
+		"POST /api/v1/wiki/documents/{id}/unpublish":              "取消发布文档",
+		"POST /api/v1/wiki/documents/{id}/archive":                "归档文档",
+		"GET /api/v1/wiki/documents/{id}/review-comments":         "文档审核评论列表",
+		"POST /api/v1/wiki/documents/comments/{id}/reactions":     "评论点赞切换",
+		"POST /api/v1/wiki/documents/comments/{id}/resolve":       "标记评论已解决",
 	}
 	key := method + " " + pattern
 	if s, ok := knownSummaries[key]; ok {
@@ -324,180 +432,14 @@ func normalizePattern(p string) string {
 	return p
 }
 
-// buildRouter 组装与生产一致的路由树（ handler 均为 noop），供 chi.Walk 提取路由。
+// buildRouter 从 internal/routetable 取路由树：该表由各模块导出的纯注册函数拼装，
+// 与生产 bootstrap.InitRouter 的一致性由 bootstrap 包的 TestRouteTable_MatchesProductionRouter 强校验。
 func buildRouter() *chi.Mux {
-	r := chi.NewRouter()
-
-	r.Get("/health", noop())
-	r.Get("/health/ready", noop())
-	r.Get("/metrics", noop())
-
-	r.Route("/api/v1", func(r chi.Router) {
-		r.Group(func(r chi.Router) {
-			auth.RegisterRoutes(r, &authHandler.AuthHandler{})
-			tenant.RegisterPublicRoutes(r, &tenantHandler.TenantHandler{})
-			oauth.RegisterRoutes(r, &oauthHandler.OAuthHandler{})
-			registerWikiPublicShare(r)
-		})
-
-		r.Group(func(r chi.Router) {
-			r.Get("/ws", noop())
-
-			auth.RegisterAPITokenRoutes(r, &authHandler.APITokenHandler{})
-			oauth.RegisterProtectedRoutes(r, &oauthHandler.OAuthHandler{})
-			tenant.RegisterPrivateRoutes(r, &tenantHandler.TenantHandler{})
-			tenant.RegisterTenantSettingsRoutes(r, &tenantHandler.TenantSettingsHandler{})
-			user.RegisterRoutes(r, &userHandler.UserHandler{}, nil)
-			user.RegisterProfileRoutes(r, &userHandler.UserHandler{})
-			plan.RegisterPrivateRoutes(r, &planHandler.PlanHandler{})
-			registerFileRoutes(r)
-			registerWikiRoutes(r)
-			registerTaskRoutes(r)
-			notification.RegisterTenantRoutes(r, &notificationHandler.AnnouncementHandler{})
-			export.RegisterRoutes(r, &exportHandler.ExportHandler{}, nil)
-
-			r.Group(func(r chi.Router) {
-				tenant.RegisterAdminRoutes(r, &tenantHandler.TenantHandler{}, nil)
-				user.RegisterAdminRoutes(r, &userHandler.UserHandler{}, nil)
-				rbac.RegisterRoutes(r, &rbacHandler.RBACHandler{}, nil)
-				audit.RegisterRoutes(r, &auditHandler.AuditHandler{}, &auditHandler.AlertHandler{}, &auditHandler.SessionHandler{}, &auditHandler.IntegrityHandler{}, nil, nil)
-				plan.RegisterAdminRoutes(r, &planHandler.PlanHandler{}, nil)
-				dashboard.RegisterRoutes(r, &dashboardHandler.DashboardHandler{}, nil)
-				notification.RegisterRoutes(r, &notificationHandler.AnnouncementHandler{}, nil)
-			})
-		})
-	})
-
-	return r
+	return routetable.Build()
 }
 
-// registerTaskRoutes 补充任务模块路由（实际由 task.InitModule 依赖 DB 注册，此处仅用于路由提取）。
-func registerTaskRoutes(r chi.Router) {
-	r.Route("/tasks", func(r chi.Router) {
-		r.Get("/stats", noop())
-		r.Get("/deleted", noop())
-		r.Post("/batch/complete", noop())
-		r.Post("/batch/delete", noop())
-		r.Get("/", noop())
-		r.Post("/", noop())
-		r.Get("/{id}", noop())
-		r.Put("/{id}", noop())
-		r.Delete("/{id}", noop())
-		r.Put("/{id}/restore", noop())
-		r.Delete("/{id}/permanent", noop())
-		r.Put("/{id}/complete", noop())
-		r.Put("/{id}/reopen", noop())
-	})
-}
-
-// registerFileRoutes 补充文件模块路由（实际由动态注册，此处仅用于路由提取）。
-func registerFileRoutes(r chi.Router) {
-	r.Route("/files", func(r chi.Router) {
-		r.Post("/upload", noop())
-		r.Get("/", noop())
-		r.Get("/my", noop())
-		r.Get("/{id}", noop())
-		r.Get("/{id}/download", noop())
-		r.Put("/{id}", noop())
-		r.Delete("/{id}", noop())
-		r.Post("/batch/delete", noop())
-		r.Get("/deleted", noop())
-		r.Put("/{id}/restore", noop())
-		r.Delete("/{id}/permanent", noop())
-	})
-}
-
-// registerWikiRoutes 补充 Wiki 模块路由（实际由动态注册，此处仅用于路由提取）。
-func registerWikiRoutes(r chi.Router) {
-	r.Route("/wiki", func(r chi.Router) {
-		r.Get("/stats", noop())
-		r.Get("/search", noop())
-		r.Get("/trash", noop())
-		r.Post("/trash/{id}/restore", noop())
-		r.Delete("/trash/{id}", noop())
-		r.Post("/admin/trash/expire", noop())
-
-		r.Route("/spaces", func(r chi.Router) {
-			r.Get("/", noop())
-			r.Post("/", noop())
-			r.Get("/{id}", noop())
-			r.Put("/{id}", noop())
-			r.Delete("/{id}", noop())
-
-			r.Route("/{spaceId}/nodes", func(r chi.Router) {
-				r.Get("/tree", noop())
-				r.Post("/", noop())
-				r.Get("/{id}", noop())
-				r.Put("/{id}", noop())
-				r.Delete("/{id}", noop())
-				r.Post("/{id}/move", noop())
-				r.Put("/{id}/sort", noop())
-				r.Get("/{id}/permissions", noop())
-				r.Post("/{id}/permissions", noop())
-				r.Delete("/{id}/permissions/{userId}/{permission}", noop())
-			})
-
-			r.Route("/{spaceId}/members", func(r chi.Router) {
-				r.Get("/", noop())
-				r.Post("/", noop())
-				r.Delete("/{userId}", noop())
-			})
-
-			r.Post("/tags", noop())
-			r.Get("/tags", noop())
-			r.Delete("/tags/{id}", noop())
-			r.Post("/nodes/batch", noop())
-			r.Post("/templates", noop())
-			r.Get("/templates", noop())
-			r.Get("/templates/{id}", noop())
-			r.Put("/templates/{id}", noop())
-			r.Delete("/templates/{id}", noop())
-			r.Get("/notifications", noop())
-			r.Put("/notifications/read-all", noop())
-			r.Get("/notifications/unread-count", noop())
-			r.Put("/notifications/{id}/read", noop())
-			r.Get("/subscriptions", noop())
-		})
-
-		r.Route("/documents", func(r chi.Router) {
-			r.Post("/preview", noop())
-			r.Post("/nodes/{nodeId}", noop())
-			r.Get("/nodes/{nodeId}", noop())
-			r.Put("/{id}", noop())
-			r.Delete("/{id}", noop())
-			r.Get("/{documentId}/revisions", noop())
-			r.Get("/{documentId}/revisions/{version}", noop())
-			r.Post("/{documentId}/revisions/{version}/restore", noop())
-			r.Post("/attachments", noop())
-			r.Get("/{documentId}/attachments", noop())
-			r.Delete("/attachments/{id}", noop())
-			r.Post("/{id}/tags/{tagId}", noop())
-			r.Delete("/{id}/tags/{tagId}", noop())
-			r.Get("/{id}/tags", noop())
-			r.Post("/{id}/comments", noop())
-			r.Get("/{id}/comments", noop())
-			r.Put("/comments/{id}", noop())
-			r.Delete("/comments/{id}", noop())
-			r.Post("/{id}/share", noop())
-			r.Get("/{id}/shares", noop())
-			r.Delete("/shares/{id}", noop())
-			r.Get("/{id}/stats", noop())
-			r.Get("/{id}/access-logs", noop())
-			r.Post("/{id}/subscribe", noop())
-			r.Delete("/{id}/subscribe", noop())
-			r.Post("/{id}/edit-lock", noop())
-			r.Delete("/{id}/edit-lock", noop())
-			r.Put("/{id}/edit-lock", noop())
-			r.Get("/{id}/edit-lock", noop())
-			r.Post("/{id}/export", noop())
-			r.Post("/{id}/import", noop())
-			r.Get("/{id}/revisions/compare", noop())
-		})
-	})
-}
-
-// syncApifox 对比代码路由与 Apifox 文档差异，apply 为 true 时将修复写回文件。
-func syncApifox(codeSet map[string]routeEntry, apply bool) {
+// 返回值为 true 表示本次对比发现差异（无论是否已修复）。
+func syncApifox(codeSet map[string]routeEntry, apply bool) bool {
 	data, err := os.ReadFile("docs/apifox/MeteorX-backend.apifox.json")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "读取 Apifox 文件失败: %v\n", err)
@@ -513,6 +455,12 @@ func syncApifox(codeSet map[string]routeEntry, apply bool) {
 	collection, _ := doc["apiCollection"].([]interface{})
 	apifoxSet := make(map[string]bool)
 	groupMap := make(map[string]map[string]interface{})
+	var duplicateRoutes []string
+
+	// 以文档内现有最大数字 ID 初始化计数器：计数器是进程级的，若固定从 900000000 起，
+	// 第二次运行新增条目会与上一次已写入的 ID 撞车（历史上已发生过）。
+	existingIDs := collectApifoxIDs(doc)
+	initApifoxIDCounter(existingIDs)
 
 	var collectRoutes func(items []interface{}, groupID string)
 	collectRoutes = func(items []interface{}, groupID string) {
@@ -522,6 +470,10 @@ func syncApifox(codeSet map[string]routeEntry, apply bool) {
 				method := strings.ToUpper(api["method"].(string))
 				path := api["path"].(string)
 				key := method + " " + normalizePattern(path)
+				if apifoxSet[key] {
+					// 集合用 map 去重，重复条目不会体现为缺失/多余，必须单独记账否则永远静默。
+					duplicateRoutes = append(duplicateRoutes, key)
+				}
 				apifoxSet[key] = true
 				if groupID != "" {
 					groupMap[key] = obj
@@ -582,14 +534,23 @@ func syncApifox(codeSet map[string]routeEntry, apply bool) {
 		fmt.Println("✅ Apifox 无多余路由")
 	}
 
-	if len(missingKeys) == 0 && len(extraKeys) == 0 {
+	if len(duplicateRoutes) > 0 {
+		fmt.Printf("⚠️  Apifox 存在 %d 条重复条目：\n", len(duplicateRoutes))
+		for _, k := range duplicateRoutes {
+			fmt.Printf("  = %s\n", k)
+		}
+		fmt.Println()
+	}
+
+	if len(missingKeys) == 0 && len(extraKeys) == 0 && len(duplicateRoutes) == 0 {
 		fmt.Println("\n🎉 完美匹配！")
-		return
+		return false
 	}
 
 	if apply {
 		fmt.Println("\n===== 应用修复 =====")
 
+		idFloor := apifoxIDCounter
 		addedCount := 0
 		rootFolder := firstApifoxRootFolder(collection)
 		for _, key := range missingKeys {
@@ -620,6 +581,21 @@ func syncApifox(codeSet map[string]routeEntry, apply bool) {
 			}
 		}
 
+		// 同一路由在文档中重复出现时，Apifox 导入会相互覆盖，保留首条并清理其余。
+		dupRemoved := dedupeApifoxRoutes(collection)
+
+		// 写回前自检：本次新分配的 ID 不得与文档既有 ID 重叠，否则中止写回避免再次污染。
+		var collisions []int64
+		for id := idFloor + 1; id <= apifoxIDCounter; id++ {
+			if existingIDs[id] {
+				collisions = append(collisions, id)
+			}
+		}
+		if len(collisions) > 0 {
+			fmt.Fprintf(os.Stderr, "❌ 新增条目 ID 与既有 ID 冲突 %d 个（如 %d），已中止写回\n", len(collisions), collisions[0])
+			os.Exit(1)
+		}
+
 		out, err := json.MarshalIndent(doc, "", "  ")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "序列化失败: %v\n", err)
@@ -629,10 +605,11 @@ func syncApifox(codeSet map[string]routeEntry, apply bool) {
 			fmt.Fprintf(os.Stderr, "写入失败: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("\n✅ 已修复：+%d / -%d\n", addedCount, removedCount)
+		fmt.Printf("\n✅ 已修复：+%d / -%d（重复条目 -%d）\n", addedCount, removedCount, dupRemoved)
 	} else {
 		fmt.Println("\n💡 加 -apply 参数可自动修复")
 	}
+	return true
 }
 
 // findApifoxGroup 根据推断的分组名在 Apifox 集合中定位目标分组。
@@ -691,7 +668,7 @@ func inferApifoxGroupName(pattern string) string {
 	if strings.HasPrefix(pattern, "/api/v1/auth/tokens") {
 		return "认证"
 	}
-	if strings.HasPrefix(pattern, "/api/v1/auth/oauth") || strings.HasPrefix(pattern, "/api/v1/oauth") {
+	if strings.HasPrefix(pattern, "/api/v1/auth/oauth") || strings.HasPrefix(pattern, "/api/v1/oauth") || strings.HasPrefix(pattern, "/api/v1/admin/oauth") {
 		return "认证"
 	}
 	if strings.HasPrefix(pattern, "/api/v1/auth") {
@@ -751,16 +728,33 @@ func inferApifoxGroupName(pattern string) string {
 	if strings.HasPrefix(pattern, "/api/v1/tasks") {
 		return "任务管理"
 	}
+	if strings.HasPrefix(pattern, "/api/v1/chat") {
+		return "即时消息"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/messages") {
+		return "站内消息"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/invitations") {
+		return "成员邀请"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/settings") || strings.HasPrefix(pattern, "/api/v1/admin/settings") {
+		return "系统配置"
+	}
+	if strings.HasPrefix(pattern, "/api/v1/dashboard") {
+		return "工作台"
+	}
 	if strings.HasPrefix(pattern, "/api/v1/exports") {
 		return "数据导出"
 	}
-	if strings.HasPrefix(pattern, "/api/v1/ws") {
+	if strings.HasPrefix(pattern, "/api/v1/ws") || strings.HasPrefix(pattern, "/api/v1/csp-report") {
 		return "系统"
 	}
+	// 兜底归入「认证」仅为保持旧行为；未登记前缀意味着该路由会落错分组，必须显式提醒。
+	fmt.Printf("⚠️  未识别路径前缀 %s，暂归入「认证」分组，请在 inferApifoxGroupName 补登记\n", pattern)
 	return "认证"
 }
 
-// apifoxIDCounter 为新增 Apifox 条目递增生成唯一 ID。
+// apifoxIDCounter 为新增 Apifox 条目递增生成唯一 ID；实际起点由 initApifoxIDCounter 抬高到现有最大 ID 之上。
 var apifoxIDCounter int64 = 900000000
 
 // nextApifoxID 返回下一个可用的 Apifox 条目 ID。
@@ -769,12 +763,72 @@ func nextApifoxID() string {
 	return fmt.Sprintf("%d", apifoxIDCounter)
 }
 
+// collectApifoxIDs 递归收集文档中所有键为 "id" 的整数标识。
+func collectApifoxIDs(v interface{}) map[int64]bool {
+	ids := make(map[int64]bool)
+	var walk func(node interface{})
+	walk = func(node interface{}) {
+		switch t := node.(type) {
+		case map[string]interface{}:
+			for k, val := range t {
+				if k == "id" {
+					if n, ok := apifoxNumericID(val); ok {
+						ids[n] = true
+					}
+				}
+				walk(val)
+			}
+		case []interface{}:
+			for _, item := range t {
+				walk(item)
+			}
+		}
+	}
+	walk(v)
+	return ids
+}
+
+// initApifoxIDCounter 把自增计数器抬到现有最大 ID 之上；无历史 ID 时保持 900000000 起点。
+func initApifoxIDCounter(ids map[int64]bool) {
+	base := int64(900000000)
+	for id := range ids {
+		if id > base {
+			base = id
+		}
+	}
+	apifoxIDCounter = base
+}
+
+// apifoxNumericID 把 JSON 数字或数字字符串转为 int64；非整数或超出安全整数范围时返回 false。
+func apifoxNumericID(v interface{}) (int64, bool) {
+	switch n := v.(type) {
+	case float64:
+		if n < 0 || n > 1<<53 {
+			return 0, false
+		}
+		i := int64(n)
+		if float64(i) != n {
+			return 0, false
+		}
+		return i, true
+	case string:
+		if i, err := strconv.ParseInt(n, 10, 64); err == nil {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
 // buildApifoxAPIItem 构造一条符合 Apifox 结构的 API 条目。
 func buildApifoxAPIItem(method, pattern string) map[string]interface{} {
 	methodLower := strings.ToLower(method)
 	tags := inferTags(pattern)
 	perm := middleware.DerivePermissionCode(method, pattern)
 	summary := inferSummary(method, pattern)
+	description := fmt.Sprintf("权限码: `%s`", perm)
+	if doc := inferDocPath(pattern); doc != "" {
+		description += fmt.Sprintf("\n\n接口文档: `%s`", doc)
+	}
 
 	apiID := nextApifoxID()
 	respID := nextApifoxID()
@@ -823,7 +877,7 @@ func buildApifoxAPIItem(method, pattern string) map[string]interface{} {
 				"required":               true,
 				"additionalContentTypes": []interface{}{},
 			},
-			"description": fmt.Sprintf("权限码: `%s`", perm),
+			"description": description,
 			"tags":        tagStrs,
 			"status":      "released",
 			"serverId":    "",
@@ -929,10 +983,39 @@ func removeApifoxRoute(collection []interface{}, method, pattern string) bool {
 	return false
 }
 
-func registerWikiPublicShare(r chi.Router) {
-	r.Get("/wiki/share/{token}", noop())
-}
+// dedupeApifoxRoutes 清理同一 方法+路径 的重复条目（保留首次出现），返回删除数量。
+func dedupeApifoxRoutes(collection []interface{}) int {
+	seen := make(map[string]bool)
+	removed := 0
 
-func noop() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {}
+	var walkItems func(items []interface{}) []interface{}
+	walkItems = func(items []interface{}) []interface{} {
+		kept := make([]interface{}, 0, len(items))
+		for _, item := range items {
+			obj, _ := item.(map[string]interface{})
+			if api, ok := obj["api"].(map[string]interface{}); ok {
+				key := strings.ToUpper(api["method"].(string)) + " " + normalizePattern(api["path"].(string))
+				if seen[key] {
+					removed++
+					fmt.Printf("- 删除重复条目 %s\n", key)
+					continue
+				}
+				seen[key] = true
+				kept = append(kept, item)
+				continue
+			}
+			if sub, ok := obj["items"].([]interface{}); ok {
+				obj["items"] = walkItems(sub)
+			}
+			kept = append(kept, item)
+		}
+		return kept
+	}
+
+	for _, item := range collection {
+		obj, _ := item.(map[string]interface{})
+		items, _ := obj["items"].([]interface{})
+		obj["items"] = walkItems(items)
+	}
+	return removed
 }

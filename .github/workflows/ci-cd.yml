@@ -35,6 +35,10 @@ jobs:
           version: v2.9.0
           args: --timeout=5m
           only-new-issues: true
+      - name: Check API docs in sync
+        # -check：文档与 buildRouter 路由树不一致时以非 0 退出，防止接口只改进代码、文档悄然漂移。
+        # 修复方式：本地 `go run scripts/openapi_sync.go -apply` 后提交 docs/apifox 下两份 JSON。
+        run: go run scripts/openapi_sync.go -check
 
   test:
     name: Unit Tests
