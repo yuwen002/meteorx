@@ -11,50 +11,50 @@ import (
 // Space 角色权限矩阵
 var spaceRolePermissions = map[string]map[string]bool{
 	model.SpaceRoleOwner: {
-		"space:read":        true,
-		"space:update":      true,
-		"space:delete":      true,
-		"member:manage":     true,
-		"node:create":       true,
-		"node:read":         true,
-		"node:update":       true,
-		"node:delete":       true,
-		"document:create":   true,
-		"document:read":     true,
-		"document:update":   true,
-		"document:delete":   true,
-		"document:review":   true,
-		"document:publish":  true,
-		"revision:read":     true,
-		"revision:restore":  true,
+		"space:read":       true,
+		"space:update":     true,
+		"space:delete":     true,
+		"member:manage":    true,
+		"node:create":      true,
+		"node:read":        true,
+		"node:update":      true,
+		"node:delete":      true,
+		"document:create":  true,
+		"document:read":    true,
+		"document:update":  true,
+		"document:delete":  true,
+		"document:review":  true,
+		"document:publish": true,
+		"revision:read":    true,
+		"revision:restore": true,
 	},
 	model.SpaceRoleAdmin: {
-		"space:read":        true,
-		"space:update":      true,
-		"member:manage":     true,
-		"node:create":       true,
-		"node:read":         true,
-		"node:update":       true,
-		"node:delete":       true,
-		"document:create":   true,
-		"document:read":     true,
-		"document:update":   true,
-		"document:delete":   true,
-		"document:review":   true,
-		"document:publish":  true,
-		"revision:read":     true,
-		"revision:restore":  true,
+		"space:read":       true,
+		"space:update":     true,
+		"member:manage":    true,
+		"node:create":      true,
+		"node:read":        true,
+		"node:update":      true,
+		"node:delete":      true,
+		"document:create":  true,
+		"document:read":    true,
+		"document:update":  true,
+		"document:delete":  true,
+		"document:review":  true,
+		"document:publish": true,
+		"revision:read":    true,
+		"revision:restore": true,
 	},
 	model.SpaceRoleEditor: {
-		"node:create":       true,
-		"node:read":         true,
-		"node:update":       true,
-		"document:create":   true,
-		"document:read":     true,
-		"document:update":   true,
-		"document:review":   true,
-		"revision:read":     true,
-		"revision:restore":  true,
+		"node:create":      true,
+		"node:read":        true,
+		"node:update":      true,
+		"document:create":  true,
+		"document:read":    true,
+		"document:update":  true,
+		"document:review":  true,
+		"revision:read":    true,
+		"revision:restore": true,
 	},
 	model.SpaceRoleViewer: {
 		"node:read":     true,
@@ -163,7 +163,10 @@ func (s *wikiService) checkNodeLevelPermission(ctx context.Context, nodeID, user
 	return apperrors.ErrForbidden("您没有执行此操作的节点权限")
 }
 
-// mapActionToSpaceLevel 将操作映射到 Space 级别的权限检查
+// mapActionToSpaceLevel 将操作映射到 Space 级别的权限检查。
+// 返回值必须是 spaceRolePermissions 中真实存在的权限键，否则该动作对所有成员
+// （含 Space Owner）都会被判为无权限；review/publish 因此必须显式映射到
+// document:review / document:publish。
 func mapActionToSpaceLevel(action string) string {
 	switch action {
 	case "read":
@@ -174,6 +177,10 @@ func mapActionToSpaceLevel(action string) string {
 		return "node:update"
 	case "delete":
 		return "node:delete"
+	case "review":
+		return "document:review"
+	case "publish":
+		return "document:publish"
 	default:
 		return action
 	}

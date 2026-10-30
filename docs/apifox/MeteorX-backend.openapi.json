@@ -9288,7 +9288,7 @@
     },
     "/api/v1/csp-report": {
       "post": {
-        "description": "权限码: `csp-report:create`",
+        "description": "公开接口（无鉴权）\n\n接口文档: `docs/api/system-api.md`",
         "responses": {
           "200": {
             "description": "成功"

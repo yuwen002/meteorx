@@ -34333,7 +34333,7 @@
                 "commonParameters": {},
                 "commonResponseStatus": {},
                 "customApiFields": "{}",
-                "description": "权限码: `csp-report:create`",
+                "description": "公开接口（无鉴权）\n\n接口文档: `docs/api/system-api.md`",
                 "id": "984227017",
                 "inheritPostProcessors": {},
                 "inheritPreProcessors": {},

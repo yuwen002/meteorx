@@ -971,9 +971,13 @@ Notification (通知，按用户聚合)
 | GET | `/api/v1/wiki/documents/{id}/comments` | 评论树（父评论含 `replies`） |
 | PUT | `/api/v1/wiki/documents/comments/{id}` | 更新评论，body：`{content}`；仅作者可改 |
 | DELETE | `/api/v1/wiki/documents/comments/{id}` | 删除评论；作者本人或具备节点 delete 权限者 |
+| POST | `/api/v1/wiki/documents/comments/{id}/reactions` | 切换表情回应；body：`{emoji}`（必填，≤16 字符）；已回应同名表情再次调用即取消（幂等切换），返回该评论全部表情聚合 |
+| POST | `/api/v1/wiki/documents/comments/{id}/resolve` | 解决/重开根评论；body：`{resolved: true \| false}`；`resolved=true` 状态置为 2（已解决），`false` 回到 1（活跃） |
 
 - `mention_ids` 逗号分隔的用户 ID，被提及者会收到类型为 `mention` 的通知。
-- 权限：查看/发表评论要求对应节点 `read` 权限。
+- 权限：查看/发表评论、表情回应要求对应节点 `read` 权限；解决/重开非本人评论需节点 `delete` 权限。
+- 表情回应返回体形如 `{"comment_id": "01H...", "reactions": [{"emoji": "👍", "count": 2, "mine": true}]}`，按首次出现顺序聚合。
+- 仅根评论可解决/重开，对回复调用返回 400「仅可解决或重开根评论」。
 
 ### 12.4 分享链接
 
@@ -1066,6 +1070,155 @@ Notification (通知，按用户聚合)
 
 ---
 
+## 14. 发布工作流与审核 (Review & Publish)
+
+> 实现见 `internal/modules/wiki/service/wiki_publish_service.go`，状态常量定义于 `model` 包。
+> 这组接口**不新增路由级权限码**，鉴权发生在服务层：将业务动作映射到空间角色权限矩阵。
+
+### 14.1 状态机
+
+| 当前状态 | 允许流转 | 触发接口 |
+|----------|----------|----------|
+| `draft` | `pending_review` | 提交审核 |
+| `pending_review` | `published` / `rejected` / `draft` | 审核通过 / 驳回 / 取消发布 |
+| `published` | `archived` / `draft` | 归档 / 取消发布 |
+| `rejected` | `pending_review` / `draft` | 重新提交审核 / 取消发布 |
+| `archived` | `draft` | 取消发布（回到草稿后可重新走审核） |
+
+未列出的流转（如 `draft → published`、`published → published`、`archived → published`）一律返回 409，
+message 形如「文档当前状态为 draft，无法直接发布」。因此 **直接发布只对 `pending_review` 状态生效**，
+要发布草稿需先提交审核。
+
+### 14.2 角色与权限动作
+
+服务层把动作映射为空间角色权限键（`mapActionToSpaceLevel`）：
+`read → node:read`、`create → node:create`、`update → node:update`、`delete → node:delete`、
+`review → document:review`、`publish → document:publish`。
+
+| 角色 | read（`node:read`） | update（`node:update`） | review（`document:review`） | publish（`document:publish`） |
+|------|------|------|------|------|
+| owner | 是 | 是 | 是 | 是 |
+| admin | 是 | 是 | 是 | 是 |
+| editor | 是 | 是 | 是 | 否 |
+| viewer | 是 | 否 | 否 | 否 |
+
+节点级授权（`view` / `edit` / `delete`）只补充 `read` / `update` / `delete`，**不能授予 review / publish**；
+审核与发布能力只能由空间角色（owner / admin / editor）提供。
+
+### 14.3 端点列表
+
+| 方法 | 路径 | 鉴权动作 | 说明 |
+|------|------|----------|------|
+| GET | `/api/v1/wiki/pending-reviews?page=&page_size=` | 租户级 | 待审队列（含 `pending_review` 与 `rejected`），按文档 `updated_at` 倒序 |
+| POST | `/api/v1/wiki/documents/{id}/submit-review` | `update` | 提交审核，body：`{comment?}` |
+| POST | `/api/v1/wiki/documents/{id}/approve` | `review` | 审核通过并发布，body：`{comment?}` |
+| POST | `/api/v1/wiki/documents/{id}/reject` | `review` | 驳回，body：`{comment?}` |
+| POST | `/api/v1/wiki/documents/{id}/publish` | `publish` | 直接发布（仅 `pending_review` 状态可用） |
+| POST | `/api/v1/wiki/documents/{id}/unpublish` | `publish` | 取消发布，回到 `draft` 并清空审核/发布时间 |
+| POST | `/api/v1/wiki/documents/{id}/archive` | `publish` | 归档 |
+| GET | `/api/v1/wiki/documents/{id}/review-comments` | `read` | 审核记录列表（按时间倒序，含审核人 `reviewer_name`） |
+
+### 14.4 请求与响应示例
+
+提交审核：
+```json
+POST /api/v1/wiki/documents/{id}/submit-review
+{ "comment": "请审核版式与图例" }
+```
+```json
+{
+  "data": {
+    "document_id": "01H...",
+    "node_id": "01H...",
+    "title": "发布规范",
+    "publish_status": "pending_review"
+  }
+}
+```
+
+审核通过（`published_at` / `reviewed_by` / `reviewed_at` 同时回填）：
+```json
+POST /api/v1/wiki/documents/{id}/approve
+{ "comment": "通过" }
+```
+```json
+{
+  "data": {
+    "document_id": "01H...",
+    "node_id": "01H...",
+    "title": "发布规范",
+    "publish_status": "published",
+    "published_at": "2024-05-01T10:00:00Z",
+    "reviewed_by": "01H...",
+    "reviewed_at": "2024-05-01T10:00:00Z"
+  }
+}
+```
+
+驳回（无 `published_at`）：`publish_status` 为 `rejected`，其余同上；取消发布/归档分别返回 `draft` / `archived`。
+
+待审队列（手写分页，默认 `page=1`、`page_size=20`）：
+```json
+{
+  "data": {
+    "items": [
+      {
+        "id": "01H...",
+        "document_id": "01H...",
+        "node_id": "01H...",
+        "title": "发布规范",
+        "space_id": "01H...",
+        "space_name": "产品空间",
+        "publish_status": "pending_review",
+        "submitted_by": "",
+        "submitted_at": "2024-05-01T09:00:00Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "page_size": 20
+  }
+}
+```
+> `submitted_at` 取文档 `updated_at`（即最近一次提交/状态变更时间）；`submitted_by` 为保留字段，当前未回填。
+
+审核记录：
+```json
+{
+  "data": [
+    {
+      "id": "01H...",
+      "document_id": "01H...",
+      "node_id": "01H...",
+      "action": "approve",
+      "content": "通过",
+      "reviewer_id": "01H...",
+      "reviewer_name": "张三",
+      "created_at": "2024-05-01T10:00:00Z"
+    }
+  ]
+}
+```
+
+### 14.5 审核记录与通知
+
+- 每次提交/通过/驳回/直接发布/归档写入 `wiki_review_comments`，`action ∈ {submit, approve, reject, publish, archive}`；
+  仅提交/通过/驳回带 `comment` 时记录内容，直接发布与归档为无内容记录。
+- 提交审核后，向空间内 owner / admin（排除提交人本人）发送 `review` 类型通知「有文档待你审核」。
+- 审核通过 / 驳回后，向文档最后编辑者（`last_edited_by`）发送通知；审核人与作者为同一人时不发送。
+- 通知写入失败只记录日志，不影响主流程。
+
+### 14.6 错误响应
+
+| 场景 | HTTP | message 示例 |
+|------|------|--------------|
+| 空间角色不具备对应动作 | 403 | 您没有执行此操作的权限 |
+| 状态机不允许的流转 | 409 | 文档当前状态为 draft，无法直接发布 |
+| 文档/节点不存在 | 404 | 文档不存在 |
+| 请求体非法 JSON | 400 | 无效的JSON格式 |
+
+---
+
 ## 权限码汇总
 
 | 权限码 | 说明 | 推导自 |
@@ -1100,6 +1253,10 @@ Notification (通知，按用户聚合)
 | `wiki:attachment:create` | 创建附件 | `POST /wiki/documents/attachments` |
 | `wiki:attachment:list` | 列出附件 | `GET /wiki/documents/{id}/attachments` |
 | `wiki:attachment:delete` | 删除附件 | `DELETE /wiki/documents/attachments/{id}` |
+
+> 注：评论表情回应/解决与发布工作流共 10 个端点（`comments/{id}/reactions`、`comments/{id}/resolve`、
+> `pending-reviews`、`submit-review`、`approve`、`reject`、`publish`、`unpublish`、`archive`、`review-comments`）
+> 不推导路由级权限码，仅由服务层的空间角色动作（read / update / review / publish）鉴权，详见 12.3 与 14 节。
 
 ---
 

@@ -107,7 +107,7 @@ go run scripts/openapi_sync.go -check
    - 多余路由：文档中有但代码中没有
    - 重复条目：同一 `METHOD /path` 在 Apifox 中出现多次（集合用 map 去重，不单独检测会永远静默）
 5. **自动修复**（使用 `-apply` 时）：
-   - OpenAPI：写入 method 操作对象（默认 summary、tags、权限码 description、200 响应）
+   - OpenAPI：写入 method 操作对象（默认 summary、tags、description、200 响应）；description 默认是权限码，公开运维端点（`/health*`、`/metrics`、`/api/v1/csp-report`）则写「公开接口（无鉴权）」
    - Apifox：按路径前缀定位中文分组追加条目，分组不存在则新建
    - 两侧同步删除多余路由，Apifox 额外清理重复条目（保留首条）
 
@@ -121,7 +121,7 @@ go run scripts/openapi_sync.go -check
 |------|---------|
 | `summary` | 先查 `inferSummary` 内置中文摘要表，未命中则按方法 + 末段路径拼接，如 `GET /users` → "获取users" |
 | `tags` | `inferTags` 按路径前缀推断，如 `/api/v1/auth/*` → `["Auth"]` |
-| `description` | 自动生成 `权限码: <code>`；命中 `inferDocPath` 时追加 `接口文档: docs/api/xxx.md` |
+| `description` | 命中 `isPublicInfraRoute`（`/health*`、`/metrics`、`/api/v1/csp-report`）时为 `公开接口（无鉴权）`，否则自动生成 `权限码: <code>`；命中 `inferDocPath` 时追加 `接口文档: docs/api/xxx.md` |
 | `responses` | 默认 200 成功响应 |
 | Apifox 分组 | `inferApifoxGroupName` 推断中文分组名，如 `/api/v1/chat/*` → 即时消息 |
 
@@ -187,12 +187,15 @@ go run scripts/openapi_sync.go -check
 
 | 路径前缀 | 关联文档 |
 |---------|---------|
+| `/health`, `/health/ready`, `/metrics`, `/api/v1/csp-report` | `docs/api/system-api.md` |
 | `/api/v1/chat` | `docs/api/chat-api.md` |
 | `/api/v1/messages` | `docs/api/message-api.md` |
 | `/api/v1/invitations` | `docs/api/invitation-api.md` |
 | `/api/v1/settings`, `/api/v1/admin/settings` | `docs/api/settings-api.md` |
 | `/api/v1/auth` | `docs/api/auth-api.md` |
 | `/api/v1/dashboard` | `docs/api/dashboard-api.md` |
+
+`isPublicInfraRoute` 分支必须排在最前（`/health` 有多个子路径，用前缀匹配）；未命中任何前缀时返回空串，则 description 只有权限码 / 「公开接口（无鉴权）」而不带文档跳转。
 
 ## 🧩 路由表来源与新增模块登记清单
 

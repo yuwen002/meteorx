@@ -21,6 +21,7 @@
 - **任务看板视图（Board 模式）**：任务页新增看板视图，按状态分列 + 拖拽改状态，与列表视图共存（前端 `views/task/index.vue`，补 188 行视图测试）。
 
 ### 修复
+- **Wiki 审核/发布权限恒 403**：`mapActionToSpaceLevel` 未把 `review`/`publish` 映射到矩阵键 `document:review`/`document:publish`，审核通过、驳回、直接发布、取消发布、归档 5 个接口对所有成员（含 Space Owner）恒定 403；补全映射并新增 `wiki_permission_test.go`（映射与角色矩阵一致性）与 `wiki_publish_workflow_test.go`（sqlite 全链路 submit→approve→publish→archive + 403/409 边界）。
 - **编辑任务因 `recurrence` 空串被校验拦成 400**：前端整体提交任务对象时重复周期为空串，后端校验仅接受合法枚举，导致保存失败；现空串按「不重复」归一化后再校验。
 - **导出租约回收空转**：回收前先探测是否存在过期租约，避免无对象时仍发 UPDATE 产生日志噪声。
 - **Wiki 扩展路由影子漂移**：扩展路由收敛为单一注册来源，消除同一路径被重复注册导致的命中不确定。
@@ -30,6 +31,7 @@
 - **路由镜像三份并存且相互漂移**：文档同步脚本、路由测试各带一份手写镜像（测试侧还漏了 chat / settings / invitation / message / dashboard / ws 条件挂载），task `ai/*`、`tasks/batch`、wiki 评审发布、OAuth 管理端等路由只在一处存在。现新增 `internal/routetable`，用各模块导出的纯注册函数（`RegisterRoutes` / `RegisterAdminRoutes` / ...）拼装路由树，仅 file 模块保留 11 条手写镜像；脚本与测试共用该表，并新增 `TestRouteTable_MatchesProductionRouter`（sqlite + miniredis 启动真实 `InitRouter` 逐条比对，漏登记/多出即失败），消除「假绿」。
 
 ### 文档
+- 补齐 Wiki 发布工作流文档：`docs/api/wiki-api.md` 12.3 增评论表情回应/解决约束，新增「14. 发布工作流与审核」（状态机、角色权限矩阵、8 个端点、请求响应示例、通知语义、403/409 错误）；新增 `docs/api/system-api.md`（`/health`、`/health/ready`、`/metrics`、`/api/v1/csp-report`）；`docs/api/invitation-api.md` 补 `GET /invitations/roles` 并纠正 cancel/resend 权限码为 `invitation:update`；同步工具将公开运维端点标注为「公开接口（无鉴权）」并指向 `system-api.md`。
 - 新增 `docs/api/chat-api.md`（15 个端点、媒体消息结构、WS 事件协议、群规模与撤回限制、错误码）；`auth-api.md` 补 2FA 备份恢复码（启用时一次性返回 10 枚、登录回退校验、8.5 状态查询与 8.6 重新生成）；`dashboard-api.md` 补租户工作台总览（数据结构与 3.6 接口说明）。
 - **OpenAPI / Apifox 补齐并修复同步工具**：`scripts/openapi_sync.go` 的路由树此前漏挂 chat、settings、invitation、message、2FA/邮箱验证与租户看板模块，导致检查长期「完美匹配」假绿；现改为直接复用 `internal/routetable`，补齐新模块分组推断与接口文档指向（含 `/api/v1/csp-report` → System / 系统、`/api/v1/admin/oauth*` → Auth / 认证），`-apply` 后补齐 csp-report、task AI 5 条、批量指派/状态、wiki 评审发布与评论解决共 8 条、OAuth 提供商管理 6 条等接口，OpenAPI 与 Apifox 均达到 333 条且无缺失/多余。
 - **同步工具说明重写与 CI 门禁**：重写 `docs/openapi-sync.md`（两份 JSON 职责、333/333 输出示例、Tags / Apifox 分组 / 文档指向三张推断表、路由表来源与新增模块登记清单、`routetable` 对齐测试护栏、`-apply` 整体重写与 Apifox ID 分配策略）；`scripts/openapi_sync.go` 新增 `-check` 门禁模式（存在差异即退出码 1）并接入 `.github/workflows/ci-cd.yml` 的 `lint` 任务，从流程上阻止「接口改了、文档没跟」的漂移；同步修正 README / FEATURE_UPGRADE 中租户工作台误写的 `dashboard:overview` 权限码。

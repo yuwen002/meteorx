@@ -17,11 +17,11 @@ import (
 // 若有人误改回已弃用的 RealIP 或漏挂中间件，本测试会立即失败。
 func TestSetupMiddleware_ClientIPFromXFF(t *testing.T) {
 	cases := []struct {
-		name         string
-		trusted      []string
-		remoteAddr   string
-		xff          string
-		expectedIP   string
+		name       string
+		trusted    []string
+		remoteAddr string
+		xff        string
+		expectedIP string
 	}{
 		{
 			// 未配置可信代理：nginx 单跳部署下最右条目才是 nginx 追加的真实对端，

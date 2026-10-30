@@ -195,16 +195,11 @@ func addMissingRoute(paths map[string]interface{}, method, pattern string) {
 	methodLower := strings.ToLower(method)
 
 	tags := inferTags(pattern)
-	perm := middleware.DerivePermissionCode(method, pattern)
-	description := fmt.Sprintf("权限码: `%s`", perm)
-	if doc := inferDocPath(pattern); doc != "" {
-		description += fmt.Sprintf("\n\n接口文档: `%s`", doc)
-	}
 
 	op := map[string]interface{}{
 		"summary":     inferSummary(method, pattern),
 		"tags":        tags,
-		"description": description,
+		"description": buildOpDescription(method, pattern),
 		"responses": map[string]interface{}{
 			"200": map[string]interface{}{
 				"description": "成功",
@@ -215,9 +210,37 @@ func addMissingRoute(paths map[string]interface{}, method, pattern string) {
 	methodsMap[methodLower] = op
 }
 
+// buildOpDescription 生成操作描述：公开运维类接口（健康检查/指标/CSP 上报）标注为无鉴权，
+// 其余接口写入自动推导的权限码，并附上对应 Markdown 文档路径。
+func buildOpDescription(method, pattern string) string {
+	if isPublicInfraRoute(pattern) {
+		description := "公开接口（无鉴权）"
+		if doc := inferDocPath(pattern); doc != "" {
+			description += fmt.Sprintf("\n\n接口文档: `%s`", doc)
+		}
+		return description
+	}
+
+	perm := middleware.DerivePermissionCode(method, pattern)
+	description := fmt.Sprintf("权限码: `%s`", perm)
+	if doc := inferDocPath(pattern); doc != "" {
+		description += fmt.Sprintf("\n\n接口文档: `%s`", doc)
+	}
+	return description
+}
+
+// isPublicInfraRoute 判断是否为不挂鉴权/租户隔离的运维类端点。
+func isPublicInfraRoute(pattern string) bool {
+	return strings.HasPrefix(pattern, "/health") ||
+		strings.HasPrefix(pattern, "/metrics") ||
+		strings.HasPrefix(pattern, "/api/v1/csp-report")
+}
+
 // inferDocPath 根据路径前缀返回对应的 Markdown 接口文档路径（无对应文档时返回空串）。
 func inferDocPath(pattern string) string {
 	switch {
+	case isPublicInfraRoute(pattern):
+		return "docs/api/system-api.md"
 	case strings.HasPrefix(pattern, "/api/v1/chat"):
 		return "docs/api/chat-api.md"
 	case strings.HasPrefix(pattern, "/api/v1/messages"):
@@ -823,12 +846,8 @@ func apifoxNumericID(v interface{}) (int64, bool) {
 func buildApifoxAPIItem(method, pattern string) map[string]interface{} {
 	methodLower := strings.ToLower(method)
 	tags := inferTags(pattern)
-	perm := middleware.DerivePermissionCode(method, pattern)
 	summary := inferSummary(method, pattern)
-	description := fmt.Sprintf("权限码: `%s`", perm)
-	if doc := inferDocPath(pattern); doc != "" {
-		description += fmt.Sprintf("\n\n接口文档: `%s`", doc)
-	}
+	description := buildOpDescription(method, pattern)
 
 	apiID := nextApifoxID()
 	respID := nextApifoxID()

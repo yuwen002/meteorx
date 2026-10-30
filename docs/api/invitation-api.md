@@ -18,8 +18,9 @@
 | GET | `/invitations` | 获取当前租户邀请列表 | `invitation:list` |
 | POST | `/invitations` | 创建邀请（邀请新成员） | `invitation:create` |
 | POST | `/invitations/batch` | 批量创建邀请（多邮箱共享角色） | `invitation:create` |
-| PUT | `/invitations/{id}/cancel` | 取消邀请 | `invitation:cancel` |
-| PUT | `/invitations/{id}/resend` | 重发邀请邮件 | `invitation:resend` |
+| GET | `/invitations/roles` | 获取邀请可分配的角色列表 | `invitation:get_roles` |
+| PUT | `/invitations/{id}/cancel` | 取消邀请 | `invitation:update` |
+| PUT | `/invitations/{id}/resend` | 重发邀请邮件 | `invitation:update` |
 | DELETE | `/invitations/{id}/delete` | 删除邀请记录 | `invitation:delete` |
 
 ### 1.2 公开接口（无需登录）
@@ -314,6 +315,39 @@
 
 ---
 
+### 3.5b 获取可分配角色列表
+
+`GET /api/v1/invitations/roles`
+
+**请求头：** `Authorization: Bearer <token>`
+
+**权限码：** `invitation:get_roles`
+
+**说明：** 供邀请页面下拉选择，返回 `scope=tenant` 且启用的角色，不分页。该路由必须注册在 `/{id}` 之前，否则会被参数路由吞掉。
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+    {
+      "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "name": "租户管理员",
+      "code": "tenant-admin"
+    }
+  ]
+}
+```
+
+**错误响应：**
+| 状态码 | 场景 |
+|--------|------|
+| 403 | 无 `invitation:get_roles` 权限 |
+| 500 | 获取可分配角色失败 |
+
+---
+
 ### 3.6 通过令牌查询邀请信息（公开）
 
 `GET /api/v1/invitations/info?token=xxx`
@@ -481,9 +515,13 @@ client:
 | 权限码 | 说明 |
 |--------|------|
 | `invitation:list` | 查看邀请列表 |
-| `invitation:create` | 创建邀请 |
-| `invitation:cancel` | 取消邀请 |
-| `invitation:resend` | 重发邀请邮件 |
+| `invitation:create` | 创建邀请（单条与批量共用） |
+| `invitation:get_roles` | 获取可分配角色列表 |
+| `invitation:update` | 取消邀请 / 重发邀请邮件（由 `PUT` 自动推导） |
 | `invitation:delete` | 删除邀请记录 |
+
+> 权限码由 `middleware.DerivePermissionCode(method, pattern)` 自动推导：`GET /invitations` → `invitation:list`、
+> `GET /invitations/roles` → `invitation:get_roles`、`PUT /invitations/{id}/cancel|resend` → `invitation:update`
+> （不存在 `invitation:cancel` / `invitation:resend` 这类单独码）。
 
 > 公开接口（`/invitations/info` 和 `/invitations/accept`）无需权限码，任何人都可访问。
