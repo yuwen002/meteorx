@@ -1,8 +1,10 @@
 # 运营看板 API 文档
 
-数据看板模块（`internal/modules/dashboard`）提供平台运营数据总览，供超级管理员掌握平台健康状况（租户 / 用户 / 订阅 / 审计多维统计）。
+数据看板模块（`internal/modules/dashboard`）分两组接口：平台运营总览（租户 / 用户 / 订阅 / 审计多维统计，供超级管理员）与租户工作台总览（成员 / 任务 / Wiki / 存储，供租户内登录用户）。
 
-**权限：** 需超级管理员角色，且具备 `admin:dashboard:list` 权限码（`RequiresMasterAdmin` + `AutoRequirePermission`）。
+**权限：**
+- 平台侧（`/admin/dashboard/*`）：需超级管理员角色，且具备 `admin:dashboard:list` 权限码（`RequiresMasterAdmin` + `AutoRequirePermission`）。
+- 租户侧（`/dashboard/tenant-overview`）：仅需登录，不挂 RBAC 权限码，租户 ID 取自登录上下文。
 
 **基础路径：** `/api/v1`
 
@@ -18,6 +20,7 @@
 | GET | `/admin/dashboard/tenants-health/{id}` | 单租户健康度详情 | `admin:dashboard:list` |
 | GET | `/admin/dashboard/slow-queries` | 慢查询看板快照（统计 + 明细） | `admin:dashboard:list` |
 | POST | `/admin/dashboard/slow-queries/reset` | 重置慢查询统计缓冲区 | `admin:dashboard:create` |
+| GET | `/dashboard/tenant-overview` | 当前租户工作台总览（成员/任务/Wiki/存储） | 需登录 |
 
 ---
 
@@ -122,6 +125,41 @@
 | new_tenants | int64 | 当日新增租户数（软删除不计入） |
 | new_users | int64 | 当日新增用户数（软删除不计入） |
 | audit_logs | int64 | 当日审计日志数（活跃度指标） |
+
+### 2.10 TenantOverviewResp（租户工作台总览）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| member | TenantMemberOverviewResp | 成员统计 |
+| task | TenantTaskOverviewResp | 任务状态分布 |
+| wiki | TenantWikiOverviewResp | Wiki 统计 |
+| storage_used | int64 | 存储占用（字节，排除软删） |
+
+**TenantMemberOverviewResp**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| total | int64 | 成员总数（排除软删） |
+| active | int64 | 启用状态成员数（status=1） |
+
+**TenantTaskOverviewResp**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| pending | int64 | 待办数（status=pending） |
+| in_progress | int64 | 进行中数（status=in_progress） |
+| completed | int64 | 已完成数（status=completed） |
+| overdue | int64 | 逾期待办数（未完成且 `due_date < now`） |
+| total | int64 | 任务总数（排除软删） |
+| completion_rate | float64 | 完成率（0～1，保留 4 位小数；总数为 0 时为 0） |
+
+**TenantWikiOverviewResp**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| spaces | int64 | 知识空间数（排除软删） |
+| documents | int64 | 文档数（排除软删） |
+| views | int64 | 文档累计浏览量 |
 
 ---
 
@@ -311,6 +349,40 @@
 
 清空当前进程的慢查询统计与明细。返回 `{"message": "慢查询统计已重置"}`。
 
+### 3.6 租户工作台总览
+
+`GET /api/v1/dashboard/tenant-overview`
+
+**权限：** 仅需登录（无 RBAC 权限码），租户 ID 从登录上下文获取，不接收跨租户参数。
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "member": { "total": 18, "active": 16 },
+    "task": {
+      "pending": 12,
+      "in_progress": 5,
+      "completed": 40,
+      "overdue": 3,
+      "total": 57,
+      "completion_rate": 0.7018
+    },
+    "wiki": { "spaces": 4, "documents": 126, "views": 8600 },
+    "storage_used": 104857600
+  }
+}
+```
+
+**业务说明：**
+
+- 四个维度（成员 / 存储 / Wiki / 任务）互不依赖，经 `errgroup` 并行下发；单维度查询失败仅记日志并按零值降级，不影响其余维度返回。
+- 结果按租户写入 Redis 短缓存（**TTL 30 秒**），命中直接返回；未注入 Redis 时整体降级为实时聚合。
+- SQL 均为 `COUNT` / `SUM` 条件聚合，兼容 MySQL 与 SQLite；均排除软删行。
+- 前端工作台首屏消费该接口，另叠加「待我处理」与快捷入口。
+
 ---
 
 ## 4. 权限码列表
@@ -319,3 +391,5 @@
 |--------|------|
 | `admin:dashboard:list` | 查看平台运营数据总览、租户健康度与慢查询看板 |
 | `admin:dashboard:create` | 重置慢查询统计缓冲区 |
+
+> `/dashboard/tenant-overview` 为租户侧登录态接口，不参与上表权限码校验。

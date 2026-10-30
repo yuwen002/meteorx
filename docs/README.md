@@ -19,6 +19,7 @@
 - [站内消息 API](api/message-api.md) - 收件箱、未读角标、离线补推、已读与批量已读/删除、重复投递去重与接收偏好
 - [OAuth 提供商 API](api/oauth-provider-api.md) - 第三方登录提供商配置管理
 - [系统配置 API](api/settings-api.md) - 平台运行时配置中心（注册开关/维护模式）
+- [协作即时消息 API](api/chat-api.md) - 私聊/群聊、历史分页、已读回执、@提及、图片/文件消息
 
 ### 架构设计文档
 - [多租户隔离架构](architecture/tenant.md)
@@ -69,6 +70,7 @@ docs/
 │   ├── message-api.md
 │   ├── oauth-provider-api.md
 │   ├── settings-api.md
+│   ├── chat-api.md
 │   └── announcement-api.md
 ├── architecture/                # 架构设计文档
 │   ├── tenant.md

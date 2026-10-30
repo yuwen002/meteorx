@@ -26,7 +26,12 @@ meteorx/
 │   │   ├── database.go           # GORM 连接池初始化（含连接池配置校验）
 │   │   ├── middleware.go         # 全局中间件装配
 │   │   ├── migrate.go            # 数据库自动迁移 + 种子数据（RBAC 权限等）
+│   │   ├── route_check_test.go   # 路由权限码推导断言（基于 routetable 路由表）
+│   │   ├── route_parity_test.go  # ⭐ 路由漂移护栏：真实 InitRouter（sqlite + miniredis）vs routetable 逐条比对
 │   │   └── router.go             # Chi 路由注册（公共/鉴权/后台三级路由）
+│   │
+│   ├── routetable/                # ⭐ 空 handler 路由表（OpenAPI / Apifox 同步与路由测试共用的单一镜像）
+│   │   └── routetable.go         # Build()：各模块导出的纯注册函数拼装 + file 模块 11 条手写镜像
 │   │
 │   ├── cache/                     # 缓存层
 │   │   └── redis.go              # Redis 客户端封装（含降级处理）
@@ -242,7 +247,7 @@ meteorx/
 │       │   ├── module.go
 │       │   └── routes.go        # 路由注册：/admin/dashboard/*（仅平台管理员）
 │       │
-│       └── notification/          # 通知公告模块
+│       ├── notification/          # 通知公告模块
 │       │   ├── dto/
 │       │   │   └── announcement_dto.go # CreateAnnouncementReq/AnnouncementResp 等
 │       │   ├── handler/
@@ -256,6 +261,31 @@ meteorx/
 │       │   │   └── announcement_service.go
 │       │   ├── module.go
 │       │   └── routes.go        # 路由注册：/admin/announcements/*（仅平台管理员）
+│
+│       ├── task/                  # 任务模块：个人待办 + 租户协作 + 提醒 + 回收站 + AI 辅助
+│       │   ├── service/task_service.go # 状态副作用、重复周期生成、提醒去重
+│       │   └── routes.go         # 路由注册：/tasks/*
+│
+│       ├── export/                # 数据导出：异步入队 + worker 池 + 多格式 + 下载中心
+│       │   └── routes.go         # 路由注册：/exports/*
+│
+│       ├── message/               # 站内消息：收件箱 + 离线补推 + 已读 + 未读角标 + 接收偏好
+│       │   └── routes.go         # 路由注册：/messages/*
+│
+│       ├── invitation/            # 成员邀请：创建/批量/邮件/接受注册/状态管理
+│       │   └── routes.go         # 路由注册：/invitations/*（公开段免鉴权）
+│
+│       ├── chat/                  # 协作 IM：私聊/群聊、已读回执、@提及、图片/文件消息
+│       │   ├── model/chat.go     # Conversation / ConversationMember / ChatMessage
+│       │   ├── service/chat_service.go # 成员准入、撤回窗口、媒体 payload 校验与现签 URL
+│       │   └── routes.go         # 路由注册：/chat/*
+│
+│       ├── settings/              # 平台运行时配置中心：注册表 + DB + Redis 整表缓存
+│       │   ├── model/registry.go # 配置键白名单 + 类型化默认值 + isPublic 标记
+│       │   └── routes.go         # 路由注册：/settings/public、/admin/settings
+│
+│       └── oauth/                 # 第三方登录：Provider 实现 + 运行时配置热更新
+│           └── routes.go         # 路由注册：/auth/oauth/*、/admin/oauth-providers/*
 │
 ├── pkg/                           # 可复用基础库（可对外暴露）
 │   ├── idgen/                     # ⭐ 统一 ID 生成入口（ULID，替代分散的 ulid/uuid）
@@ -341,8 +371,12 @@ meteorx/
         │   ├── auth.ts           # 登录/登出 API
         │   └── modules/          # 按模块划分的 API
         │       ├── audit.ts
+        │       ├── chat.ts           # 协作 IM（会话/消息/成员/已读回执）
         │       ├── file.ts
+        │       ├── message.ts        # 站内消息（收件箱/未读/偏好）
         │       ├── permission.ts
+        │       ├── settings.ts       # 平台运行时配置
+        │       ├── task.ts           # 任务（列表/统计/批量/看板改状态）
         │       ├── announcement.ts
         │       ├── cancel-request.ts
         │       ├── dashboard.ts
@@ -356,10 +390,12 @@ meteorx/
         │   └── index.ts          # 路由配置
         ├── stores/
         │   ├── app.ts            # 全局应用状态
+        │   ├── chat.ts           # ⭐ IM 会话/消息/未读/@我/已读水位（WS 归并）
         │   ├── user.ts           # 用户状态 + 权限码列表
         │   └── notification.ts   # ⭐ 告警通知状态管理（WebSocket 实时推送）
         ├── composables/
-        │   └── useWebSocket.ts   # ⭐ WebSocket 连接管理（自动重连/心跳/消息分发）
+        │   ├── useWebSocket.ts   # ⭐ WebSocket 连接管理（自动重连/心跳/消息分发）
+        │   └── useWorkspaceStats.ts # ⭐ 工作台统计装载（聚合优先 + 分项兜底）
         ├── utils/
         │   └── auth.ts           # Token 存储工具
         ├── views/
@@ -368,6 +404,8 @@ meteorx/
         │   ├── forgot-password/index.vue   # 忘记密码（邮箱找回）
         │   ├── reset-password/index.vue    # 重置密码（令牌设置新密码）
         │   ├── dashboard/index.vue
+        │   ├── chat/index.vue            # ⭐ 协作 IM（会话列表 + 聊天面板 + 群管理抽屉）
+        │   ├── task/index.vue            # 任务（列表 / 看板双视图）
         │   ├── profile/index.vue
         │   ├── tenant/settings/index.vue   # 租户独立配置页
         │   └── system/
@@ -469,6 +507,13 @@ meteorx/
 | **wiki** | Wiki 知识库：空间/节点（文件夹/文档）/Markdown 文档/版本历史/成员协作，完整租户隔离 | ✅ 已实现 |
 | **dashboard** | 平台运营数据总览：租户/用户/订阅/审计多维统计 | ✅ 已实现 |
 | **notification** | 公告 CRUD、发布/下架、全平台或指定租户定向推送 | ✅ 已实现 |
+| **task** | 个人待办 + 租户协作任务、批量操作、回收站、重复周期、到期提醒、AI 辅助；前端提供列表 / 看板双视图（拖拽改状态） | ✅ 已实现 |
+| **export** | 异步导出任务、四类资源 × 四种格式、执行租约与僵尸回收、下载中心 | ✅ 已实现 |
+| **message** | 站内收件箱、未读数与角标、批量已读/删除、按天事件去重、接收偏好 | ✅ 已实现 |
+| **invitation** | 成员邀请创建/批量/重发/取消、邮件链接、接受注册与角色分配 | ✅ 已实现 |
+| **chat** | 1:1 私聊与群聊、会话成员管理、历史分页、已读回执、@提及、图片/文件消息 | ✅ 已实现 |
+| **settings** | 运行时配置注册表、DB 持久化 + Redis 缓存、公开配置与维护模式/注册开关 | ✅ 已实现 |
+| **oauth** | 第三方登录（8 类 Provider）、配置下沉 DB + 凭据加密 + 热生效 | ✅ 已实现 |
 
 ### 公共包说明
 
@@ -564,6 +609,13 @@ Storage Interface (storage/storage.go)
 | 套餐（租户） | `/api/v1/tenant/current/plan` | GET |
 | 审计 | `/api/v1/audit` | stats, dashboard, logs, export, cleanup |
 | Wiki 知识库 | `/api/v1/wiki` | spaces, nodes, documents, revisions, members, stats |
-| 运营看板 | `/api/v1/admin/dashboard` | overview |
+| 运营看板 | `/api/v1/admin/dashboard` | overview, trend, tenants-health, slow-queries |
+| 租户工作台 | `/api/v1/dashboard` | tenant-overview |
+| 任务 | `/api/v1/tasks` | CRUD, stats, complete/reopen, batch, ai/* |
+| 数据导出 | `/api/v1/exports` | 创建, 列表, 进度, 下载, 删除 |
+| 站内消息 | `/api/v1/messages` | 收件箱, unread-count, read, batch, preferences |
+| 成员邀请 | `/api/v1/invitations` | 列表, 创建, 重发, 取消, accept, info |
+| 协作 IM | `/api/v1/chat` | conversations, direct, group, messages, members, read, read-status, typing, presence |
+| 平台配置 | `/api/v1/admin/settings`、`/api/v1/settings/public` | 配置列表 / 差量更新 / 公开配置 |
 | 通知公告 | `/api/v1/admin/announcements` | CRUD, status |
 | 健康检查 | `/health` | GET

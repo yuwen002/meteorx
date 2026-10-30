@@ -37,6 +37,8 @@
 | POST | `/auth/2fa/setup` | 开启双因素认证（生成 TOTP 密钥） | 需 Token |
 | POST | `/auth/2fa/enable` | 验证验证码并启用 2FA | 需 Token |
 | POST | `/auth/2fa/disable` | 验证当前验证码并关闭 2FA | 需 Token |
+| GET | `/auth/2fa/recovery-codes` | 查询备份恢复码状态（是否启用/剩余数量） | 需 Token |
+| POST | `/auth/2fa/recovery-codes/regenerate` | 重新生成备份恢复码（旧码全部作废） | 需 Token |
 
 ---
 
@@ -77,7 +79,7 @@
 | tenant_id | string | 否 | 租户 ID（超级管理员登录时无需传） |
 | username | string | 是 | 用户名 |
 | password | string | 是 | 密码 |
-| otp | string | 否 | 6 位 TOTP 验证码（仅当账号已开启 2FA 时必填） |
+| otp | string | 否 | 6 位 TOTP 验证码（仅当账号已开启 2FA 时必填）；也接受 `XXXXX-XXXXX` 格式的备份恢复码（用后即焚） |
 
 ### 2.5 LoginResp（登录成功响应）
 
@@ -1045,6 +1047,19 @@ POST /auth/email/verify { token }
 
 **业务规则：**
 - 从 Redis 取回暂存密钥（为空则 `400` 提示重新发起）；校验验证码（±1 时间窗容错），通过后持久化密钥并置 `totp_enabled=true`，清除暂存
+- 启用成功时**一次性签发 10 枚备份恢复码**（`XXXXX-XXXXX`），明文仅在本响应出现，库中只存 SHA-256 哈希
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "message": "双因素认证已启用，请妥善保存以下备份恢复码（仅展示一次）",
+    "recovery_codes": ["A1B2C-3D4E5", "F6G7H-8J9K2", "...共 10 枚"]
+  }
+}
+```
 
 **错误响应：** 400（验证码错误/密钥已过期）、401（未登录）、500（存储不可用）。
 
@@ -1058,7 +1073,7 @@ POST /auth/email/verify { token }
 ```
 
 **业务规则：**
-- 未启用时返回 `400`；校验当前密钥对应的验证码，通过后清空密钥并置 `totp_enabled=false`
+- 未启用时返回 `400`；校验当前密钥对应的验证码，通过后清空密钥并置 `totp_enabled=false`，并**级联作废全部备份恢复码**
 
 **错误响应：** 400（未启用/验证码错误）、401（未登录）、500（存储不可用）。
 
@@ -1068,3 +1083,38 @@ POST /auth/email/verify { token }
 - 未携带 `otp` → 返回 `401` + `require_2fa=true`（前端据此展示验证码输入框）
 - `otp` 错误 → 计入账户锁定失败次数，返回 `401` + `require_2fa=true` + `remaining_attempts`
 - `otp` 正确 → 正常签发令牌
+- **`otp` 字段同样接受备份恢复码**：TOTP 校验失败时回退比对恢复码哈希（恒定时间比较），命中即核销（用后即焚），并照常签发令牌；恢复码同样计入失败次数
+
+### 8.5 查询备份恢复码状态
+
+`GET /api/v1/auth/2fa/recovery-codes`
+
+**请求头：** `Authorization: Bearer <token>`
+
+返回是否已启用 2FA 以及剩余未使用的恢复码数量，供个人中心展示与提醒补充。
+
+**成功响应（200）：**
+```json
+{ "data": { "enabled": true, "remaining": 7 } }
+```
+
+**错误响应：** 401（未登录）、404（用户不存在）、500（查询失败）。
+
+### 8.6 重新生成备份恢复码
+
+`POST /api/v1/auth/2fa/recovery-codes/regenerate`
+
+**请求体：**
+```json
+{ "code": "123456" }
+```
+
+**业务规则：**
+- 需登录且已启用 2FA（未启用返回 `400`）；
+- 必须携带当前有效的 **TOTP 验证码**（恢复码不能用于重新生成）；
+- 生成 10 枚新码并**整体覆盖旧码**（旧码全部作废），明文仅返回一次；
+- 恢复码去歧义字母表（`ABCDEFGHJKMNPQRSTUVWXYZ23456789`），归一化后哈希比对。
+
+**成功响应（200）：** `data.recovery_codes` 为新的 10 枚明文码。
+
+**错误响应：** 400（未启用 2FA / 验证码错误）、401（未登录）、404（用户不存在）、500（内部错误）。

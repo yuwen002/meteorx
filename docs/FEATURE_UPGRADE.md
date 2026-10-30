@@ -1,6 +1,67 @@
 # MeteorX 平台功能升级说明
 
-按既定排序完成了三大功能升级：**① 平台运营数据看板 ② 平台通知/公告系统 ③ 租户注销审批闭环**。
+本文按迭代顺序记录平台各阶段的功能升级与加固项（共 56 章），可按下方目录跳转查看。
+
+---
+
+## 目录
+
+- [一、平台运营数据看板（Dashboard）](#一平台运营数据看板dashboard)
+- [二、平台通知/公告系统（Notification）](#二平台通知公告系统notification)
+- [三、租户注销审批闭环（Tenant）](#三租户注销审批闭环tenant)
+- [四、租户物理删除与套餐配给（Tenant）](#四租户物理删除与套餐配给tenant)
+- [五、权限系统完善（RBAC 审计与缓存）](#五权限系统完善rbac-审计与缓存)
+- [六、指标监控系统（Prometheus + Grafana）](#六指标监控系统prometheus--grafana)
+- [七、前端全局通知中心面板](#七前端全局通知中心面板)
+- [八、系统优化与架构改进](#八系统优化与架构改进)
+- [九、数据库迁移自动化](#九数据库迁移自动化)
+- [十、集成测试基础设施](#十集成测试基础设施)
+- [十一、前后端联调优化](#十一前后端联调优化)
+- [十二、多渠道消息通知系统](#十二多渠道消息通知系统)
+- [十三、OpenTelemetry 可观测性集成](#十三opentelemetry-可观测性集成)
+- [十四、邮箱验证与成员邀请](#十四邮箱验证与成员邀请)
+- [十五、通知预留项落地与邀请过期清理](#十五通知预留项落地与邀请过期清理)
+- [十六、任务管理模块（个人待办 + 团队协作）](#十六任务管理模块个人待办--团队协作)
+- [十七、Wiki 回收站与删除链路加固](#十七wiki-回收站与删除链路加固)
+- [十八、Wiki 订阅与审核通知补全](#十八wiki-订阅与审核通知补全)
+- [十九、回收站过期清理健壮性与可观测性](#十九回收站过期清理健壮性与可观测性)
+- [二十、代码评审问题修复（清理链路与通知装配）](#二十代码评审问题修复清理链路与通知装配)
+- [二十一、评审 Minor 项收尾与多副本加固](#二十一评审-minor-项收尾与多副本加固)
+- [二十二、异步数据导出与下载中心（Export）](#二十二异步数据导出与下载中心export)
+- [二十三、租户健康度看板（Dashboard）](#二十三租户健康度看板dashboard)
+- [二十四、租户套餐配额与 API 限流（Plan）](#二十四租户套餐配额与-api-限流plan)
+- [二十五、双因素认证（2FA / TOTP）](#二十五双因素认证2fa--totp)
+- [二十六、慢查询看板（Dashboard）](#二十六慢查询看板dashboard)
+- [二十七、前端暗色主题](#二十七前端暗色主题)
+- [二十八、前端国际化框架落地（i18n）](#二十八前端国际化框架落地i18n)
+- [二十九、白标自定义品牌（White-label）](#二十九白标自定义品牌white-label)
+- [三十、服务端多租户白标（Server-side White-label）](#三十服务端多租户白标server-side-white-label)
+- [三十一、前端全局状态迁移至 Pinia store](#三十一前端全局状态迁移至-pinia-store)
+- [三十二、i18n 铺开至全局外壳 + 路由平台级门禁修复](#三十二i18n-铺开至全局外壳--路由平台级门禁修复)
+- [三十三、导出模块多格式支持（CSV / XLSX / JSON / PDF）](#三十三导出模块多格式支持csv--xlsx--json--pdf)
+- [三十四、OAuth 多 Provider 支持（国内 IdP + 企业 OIDC + 邮箱补全）](#三十四oauth-多-provider-支持国内-idp--企业-oidc--邮箱补全)
+- [三十五、OAuth 提供商运行时配置（DB 热更新 + 凭据加密 + 管理后台）](#三十五oauth-提供商运行时配置db-热更新--凭据加密--管理后台)
+- [三十六、任务模块 AI 能力（可选叠加层 + OpenAI 兼容 + 自动降级）](#三十六任务模块-ai-能力可选叠加层--openai-兼容--自动降级)
+- [三十七、用户批量导入（User Import）](#三十七用户批量导入user-import)
+- [三十八、系统管理员跨租户建号入口](#三十八系统管理员跨租户建号入口)
+- [三十九、用户列表批量操作（Batch Actions）](#三十九用户列表批量操作batch-actions)
+- [四十、批量分配角色（RBAC Batch Assign）](#四十批量分配角色rbac-batch-assign)
+- [四十一、用户列表「导出所选用户」（Export Selected Users）](#四十一用户列表导出所选用户export-selected-users)
+- [四十二、角色分配「权限不越出操作者」收口（No Privilege Escalation On Assign）](#四十二角色分配权限不越出操作者收口no-privilege-escalation-on-assign)
+- [四十三、角色绑定权限「权限不越出操作者」收口（No Privilege Escalation On Bind）](#四十三角色绑定权限权限不越出操作者收口no-privilege-escalation-on-bind)
+- [四十四、角色归属越权收口（绑定/分配只作用于可管理角色）](#四十四角色归属越权收口绑定分配只作用于可管理角色)
+- [四十五、链路追踪关联收口（操作记录/日志/响应头共用真实 TraceID）](#四十五链路追踪关联收口操作记录日志响应头共用真实-traceid)
+- [四十六、公开接口审计覆盖（登录/注册/重置/OAuth 回调手动入库 + 同口径链路关联）](#四十六公开接口审计覆盖登录注册重置oauth-回调手动入库--同口径链路关联)
+- [四十七、审计自身操作留痕与脱敏递归（清理/导出补审计 + 嵌套正文脱敏）](#四十七审计自身操作留痕与脱敏递归清理导出补审计--嵌套正文脱敏)
+- [四十八、审计保留策略自动化与防篡改完整性校验（行级摘要 + 周期锚点链）](#四十八审计保留策略自动化与防篡改完整性校验行级摘要--周期锚点链)
+- [四十九、协作即时消息（IM）模块——私聊、加固与群聊](#四十九协作即时消息im模块私聊加固与群聊)
+- [五十、Wiki 评论深化——表情回应、解决/重开、编辑与 @提及](#五十wiki-评论深化表情回应解决重开编辑与-提及)
+- [五十一、前端 i18n 全站铺开（业务页文案迁移到 locale key）](#五十一前端-i18n-全站铺开业务页文案迁移到-locale-key)
+- [五十二、工作台性能、2FA 恢复码与审计强化](#五十二工作台性能2fa-恢复码与审计强化)
+- [五十三、平台运行时配置中心（Settings）](#五十三平台运行时配置中心settings)
+- [五十四、协作 IM 增强——历史分页、已读回执、@提及与图片/文件消息](#五十四协作-im-增强历史分页已读回执提及与图片文件消息)
+- [五十五、租户工作台补全与 tenant-overview 聚合](#五十五租户工作台补全与-tenant-overview-聚合)
+- [五十六、任务看板视图（Board 模式 + 拖拽改状态）](#五十六任务看板视图board-模式--拖拽改状态)
 
 ---
 
@@ -1794,6 +1855,8 @@ client:
 
 站内协作 IM 是「协作评论深化」冲刺的核心黏性功能，此前项目完全没有实时消息能力。按落地节奏分三批推进：**1:1 私聊 foundation**（后端 `e98c02c` + 前端 `3c21bf9`）、**私聊加固**（后端 `b07c471` + 前端 `4dad2ea`：消息撤回 / 输入中提示 / 在线状态）、**群聊**（后端 `97d0209` + 前端 `3249ee1`：群会话模型 / 成员管理 / REST 与前端抽屉）。
 
+后续可用性增强（历史分页、已读回执、@提及、图片/文件消息）见「五十四、协作 IM 增强」。
+
 ### 49.2 后端
 
 - 新增 `internal/modules/chat` 模块，分层 `model → dto → repository → service → handler → module`。
@@ -1936,3 +1999,109 @@ i18n 此前只铺了全局外壳（`App.vue`、`DefaultLayout.vue`），`web-adm
 
 - ✅ 后端 `go build ./...`/`go vet ./...`/`gofmt -l` 干净；`go test ./...` 全部通过。
 - ✅ 前端 `vue-tsc --noEmit` 干净；`vitest run` 全量通过（新增 11 用例）。
+
+---
+
+## 五十四、协作 IM 增强——历史分页、已读回执、@提及与图片/文件消息
+
+### 54.1 背景与缺口
+
+四十九节交付了私聊 / 加固 / 群聊三批基线，但会话只有最新一屏消息、无法判断对方是否读到、无法定向提醒，也不能发送图片与文件——这是 IM 从「能聊」到「可用」的缺口。
+本冲刺按四张独立提交的卡片补齐：历史消息滚动分页（`0dbe9b9`）、已读回执（`c47c7b2`）、消息 @提及（`2304b36`）、图片/文件消息（`f605432`）。全部接口与报文见 `docs/api/chat-api.md`。
+
+### 54.2 历史消息滚动分页（`0dbe9b9`）
+
+- **后端**：沿用 `GET /chat/conversations/{id}/messages?page&page_size`（默认 20、上限 100）；取数按 `created_at DESC` 分页（第 1 页为最新），**页内再反转为升序**返回，前端向上滚动时 `page` 递增即可拼成连续时间线。
+- **前端**（`stores/chat.ts`）：新增 `messagePage` / `hasMoreMessages` / `loadingOlder` / `loadOlder()`；首屏 `page=1`、`page_size=50`，加载更早消息时取 `page+1` 并**前插**，以消息 ID 集合去重，避免 WS 新消息与分页重叠；`hasMore` 以 `total` 为准，缺失时退化为「满页即还有」。切换会话 / 清空会话时归零分页状态。
+- **边界**：`page < 1`、无更多、正在加载中三种情况直接短路返回，保证滚动触底可重复触发而不发空请求。
+
+### 54.3 已读回执（`c47c7b2`）
+
+- **后端**：新增 `GET /chat/conversations/{id}/read-status` → `ReadStateResp[]`（`user_id` / `name` / `last_read_at`），**仅返回请求者以外**的会话成员；`MarkRead` 推进自身水位后，向其他成员经 WS 推送 `chat_read`（`{conversation_id,user_id,read_at}`，`ws.MsgTypeChatRead`）。
+- **前端**：`api/modules/chat.ts` 增 `getConversationReadStatus`，store 增 `loadReadStatus` 与 `receiveReadPush` 维护本地「成员已读至」映射，面板对本人发出的消息展示对方已读时间；`App.vue` 在 WS 分发中接入 `chat_read`，非当前会话也保持水位最新。
+
+### 54.4 消息 @提及（`2304b36`）
+
+- **后端**：`ChatMessage` 增 `MentionIDs`（逗号分隔）列；`SendMessage` 增 `mentionIDs` 入参，`filterMentionIDs` 对原始串做**去重、去空白、剔除发送人自己与非会话成员**，成员查询失败时返回空串（@提及为增强信息，不阻断发送）；DTO 透出 `mention_ids`。
+- **前端**：输入框旁成员选择器（群聊取成员列表、私聊取对方），提交时逗号拼接；消息气泡按成员名高亮被 @ 的片段；store 以 `mentionsMe(msg)` 判定并把会话标记为 `mentioned`，侧边栏 / 工作台据此展示「@我」徽标，切换会话后清除标记。
+- 配合 `6826349` 修正侧边栏未读角标的内联定位，避免徽标在收窄菜单下错位。
+
+### 54.5 图片 / 文件消息（`f605432`）
+
+- **模型扩展**：新增 `MessageTypeImage` / `MessageTypeFile`，`ChatMessage.Type` 由「仅 text」扩展为三值；媒体正文以 **JSON 字符串**存于 `Content`：`{"file":"<存储文件名>","name":"<原始名>","size":<字节数>}`。
+- **写入校验**（`parseMediaPayload`）：`file` 必须命中 `^[A-Za-z0-9._-]{1,120}$` 且不含 `/`、`\`（杜绝路径穿越与任意名签名），`name` 非空、`size` 非负；`type` 非三值之一或正文非法均 400。
+- **读取签名**（`attachMediaURL`）：发送响应与历史分页统一为媒体消息**现签**访问 URL（`signedurl.Build`，与 Wiki 内嵌图片同源机制，默认 30 分钟）；未配置签名参数、非媒体类型或解析失败时 `url` 留空，前端降级为不可预览。已撤回消息双重兜底清空 `content` 与 `url`。
+- **前端**：上传复用 `/files/upload`，成功后组装媒体 payload 发送；图片按气泡内联预览、文件渲染为可下载卡片；会话列表摘要按 `last_message_type` 渲染「[图片]」「[文件]」而非原始 JSON。
+
+### 54.6 验证状态
+
+- ✅ 后端单测：`chat_service_test.go` 覆盖分页入参边界、已读回执仅返回他人、@提及过滤（自己 / 非成员 / 重复）、媒体 payload 解析与非法文件名 400、撤回后 URL 清空。
+- ✅ 前端单测：`stores/chat.test.ts` 覆盖分页前插去重与 `hasMore` 收敛、`chat_read` 归并、`mentioned` 标记与清除、媒体消息渲染分支。
+- ✅ `go build ./...` / `go test ./internal/...` 与 `vue-tsc --noEmit` / `vitest run` 全绿。
+
+---
+
+## 五十五、租户工作台补全与 tenant-overview 聚合
+
+### 55.1 背景与缺口
+
+工作台此前以平台超管视角为主，租户管理员登录后只能看到零散统计：成员数取自用户模块、Wiki 数取自 Wiki 模块、存储无入口，团队级任务分布与「待我处理」完全缺失，首屏需要前端串行打多个接口。
+
+### 55.2 工作台卡片补全（`65778f8`）
+
+- 新增组合式函数 `composables/useWorkspaceStats.ts` 统一装载租户工作台数据，卡片包括：**我的任务**（总数 + 待处理 / 进行中 / 逾期）、**Wiki**（文档 / 空间 / 累计浏览）、**成员与存储**（成员数 + 已用存储格式化）、**完成率**（进度环 + 平均处理时长）、**团队任务概况**、**待我处理**（站内信 / 通知 / 聊天未读与「@我」）、**快捷入口**（任务 / 聊天 / Wiki / 导出 / 个人中心 / 邀请）。
+- 装载策略：`Promise.allSettled` 并发拉取，**单维度失败仅相关卡片降级为零值**，不阻断整屏；存储体积经 `formatBytes` 按 B/KB/MB/GB 边界格式化。
+
+### 55.3 租户总览聚合接口（`a3adfec`）
+
+- 新增 `GET /api/v1/dashboard/tenant-overview`（租户侧，**仅需登录、不挂 RBAC 权限码**，租户 ID 取自登录上下文；平台侧 `/admin/dashboard/*` 才校验 `admin:dashboard:list`）。
+- 响应结构：`member{total,active}`、`wiki{spaces,documents,views}`、`task{pending,in_progress,completed,overdue,total,completion_rate}`、`storage_used`。口径：`active` 为 `status=1`；`overdue` 为**未完成且 `due_date < now`**；`completion_rate` 取 0~1、保留四位小数（总数为 0 返回 0）。
+- 仓储层复用健康度的 `aggregateUsers` / `aggregateStorage` 批量聚合取租户级慢变事实，任务分布与 Wiki 以专用条件聚合补齐；SQL 全部为 `COUNT` / `SUM(CASE …)`，兼容 MySQL 与 SQLite。
+- 前端 `useWorkspaceStats` 改为**优先聚合接口**，失败时回退 `getUserStats` / `getWikiStats` 兜底；Wiki 节点数聚合接口不返回，回退态保留 0。
+
+### 55.4 扫描合并与边界修正（`fb0996f`）
+
+- `wiki_documents` 的文档数与累计浏览量由两次单遍扫描合并为**一次扫描**（`COUNT(*)` + `COALESCE(SUM(view_count),0)`，空租户返回 0），空间数在 `wiki_spaces` 单独统计；空间数查询失败不影响已得的文档/浏览数据。
+- 修正存储体积格式化在 1024 整数倍边界上的显示偏差，并统一「团队任务概况」卡片文案。
+
+### 55.5 团队任务概况卡（`2e736cb`）
+
+- 直接消费 `tenant-overview.task` 的五项指标（待处理 / 进行中 / 已完成 / 逾期 / 总数），不再额外请求任务模块；逾期数非零时标红。
+- 新增 `views/dashboard/index.test.ts` 覆盖装载、聚合失败回退、零值降级与团队任务卡渲染。
+
+> 并行化与 Redis 短缓存的实现口径见「五十二、52.1」：`errgroup` 并发 + 泛型 `cacheGet/cacheSet`（TTL 可注入、读写失败 fail-open），本次聚合接口沿用同一套机制。
+
+### 55.6 验证状态
+
+- ✅ 后端：仓储聚合用例（成员/存储/Wiki/任务四维、空租户零值、完成率精度）、handler 用例（响应形状与权限）、service 用例齐全；`go test ./...` 全绿。
+- ✅ 前端：`useWorkspaceStats.test.ts`（聚合优先 / 回退 / 失败降级）、`api/modules/dashboard.test.ts`、`views/dashboard/index.test.ts` 通过；`vue-tsc --noEmit` 干净。
+
+---
+
+## 五十六、任务看板视图（Board 模式 + 拖拽改状态）
+
+### 56.1 背景与缺口
+
+任务页此前只有表格列表，批量操作虽全，但「看清当前在做什么、下一步推什么」需要按状态横向铺开。本卡（`9d6ab99`）在**不新增后端接口**的前提下，用既有列表接口 + 批量改状态接口拼出看板。
+
+### 56.2 视图切换与偏好持久化
+
+- 工具栏新增 `el-radio-group`（列表 / 看板）；选择写入 `localStorage` 的 `meteorx.task.viewMode`（读取包 `try/catch`，隐私模式写失败仅影响下次默认视图）。
+- 切换视图时**清空列表选择态**，避免残留的批量操作条在看板下造成误操作；跨视图共享的操作（新建任务）统一走 `refreshCurrent()` 刷新当前可见数据。
+
+### 56.3 数据装载
+
+- `loadBoard()` 一次取 `page=1`、`page_size=100`（后端分页上限），**不传 `status`**——看板按状态分列，若带 `overdue` 伪状态会整列丢失；其余关键字 / 优先级 / 可见性 / 标签 / 截止日筛选与列表共用。
+- `boardTotal > 已加载条数` 时在底部展示截断提示（「已展示 N / 共 M 条」），不做无限滚动，保持看板交互简单。
+
+### 56.4 分列与拖拽
+
+- `boardColumns` 计算属性按 `pending` / `in_progress` / `completed` 三桶分组，列头显示状态点、名称与计数，空列渲染占位文案。
+- 拖拽使用原生 HTML5 `draggable` + `dragstart` / `dragover` / `dragleave` / `drop`，**不依赖 `dataTransfer` 取数**（浏览器与 jsdom 行为不一致），改用组件内 `dragTaskId` / `dragOverStatus` 追踪拖起项与悬停列；悬停列高亮、拖起卡片降透明度。
+- 落列时复用 `batchUpdateTaskStatus({ids:[id], status})` 单条改状态；`boardSubmitting` 期间禁止再次拖拽，**无论成功失败都重拉看板**，避免乐观移动与后端不一致（失败提示由 Axios 拦截器统一弹出）。
+- 卡片展示标题、优先级 / 标签、截止日；未完成且已过当前时刻的截止日标红，与列表页逾期口径一致。
+
+### 56.5 验证状态
+
+- ✅ `views/task/index.test.ts` 新增看板用例：视图切换与持久化、三列分桶与计数、拖拽改状态调用参数、提交中禁止并发、截断提示、逾期标红、切换视图清空选择态。
+- ✅ `vue-tsc --noEmit` 干净、`vitest run` 全绿；后端无改动。

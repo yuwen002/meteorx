@@ -16,6 +16,24 @@
 - **Wiki 评论深化**：在既有「根评论 + 一级回复 + @提及 + 状态位」基线上补齐**表情回应**与**解决/重开**。新增 `CommentReaction` 模型（`(comment_id, user_id, emoji)` 复合唯一）与 `POST /wiki/documents/comments/{id}/reactions`（幂等切换，返回最新聚合）、`.../resolve`（仅根评论，作者或具删除权限者可操作）；批量聚合避免 N+1，评论删除级联清理 reactions，列表过滤由 `status = Active` 改为 `status <> Deleted` 使已解决评论仍可见。前端 `CommentSection.vue` 重写，新增表情回应 chip + 快捷面板、解决/重开徽标、作者编辑、@提及远程多选。
 - **前端 i18n 全站铺开**：将约 30 个硬编码中文业务页迁移到 `stores/i18n.ts` 扁平点分 locale key（`import useI18n` + `t()` 范式，locale key zh/en 对称由 vitest 校验），覆盖认证、用户/租户/邀请、任务/告警/健康/导出/文件、RBAC/套餐、系统管理、审计、公告/设置、登录/看板、消息/个人中心、Wiki 等，并收口全站运行期文案与注释；租户端批量操作路径以真实栈浏览器目视验证 5 项全 PASS。
 
+- **协作即时消息（IM）增强：历史分页、已读回执、@提及与图片/文件消息**：`GET /chat/conversations/{id}/messages` 支持 `page`/`page_size`（默认 20、最大 100，取数倒序分页页内升序，供前端向上滚动拼接）；`POST .../read` 推进成员已读水位并新增 `GET .../read-status` 返回其他成员已读水位，配合 WS `chat_read` 实时回执；`SendMessageReq.mention_ids` 支持 @提及（逗号分隔，服务层过滤为会话内有效成员）并在会话列表标记被 @；消息类型扩展为 `text`/`image`/`file`，媒体消息正文为 `{file,name,size}` JSON、复用文件模块存储并现签 **30 分钟**短时效访问 URL（`file` 仅允许单段安全字符，杜绝路径穿越）。
+- **租户工作台补全与 tenant-overview 聚合**：新增 `GET /dashboard/tenant-overview`（仅登录、无权限码、租户 ID 取自上下文），并行聚合成员（总数/启用数）、任务（待办/进行中/已完成/逾期/完成率）、Wiki（空间/文档/浏览量）与存储占用，单维度失败按零值降级并叠加 Redis **30s** 短缓存；前端工作台补全任务/Wiki/成员/完成率卡片、待我处理与快捷入口，并新增团队任务概况卡；Wiki 文档数与浏览量由两次扫描合并为一次。
+- **任务看板视图（Board 模式）**：任务页新增看板视图，按状态分列 + 拖拽改状态，与列表视图共存（前端 `views/task/index.vue`，补 188 行视图测试）。
+
+### 修复
+- **编辑任务因 `recurrence` 空串被校验拦成 400**：前端整体提交任务对象时重复周期为空串，后端校验仅接受合法枚举，导致保存失败；现空串按「不重复」归一化后再校验。
+- **导出租约回收空转**：回收前先探测是否存在过期租约，避免无对象时仍发 UPDATE 产生日志噪声。
+- **Wiki 扩展路由影子漂移**：扩展路由收敛为单一注册来源，消除同一路径被重复注册导致的命中不确定。
+- **侧边栏未读角标定位**：修正角标内联定位偏差。
+- **同步工具 Apifox 条目 ID 跨运行撞车**：`apifoxIDCounter` 固定从 900000000 起、而文档内已存在该段 ID，反复 `-apply` 会让新增条目的 `api.id` / `responses.id` / `cases.id` 与历史条目重叠。现按文档现有最大 ID 抬高计数器，并在写回前自检新分配 ID 是否与既有 ID 冲突，冲突即中止写盘；同时一次性清偿历史脏数据（36 个重复数字 ID 涉及 60 个条目、重分配 182 个 ID 并同步修正 `case.responseId` 引用），并清理重复接口条目（`GET /metrics` 存有两条），现全文条目 ID 全唯一。
+- **重复接口条目长期静默**：路由对比按 `METHOD /path` 建 set，同一接口在 Apifox 中出现两次不会体现为缺失/多余；现单独检测并计入 `-check` 失败判定，`-apply` 保留首条、删除其余。
+- **路由镜像三份并存且相互漂移**：文档同步脚本、路由测试各带一份手写镜像（测试侧还漏了 chat / settings / invitation / message / dashboard / ws 条件挂载），task `ai/*`、`tasks/batch`、wiki 评审发布、OAuth 管理端等路由只在一处存在。现新增 `internal/routetable`，用各模块导出的纯注册函数（`RegisterRoutes` / `RegisterAdminRoutes` / ...）拼装路由树，仅 file 模块保留 11 条手写镜像；脚本与测试共用该表，并新增 `TestRouteTable_MatchesProductionRouter`（sqlite + miniredis 启动真实 `InitRouter` 逐条比对，漏登记/多出即失败），消除「假绿」。
+
+### 文档
+- 新增 `docs/api/chat-api.md`（15 个端点、媒体消息结构、WS 事件协议、群规模与撤回限制、错误码）；`auth-api.md` 补 2FA 备份恢复码（启用时一次性返回 10 枚、登录回退校验、8.5 状态查询与 8.6 重新生成）；`dashboard-api.md` 补租户工作台总览（数据结构与 3.6 接口说明）。
+- **OpenAPI / Apifox 补齐并修复同步工具**：`scripts/openapi_sync.go` 的路由树此前漏挂 chat、settings、invitation、message、2FA/邮箱验证与租户看板模块，导致检查长期「完美匹配」假绿；现改为直接复用 `internal/routetable`，补齐新模块分组推断与接口文档指向（含 `/api/v1/csp-report` → System / 系统、`/api/v1/admin/oauth*` → Auth / 认证），`-apply` 后补齐 csp-report、task AI 5 条、批量指派/状态、wiki 评审发布与评论解决共 8 条、OAuth 提供商管理 6 条等接口，OpenAPI 与 Apifox 均达到 333 条且无缺失/多余。
+- **同步工具说明重写与 CI 门禁**：重写 `docs/openapi-sync.md`（两份 JSON 职责、333/333 输出示例、Tags / Apifox 分组 / 文档指向三张推断表、路由表来源与新增模块登记清单、`routetable` 对齐测试护栏、`-apply` 整体重写与 Apifox ID 分配策略）；`scripts/openapi_sync.go` 新增 `-check` 门禁模式（存在差异即退出码 1）并接入 `.github/workflows/ci-cd.yml` 的 `lint` 任务，从流程上阻止「接口改了、文档没跟」的漂移；同步修正 README / FEATURE_UPGRADE 中租户工作台误写的 `dashboard:overview` 权限码。
+
 ## [1.5.0] - 2026-10-28
 
 ### 新增
@@ -225,7 +243,9 @@
 
 v1.0.0 基线：多租户 SaaS 后端（认证 / RBAC / 用户 / 租户 / 审计 / 文件 / 任务 / Wiki / 计划套餐 / 邀请 / 通知 / OAuth / 仪表盘）与 web-admin 管理前端。本自 v1.1.0 起维护变更日志。
 
-[Unreleased]: https://github.com/yuwen002/meteorx/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/yuwen002/meteorx/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/yuwen002/meteorx/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/yuwen002/meteorx/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/yuwen002/meteorx/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/yuwen002/meteorx/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/yuwen002/meteorx/compare/v1.1.0...v1.2.0
