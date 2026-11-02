@@ -99,7 +99,7 @@ jobs:
           echo "Total Go coverage: ${TOTAL}% (threshold: 35%)"
           awk -v c="$TOTAL" 'BEGIN{exit !(c >= 35)}' || { echo "Coverage below 35% threshold"; exit 1; }
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage.out
           flags: unittests
