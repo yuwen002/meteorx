@@ -23,7 +23,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: golangci-lint
@@ -70,7 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Download dependencies
@@ -115,7 +115,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Install govulncheck
@@ -158,7 +158,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Download dependencies
@@ -181,7 +181,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Download dependencies
@@ -276,7 +276,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Set up Node.js
