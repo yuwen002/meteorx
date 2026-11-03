@@ -117,6 +117,51 @@ describe('API Token API', () => {
     expect(result.token).toBe('mx_at_simple123')
   })
 
+  it('createAPIToken should pass scopes through to request body', async () => {
+    const mockResult: CreateAPITokenResult = {
+      id: 'at-003',
+      name: 'Scoped Token',
+      token: 'mx_at_scoped123',
+      scopes: ['user:list', 'task:read'],
+      created_at: '2026-09-29T12:00:00Z',
+    }
+    vi.mocked(post).mockResolvedValue(mockResult)
+
+    const result = await createAPIToken({
+      name: 'Scoped Token',
+      scopes: ['user:list', 'task:read'],
+    })
+    expect(post).toHaveBeenCalledWith('/auth/tokens', {
+      name: 'Scoped Token',
+      scopes: ['user:list', 'task:read'],
+    })
+    expect(result.scopes).toEqual(['user:list', 'task:read'])
+  })
+
+  it('listAPITokens should carry scopes on items', async () => {
+    const mockTokens: APITokenItem[] = [
+      {
+        id: 'at-003',
+        name: 'Scoped Token',
+        scopes: ['user:list'],
+        created_at: '2026-09-29T12:00:00Z',
+        revoked: false,
+      },
+      {
+        id: 'at-004',
+        name: 'Inherited Token',
+        created_at: '2026-09-30T12:00:00Z',
+        revoked: false,
+      },
+    ]
+    vi.mocked(get).mockResolvedValue({ tokens: mockTokens })
+
+    const result = await listAPITokens()
+    expect(result.tokens[0].scopes).toEqual(['user:list'])
+    // 未设置 scope 的令牌应为 undefined（继承全部权限），前端据此展示「不限制」
+    expect(result.tokens[1].scopes).toBeUndefined()
+  })
+
   it('listAPITokens should call /auth/tokens', async () => {
     const mockTokens: APITokenItem[] = [
       {

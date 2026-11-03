@@ -220,6 +220,14 @@
             <span v-else style="color: #9ca3af;">{{ t('profile.token.unlimited') }}</span>
           </template>
         </el-table-column>
+        <el-table-column :label="t('profile.token.scopes')" min-width="200">
+          <template #default="{ row }">
+            <template v-if="row.scopes && row.scopes.length > 0">
+              <el-tag v-for="s in row.scopes" :key="s" size="small" type="warning" style="margin-right: 4px; margin-bottom: 2px;">{{ s }}</el-tag>
+            </template>
+            <span v-else style="color: #9ca3af;">{{ t('profile.token.unlimited') }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="created_at" :label="t('common.createdAt')" min-width="160" />
         <el-table-column :label="t('profile.token.expiresAt')" min-width="160">
           <template #default="{ row }">
@@ -323,6 +331,20 @@
             <el-option label="/audit" value="/audit" />
           </el-select>
           <div style="color: #909399; font-size: 12px; margin-top: 4px;">{{ t('profile.token.pathsHint') }}</div>
+        </el-form-item>
+        <el-form-item :label="t('profile.token.scopes')" prop="scopes">
+          <el-select
+            v-model="createTokenForm.scopes"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            :placeholder="t('profile.token.scopesPlaceholder')"
+            style="width: 100%;"
+          >
+            <el-option v-for="p in scopeOptions" :key="p" :label="p" :value="p" />
+          </el-select>
+          <div style="color: #909399; font-size: 12px; margin-top: 4px;">{{ t('profile.token.scopesHint') }}</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -823,10 +845,14 @@ const createTokenDialogVisible = ref(false)
 const createTokenFormRef = ref<FormInstance>()
 const createTokenLoading = ref(false)
 const newTokenValue = ref('')
+// 权限作用域候选：取自当前用户自身权限码（令牌实际权限 = 属主权限 ∩ scopes）。
+// 超管权限由后端恒放行，候选可能为空，故下拉允许自由输入。
+const scopeOptions = computed(() => [...(userStore.permissions || [])].sort())
 const createTokenForm = reactive({
   name: '',
   expires_in: '',
-  allowed_paths: [] as string[]
+  allowed_paths: [] as string[],
+  scopes: [] as string[]
 })
 const createTokenRules = computed<FormRules>(() => ({
   name: [
@@ -851,6 +877,7 @@ function openCreateTokenDialog() {
   createTokenForm.name = ''
   createTokenForm.expires_in = ''
   createTokenForm.allowed_paths = []
+  createTokenForm.scopes = []
   newTokenValue.value = ''
   createTokenDialogVisible.value = true
 }
@@ -870,7 +897,8 @@ async function submitCreateToken() {
       const data = await createAPIToken({
         name: createTokenForm.name,
         expires_in: createTokenForm.expires_in || undefined,
-        allowed_paths: createTokenForm.allowed_paths.length > 0 ? createTokenForm.allowed_paths : undefined
+        allowed_paths: createTokenForm.allowed_paths.length > 0 ? createTokenForm.allowed_paths : undefined,
+        scopes: createTokenForm.scopes.length > 0 ? createTokenForm.scopes : undefined
       })
       newTokenValue.value = data.token
       ElMessage.success(t('profile.token.createSuccess'))

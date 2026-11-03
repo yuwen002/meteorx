@@ -179,6 +179,7 @@ export interface CreateAPITokenParams {
   name: string
   expires_in?: string
   allowed_paths?: string[]
+  scopes?: string[]
 }
 
 export interface CreateAPITokenResult {
@@ -186,6 +187,7 @@ export interface CreateAPITokenResult {
   name: string
   token: string
   allowed_paths?: string[]
+  scopes?: string[]
   expires_at?: string
   created_at: string
 }
@@ -194,6 +196,7 @@ export interface APITokenItem {
   id: string
   name: string
   allowed_paths?: string[]
+  scopes?: string[]
   last_used_at?: string
   expires_at?: string
   created_at: string
