@@ -231,7 +231,18 @@ func TestSettingSvc_GetPublicMap(t *testing.T) {
 	require.Equal(t, true, out[model.KeyRegistrationEnabled], "bool 应以 JSON 布尔暴露")
 	require.Equal(t, false, out[model.KeyMaintenanceMode])
 	require.Equal(t, "系统维护中，请稍后再试", out[model.KeyMaintenanceMessage])
-	require.Len(t, out, len(model.Registry()), "当前登记键全部为公开键")
+	// 公开配置仅包含 IsPublic=true 的登记键；运行时调参等私有键不得暴露
+	publicCount := 0
+	for _, d := range model.Registry() {
+		if d.IsPublic {
+			publicCount++
+		}
+	}
+	require.Len(t, out, publicCount, "公开配置应仅含 IsPublic 键")
+	_, pubExport := out[model.KeyExportMaxActiveJobs]
+	require.False(t, pubExport, "私有运行时键不得出现在公开配置中")
+	_, pubHorizon := out[model.KeyTaskReminderHorizon]
+	require.False(t, pubHorizon, "私有运行时键不得出现在公开配置中")
 
 	// 私有化一键后不再暴露
 	repo := repository.NewSettingRepository(db)

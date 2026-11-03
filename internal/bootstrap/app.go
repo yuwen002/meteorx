@@ -107,7 +107,7 @@ func StartApp() {
 	StartWikiTrashExpiryJob(ctx, db, rdb)
 
 	// 10.5 启动任务到期提醒定时任务（即将到期/已逾期任务站内提醒）
-	StartTaskReminderJob(ctx, db, cfg)
+	StartTaskReminderJob(ctx, db, cfg, rdb)
 
 	// 10.6 启动数据导出 worker 池（异步执行 pending 导出任务，流式写出 CSV）
 	StartExportWorkerJob(ctx, db, cfg)

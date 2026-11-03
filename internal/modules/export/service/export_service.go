@@ -13,6 +13,7 @@ import (
 	"meteorx/internal/modules/export/dto"
 	"meteorx/internal/modules/export/model"
 	"meteorx/internal/modules/export/repository"
+	settingmodel "meteorx/internal/modules/settings/model"
 	"meteorx/pkg/logger"
 	"meteorx/pkg/ulid"
 )
@@ -47,15 +48,41 @@ type Config struct {
 	MaxActiveJobs int    // 单租户未完结任务上限，≤0 时回落 MaxActiveJobsPerTenant
 }
 
+// QueueLimitProvider 队列上限运行时覆盖能力（由 settings 配置服务提供）：
+// 管理员在配置中心修改 export_max_active_jobs 后免重启生效。
+type QueueLimitProvider interface {
+	GetInt(ctx context.Context, key string) (int64, error)
+}
+
 // ExportService 导出任务服务
 type ExportService struct {
-	repo   repository.ExportRepository
-	config Config
+	repo        repository.ExportRepository
+	config      Config
+	queueLimits QueueLimitProvider // 可选，nil 时仅使用静态配置
 }
 
 // NewExportService 创建导出服务
 func NewExportService(repo repository.ExportRepository, cfg Config) *ExportService {
 	return &ExportService{repo: repo, config: cfg}
+}
+
+// SetQueueLimitProvider 注入配置中心覆盖源（平台运行时配置中心 export_max_active_jobs）。
+func (s *ExportService) SetQueueLimitProvider(p QueueLimitProvider) { s.queueLimits = p }
+
+// effectiveQueueLimit 解析当前生效的队列上限，三层回退：配置中心 DB 行 → 静态配置 → 内置默认；
+// 配置中心读取失败或非正值一律降级，不得阻断创建主流程。
+func (s *ExportService) effectiveQueueLimit(ctx context.Context) int {
+	if s.queueLimits != nil {
+		if v, err := s.queueLimits.GetInt(ctx, settingmodel.KeyExportMaxActiveJobs); err == nil && v > 0 {
+			return int(v)
+		} else if err != nil && !errors.Is(err, context.Canceled) {
+			logger.Warnf("[Export] 读取配置中心队列上限失败，回退静态配置: %v", err)
+		}
+	}
+	if s.config.MaxActiveJobs > 0 {
+		return s.config.MaxActiveJobs
+	}
+	return MaxActiveJobsPerTenant
 }
 
 // CreateExport 创建一条导出任务（状态 pending），返回领域模型。
@@ -73,11 +100,9 @@ func (s *ExportService) CreateExport(ctx context.Context, tenantID, userID strin
 	if err := normalizeIDFilter(req.Filters); err != nil {
 		return nil, err
 	}
-	// 队列上限准入：未完结任务达上限时拒绝新建，查询失败时不阻断创建（fail-open）
-	limit := s.config.MaxActiveJobs
-	if limit <= 0 {
-		limit = MaxActiveJobsPerTenant
-	}
+	// 队列上限准入：未完结任务达上限时拒绝新建，查询失败时不阻断创建（fail-open）；
+	// 上限优先取配置中心运行时值，缺失时回落静态配置/内置默认
+	limit := s.effectiveQueueLimit(ctx)
 	active, err := s.repo.CountActiveByTenant(ctx, tenantID)
 	if err != nil {
 		logger.Warnf("[Export] 统计未完结任务失败，跳过上限检查: tenant=%s err=%v", tenantID, err)

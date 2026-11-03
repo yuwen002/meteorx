@@ -62,9 +62,14 @@ func buildServiceConfig(cfg config.Config) service.Config {
 
 // InitModule 装配依赖并注册受保护路由。
 // 目前仅包含 CRUD 端点，worker 池与过期清理任务由 StartExportWorker / StartExportExpiryJob 后续接入。
-func InitModule(r chi.Router, db *gorm.DB, cfg config.Config) {
+// providers 为可选的配置中心覆盖源（需实现 service.QueueLimitProvider），
+// 变参形式保持既有调用方（含测试）向后兼容。
+func InitModule(r chi.Router, db *gorm.DB, cfg config.Config, providers ...service.QueueLimitProvider) {
 	repo := repository.NewExportRepository(db)
 	svc := service.NewExportService(repo, buildServiceConfig(cfg))
+	if len(providers) > 0 && providers[0] != nil {
+		svc.SetQueueLimitProvider(providers[0])
+	}
 	h := handler.NewExportHandler(svc)
 	checker := newPermissionChecker(db)
 	RegisterRoutes(r, h, checker)

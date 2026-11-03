@@ -3,9 +3,11 @@ package model
 // 配置键常量：全局唯一来源，新增旋钮必须先在此登记并同步实装强制点，
 // 避免产生「可编辑却无效」的死配置。
 const (
-	KeyRegistrationEnabled = "registration_enabled" // 是否开放用户自助注册
-	KeyMaintenanceMode     = "maintenance_mode"     // 站点维护模式开关
-	KeyMaintenanceMessage  = "maintenance_message"  // 维护模式提示文案
+	KeyRegistrationEnabled = "registration_enabled"   // 是否开放用户自助注册
+	KeyMaintenanceMode     = "maintenance_mode"       // 站点维护模式开关
+	KeyMaintenanceMessage  = "maintenance_message"    // 维护模式提示文案
+	KeyExportMaxActiveJobs = "export_max_active_jobs" // 单租户未完结导出任务上限（运行时可调）
+	KeyTaskReminderHorizon = "task_reminder_horizon"  // 任务到期提醒窗口（Go duration，运行时可调）
 )
 
 // 配置值类型常量
@@ -49,6 +51,20 @@ var registry = []SettingDef{
 		ValueType:    ValueTypeString,
 		IsPublic:     true,
 		Description:  "维护模式提示文案，供前端全局展示",
+	},
+	{
+		Key:          KeyExportMaxActiveJobs,
+		DefaultValue: "10",
+		ValueType:    ValueTypeInt,
+		IsPublic:     false,
+		Description:  "单租户未完结导出任务上限，达上限后新建返回 429",
+	},
+	{
+		Key:          KeyTaskReminderHorizon,
+		DefaultValue: "24h",
+		ValueType:    ValueTypeDuration,
+		IsPublic:     false,
+		Description:  "任务到期提醒窗口（Go duration 格式，如 24h/1h30m），扫描截止时间在此范围内的未完成任务",
 	},
 }
 

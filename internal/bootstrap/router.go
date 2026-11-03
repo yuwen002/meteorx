@@ -283,8 +283,9 @@ func InitRouter(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache
 			// 4.9 任务管理接口（个人待办 + 租户团队协作，仅需登录）；AI 辅助为可选叠加层，由 cfg.AI 控制
 			task.InitModule(r, db, cfg.AI)
 
-			// 4.10 数据导出接口（下载中心，异步 CSV 导出）
-			export.InitModule(r, db, *cfg)
+			// 4.10 数据导出接口（下载中心，异步 CSV 导出）；
+			// 注入配置中心作为队列上限覆盖源，export_max_active_jobs 修改免重启生效
+			export.InitModule(r, db, *cfg, settings.NewSettingService(db, rdb))
 
 			// 4.11 站内消息收件箱（按收件人隔离，访问控制以数据归属为准，不挂 RBAC 权限码）。
 			// 同时作为 notify 的 InboxWriter：实时推送只解决在线可达，落库才能让离线用户
@@ -391,14 +392,16 @@ func StartWikiTrashExpiryJob(ctx context.Context, db *gorm.DB, rdb *cache.Redis)
 
 // StartTaskReminderJob 启动任务到期提醒定时任务
 // 周期扫描即将到期/已逾期且未提醒过的任务，向负责人推送站内提醒
-// 提醒窗口/扫描间隔/逾期冷却期/单轮上限均由配置注入
-func StartTaskReminderJob(ctx context.Context, db *gorm.DB, cfg *config.Config) {
+// 提醒窗口/扫描间隔/逾期冷却期/单轮上限均由配置注入；提醒窗口另接配置中心运行时覆盖
+func StartTaskReminderJob(ctx context.Context, db *gorm.DB, cfg *config.Config, rdb *cache.Redis) {
 	job := task.NewTaskReminderJob(db, task.ReminderJobOptions{
 		Horizon:         cfg.TaskReminder.GetHorizon(),
 		Interval:        cfg.TaskReminder.GetInterval(),
 		OverdueCooldown: cfg.TaskReminder.GetOverdueCooldown(),
 		BatchLimit:      cfg.TaskReminder.GetBatchLimit(),
 	})
+	// 注入配置中心覆盖源：管理员修改 task_reminder_horizon 后免重启生效
+	job.SetHorizonProvider(settings.NewSettingService(db, rdb))
 	job.Start(ctx)
 }
 

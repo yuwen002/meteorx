@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -176,6 +177,62 @@ func TestService_CreateExport_CustomQueueLimit(t *testing.T) {
 	}
 	_, err = svc0.CreateExport(ctx, "t9", "u9", dto.CreateExportReq{Resource: model.ResourceUser})
 	require.ErrorIs(t, err, ErrExportQueueFull)
+}
+
+// stubQueueLimit 配置中心队列上限桩：按预设值/错误驱动三层回退断言
+type stubQueueLimit struct {
+	val int64
+	err error
+}
+
+func (s stubQueueLimit) GetInt(context.Context, string) (int64, error) { return s.val, s.err }
+
+// TestService_QueueLimitProviderFallback 队列上限三层回退：配置中心 → 静态配置 → 内置默认
+func TestService_QueueLimitProviderFallback(t *testing.T) {
+	ctx := context.Background()
+
+	// 配置中心正值优先于静态配置（静态设为 2，运行时覆盖为 5）
+	svc := newServiceWithLimit(t, 2)
+	svc.SetQueueLimitProvider(stubQueueLimit{val: 5})
+	require.Equal(t, 5, svc.effectiveQueueLimit(ctx), "配置中心正值应覆盖静态配置")
+
+	// 配置中心返回非正值：降级到静态配置
+	svc.SetQueueLimitProvider(stubQueueLimit{val: 0})
+	require.Equal(t, 2, svc.effectiveQueueLimit(ctx), "非正值应回落静态配置")
+
+	// 配置中心报错：fail-open 降级到静态配置
+	svc.SetQueueLimitProvider(stubQueueLimit{err: errors.New("db down")})
+	require.Equal(t, 2, svc.effectiveQueueLimit(ctx), "读取失败必须降级，不得阻断")
+
+	// 无静态配置时回落内置默认
+	svc0 := newServiceWithLimit(t, 0)
+	svc0.SetQueueLimitProvider(stubQueueLimit{err: errors.New("db down")})
+	require.Equal(t, MaxActiveJobsPerTenant, svc0.effectiveQueueLimit(ctx), "静态缺省应回落内置默认")
+
+	// 未注入 provider：仅用静态配置
+	require.Equal(t, 2, newServiceWithLimit(t, 2).effectiveQueueLimit(ctx))
+}
+
+// TestService_CreateExport_RuntimeQueueLimit 运行时上限实际作用于创建准入：覆盖后第 4 个放行
+func TestService_CreateExport_RuntimeQueueLimit(t *testing.T) {
+	ctx := context.Background()
+	svc := newServiceWithLimit(t, 2)
+	// 静态上限 2：先建满 2 个
+	for i := 0; i < 2; i++ {
+		_, err := svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{Resource: model.ResourceUser})
+		require.NoError(t, err)
+	}
+	_, err := svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{Resource: model.ResourceUser})
+	require.ErrorIs(t, err, ErrExportQueueFull)
+
+	// 配置中心放宽到 5 后免重启生效：继续可建至上限
+	svc.SetQueueLimitProvider(stubQueueLimit{val: 5})
+	for i := 2; i < 5; i++ {
+		_, err = svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{Resource: model.ResourceUser})
+		require.NoError(t, err, "运行时上限提升后第 %d 个应放行", i+1)
+	}
+	_, err = svc.CreateExport(ctx, "t1", "u1", dto.CreateExportReq{Resource: model.ResourceUser})
+	require.ErrorIs(t, err, ErrExportQueueFull, "达运行时上限后应拒绝")
 }
 
 func TestService_GetByID_Ownership(t *testing.T) {
