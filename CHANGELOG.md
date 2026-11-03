@@ -21,6 +21,7 @@
 - **协作即时消息（IM）增强：历史分页、已读回执、@提及与图片/文件消息**：`GET /chat/conversations/{id}/messages` 支持 `page`/`page_size`（默认 20、最大 100，取数倒序分页页内升序，供前端向上滚动拼接）；`POST .../read` 推进成员已读水位并新增 `GET .../read-status` 返回其他成员已读水位，配合 WS `chat_read` 实时回执；`SendMessageReq.mention_ids` 支持 @提及（逗号分隔，服务层过滤为会话内有效成员）并在会话列表标记被 @；消息类型扩展为 `text`/`image`/`file`，媒体消息正文为 `{file,name,size}` JSON、复用文件模块存储并现签 **30 分钟**短时效访问 URL（`file` 仅允许单段安全字符，杜绝路径穿越）。
 - **租户工作台补全与 tenant-overview 聚合**：新增 `GET /dashboard/tenant-overview`（仅登录、无权限码、租户 ID 取自上下文），并行聚合成员（总数/启用数）、任务（待办/进行中/已完成/逾期/完成率）、Wiki（空间/文档/浏览量）与存储占用，单维度失败按零值降级并叠加 Redis **30s** 短缓存；前端工作台补全任务/Wiki/成员/完成率卡片、待我处理与快捷入口，并新增团队任务概况卡；Wiki 文档数与浏览量由两次扫描合并为一次。
 - **任务看板视图（Board 模式）**：任务页新增看板视图，按状态分列 + 拖拽改状态，与列表视图共存（前端 `views/task/index.vue`，补 188 行视图测试）。
+- **全局命令面板（Ctrl/Cmd+K）**：新增 `utils/commands` 命令注册表与 `useCommandPalette` composable，`DefaultLayout` 挂载 `CommandPalette` 组件，支持模糊过滤、键盘上下选择与 Enter 跳转、跨模块导航及「?」快捷键帮助浮层；补 `commands.test.ts`、`CommandPalette.test.ts` 单测。
 
 ### 修复
 - **Wiki 审核/发布权限恒 403**：`mapActionToSpaceLevel` 未把 `review`/`publish` 映射到矩阵键 `document:review`/`document:publish`，审核通过、驳回、直接发布、取消发布、归档 5 个接口对所有成员（含 Space Owner）恒定 403；补全映射并新增 `wiki_permission_test.go`（映射与角色矩阵一致性）与 `wiki_publish_workflow_test.go`（sqlite 全链路 submit→approve→publish→archive + 403/409 边界）。
@@ -31,6 +32,7 @@
 - **同步工具 Apifox 条目 ID 跨运行撞车**：`apifoxIDCounter` 固定从 900000000 起、而文档内已存在该段 ID，反复 `-apply` 会让新增条目的 `api.id` / `responses.id` / `cases.id` 与历史条目重叠。现按文档现有最大 ID 抬高计数器，并在写回前自检新分配 ID 是否与既有 ID 冲突，冲突即中止写盘；同时一次性清偿历史脏数据（36 个重复数字 ID 涉及 60 个条目、重分配 182 个 ID 并同步修正 `case.responseId` 引用），并清理重复接口条目（`GET /metrics` 存有两条），现全文条目 ID 全唯一。
 - **重复接口条目长期静默**：路由对比按 `METHOD /path` 建 set，同一接口在 Apifox 中出现两次不会体现为缺失/多余；现单独检测并计入 `-check` 失败判定，`-apply` 保留首条、删除其余。
 - **路由镜像三份并存且相互漂移**：文档同步脚本、路由测试各带一份手写镜像（测试侧还漏了 chat / settings / invitation / message / dashboard / ws 条件挂载），task `ai/*`、`tasks/batch`、wiki 评审发布、OAuth 管理端等路由只在一处存在。现新增 `internal/routetable`，用各模块导出的纯注册函数（`RegisterRoutes` / `RegisterAdminRoutes` / ...）拼装路由树，仅 file 模块保留 11 条手写镜像；脚本与测试共用该表，并新增 `TestRouteTable_MatchesProductionRouter`（sqlite + miniredis 启动真实 `InitRouter` 逐条比对，漏登记/多出即失败），消除「假绿」。
+- **应用内页面暗色主题一致性**：将 profile、task、审计日志、用户时间线、Wiki 空间/分享/评论等页面中硬编码的白色/浅灰背景、近黑文字与浅边框改用 Element Plus CSS 变量（`var(--el-*)`），消除暗色模式下的刺眼白块；保留品牌蓝与深色代码块等有意为之的固定色。
 
 ### 文档
 - 补齐 Wiki 发布工作流文档：`docs/api/wiki-api.md` 12.3 增评论表情回应/解决约束，新增「14. 发布工作流与审核」（状态机、角色权限矩阵、8 个端点、请求响应示例、通知语义、403/409 错误）；新增 `docs/api/system-api.md`（`/health`、`/health/ready`、`/metrics`、`/api/v1/csp-report`）；`docs/api/invitation-api.md` 补 `GET /invitations/roles` 并纠正 cancel/resend 权限码为 `invitation:update`；同步工具将公开运维端点标注为「公开接口（无鉴权）」并指向 `system-api.md`。
