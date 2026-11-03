@@ -113,7 +113,7 @@ func TestInteg_SettingsAdminEndpoints(t *testing.T) {
 	require.Equal(t, http.StatusForbidden,
 		app.Do(t, http.MethodGet, "/api/v1/admin/settings", "", tenantAdmin).Code)
 
-	// 超管列表：三个登记键均在，source 为 db（启动已播种）
+	// 超管列表：五个登记键均在（含 export_max_active_jobs / task_reminder_horizon），source 为 db（启动已播种）
 	sAdmin := app.SuperadminHeader("u-super", "")
 	w := app.Do(t, http.MethodGet, "/api/v1/admin/settings", "", sAdmin)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
@@ -122,7 +122,7 @@ func TestInteg_SettingsAdminEndpoints(t *testing.T) {
 		Source string `json:"source"`
 	}
 	testkit.DecodeData(t, w, &list)
-	require.Len(t, list, 3)
+	require.Len(t, list, 5)
 	for _, item := range list {
 		require.Equal(t, "db", item.Source, "启动播种后列表值应来源于库: %s", item.Key)
 	}
@@ -135,4 +135,7 @@ func TestInteg_SettingsAdminEndpoints(t *testing.T) {
 	require.Equal(t, true, public["registration_enabled"])
 	require.Equal(t, false, public["maintenance_mode"])
 	require.Contains(t, public, "maintenance_message")
+	// 两把私有运行时常量 IsPublic=false，不得泄漏到公开配置
+	require.NotContains(t, public, "export_max_active_jobs")
+	require.NotContains(t, public, "task_reminder_horizon")
 }
