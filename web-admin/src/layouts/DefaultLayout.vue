@@ -195,6 +195,16 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
+          <el-tooltip :content="t('cmdk.open')" placement="bottom">
+            <button
+              type="button"
+              class="header-action cmdk-trigger"
+              :aria-label="t('cmdk.open')"
+              @click="openPalette"
+            >
+              <el-icon><Search /></el-icon>
+            </button>
+          </el-tooltip>
           <el-tooltip :content="theme === 'dark' ? t('theme.toLight') : t('theme.toDark')" placement="bottom">
             <button
               type="button"
@@ -290,6 +300,9 @@
         <el-button type="primary" @click="saveBrandConfig">{{ t('common.save') }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- 命令面板（Ctrl/Cmd+K）：全局键盘导航入口 -->
+    <CommandPalette />
   </el-container>
 </template>
 
@@ -321,6 +334,7 @@ import {
   OfficeBuilding,
   Platform,
   Reading,
+  Search,
   Setting,
   Sunny,
   SwitchButton,
@@ -339,10 +353,12 @@ import { useNotificationStore } from '@/stores/notification'
 import { useMessageStore } from '@/stores/message'
 import { useChatStore } from '@/stores/chat'
 import { useTheme } from '@/composables/useTheme'
+import { useCommandPalette } from '@/composables/useCommandPalette'
 import { useI18n } from '@/composables/useI18n'
 import { useBrand } from '@/composables/useBrand'
 import GlobalNotificationCenter from '@/views/wiki/components/GlobalNotificationCenter.vue'
 import MessageBell from '@/components/MessageBell.vue'
+import CommandPalette from '@/components/CommandPalette.vue'
 
 const router = useRouter()
 const currentRoute = useRoute()
@@ -353,6 +369,7 @@ const messageStore = useMessageStore()
 const chatStore = useChatStore()
 
 const { theme, toggleTheme } = useTheme()
+const { open: openPalette } = useCommandPalette()
 const { locale, setLocale, t } = useI18n()
 const { brand, setBrand, resetBrand } = useBrand()
 
