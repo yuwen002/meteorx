@@ -396,13 +396,13 @@ function formatJSON(str: string): string {
 
 .stat-info {
   .stat-label { font-size: 12px; color: #909399; }
-  .stat-value { font-size: 24px; font-weight: bold; color: #303133; }
+  .stat-value { font-size: 24px; font-weight: bold; color: var(--el-text-color-primary); }
 }
 
 .timeline-container {
-  background: #fff;
+  background: var(--el-bg-color);
   border-radius: 4px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--el-border-color-lighter);
   padding: 20px;
 }
 
@@ -416,10 +416,10 @@ function formatJSON(str: string): string {
   gap: 12px;
   margin-bottom: 12px;
   padding: 8px 12px;
-  background: #f5f7fa;
+  background: var(--el-fill-color-light);
   border-radius: 4px;
 
-  .date-badge { font-weight: bold; color: #303133; font-size: 14px; }
+  .date-badge { font-weight: bold; color: var(--el-text-color-primary); font-size: 14px; }
   .date-count { color: #909399; font-size: 12px; }
   .date-success { color: #67c23a; font-size: 12px; }
   .date-failure { color: #f56c6c; font-size: 12px; }
@@ -433,11 +433,11 @@ function formatJSON(str: string): string {
   display: flex;
   gap: 12px;
   padding: 8px 0;
-  border-bottom: 1px solid #f2f2f2;
+  border-bottom: 1px solid var(--el-border-color-lighter);
   cursor: pointer;
   transition: background 0.2s;
 
-  &:hover { background: #fafafa; }
+  &:hover { background: var(--el-fill-color-light); }
   &:last-child { border-bottom: none; }
 }
 
@@ -473,7 +473,7 @@ function formatJSON(str: string): string {
 }
 
 .timeline-path {
-  color: #303133;
+  color: var(--el-text-color-primary);
   font-family: monospace;
   font-size: 13px;
   margin-left: 4px;
@@ -497,7 +497,7 @@ function formatJSON(str: string): string {
 .body-viewer {
   max-height: 400px;
   overflow: auto;
-  background: #f5f7fa;
+  background: var(--el-fill-color-light);
   border-radius: 4px;
   padding: 12px;
 }

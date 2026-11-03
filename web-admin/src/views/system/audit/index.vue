@@ -853,7 +853,7 @@ function handleExport() {
   .stat-value {
     font-size: 24px;
     font-weight: 600;
-    color: #262626;
+    color: var(--el-text-color-primary);
   }
 }
 
@@ -893,8 +893,8 @@ function handleExport() {
   display: flex;
   align-items: flex-end;
   gap: 4px;
-  border-bottom: 1px solid #f0f0f0;
-  border-left: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-left: 1px solid var(--el-border-color-lighter);
   padding-left: 8px;
 }
 
@@ -945,7 +945,7 @@ function handleExport() {
   display: flex;
   gap: 16px;
   font-size: 12px;
-  color: #595959;
+  color: var(--el-text-color-regular);
 }
 
 .legend-item {
@@ -987,7 +987,7 @@ function handleExport() {
   left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
-  background: #fff;
+  background: var(--el-bg-color);
   border-radius: 50%;
   width: 90px;
   height: 90px;
@@ -1000,7 +1000,7 @@ function handleExport() {
 .pie-total {
   font-size: 24px;
   font-weight: 600;
-  color: #262626;
+  color: var(--el-text-color-primary);
 }
 
 .pie-label {
@@ -1027,11 +1027,11 @@ function handleExport() {
 
   .legend-name {
     flex: 1;
-    color: #595959;
+    color: var(--el-text-color-regular);
   }
 
   .legend-value {
-    color: #262626;
+    color: var(--el-text-color-primary);
     font-weight: 500;
     min-width: 30px;
     text-align: right;
@@ -1063,18 +1063,18 @@ function handleExport() {
   font-size: 13px;
 
   .action-name {
-    color: #595959;
+    color: var(--el-text-color-regular);
   }
 
   .action-count {
-    color: #262626;
+    color: var(--el-text-color-primary);
     font-weight: 500;
   }
 }
 
 .action-bar-bg {
   height: 8px;
-  background: #f5f5f5;
+  background: var(--el-fill-color);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -1106,7 +1106,7 @@ function handleExport() {
 
 .ring-bg {
   fill: none;
-  stroke: #f5f5f5;
+  stroke: var(--el-fill-color);
   stroke-width: 12;
 }
 
@@ -1135,7 +1135,7 @@ function handleExport() {
     display: block;
     font-size: 28px;
     font-weight: 600;
-    color: #262626;
+    color: var(--el-text-color-primary);
   }
 
   .ring-label {
@@ -1154,7 +1154,7 @@ function handleExport() {
   align-items: center;
   gap: 8px;
   padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
   font-size: 14px;
 
   &:last-child {
@@ -1177,11 +1177,11 @@ function handleExport() {
 
   .result-name {
     flex: 1;
-    color: #595959;
+    color: var(--el-text-color-regular);
   }
 
   .result-count {
-    color: #262626;
+    color: var(--el-text-color-primary);
     font-weight: 500;
   }
 }
@@ -1237,7 +1237,7 @@ function handleExport() {
 }
 
 .json-pre {
-  background: #f5f5f5;
+  background: var(--el-fill-color);
   padding: 8px;
   border-radius: 4px;
   max-height: 300px;

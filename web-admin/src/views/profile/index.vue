@@ -416,7 +416,7 @@
         <template #title>{{ t('profile.totp.recoveryOnceHint') }}</template>
       </el-alert>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <code v-for="c in recoveryCodes" :key="c" style="padding:6px 10px;background:#f5f7fa;border-radius:4px;text-align:center;letter-spacing:1px;">{{ c }}</code>
+        <code v-for="c in recoveryCodes" :key="c" style="padding:6px 10px;background:var(--el-fill-color-light);border-radius:4px;text-align:center;letter-spacing:1px;">{{ c }}</code>
       </div>
       <template #footer>
         <el-button @click="copyAllRecoveryCodes">{{ t('profile.totp.recoveryCopyAll') }}</el-button>
@@ -961,7 +961,7 @@ onMounted(() => {
 .info-item {
   display: flex;
   padding: 12px 0;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .info-item:last-child {
@@ -970,13 +970,13 @@ onMounted(() => {
 
 .info-item label {
   width: 100px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   font-weight: 500;
 }
 
 .info-item span {
   flex: 1;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 .token-display {
@@ -1002,7 +1002,7 @@ onMounted(() => {
     gap: 4px;
     margin-top: 8px;
     font-size: 12px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
   }
 }
 
@@ -1019,9 +1019,9 @@ onMounted(() => {
   gap: 8px;
   width: 160px;
   height: 44px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--el-border-color);
   border-radius: 8px;
-  background: #fff;
+  background: var(--el-bg-color-overlay);
   cursor: pointer;
   font-size: 15px;
   font-weight: 500;
@@ -1035,8 +1035,8 @@ onMounted(() => {
   font-family: 'Courier New', Courier, monospace;
   font-size: 14px;
   letter-spacing: 1px;
-  color: #303133;
-  background: #f5f7fa;
+  color: var(--el-text-color-primary);
+  background: var(--el-fill-color-light);
   padding: 2px 8px;
   border-radius: 4px;
 }

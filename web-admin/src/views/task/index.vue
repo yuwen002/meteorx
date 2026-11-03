@@ -1074,7 +1074,7 @@ watch(
 .summary-text {
   white-space: pre-wrap;
   line-height: 1.6;
-  color: #303133;
+  color: var(--el-text-color-primary);
   margin: 0 0 12px;
 }
 .summary-block__title {
@@ -1100,14 +1100,14 @@ watch(
 .board-col {
   flex: 1 0 260px;
   min-width: 260px;
-  background: #f6f7f9;
+  background: var(--el-fill-color-light);
   border-radius: 8px;
   padding: 8px;
   transition: background 0.2s, box-shadow 0.2s;
 }
 .board-col--dragover {
-  background: #eef4ff;
-  box-shadow: inset 0 0 0 2px #b5d0ff;
+  background: var(--el-color-primary-light-9);
+  box-shadow: inset 0 0 0 2px var(--el-color-primary-light-5);
 }
 .board-col__header {
   display: flex;
@@ -1115,7 +1115,7 @@ watch(
   gap: 6px;
   padding: 4px 6px 10px;
   font-weight: 600;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 .board-col__dot {
   width: 8px;
@@ -1138,13 +1138,13 @@ watch(
 .board-col__count {
   font-size: 12px;
   color: #909399;
-  background: #fff;
+  background: var(--el-bg-color-overlay);
   border-radius: 10px;
   padding: 0 8px;
   line-height: 18px;
 }
 .board-card {
-  background: #fff;
+  background: var(--el-bg-color-overlay);
   border-radius: 6px;
   padding: 10px;
   margin-bottom: 8px;
@@ -1159,7 +1159,7 @@ watch(
 }
 .board-card__title {
   font-size: 14px;
-  color: #303133;
+  color: var(--el-text-color-primary);
   margin-bottom: 8px;
   word-break: break-word;
 }

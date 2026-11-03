@@ -351,7 +351,7 @@ function formatTime(time: string) {
 <style scoped>
 .comment-section {
   padding: 16px;
-  background: #fff;
+  background: var(--el-bg-color);
   border-radius: 4px;
 }
 
@@ -380,13 +380,13 @@ function formatTime(time: string) {
 
 .comment-item {
   padding: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--el-border-color);
   border-radius: 4px;
 }
 
 .comment-item.resolved {
-  background: #f6ffed;
-  border-color: #b7eb8f;
+  background: var(--el-color-success-light-9);
+  border-color: var(--el-color-success-light-5);
 }
 
 .comment-header {
@@ -398,17 +398,17 @@ function formatTime(time: string) {
 
 .user-name {
   font-weight: 600;
-  color: #1f2937;
+  color: var(--el-text-color-primary);
 }
 
 .comment-time {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--el-text-color-secondary);
 }
 
 .comment-content {
   margin-bottom: 8px;
-  color: #374151;
+  color: var(--el-text-color-regular);
   line-height: 1.6;
 }
 
@@ -423,10 +423,10 @@ function formatTime(time: string) {
 .rchip {
   cursor: pointer;
   padding: 2px 8px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--el-border-color);
   border-radius: 12px;
   font-size: 13px;
-  background: #f9fafb;
+  background: var(--el-fill-color-light);
   user-select: none;
 }
 
@@ -438,11 +438,11 @@ function formatTime(time: string) {
 .radd {
   cursor: pointer;
   padding: 2px 8px;
-  border: 1px dashed #d1d5db;
+  border: 1px dashed var(--el-border-color);
   border-radius: 12px;
   font-size: 13px;
   background: transparent;
-  color: #6b7280;
+  color: var(--el-text-color-regular);
 }
 
 .radd:hover {
@@ -465,7 +465,7 @@ function formatTime(time: string) {
 }
 
 .emoji-picker .emoji:hover {
-  background: #f3f4f6;
+  background: var(--el-fill-color);
 }
 
 .comment-actions {
@@ -477,7 +477,7 @@ function formatTime(time: string) {
   margin-left: 24px;
   margin-top: 12px;
   padding: 8px;
-  background: #f9fafb;
+  background: var(--el-fill-color-light);
   border-radius: 4px;
 }
 
