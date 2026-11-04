@@ -15,7 +15,9 @@
 任务管理模块同时支持**个人待办**与**租户团队协作**两种场景，二者共用同一套模型与接口，通过 `visibility` 字段区分：
 
 - `personal`（个人待办）：仅创建人可见、可管理，负责人强制为创建人本人。
-- `tenant`（团队协作）：租户内成员共享可见，可将负责人指派给其他成员，负责人也可编辑/完成。
+- `tenant`（团队协作）：租户内成员共享可见，可将负责人指派给其他成员，负责人也可编辑/完成。支持**多负责人**（`assignees` 集合，主负责人=`assignee_id`保留向后兼容）。
+
+**子任务**：任务可通过 `parent_id` 挂在另一个任务下形成**单层**子任务（父任务自身不能是子任务）；列表/看板可用 `root_only` 仅展示根任务。
 
 **访问控制**：所有接口均需登录，模块**不使用细粒度 RBAC 权限码**，而是以数据归属（创建人 / 负责人 / 同租户）作为访问边界，任何登录用户开箱可用。
 
@@ -34,7 +36,9 @@
 |------|------|------|
 | POST | `/tasks` | 创建任务 |
 | GET | `/tasks` | 查询任务列表（分页 + 筛选） |
+| GET | `/tasks/board` | 看板全量加载（不分页，当前筛选范围内上限 500 条） |
 | GET | `/tasks/stats` | 任务状态统计 |
+| GET | `/tasks/assignable` | 可指派成员列表（仅需登录，供负责人选择器） |
 | GET | `/tasks/{id}` | 查询任务详情 |
 | PUT | `/tasks/{id}` | 更新任务字段 |
 | PUT | `/tasks/{id}/complete` | 标记任务完成 |
@@ -53,7 +57,7 @@
 | POST | `/tasks/ai/expand` | 描述扩写/拆解 |
 | POST | `/tasks/ai/summary` | 任务摘要/周报 |
 
-> 路由注册顺序上静态段（`/stats`、`/deleted`、`/batch/*`）必须先于 `/{id}`，避免路径参数吞掉静态段。
+> 路由注册顺序上静态段（`/stats`、`/board`、`/assignable`、`/deleted`、`/batch/*`）必须先于 `/{id}`，避免路径参数吞掉静态段。
 
 ---
 
@@ -67,8 +71,11 @@
 | tenant_id | string | 所属租户 ID |
 | creator_id | string | 创建人用户 ID |
 | creator_name | string | 创建人展示名（昵称优先，回退用户名），无法解析时不返回该字段 |
-| assignee_id | string | 负责人用户 ID |
-| assignee_name | string | 负责人展示名（昵称优先，回退用户名），无法解析时不返回该字段 |
+| assignee_id | string | 主负责人用户 ID（多负责人集合首位，兼容旧字段） |
+| assignee_name | string | 主负责人展示名（昵称优先，回退用户名），无法解析时不返回该字段 |
+| assignees | []string | 多负责人集合（含主负责人，主负责人排首位），无额外负责人时可为空 |
+| assignee_names | []string | 负责人展示名集合（与 `assignees` 同序），无法解析时不返回该字段 |
+| parent_id | string | 父任务 ID，为空表示根任务（仅支持单层），根任务不返回该字段 |
 | title | string | 任务标题 |
 | description | string | 任务描述 |
 | status | string | 状态：`pending` / `in_progress` / `completed` |
@@ -84,7 +91,8 @@
 | created_at | string | 创建时间 |
 | updated_at | string | 更新时间 |
 
-> `creator_name` / `assignee_name` 由服务端基于用户表批量解析后富化（昵称优先、回退用户名），前端无需再单独查询用户；解析失败时对应字段留空。
+> `creator_name` / `assignee_name` / `assignee_names` 由服务端基于用户表批量解析后富化（昵称优先、回退用户名），前端无需再单独查询用户；解析失败时对应字段留空。
+> `assignee_id` 语义为“主负责人”（= `assignees[0]`），保留以向后兼容既有按单负责人的过滤/提醒/看板；多负责人完整集合见 `assignees`。
 
 ### 3.2 CreateTaskReq（创建任务请求）
 
@@ -98,7 +106,9 @@
 | remind_before | string | 否 | max=16 | 任务级提醒提前量，Go Duration 格式（如 `2h`/`30m`/`1h30m`），仅允许 `[0, 31天]`；留空使用全局默认窗口 |
 | tags | []string | 否 | max=10 | 标签列表 |
 | visibility | string | 否 | oneof personal/tenant | 可见范围，默认 `personal` |
-| assignee_id | string | 否 | max=26 | 负责人；`personal` 任务强制为创建人 |
+| assignee_id | string | 否 | max=26 | 主负责人；`personal` 任务强制为创建人 |
+| assignees | []string | 否 | max=20，每项 max=26 | 多负责人集合：给出时以集合为准（主负责人=首位），否则回落 `assignee_id`；`personal` 任务强制为创建人 |
+| parent_id | string | 否 | max=26 | 父任务 ID：创建子任务时指定，仅允许挂在根任务下（单层） |
 | recurrence | string | 否 | oneof daily/weekly/monthly | 重复周期；非空时必须同时设置 `due_date`，完成该任务后自动按周期生成下一条待办 |
 
 ### 3.3 UpdateTaskReq（更新任务请求）
@@ -115,7 +125,9 @@
 | remind_before | *string | max=16 | 提醒提前量（Go Duration 格式）；**传空字符串表示恢复使用全局默认** |
 | tags | *[]string | max=10 | 标签 |
 | visibility | *string | oneof personal/tenant | 可见范围 |
-| assignee_id | *string | max=26 | 负责人；`personal` 任务会强制回写为创建人 |
+| assignee_id | *string | max=26 | 主负责人；`personal` 任务会强制回写为创建人 |
+| assignees | *[]string | max=20，每项 max=26 | 多负责人集合：非 nil 时以集合为准重置负责人（主负责人=首位）；nil 表示不改动 |
+| parent_id | *string | max=26 | 父任务：传入非空挂到该根任务下（单层）；传空字符串表示解除父子关系回退为根任务 |
 | recurrence | *string | oneof daily/weekly/monthly | 重复周期；**传空字符串表示取消重复**；非空时任务必须拥有截止时间 |
 
 ### 3.4 TaskStatsResp（任务统计响应）
@@ -141,6 +153,21 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | affected | int | 实际生效的任务数（无权/不存在的项会被跳过，不计入） |
+
+### 3.7 TaskBoardResp（看板全量加载响应）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| items | []TaskResp | 当前筛选范围内（按 `created_at` 排序，上限后端 `BoardMax=500`）的任务，不分页 |
+| total | int | 不受上限约束的真实匹配总数 |
+| truncated | bool | 为真表示 `total` 超过 `items` 长度（即超过 500），看板仅展示其中一部分 |
+
+### 3.8 AssigneeBrief（可指派成员简讯）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | string | 用户 ID |
+| name | string | 展示名（昵称优先，回退用户名） |
 
 ---
 
@@ -168,14 +195,16 @@
 
 **业务规则：**
 - `status` 缺省为 `pending`，`priority` 缺省为 `normal`，`visibility` 缺省为 `personal`
-- `personal` 任务的负责人强制为创建人本人，忽略传入的 `assignee_id`
-- `tenant` 任务可将 `assignee_id` 指派给其他成员，为空时默认为创建人
-- 指派非创建人的负责人时，系统会校验其**存在且属于当前租户**（未删除的有效用户），否则返回 `400 负责人不存在或不属于当前租户`；未启用用户目录校验器时跳过该校验
+- `personal` 任务的负责人强制为创建人本人，忽略传入的 `assignee_id`/`assignees`
+- `tenant` 任务可将负责人指派给其他成员：传 `assignees` 时以集合为准（主负责人=首位），否则回落 `assignee_id` 单个；为空时默认为创建人
+- 指派负责人时逐个校验其**存在且属于当前租户**（未删除的有效用户），否则返回 `400 负责人不存在或不属于当前租户`；未启用用户目录校验器时跳过该校验
+- 多负责人写入关联表 `task_assignees`（与任务同事务替换），`assignee_id` 同步为主负责人（`assignees[0]`）以保证向后兼容
+- `parent_id` 创建子任务（仅支持单层）：父任务须存在、同租户、可查看，且父任务自身不能再有父任务，否则返回 `400 父任务不合法`/`404 父任务不存在`；不允许 `parent_id==自身ID`。子任务可见范围继承父任务
 - `recurrence` 为重复周期，**设置非空值时必须同时提供 `due_date`**（否则返回 `400 周期性任务必须设置截止时间`）；任务完成后系统会按周期从原截止日推算并自动创建一条新的 `pending` 任务（见 4.16）
 - 若创建时直接指定 `status=completed`，会写入 `completed_at`
 - `due_date` 格式非法返回 `400`
 - `remind_before` 为任务级提醒提前量（仅在设置了 `due_date` 时生效）；无法解析或超出 `[0, 31天]` 范围返回 `400`；留空则使用全局默认提醒窗口
-- `tenant` 任务指派给他人（负责人 ≠ 创建人）时，系统会向新负责人发送一条站内指派提醒（见第 7 节）
+- `tenant` 任务指派给他人（负责人 ≠ 创建人）时，系统会向**全部新负责人**去重发送站内指派提醒（见第 7 节）
 
 **成功响应（200）：**
 ```json
@@ -225,13 +254,15 @@
 | visibility | string | 可见范围筛选：`personal` / `tenant`；不传时返回"租户任务 + 自己相关的个人任务" |
 | status | string | 状态筛选：`pending` / `in_progress` / `completed`；**传 `overdue` 为"仅逾期"伪状态**，返回未完成的逾期任务（口径与 `/tasks/stats` 的 `overdue` 一致，供前端逾期卡片下钻） |
 | priority | string | 优先级筛选 |
-| assignee_id | string | 按负责人筛选 |
+| assignee_id | string | 按负责人筛选（命中主负责人 `assignee_id` **或** `task_assignees` 集合中包含该用户即副负责人也命中） |
 | keyword | string | 按标题/描述模糊搜索 |
 | tag | string | 按标签精确筛选（任务标签集合包含该标签时命中，基于 MySQL `JSON_CONTAINS`） |
 | due_from | string | 截止时间区间下界（含），支持 RFC3339 / `2006-01-02 15:04:05` / `2006-01-02`；格式非法返回 `400` |
 | due_to | string | 截止时间区间上界（含）；**仅传日期（`2006-01-02`）时后端自动补足到当天 `23:59:59`**，使按日期区间含当天全部任务；格式非法返回 `400` |
 | sort_by | string | 排序字段（如 `created_at`、`due_date`、`priority`） |
 | sort_order | string | 排序方向 `asc` / `desc` |
+| parent_id | string | 按父任务 ID 过滤，拉取某任务的直接子任务 |
+| root_only | bool | 传 `1`/`true`/`on` 仅返回根任务（`parent_id` 为空），列表默认视图用于隐藏子任务 |
 
 **默认排序：** 未完成任务优先（`completed` 靠后）→ 优先级 `urgent > high > normal > low` → 创建时间倒序。
 
@@ -330,8 +361,10 @@
 ```
 
 **业务规则：**
-- 仅**创建人**或（`tenant` 任务的）**负责人**可修改，否则返回 `403`
+- 仅**创建人**或（`tenant` 任务的）**任一负责人（主/副）**可修改，否则返回 `403`
 - 跨租户访问返回 `404`
+- `assignees` 非 nil 时以集合为准重置多负责人（主负责人=首位，同步写回 `assignee_id` 与 `task_assignees`）；逐个校验同租户有效成员
+- `parent_id` 传入非空时挂到该根任务下（仅单层，校验同 §4.1）；传空字符串解除父子关系回退为根任务
 - 将 `status` 改为 `completed` 会写入 `completed_at`，改为其它状态会清空 `completed_at`
 - 将 `status` 改为 `in_progress` 时，若尚未记录过开始时间则自动写入 `started_at`（一旦开始不再清空）
 - `due_date` 传空字符串表示清除截止时间
@@ -402,6 +435,7 @@
 
 **业务规则：**
 - **软删除**，写入 `deleted_at`，列表与详情不再返回
+- 删除父任务会**级联软删其直接子任务**（单层）；回收站/恢复按单条独立，恢复父不会自动恢复子（已知限制）
 - 删除权限更严格：**仅创建人**（或 `superadmin` 角色）可删除，负责人无删除权
 - 跨租户访问返回 `404`
 
@@ -602,15 +636,16 @@
 ```json
 {
   "ids": ["01M2Q3QXR8R1SNP95BASQ1EFCS"],
-  "assignee_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+  "assignees": ["01ARZ3NDEKTSV4RRFFQ69G5FAV", "01ARZ3NDEKTSV4RRFFQ69G5FAV2"]
 }
 ```
 
 **业务规则：**
-- `assignee_id` 必填，逐条复用更新逻辑（含归属校验），无权/不存在项静默跳过
-- 若 `assignee_id` 非操作人自身，会先校验其为**同租户有效成员**；非法则整体返回 `400 负责人不存在或不属于当前租户`（不会逐项吞错）
+- `assignees`（集合）与 `assignee_id`（单个）至少传一个；`assignees` 非空时以集合为准（主负责人=首位），否则回落 `assignee_id`
+- 逐条复用更新逻辑（含归属校验），无权/不存在项静默跳过
+- 会对集合中每个负责人校验是否为**同租户有效成员**；非法则整体返回 `400 负责人不存在或不属于当前租户`（不会逐项吞错）
 - `personal` 任务会被强制回写为创建人（仍计入 `affected`）
-- `tenant` 任务指派给他人时，逐条向新负责人发送站内指派提醒
+- `tenant` 任务指派给他人时，逐条向**全部新负责人**去重发送站内指派提醒
 - 返回实际生效数 `affected`
 
 **成功响应（200）：**
@@ -636,12 +671,68 @@
 
 ---
 
+### 4.17 看板全量加载
+
+`GET /api/v1/tasks/board`
+
+**请求头：** `Authorization: Bearer <token>`
+
+一次性拉取当前筛选范围内看板分列所需的全部任务，**不分页、忽略 `status`**（看板需同时展示各状态），上限 `BoardMax=500` 条。
+
+**Query 参数：** 与列表接口共享过滤条件（`visibility`、`priority`、`assignee_id`、`keyword`、`tag`、`due_from`、`due_to`、`sort_by`、`sort_order`、`parent_id`、`root_only`），但**不接受 `page`/`page_size`/`status`**。
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "items": [
+      { "id": "01M2Q3QXR8R1SNP95BASQ1EFCS", "title": "完成季度报告", "status": "pending", "visibility": "tenant", "...": "其余字段见 TaskResp" }
+    ],
+    "total": 2,
+    "truncated": false
+  }
+}
+```
+
+**业务规则：**
+- 可见性过滤与列表一致（租户任务 + 自己相关个人任务，含副负责人命中）。
+- 看板默认只展示根任务（前端传 `root_only=1`），保持分列清爽。
+- `truncated=true` 仅当匹配总数超过 500（而非当前列卡片少于总数）。
+
+---
+
+### 4.18 可指派成员列表
+
+`GET /api/v1/tasks/assignable`
+
+**请求头：** `Authorization: Bearer <token>`
+
+返回当前租户存活成员（未删除），供前端负责人多选选择器使用。**仅需登录，无需 `user:list` 权限**，解决普通成员无法检索可指派人员的问题。
+
+**成功响应（200）：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+    { "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "name": "张三" }
+  ]
+}
+```
+
+**业务规则：**
+- 仅返回当前用户所属租户内未软删除的成员（按用户名升序）；跨租户自然隔离。
+
+---
+
 ## 5. 访问控制矩阵
 
 | 操作 | personal 任务 | tenant 任务 |
 |------|---------------|-------------|
-| 查看 | 创建人 / 负责人 | 同租户任意成员 |
-| 编辑 / 完成 / 重开 | 创建人 | 创建人 或 负责人 |
+| 查看 | 创建人 / 任一负责人（主/副） | 同租户任意成员 |
+| 编辑 / 完成 / 重开 | 创建人 | 创建人 或 任一负责人（主/副） |
 | 删除（软删除） | 创建人（或 superadmin） | 创建人（或 superadmin） |
 | 回收站查看 / 恢复 / 永久删除 | 创建人（或 superadmin） | 创建人（或 superadmin） |
 
@@ -697,7 +788,7 @@
 
 | payload.type | 触发时机 | 接收人 | 标题 |
 |--------------|----------|--------|------|
-| `task_assigned` | 创建/更新任务且负责人指向他人（变更时重新提醒） | 新负责人 | 新任务指派 |
+| `task_assigned` | 创建/更新任务且负责人指向他人（变更时重新提醒） | 全部新负责人（去重） | 新任务指派 |
 | `task_due` | 定时扫描：任务进入提醒窗口（任务自定义 `remind_before` 优先，否则全局 `task_reminder.horizon`）或已逾期，且状态为 `pending`/`in_progress`；已逾期的任务按冷却期（默认 24 小时）重复提醒 | 负责人（为空时创建人） | 任务截止提醒 / 任务逾期提醒 |
 
 **消息体示例（WS payload）：**
@@ -720,7 +811,7 @@
 - 提醒去重：`tasks.reminder_sent_at` 列记录上次到期提醒发送时间。即将到期（未逾期）仅首次提醒一次；**已逾期的任务按冷却期（默认 24 小时）重复提醒**（距上次提醒超过冷却期才会再次推送）；**修改截止时间或提前量会重置该标记**，使新提醒窗口可重新触发。
 - 提醒窗口：扫描时优先使用任务自带的 `remind_before`（以 `now + remind_before` 为阈值），未设置（NULL）时回落到全局 `task_reminder.horizon`。
 - 定时任务 `TaskReminderJob` 随应用启动，按 `task_reminder.interval`（默认 30 分钟）周期扫描（启动时先立即执行一轮），单轮最多 `task_reminder.batch_limit`（默认 200）条；系统级扫描，不受租户/可见范围限制。
-- 指派提醒在负责人变更（含首次指派给他人）时触发，自己给自己的任务不提醒。
+- 指派提醒在负责人变更（含首次指派给他人）时触发，对多负责人会**遍历集合去重后逐个推送**，自己给自己的任务不提醒。
 - 通知不可用（WS 未启用/用户离线）时静默跳过，不影响任务主流程；离线用户不会补发。
 - 前端（web-admin）在全局 `App.vue` 中监听，命中提醒类型时弹出 `ElNotification`，不刷新公告列表。
 
@@ -819,4 +910,5 @@ AI 能力为**默认关闭的可选叠加层**：走 OpenAI 兼容接口，由�
 
 - 本模块**不需要单独配置权限码**：任何已登录用户均可直接使用，靠数据归属实现隔离。
 - 任务表 `tasks` 随应用启动自动迁移（非关键迁移项），使用软删除。
+- 多负责人关联表 `task_assignees`（复合主键 `task_id`+`user_id`）随启动 `AutoMigrate` 建表，并执行**幂等回填**：将存量 `tasks.assignee_id` 写入 `task_assignees`（已存在则忽略）。
 - 默认排序依赖 MySQL 的 `FIELD()` 函数，与项目数据库选型一致。

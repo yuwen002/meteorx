@@ -11639,6 +11639,20 @@
         ]
       }
     },
+    "/api/v1/tasks/assignable": {
+      "get": {
+        "description": "权限码: `tasks:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "获取assignable",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
     "/api/v1/tasks/batch/assign": {
       "post": {
         "description": "权限码: `tasks:batch_assign`",
@@ -11690,6 +11704,20 @@
           }
         },
         "summary": "批量更新任务状态",
+        "tags": [
+          "Task"
+        ]
+      }
+    },
+    "/api/v1/tasks/board": {
+      "get": {
+        "description": "权限码: `tasks:list`",
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        },
+        "summary": "获取board",
         "tags": [
           "Task"
         ]

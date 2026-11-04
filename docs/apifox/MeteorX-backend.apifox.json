@@ -38368,6 +38368,236 @@
                 "visibility": "INHERITED"
               },
               "name": "批量更新任务状态"
+            },
+            {
+              "api": {
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "auth": {},
+                "cases": [
+                  {
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "apiTestDataList": [],
+                    "auth": {},
+                    "categoryId": 0,
+                    "commonParameters": {},
+                    "id": "984227070",
+                    "inheritPostProcessors": {
+                      "defaultEnable": {},
+                      "enable": {}
+                    },
+                    "inheritPreProcessors": {
+                      "defaultEnable": {},
+                      "enable": {}
+                    },
+                    "moduleId": 7675120,
+                    "name": "成功",
+                    "parameters": {
+                      "cookie": [],
+                      "header": [],
+                      "path": [],
+                      "query": []
+                    },
+                    "path": null,
+                    "postProcessors": [],
+                    "preProcessors": [],
+                    "requestBody": {
+                      "data": "",
+                      "generateMode": "normal",
+                      "parameters": [],
+                      "type": "application/json"
+                    },
+                    "requestResult": null,
+                    "responseId": "984227069",
+                    "securityScheme": {},
+                    "tagIds": [],
+                    "type": "DEBUG_CASE",
+                    "visibility": "INHERITED"
+                  }
+                ],
+                "codeSamples": [],
+                "commonParameters": {},
+                "commonResponseStatus": {},
+                "customApiFields": "{}",
+                "description": "权限码: `tasks:list`",
+                "id": "984227068",
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {},
+                "method": "get",
+                "mockScript": {},
+                "mocks": [],
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "operationId": "",
+                "ordering": 100,
+                "parameters": {
+                  "cookie": [],
+                  "header": [],
+                  "path": [],
+                  "query": []
+                },
+                "path": "/api/v1/tasks/assignable",
+                "postProcessors": [],
+                "preProcessors": [],
+                "requestBody": {
+                  "additionalContentTypes": [],
+                  "jsonSchema": {
+                    "properties": {},
+                    "type": "object"
+                  },
+                  "mediaType": "application/json",
+                  "oasExtensions": "",
+                  "parameters": [],
+                  "required": true,
+                  "type": "application/json"
+                },
+                "responseChildren": [],
+                "responseExamples": [],
+                "responses": [
+                  {
+                    "code": "200",
+                    "contentType": "json",
+                    "description": "成功",
+                    "headers": [],
+                    "id": "984227069",
+                    "itemSchema": {},
+                    "jsonSchema": {
+                      "properties": {},
+                      "type": "object"
+                    },
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "securityScheme": {},
+                "serverId": "",
+                "sourceUrl": "",
+                "status": "released",
+                "tags": [
+                  "Task"
+                ],
+                "type": "http",
+                "visibility": "INHERITED"
+              },
+              "name": "获取assignable"
+            },
+            {
+              "api": {
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "auth": {},
+                "cases": [
+                  {
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "apiTestDataList": [],
+                    "auth": {},
+                    "categoryId": 0,
+                    "commonParameters": {},
+                    "id": "984227073",
+                    "inheritPostProcessors": {
+                      "defaultEnable": {},
+                      "enable": {}
+                    },
+                    "inheritPreProcessors": {
+                      "defaultEnable": {},
+                      "enable": {}
+                    },
+                    "moduleId": 7675120,
+                    "name": "成功",
+                    "parameters": {
+                      "cookie": [],
+                      "header": [],
+                      "path": [],
+                      "query": []
+                    },
+                    "path": null,
+                    "postProcessors": [],
+                    "preProcessors": [],
+                    "requestBody": {
+                      "data": "",
+                      "generateMode": "normal",
+                      "parameters": [],
+                      "type": "application/json"
+                    },
+                    "requestResult": null,
+                    "responseId": "984227072",
+                    "securityScheme": {},
+                    "tagIds": [],
+                    "type": "DEBUG_CASE",
+                    "visibility": "INHERITED"
+                  }
+                ],
+                "codeSamples": [],
+                "commonParameters": {},
+                "commonResponseStatus": {},
+                "customApiFields": "{}",
+                "description": "权限码: `tasks:list`",
+                "id": "984227071",
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {},
+                "method": "get",
+                "mockScript": {},
+                "mocks": [],
+                "moduleId": 7675120,
+                "oasExtensions": "",
+                "operationId": "",
+                "ordering": 100,
+                "parameters": {
+                  "cookie": [],
+                  "header": [],
+                  "path": [],
+                  "query": []
+                },
+                "path": "/api/v1/tasks/board",
+                "postProcessors": [],
+                "preProcessors": [],
+                "requestBody": {
+                  "additionalContentTypes": [],
+                  "jsonSchema": {
+                    "properties": {},
+                    "type": "object"
+                  },
+                  "mediaType": "application/json",
+                  "oasExtensions": "",
+                  "parameters": [],
+                  "required": true,
+                  "type": "application/json"
+                },
+                "responseChildren": [],
+                "responseExamples": [],
+                "responses": [
+                  {
+                    "code": "200",
+                    "contentType": "json",
+                    "description": "成功",
+                    "headers": [],
+                    "id": "984227072",
+                    "itemSchema": {},
+                    "jsonSchema": {
+                      "properties": {},
+                      "type": "object"
+                    },
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "securityScheme": {},
+                "serverId": "",
+                "sourceUrl": "",
+                "status": "released",
+                "tags": [
+                  "Task"
+                ],
+                "type": "http",
+                "visibility": "INHERITED"
+              },
+              "name": "获取board"
             }
           ],
           "name": "任务管理",

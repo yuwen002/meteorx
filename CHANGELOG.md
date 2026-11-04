@@ -7,6 +7,18 @@
 
 ## [Unreleased]
 
+### 新增
+- **任务看板全量加载**：新增 `GET /api/v1/tasks/board`（不分页、忽略 `status`，共享列表全部过滤参数），一次性拉取当前筛选范围内看板分列所需任务，上限 `BoardMax=500`，返回 `{items,total,truncated}`；截断提示仅在真实总数超上限时出现，取代旧版走 `GET /tasks`（`MaxPageSize=100`）的截断。
+- **看板多维度分组**（纯前端）：看板新增 `groupBy`（`status`/`priority`/`assignee`/`tag`，默认按状态），持久化到 `localStorage`（键 `meteorx.task.groupBy`）；`priority` 固定四列、`assignee`/`tag` 动态分列（标签含未分类列），拖拽改状态仅在 `groupBy==='status'` 时启用。
+- **任务子任务（单层）**：`model.Task`/`TaskPO`/DTO 新增 `parent_id`；创建/更新校验父任务存在、同租户、可查看且仅允许一层（`ErrParentNotFound`/`ErrInvalidParent`）；删除父任务级联软删直接子任务；列表/看板支持 `parent_id` 过滤与 `root_only` 仅取根任务；前端列表默认只展根任务、行首展开按需懒加载子任务，看板仅含根任务。
+- **多负责人指派**：新增关联表 `task_assignees`（复合主键 `task_id`+`user_id`，`AutoMigrate` 建表 + 幂等回填存量 `assignee_id`）；`assignee_id` 语义降为主负责人（=`assignees[0]`）保留向后兼容；`CreateTaskReq`/`UpdateTaskReq`/`BatchAssignReq` 新增 `assignees` 集合，`TaskResp` 新增 `assignees`/`assignee_names`；`canView`/`canEdit`、可见性与 `assignee_id` 过滤扩展为命中任一负责人；指派提醒向全部负责人去重广播；新增 `GET /api/v1/tasks/assignable`（仅需登录，返回本租户存活成员）供负责人多选；前端新建/编辑/批量指派弹窗改为 `el-select multiple`，列表负责人列显示主负责人 + `+N`。
+
+### 文档
+- 同步 `docs/api/task-api.md`（新增 board/assignable 端点、`parent_id`/`root_only`/`assignees` 字段、子任务与多负责人规则、访问控制矩阵与回填说明），并 `go run scripts/openapi_sync.go -apply` 重生成 `docs/apifox/` 两份 OpenAPI 产物（`-check` 完美匹配）。
+
+### 测试
+- 新增任务模块浏览器端 E2E（Playwright）：`e2e/tests/task.spec.ts` 覆盖三条 happy path —— 看板走 `GET /api/v1/tasks/board` 全量加载并按分组维度切换（状态 3 列 → 优先级固定 4 列，校验 `root_only=true` 与 `meteorx.task.groupBy` 持久化）；列表行首展开按 `parent_id` 懒加载并渲染两条子任务行；双负责人租户任务列表显示主负责人 + `+1`，且按副负责人 `assignee_id` 可筛选命中。配套扩展 `e2e/fixtures/fixture`（`seed-task-tree` / `seed-multi-assignee` / `cleanup-tasks` / `cleanup-user` 子命令）与 `e2e/helpers.ts` 数据封装。
+
 ## [1.5.0] - 2026-11-03
 
 ### 新增
