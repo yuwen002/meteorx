@@ -12,12 +12,16 @@
 - **看板多维度分组**（纯前端）：看板新增 `groupBy`（`status`/`priority`/`assignee`/`tag`，默认按状态），持久化到 `localStorage`（键 `meteorx.task.groupBy`）；`priority` 固定四列、`assignee`/`tag` 动态分列（标签含未分类列），拖拽改状态仅在 `groupBy==='status'` 时启用。
 - **任务子任务（单层）**：`model.Task`/`TaskPO`/DTO 新增 `parent_id`；创建/更新校验父任务存在、同租户、可查看且仅允许一层（`ErrParentNotFound`/`ErrInvalidParent`）；删除父任务级联软删直接子任务；列表/看板支持 `parent_id` 过滤与 `root_only` 仅取根任务；前端列表默认只展根任务、行首展开按需懒加载子任务，看板仅含根任务。
 - **多负责人指派**：新增关联表 `task_assignees`（复合主键 `task_id`+`user_id`，`AutoMigrate` 建表 + 幂等回填存量 `assignee_id`）；`assignee_id` 语义降为主负责人（=`assignees[0]`）保留向后兼容；`CreateTaskReq`/`UpdateTaskReq`/`BatchAssignReq` 新增 `assignees` 集合，`TaskResp` 新增 `assignees`/`assignee_names`；`canView`/`canEdit`、可见性与 `assignee_id` 过滤扩展为命中任一负责人；指派提醒向全部负责人去重广播；新增 `GET /api/v1/tasks/assignable`（仅需登录，返回本租户存活成员）供负责人多选；前端新建/编辑/批量指派弹窗改为 `el-select multiple`，列表负责人列显示主负责人 + `+N`。
+- **任务依赖（阻塞关系）**：新增关联表 `task_dependencies`（复合主键 `task_id`+`blocked_by_id`、`blocked_by_id` 另建索引，`AutoMigrate` 建表、`tasks` 表不加列），`CreateTaskReq`/`UpdateTaskReq` 增 `blocked_by`、`TaskResp` 增 `blocked_by`/`blocks`（每项含 `id`/`title`/`status`，读取时批量富化）；服务层拒绝自引用/跨租户/不可见前置与循环依赖（`ErrDependencySelf`/`ErrDependencyNotFound`/`ErrDependencyCycle`），完成前置时向“全部前置均已完成”的后继负责人推送 `task_unblocked` 解锁提醒（软约束、不自动推进后继状态）；前端新建/编辑弹窗增前置任务多选（远程搜索、回显），列表与看板卡片对存在未完成前置者显示“被 N 阻塞”徽标。
+- **任务列表可用性（D2）**：排查确认“列表仅渲染部分行”系分页默认（`page_size` 默认 10、后端 `MaxPageSize=100`）而非渲染缺陷，不做虚拟滚动重写；低风险微调——列表分页页容量选项放宽为 `[10,20,50,100]`，`el-table` 增加固定 `max-height` 启用表体内滚（保留展开/多选/行键）。
 
 ### 文档
 - 同步 `docs/api/task-api.md`（新增 board/assignable 端点、`parent_id`/`root_only`/`assignees` 字段、子任务与多负责人规则、访问控制矩阵与回填说明），并 `go run scripts/openapi_sync.go -apply` 重生成 `docs/apifox/` 两份 OpenAPI 产物（`-check` 完美匹配）。
+- 同步 `docs/api/task-api.md` 任务依赖（`blocked_by`/`blocks` 字段与 `DependencyBrief`、创建/更新依赖校验与循环/跨租户拒绝规则、`task_unblocked` 解锁提醒、`task_dependencies` 迁移说明）；D1 无新增路由，`openapi_sync -check` 维持完美匹配（字段变更不影响路由级产物）。
 
 ### 测试
 - 新增任务模块浏览器端 E2E（Playwright）：`e2e/tests/task.spec.ts` 覆盖三条 happy path —— 看板走 `GET /api/v1/tasks/board` 全量加载并按分组维度切换（状态 3 列 → 优先级固定 4 列，校验 `root_only=true` 与 `meteorx.task.groupBy` 持久化）；列表行首展开按 `parent_id` 懒加载并渲染两条子任务行；双负责人租户任务列表显示主负责人 + `+1`，且按副负责人 `assignee_id` 可筛选命中。配套扩展 `e2e/fixtures/fixture`（`seed-task-tree` / `seed-multi-assignee` / `cleanup-tasks` / `cleanup-user` 子命令）与 `e2e/helpers.ts` 数据封装。
+- 新增任务依赖单测：仓储层 `task_dependency_test.go`（sqlmock）覆盖 `ReplaceBlockedBy` 去重去空/剔自引用、`LoadDependencies` 双向、`FindBrief`、`DependentsOf`、`TenantDependencyEdges`；服务层 `task_dependency_service_test.go` 覆盖 self/notfound/notviewable/cycle 拒绝、nil 保留/空数组清空、双向富化与完成解锁 nil-safe 路径、`reaches` BFS 环检测；`task_handler_test.go` 补 create/update 依赖映射（cycle/self→400、notfound→404）与 get/list 响应含 `blocked_by`/`blocks`；前端 `index.test.ts` 补看板“被 N 阻塞”徽标渲染与弹窗前置多选提交 payload，及 D2 固定 `max-height`/页容量 `[10,20,50,100]` 断言。
 
 ## [1.5.0] - 2026-11-03
 

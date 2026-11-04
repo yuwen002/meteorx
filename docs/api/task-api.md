@@ -19,6 +19,8 @@
 
 **子任务**：任务可通过 `parent_id` 挂在另一个任务下形成**单层**子任务（父任务自身不能是子任务）；列表/看板可用 `root_only` 仅展示根任务。
 
+**任务依赖（阻塞关系）**：任务可通过 `blocked_by` 声明一组**前置任务**，表示本任务被这些前置阻塞。依赖为**多对多**关系、**单向持久化**（仅存储 `task → blocked_by`），`blocks`（后继集合）为其反向视图、读取时自动派生。依赖是**软约束**：存在未完成前置时任务仍可查看、编辑与完成（不锁死），完成前置时仅向“全部前置均已完成”的后继任务负责人推送一次**解锁提醒**，不自动推进后继状态。写入时拒绝自引用、跨租户/不可见前置与循环依赖（详见 4.1/4.2）。
+
 **访问控制**：所有接口均需登录，模块**不使用细粒度 RBAC 权限码**，而是以数据归属（创建人 / 负责人 / 同租户）作为访问边界，任何登录用户开箱可用。
 
 **任务提醒**：支持两类站内提醒（WebSocket 推送），详见第 7 节：
@@ -76,6 +78,8 @@
 | assignees | []string | 多负责人集合（含主负责人，主负责人排首位），无额外负责人时可为空 |
 | assignee_names | []string | 负责人展示名集合（与 `assignees` 同序），无法解析时不返回该字段 |
 | parent_id | string | 父任务 ID，为空表示根任务（仅支持单层），根任务不返回该字段 |
+| blocked_by | []DependencyBrief | 前置任务集合（本任务被其阻塞），每项含 `id`/`title`/`status`；无前置时不返回该字段 |
+| blocks | []DependencyBrief | 后继任务集合（依赖本任务），为 `blocked_by` 的反向视图，每项含 `id`/`title`/`status`；无后继时不返回该字段 |
 | title | string | 任务标题 |
 | description | string | 任务描述 |
 | status | string | 状态：`pending` / `in_progress` / `completed` |
@@ -93,6 +97,15 @@
 
 > `creator_name` / `assignee_name` / `assignee_names` 由服务端基于用户表批量解析后富化（昵称优先、回退用户名），前端无需再单独查询用户；解析失败时对应字段留空。
 > `assignee_id` 语义为“主负责人”（= `assignees[0]`），保留以向后兼容既有按单负责人的过滤/提醒/看板；多负责人完整集合见 `assignees`。
+> `blocked_by` / `blocks` 由服务端批量富化（携带前置/后继的标题与状态），前端据 `status != completed` 判定“被 N 阻塞”徽标；二者均为只读视图，写入依赖统一通过请求体的 `blocked_by` 完成。
+
+**DependencyBrief（依赖引用项）**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | string | 依赖任务 ID |
+| title | string | 依赖任务标题 |
+| status | string | 依赖任务状态：`pending` / `in_progress` / `completed`（非 `completed` 即视为未完成/阻塞中） |
 
 ### 3.2 CreateTaskReq（创建任务请求）
 
@@ -109,6 +122,7 @@
 | assignee_id | string | 否 | max=26 | 主负责人；`personal` 任务强制为创建人 |
 | assignees | []string | 否 | max=20，每项 max=26 | 多负责人集合：给出时以集合为准（主负责人=首位），否则回落 `assignee_id`；`personal` 任务强制为创建人 |
 | parent_id | string | 否 | max=26 | 父任务 ID：创建子任务时指定，仅允许挂在根任务下（单层） |
+| blocked_by | []string | 否 | max=20，每项 max=26 | 前置任务 ID 集合：创建时一并建锁；任一不存在/跨租户/不可见/自引用/成环都会被拒绝 |
 | recurrence | string | 否 | oneof daily/weekly/monthly | 重复周期；非空时必须同时设置 `due_date`，完成该任务后自动按周期生成下一条待办 |
 
 ### 3.3 UpdateTaskReq（更新任务请求）
@@ -128,6 +142,7 @@
 | assignee_id | *string | max=26 | 主负责人；`personal` 任务会强制回写为创建人 |
 | assignees | *[]string | max=20，每项 max=26 | 多负责人集合：非 nil 时以集合为准重置负责人（主负责人=首位）；nil 表示不改动 |
 | parent_id | *string | max=26 | 父任务：传入非空挂到该根任务下（单层）；传空字符串表示解除父子关系回退为根任务 |
+| blocked_by | *[]string | max=20，每项 max=26 | 前置任务集合：**非 nil** 时以其为准重置本任务前置集合（**空数组=清空**）；nil 表示不改动 |
 | recurrence | *string | oneof daily/weekly/monthly | 重复周期；**传空字符串表示取消重复**；非空时任务必须拥有截止时间 |
 
 ### 3.4 TaskStatsResp（任务统计响应）
@@ -200,6 +215,7 @@
 - 指派负责人时逐个校验其**存在且属于当前租户**（未删除的有效用户），否则返回 `400 负责人不存在或不属于当前租户`；未启用用户目录校验器时跳过该校验
 - 多负责人写入关联表 `task_assignees`（与任务同事务替换），`assignee_id` 同步为主负责人（`assignees[0]`）以保证向后兼容
 - `parent_id` 创建子任务（仅支持单层）：父任务须存在、同租户、可查看，且父任务自身不能再有父任务，否则返回 `400 父任务不合法`/`404 父任务不存在`；不允许 `parent_id==自身ID`。子任务可见范围继承父任务
+- `blocked_by` 声明前置任务集合（多对多阻塞关系）：逐个校验前置任务**存在、同租户、当前用户可查看**，否则返回 `404 前置任务不存在或无权访问`；任一前置为任务自身返回 `400 任务不能作为自己的前置依赖`；若加入后会形成**循环阻塞链**（从候选前置沿现有依赖可达本任务）返回 `400 该前置依赖会形成循环阻塞`。校验在写库前完成，不会产生孤儿任务；通过后依赖写入关联表 `task_dependencies`
 - `recurrence` 为重复周期，**设置非空值时必须同时提供 `due_date`**（否则返回 `400 周期性任务必须设置截止时间`）；任务完成后系统会按周期从原截止日推算并自动创建一条新的 `pending` 任务（见 4.16）
 - 若创建时直接指定 `status=completed`，会写入 `completed_at`
 - `due_date` 格式非法返回 `400`
@@ -790,6 +806,7 @@
 |--------------|----------|--------|------|
 | `task_assigned` | 创建/更新任务且负责人指向他人（变更时重新提醒） | 全部新负责人（去重） | 新任务指派 |
 | `task_due` | 定时扫描：任务进入提醒窗口（任务自定义 `remind_before` 优先，否则全局 `task_reminder.horizon`）或已逾期，且状态为 `pending`/`in_progress`；已逾期的任务按冷却期（默认 24 小时）重复提醒 | 负责人（为空时创建人） | 任务截止提醒 / 任务逾期提醒 |
+| `task_unblocked` | 完成一个任务（状态由非 `completed` 变为 `completed`，含批量完成）时，若其后继任务的全部前置均已完成 | 后继任务的负责人（去重、排除空） | 前置任务已完成 |
 
 **消息体示例（WS payload）：**
 ```json
@@ -812,6 +829,7 @@
 - 提醒窗口：扫描时优先使用任务自带的 `remind_before`（以 `now + remind_before` 为阈值），未设置（NULL）时回落到全局 `task_reminder.horizon`。
 - 定时任务 `TaskReminderJob` 随应用启动，按 `task_reminder.interval`（默认 30 分钟）周期扫描（启动时先立即执行一轮），单轮最多 `task_reminder.batch_limit`（默认 200）条；系统级扫描，不受租户/可见范围限制。
 - 指派提醒在负责人变更（含首次指派给他人）时触发，对多负责人会**遍历集合去重后逐个推送**，自己给自己的任务不提醒。
+- **解锁提醒**（`task_unblocked`）：当一个任务完成时，若存在依赖它的后继任务且该后继的**全部前置均已完成**，则向该后继负责人推送一次提醒（“前置《X》已完成，《Y》可开始”）。这是**软约束**：仅提醒、不自动推进后继状态；批量完成复用单条完成链路同样生效。
 - 通知不可用（WS 未启用/用户离线）时静默跳过，不影响任务主流程；离线用户不会补发。
 - 前端（web-admin）在全局 `App.vue` 中监听，命中提醒类型时弹出 `ElNotification`，不刷新公告列表。
 
@@ -911,4 +929,5 @@ AI 能力为**默认关闭的可选叠加层**：走 OpenAI 兼容接口，由�
 - 本模块**不需要单独配置权限码**：任何已登录用户均可直接使用，靠数据归属实现隔离。
 - 任务表 `tasks` 随应用启动自动迁移（非关键迁移项），使用软删除。
 - 多负责人关联表 `task_assignees`（复合主键 `task_id`+`user_id`）随启动 `AutoMigrate` 建表，并执行**幂等回填**：将存量 `tasks.assignee_id` 写入 `task_assignees`（已存在则忽略）。
+- 任务依赖关联表 `task_dependencies`（复合主键 `task_id`+`blocked_by_id`，`blocked_by_id` 另建索引）随启动 `AutoMigrate` 建表；**单向持久化** `task→blocked_by`，`blocks` 反向视图读取时自动派生，不重复存储；`tasks` 表无需加列。
 - 默认排序依赖 MySQL 的 `FIELD()` 函数，与项目数据库选型一致。
