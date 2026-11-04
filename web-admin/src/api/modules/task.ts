@@ -24,6 +24,12 @@ export interface TaskItem {
   creator_name?: string
   assignee_id: string
   assignee_name?: string
+  /** 多负责人集合（含主负责人，主负责人排首位） */
+  assignees?: string[]
+  /** 负责人展示名集合（与 assignees 同序） */
+  assignee_names?: string[]
+  /** 父任务 ID，为空表示根任务（仅支持单层） */
+  parent_id?: string
   title: string
   description: string
   status: TaskStatus
@@ -51,7 +57,11 @@ export interface CreateTaskParams {
   tags?: string[]
   visibility?: TaskVisibility
   assignee_id?: string
+  /** 多负责人集合：给出时以集合为准（主负责人=首位），否则回落 assignee_id；个人任务强制创建人 */
+  assignees?: string[]
   recurrence?: TaskRecurrence | ''
+  /** 父任务 ID：创建子任务时指定，仅允许挂在根任务下 */
+  parent_id?: string
 }
 
 /** 更新任务参数（仅提交需要修改的字段） */
@@ -65,7 +75,11 @@ export interface UpdateTaskParams {
   tags?: string[]
   visibility?: TaskVisibility
   assignee_id?: string
+  /** 多负责人集合：非空时以集合为准重置负责人（主负责人=首位） */
+  assignees?: string[]
   recurrence?: TaskRecurrence | ''
+  /** 父任务 ID：传入设为子任务，传空字符串解除父子关系回退为根任务 */
+  parent_id?: string
 }
 
 /** 任务列表查询参数 */
@@ -86,6 +100,10 @@ export interface TaskListParams {
   due_to?: string
   sort_by?: string
   sort_order?: 'asc' | 'desc'
+  /** 按父任务 ID 过滤，拉取某任务的直接子任务 */
+  parent_id?: string
+  /** 仅返回根任务（parent_id 为空），列表默认视图用于隐藏子任务 */
+  root_only?: boolean
 }
 
 /** 任务统计 */
@@ -104,6 +122,34 @@ export interface TaskStats {
 /** 获取任务列表 */
 export function getTaskList(params: TaskListParams) {
   return get('/tasks', params)
+}
+
+/** 看板查询参数：与列表共享过滤条件，但不分页、忽略 status（看板按状态分列需含各状态任务） */
+export interface TaskBoardParams {
+  visibility?: TaskVisibility
+  priority?: TaskPriority
+  assignee_id?: string
+  keyword?: string
+  tag?: string
+  due_from?: string
+  due_to?: string
+  sort_by?: string
+  sort_order?: 'asc' | 'desc'
+  /** 看板默认仅展示根任务，保持分列清爽 */
+  root_only?: boolean
+}
+
+/** 看板全量加载响应：当前筛选范围内（上限后端 BoardMax=500）的任务、真实总数、是否被截断 */
+export interface TaskBoardResult {
+  items: TaskItem[]
+  total: number
+  /** truncated 为真表示匹配总数超过上限，看板仅展示了其中一部分 */
+  truncated: boolean
+}
+
+/** 获取看板全量任务（一次性拉足当前筛选范围内的任务用于分列） */
+export function getTaskBoard(params?: TaskBoardParams) {
+  return get<TaskBoardResult>('/tasks/board', params)
 }
 
 /** 获取任务详情 */
@@ -184,10 +230,22 @@ export interface BatchStatusParams {
   status: TaskStatus
 }
 
-/** 批量指派参数 */
+/** 批量指派参数：assignees 非空时以集合为准；否则回落 assignee_id 单个 */
 export interface BatchAssignParams {
   ids: string[]
-  assignee_id: string
+  assignee_id?: string
+  assignees?: string[]
+}
+
+/** 可指派成员简讯（供负责人选择器，来自 /tasks/assignable，仅需登录） */
+export interface AssignableMember {
+  id: string
+  name: string
+}
+
+/** 获取当前租户可指派的存活成员列表（无需 user:list 权限） */
+export function getAssignableMembers() {
+  return get<AssignableMember[]>('/tasks/assignable')
 }
 
 /** 批量修改任务状态 */

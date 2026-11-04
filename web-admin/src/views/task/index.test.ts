@@ -23,9 +23,10 @@ vi.mock('element-plus', () => ({
   ElMessageBox: { confirm: vi.fn().mockResolvedValue(true) },
 }))
 
-// 任务接口：仅看板链路关心 getTaskList / getTaskStats / batchUpdateTaskStatus
+// 任务接口：看板链路关心 getTaskBoard / getTaskStats / batchUpdateTaskStatus
 vi.mock('@/api/modules/task', () => ({
   getTaskList: vi.fn(),
+  getTaskBoard: vi.fn(),
   getTask: vi.fn(),
   createTask: vi.fn(),
   updateTask: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock('@/api/modules/task', () => ({
   batchDeleteTasks: vi.fn(),
   batchUpdateTaskStatus: vi.fn().mockResolvedValue({ affected: 1 }),
   batchAssignTasks: vi.fn(),
+  getAssignableMembers: vi.fn().mockResolvedValue([{ id: 'u1', name: '张三' }, { id: 'u2', name: '李四' }]),
 }))
 
 vi.mock('@/api/modules/task-ai', () => ({
@@ -51,7 +53,7 @@ vi.mock('@/api/modules/task-ai', () => ({
 }))
 
 import TaskView from './index.vue'
-import { getTaskList, batchUpdateTaskStatus } from '@/api/modules/task'
+import { getTaskList, getTaskBoard, batchUpdateTaskStatus, getAssignableMembers, type TaskItem } from '@/api/modules/task'
 
 // 透传桩：渲染默认插槽使卡片文本可断言
 const passThrough = { template: '<div><slot name="header" /><slot /></div>' }
@@ -87,7 +89,7 @@ const stubs = {
   'router-link': { template: '<a><slot /></a>' },
 }
 
-function makeTask(id: string, status: 'pending' | 'in_progress' | 'completed') {
+function makeTask(id: string, status: TaskItem['status'], extra: Partial<TaskItem> = {}): TaskItem {
   return {
     id,
     tenant_id: 't1',
@@ -101,11 +103,13 @@ function makeTask(id: string, status: 'pending' | 'in_progress' | 'completed') {
     visibility: 'personal',
     created_at: '2026-01-01 00:00:00',
     updated_at: '2026-01-01 00:00:00',
+    ...extra,
   }
 }
 
-async function mountBoard() {
+async function mountBoard(groupBy?: 'status' | 'priority' | 'assignee' | 'tag') {
   localStorage.setItem('meteorx.task.viewMode', 'board')
+  if (groupBy) localStorage.setItem('meteorx.task.groupBy', groupBy)
   const wrapper = mount(TaskView, {
     global: { stubs, directives: { loading: {} } },
   })
@@ -119,11 +123,29 @@ beforeEach(() => {
   vi.mocked(batchUpdateTaskStatus).mockResolvedValue({ affected: 1 })
 })
 
+// el-table 专用桩：具名以便测试通过 $emit('expand-change') 驱动行首展开懒加载逻辑。
+const ElTableStub = {
+  name: 'ElTable',
+  emits: ['expand-change', 'selection-change'],
+  template: '<div class="el-table-stub"><slot /></div>',
+}
+
+async function mountList(tableRows: TaskItem[]) {
+  localStorage.setItem('meteorx.task.viewMode', 'list')
+  vi.mocked(getTaskList).mockResolvedValue({ list: tableRows, total: tableRows.length } as never)
+  const wrapper = mount(TaskView, {
+    global: { stubs: { ...stubs, 'el-table': ElTableStub }, directives: { loading: {} } },
+  })
+  await flushPromises()
+  return wrapper
+}
+
 describe('任务看板视图', () => {
   it('看板模式按状态渲染三列并分列计数', async () => {
-    vi.mocked(getTaskList).mockResolvedValue({
-      list: [makeTask('a', 'pending'), makeTask('b', 'in_progress'), makeTask('c', 'completed')],
+    vi.mocked(getTaskBoard).mockResolvedValue({
+      items: [makeTask('a', 'pending'), makeTask('b', 'in_progress'), makeTask('c', 'completed')],
       total: 3,
+      truncated: false,
     })
     const wrapper = await mountBoard()
     const cols = wrapper.findAll('.board-col')
@@ -137,9 +159,10 @@ describe('任务看板视图', () => {
   })
 
   it('卡片拖拽到不同状态列触发批量改状态接口', async () => {
-    vi.mocked(getTaskList).mockResolvedValue({
-      list: [makeTask('a', 'pending'), makeTask('c', 'completed')],
+    vi.mocked(getTaskBoard).mockResolvedValue({
+      items: [makeTask('a', 'pending'), makeTask('c', 'completed')],
       total: 2,
+      truncated: false,
     })
     const wrapper = await mountBoard()
     const cols = wrapper.findAll('.board-col')
@@ -152,9 +175,10 @@ describe('任务看板视图', () => {
   })
 
   it('投放到同状态列不调用接口', async () => {
-    vi.mocked(getTaskList).mockResolvedValue({
-      list: [makeTask('a', 'pending')],
+    vi.mocked(getTaskBoard).mockResolvedValue({
+      items: [makeTask('a', 'pending')],
       total: 1,
+      truncated: false,
     })
     const wrapper = await mountBoard()
     const cols = wrapper.findAll('.board-col')
@@ -164,25 +188,161 @@ describe('任务看板视图', () => {
     expect(batchUpdateTaskStatus).not.toHaveBeenCalled()
   })
 
-  it('结果数超过已加载数时展示截断提示', async () => {
-    vi.mocked(getTaskList).mockResolvedValue({
-      list: [makeTask('a', 'pending')],
-      total: 137,
+  it('后端标记截断（总数超上限）时展示截断提示', async () => {
+    vi.mocked(getTaskBoard).mockResolvedValue({
+      items: [makeTask('a', 'pending')],
+      total: 600,
+      truncated: true,
     })
     const wrapper = await mountBoard()
     expect(wrapper.find('.board-truncated').exists()).toBe(true)
     expect(wrapper.find('.board-truncated').text()).toContain('taskPage.board.truncated')
   })
 
+  it('未截断时即使总数大于当前列卡也不提示', async () => {
+    // 全量加载后 items 已含当前筛选全部（例：看板仅 1 列有卡但总数为全部任务）
+    vi.mocked(getTaskBoard).mockResolvedValue({
+      items: [makeTask('a', 'pending'), makeTask('b', 'completed')],
+      total: 2,
+      truncated: false,
+    })
+    const wrapper = await mountBoard()
+    expect(wrapper.find('.board-truncated').exists()).toBe(false)
+  })
+
   it('空列展示占位文案', async () => {
-    vi.mocked(getTaskList).mockResolvedValue({
-      list: [makeTask('a', 'pending')],
+    vi.mocked(getTaskBoard).mockResolvedValue({
+      items: [makeTask('a', 'pending')],
       total: 1,
+      truncated: false,
     })
     const wrapper = await mountBoard()
     const cols = wrapper.findAll('.board-col')
     // completed 列无卡片，展示空占位
     expect(cols[2].find('.board-col__empty').exists()).toBe(true)
     expect(cols[2].find('.board-col__empty').text()).toContain('taskPage.board.emptyCol')
+  })
+
+  it('按优先级分组时渲染固定四列并按 priority 分桶', async () => {
+    vi.mocked(getTaskBoard).mockResolvedValue({
+      items: [
+        makeTask('u', 'pending', { priority: 'urgent' }),
+        makeTask('h', 'pending', { priority: 'high' }),
+        makeTask('n', 'in_progress', { priority: 'normal' }),
+        makeTask('l', 'completed', { priority: 'low' }),
+      ],
+      total: 4,
+      truncated: false,
+    })
+    const wrapper = await mountBoard('priority')
+    const cols = wrapper.findAll('.board-col')
+    // urgent/high/normal/low 固定四列
+    expect(cols).toHaveLength(4)
+    expect(cols[0].findAll('.board-card')).toHaveLength(1)
+    expect(cols[3].findAll('.board-card')).toHaveLength(1)
+  })
+
+  it('按负责人分组时按 assignee_id 动态分列', async () => {
+    vi.mocked(getTaskBoard).mockResolvedValue({
+      items: [
+        makeTask('a', 'pending', { assignee_id: 'u1', assignee_name: '张三' }),
+        makeTask('b', 'pending', { assignee_id: 'u1', assignee_name: '张三' }),
+        makeTask('c', 'completed', { assignee_id: 'u2', assignee_name: '李四' }),
+      ],
+      total: 3,
+      truncated: false,
+    })
+    const wrapper = await mountBoard('assignee')
+    const cols = wrapper.findAll('.board-col')
+    expect(cols).toHaveLength(2)
+    // 按卡片数降序，张三列在前且 2 张卡
+    expect(cols[0].findAll('.board-card')).toHaveLength(2)
+    expect(cols[1].findAll('.board-card')).toHaveLength(1)
+  })
+
+  it('按标签分组时多标签任务出现在每个标签列并附未分类列', async () => {
+    vi.mocked(getTaskBoard).mockResolvedValue({
+      items: [
+        makeTask('a', 'pending', { tags: ['x', 'y'] }),
+        makeTask('b', 'pending', { tags: ['x'] }),
+        makeTask('c', 'pending', { tags: [] }),
+      ],
+      total: 3,
+      truncated: false,
+    })
+    const wrapper = await mountBoard('tag')
+    const cols = wrapper.findAll('.board-col')
+    // x、y 两列 + 未分类列 = 3 列
+    expect(cols).toHaveLength(3)
+    // 最后一列为未分类，包含无标签任务 c
+    const lastCol = cols[cols.length - 1]
+    expect(lastCol.text()).toContain('taskPage.board.untagged')
+    expect(lastCol.findAll('.board-card')).toHaveLength(1)
+  })
+
+  it('非状态分组时卡片不可拖拽', async () => {
+    vi.mocked(getTaskBoard).mockResolvedValue({
+      items: [makeTask('a', 'pending', { priority: 'urgent' })],
+      total: 1,
+      truncated: false,
+    })
+    const wrapper = await mountBoard('priority')
+    const card = wrapper.find('.board-card')
+    expect(card.attributes('draggable')).toBe('false')
+    // 拖放也不应触发改状态接口
+    await card.trigger('dragstart')
+    await wrapper.findAll('.board-col')[1].trigger('drop')
+    await flushPromises()
+    expect(batchUpdateTaskStatus).not.toHaveBeenCalled()
+  })
+
+  it('看板请求默认携带 root_only 仅含根任务', async () => {
+    vi.mocked(getTaskBoard).mockResolvedValue({ items: [], total: 0, truncated: false })
+    await mountBoard()
+    expect(vi.mocked(getTaskBoard).mock.calls[0][0]).toMatchObject({ root_only: true })
+  })
+
+  it('打开新建弹窗时加载可指派成员（负责人多选数据源）', async () => {
+    vi.mocked(getTaskBoard).mockResolvedValue({ items: [], total: 0, truncated: false })
+    const wrapper = await mountBoard()
+    expect(getAssignableMembers).not.toHaveBeenCalled()
+    // 点击工具栏“新建任务”按钮触发 openDialog → loadAssignableMembers。
+    // el-button 桩渲染为 div（非原生 button），取文本命中的最深元素即按钮本体。
+    const btns = wrapper.findAll('*').filter((el) => el.text().includes('taskPage.create'))
+    const createBtn = btns[btns.length - 1]
+    expect(createBtn).toBeTruthy()
+    await createBtn.trigger('click')
+    await flushPromises()
+    expect(getAssignableMembers).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('任务子任务（B3）', () => {
+  it('列表视图默认只请求根任务 root_only', async () => {
+    await mountList([makeTask('r1', 'pending')])
+    const first = vi.mocked(getTaskList).mock.calls[0][0]
+    expect(first).toMatchObject({ root_only: true })
+  })
+
+  it('展开行时按 parent_id 懒加载子任务', async () => {
+    const root = makeTask('r1', 'pending')
+    const wrapper = await mountList([root])
+    // 首次 mount 已调用一次 loadList，展开前应无 parent_id 查询
+    expect(vi.mocked(getTaskList).mock.calls.every((c) => !(c[0] as { parent_id?: string })?.parent_id)).toBe(true)
+    // 触发展开：emit expand-change(row, 当前展开行数组含 row)
+    wrapper.findComponent(ElTableStub).vm.$emit('expand-change', root, [root])
+    await flushPromises()
+    const calls = vi.mocked(getTaskList).mock.calls.map((c) => c[0] as { parent_id?: string })
+    expect(calls.some((p) => p?.parent_id === 'r1')).toBe(true)
+  })
+
+  it('收起行不触发子任务查询', async () => {
+    const root = makeTask('r1', 'pending')
+    const wrapper = await mountList([root])
+    const before = vi.mocked(getTaskList).mock.calls.length
+    // expanded 为空数组（收起），不应新增 getTaskList 调用
+    wrapper.findComponent(ElTableStub).vm.$emit('expand-change', root, [])
+    await flushPromises()
+    expect(vi.mocked(getTaskList).mock.calls.length).toBe(before)
   })
 })

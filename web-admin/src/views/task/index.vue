@@ -67,6 +67,12 @@
       </template>
 
       <div class="filter-bar">
+        <el-select v-if="viewMode === 'board'" v-model="groupBy" :placeholder="t('taskPage.board.groupBy.label')" style="width: 130px; margin-right: 12px;" @change="handleGroupByChange">
+          <el-option :label="t('taskPage.board.groupBy.status')" value="status" />
+          <el-option :label="t('taskPage.board.groupBy.priority')" value="priority" />
+          <el-option :label="t('taskPage.board.groupBy.assignee')" value="assignee" />
+          <el-option :label="t('taskPage.board.groupBy.tag')" value="tag" />
+        </el-select>
         <el-select v-model="visibilityFilter" :placeholder="t('taskPage.filter.scopePlaceholder')" clearable style="width: 120px; margin-right: 12px;" @change="loadList">
           <el-option :label="t('taskPage.scope.all')" value="" />
           <el-option :label="t('taskPage.scope.personal')" value="personal" />
@@ -118,20 +124,20 @@
         <el-button type="danger" size="small" @click="handleBatchDelete">{{ t('taskPage.batch.delete') }}</el-button>
       </div>
 
-      <!-- 看板视图：三列 = 状态；卡片拖拽换列即改状态（复用 /tasks/batch/status） -->
+      <!-- 看板视图：按 groupBy 分列；仅“按状态”分组时卡片拖拽换列即改状态（复用 /tasks/batch/status） -->
       <div v-if="viewMode === 'board'" v-loading="boardLoading" class="board">
         <div
           v-for="col in boardColumns"
-          :key="col.status"
+          :key="col.key"
           class="board-col"
-          :class="{ 'board-col--dragover': dragOverStatus === col.status }"
-          @dragover.prevent="dragOverStatus = col.status"
-          @dragleave="dragOverStatus = ''"
-          @drop.prevent="handleDrop(col.status)"
+          :class="{ 'board-col--dragover': dragEnabled && dragOverKey === col.key }"
+          @dragover.prevent="dragEnabled && (dragOverKey = col.key)"
+          @dragleave="dragOverKey = ''"
+          @drop.prevent="handleDrop(col.key)"
         >
           <div class="board-col__header">
-            <span class="board-col__dot" :class="`board-col__dot--${col.status}`" />
-            <span class="board-col__title">{{ statusLabel(col.status) }}</span>
+            <span v-if="col.dotClass" class="board-col__dot" :class="col.dotClass" />
+            <span class="board-col__title">{{ col.title }}</span>
             <span class="board-col__count">{{ col.tasks.length }}</span>
           </div>
           <div
@@ -139,7 +145,7 @@
             :key="task.id"
             class="board-card"
             :class="{ 'board-card--dragging': dragTaskId === task.id }"
-            :draggable="!boardSubmitting"
+            :draggable="dragEnabled && !boardSubmitting"
             @dragstart="handleDragStart(task)"
             @dragend="handleDragEnd"
           >
@@ -155,7 +161,27 @@
         <div v-if="boardTruncatedTip" class="board-truncated">{{ boardTruncatedTip }}</div>
       </div>
 
-      <el-table v-if="viewMode === 'list'" v-loading="loading" :data="list" stripe style="width: 100%;" @selection-change="handleSelectionChange">
+      <el-table v-if="viewMode === 'list'" v-loading="loading" :data="list" stripe row-key="id" style="width: 100%;" @selection-change="handleSelectionChange" @expand-change="handleExpandChange">
+        <el-table-column type="expand">
+          <template #default="{ row }">
+            <div class="subtask-panel">
+              <div v-if="childrenLoading[row.id]" class="subtask-loading">{{ t('taskPage.subtask.loading') }}</div>
+              <template v-else>
+                <div v-for="child in childrenMap[row.id] || []" :key="child.id" class="subtask-row">
+                  <el-tag size="small" type="info" effect="plain">{{ t('taskPage.subtask.tag') }}</el-tag>
+                  <span class="subtask-title">{{ child.title }}</span>
+                  <el-tag :type="statusTagType(child.status)" size="small">{{ statusLabel(child.status) }}</el-tag>
+                  <el-tag :type="priorityTagType(child.priority)" size="small" effect="plain">{{ priorityLabel(child.priority) }}</el-tag>
+                  <span class="subtask-assignee">{{ child.assignee_name || '-' }}</span>
+                  <span class="subtask-due">{{ child.due_date || '-' }}</span>
+                  <el-button type="primary" link size="small" @click="openDialog(child)">{{ t('taskPage.action.edit') }}</el-button>
+                  <el-button type="danger" link size="small" @click="handleDelete(child)">{{ t('taskPage.action.delete') }}</el-button>
+                </div>
+                <div v-if="!(childrenMap[row.id] || []).length" class="subtask-empty">{{ t('taskPage.subtask.empty') }}</div>
+              </template>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column type="selection" width="45" />
         <el-table-column prop="title" :label="t('taskPage.col.title')" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">
@@ -185,8 +211,11 @@
             <el-tag v-for="tag in row.tags" :key="tag" size="small" type="info" style="margin-right: 4px;">{{ tag }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('taskPage.col.assignee')" min-width="100">
-          <template #default="{ row }">{{ row.assignee_name || '-' }}</template>
+        <el-table-column :label="t('taskPage.col.assignee')" min-width="120">
+          <template #default="{ row }">
+            <span>{{ row.assignee_name || '-' }}</span>
+            <el-tag v-if="extraAssigneeCount(row) > 0" size="small" type="info" class="assignee-more">+{{ extraAssigneeCount(row) }}</el-tag>
+          </template>
         </el-table-column>
         <el-table-column :label="t('taskPage.col.dueDate')" min-width="150">
           <template #default="{ row }">{{ row.due_date || '-' }}</template>
@@ -197,6 +226,7 @@
             <el-button v-if="row.status !== 'completed'" type="success" link size="small" @click="handleComplete(row)">{{ t('taskPage.action.complete') }}</el-button>
             <el-button v-else type="warning" link size="small" @click="handleReopen(row)">{{ t('taskPage.action.reopen') }}</el-button>
             <el-button type="primary" link size="small" @click="openDialog(row)">{{ t('taskPage.action.edit') }}</el-button>
+            <el-button link size="small" @click="openCreateSubtask(row)">{{ t('taskPage.subtask.add') }}</el-button>
             <el-button type="danger" link size="small" @click="handleDelete(row)">{{ t('taskPage.action.delete') }}</el-button>
           </template>
         </el-table-column>
@@ -240,6 +270,22 @@
             <el-radio-button label="tenant">{{ t('taskPage.scope.tenant') }}</el-radio-button>
           </el-radio-group>
         </el-form-item>
+        <el-form-item :label="t('taskPage.form.parentLabel')">
+          <el-select
+            v-model="form.parent_id"
+            filterable
+            remote
+            reserve-keyword
+            clearable
+            :remote-method="searchParents"
+            :loading="parentLoading"
+            :placeholder="t('taskPage.form.parentPlaceholder')"
+            style="width: 100%;"
+          >
+            <el-option v-for="opt in parentOptions" :key="opt.id" :label="opt.title" :value="opt.id" />
+          </el-select>
+          <div class="form-tip">{{ t('taskPage.form.parentTip') }}</div>
+        </el-form-item>
         <el-form-item :label="t('taskPage.form.priorityLabel')">
           <div class="ai-field-row">
             <el-select v-model="form.priority" style="flex: 1;">
@@ -254,7 +300,19 @@
           </div>
         </el-form-item>
         <el-form-item v-if="form.visibility === 'tenant'" :label="t('taskPage.form.assigneeLabel')">
-          <el-input v-model="form.assignee_id" :placeholder="t('taskPage.form.assigneePlaceholder')" clearable />
+          <el-select
+            v-model="form.assignees"
+            multiple
+            filterable
+            collapse-tags
+            collapse-tags-tooltip
+            :loading="assignableLoading"
+            :placeholder="t('taskPage.form.assigneesPlaceholder')"
+            style="width: 100%;"
+          >
+            <el-option v-for="m in assignableMembers" :key="m.id" :label="m.name" :value="m.id" />
+          </el-select>
+          <div class="form-tip">{{ t('taskPage.form.assigneesTip') }}</div>
         </el-form-item>
         <el-form-item :label="t('taskPage.form.dueLabel')">
           <el-date-picker
@@ -293,8 +351,19 @@
     <el-dialog v-model="assignVisible" :title="t('taskPage.assign.title')" width="440px" :close-on-click-modal="false">
       <el-form label-width="90px">
         <el-form-item :label="t('taskPage.assign.idLabel')">
-          <el-input v-model="assignUserId" :placeholder="t('taskPage.assign.idPlaceholder')" clearable />
-          <div class="form-tip">{{ t('taskPage.assign.tip') }}</div>
+          <el-select
+            v-model="assignUserIds"
+            multiple
+            filterable
+            collapse-tags
+            collapse-tags-tooltip
+            :loading="assignableLoading"
+            :placeholder="t('taskPage.assignees.placeholder')"
+            style="width: 100%;"
+          >
+            <el-option v-for="m in assignableMembers" :key="m.id" :label="m.name" :value="m.id" />
+          </el-select>
+          <div class="form-tip">{{ t('taskPage.assignees.batchTip') }}</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -369,6 +438,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Files, MagicStick, ArrowDown } from '@element-plus/icons-vue'
 import {
   getTaskList,
+  getTaskBoard,
   getTask,
   createTask,
   updateTask,
@@ -383,12 +453,14 @@ import {
   batchDeleteTasks,
   batchUpdateTaskStatus,
   batchAssignTasks,
+  getAssignableMembers,
   type TaskItem,
   type TaskStats,
   type TaskStatus,
   type TaskPriority,
   type TaskVisibility,
   type TaskRecurrence,
+  type AssignableMember,
 } from '@/api/modules/task'
 import {
   getAICapabilities,
@@ -417,12 +489,35 @@ const visibilityFilter = ref<'' | TaskVisibility>('')
 const tagFilter = ref('')
 const dueRange = ref<[string, string] | null>(null)
 
+// 子任务懒加载：childrenMap 缓存父 ID → 直接子任务，childrenLoading 标记展开中。
+// 仅单层，故展开面板只列子任务本身，不再对子行提供展开。
+const childrenMap = reactive<Record<string, TaskItem[]>>({})
+const childrenLoading = reactive<Record<string, boolean>>({})
+
 const stats = reactive<TaskStats>({ pending: 0, in_progress: 0, completed: 0, overdue: 0, total: 0, completion_rate: 0, avg_handle_seconds: 0 })
 
 // 批量选择
 const selected = ref<TaskItem[]>([])
 function handleSelectionChange(rows: TaskItem[]) {
   selected.value = rows
+}
+
+// handleExpandChange 行首展开时按需懒加载该根任务的直接子任务（已缓存则不重复拉）。
+// el-table 的 expand-change 在展开/收起均触发，expanded 为当前展开行数组（或布尔），仅展开时取数。
+async function handleExpandChange(row: TaskItem, expanded: TaskItem[] | boolean) {
+  const isExpanded = Array.isArray(expanded)
+    ? expanded.some((r) => r.id === row.id)
+    : !!expanded
+  if (!isExpanded || childrenMap[row.id]) return
+  childrenLoading[row.id] = true
+  try {
+    const raw = await getTaskList({ parent_id: row.id, page: 1, page_size: 100 })
+    childrenMap[row.id] = toPageResult<TaskItem>(raw).list
+  } catch {
+    childrenMap[row.id] = []
+  } finally {
+    childrenLoading[row.id] = false
+  }
 }
 
 // 回收站
@@ -471,6 +566,8 @@ async function loadStats() {
 
 async function loadList() {
   loading.value = true
+  // 列表默认只展示根任务，子任务通过行首展开箭头懒加载，避免父子混杂
+  Object.keys(childrenMap).forEach((k) => delete childrenMap[k])
   try {
     const raw = await getTaskList({
       page: page.value,
@@ -482,6 +579,7 @@ async function loadList() {
       tag: tagFilter.value || undefined,
       due_from: dueRange.value?.[0] || undefined,
       due_to: dueRange.value?.[1] || undefined,
+      root_only: true,
     })
     const result = toPageResult<TaskItem>(raw)
     list.value = result.list
@@ -504,34 +602,49 @@ function initialViewMode(): 'list' | 'board' {
   }
 }
 const viewMode = ref<'list' | 'board'>(initialViewMode())
+// 看板分组维度：status（默认，按状态分列且支持拖拽换列）/priority/assignee/tag，持久化到 localStorage。
+const GROUP_BY_KEY = 'meteorx.task.groupBy'
+type BoardGroupBy = 'status' | 'priority' | 'assignee' | 'tag'
+function initialGroupBy(): BoardGroupBy {
+  try {
+    const v = localStorage.getItem(GROUP_BY_KEY)
+    if (v === 'priority' || v === 'assignee' || v === 'tag') return v
+  } catch {
+    /* 隐私模式读取失败回落默认分组 */
+  }
+  return 'status'
+}
+const groupBy = ref<BoardGroupBy>(initialGroupBy())
+// 仅按状态分组时“列=状态”语义成立才允许拖拽换列；其余维度禁用拖拽避免歧义。
+const dragEnabled = computed(() => groupBy.value === 'status')
 const boardLoading = ref(false)
 const boardTasks = ref<TaskItem[]>([])
 const boardTotal = ref(0)
-// 后端分页上限 100，看板一次性拉足一页分列；超出部分以截断提示告知。
-const BOARD_PAGE_SIZE = 100
+// 看板走独立 /tasks/board 端点一次拉足当前筛选范围内的任务（后端上限 BoardMax=500）；
+// truncated 为真表示匹配总数超过上限，仅展示了其中一部分。
+const boardTruncated = ref(false)
 
 // 拖拽不依赖 dataTransfer 读数据（jsdom/浏览器差异），仅用组件内状态追踪拖起项与悬停列。
 const dragTaskId = ref('')
-const dragOverStatus = ref<TaskStatus | ''>('')
+const dragOverKey = ref('')
 const boardSubmitting = ref(false)
 
 async function loadBoard() {
   boardLoading.value = true
   try {
-    const raw = await getTaskList({
-      page: 1,
-      page_size: BOARD_PAGE_SIZE,
+    const res = await getTaskBoard({
       keyword: keyword.value || undefined,
       priority: priorityFilter.value || undefined,
       visibility: visibilityFilter.value || undefined,
       tag: tagFilter.value || undefined,
       due_from: dueRange.value?.[0] || undefined,
       due_to: dueRange.value?.[1] || undefined,
-      // 看板以状态分列，不传 status（尤其规避 overdue 伪状态过滤掉列）
+      root_only: true,
+      // 看板以状态分列，不传 status（尤其规避 overdue 伪状态过滤掉列）；默认仅含根任务保持分列清爽
     })
-    const result = toPageResult<TaskItem>(raw)
-    boardTasks.value = result.list
-    boardTotal.value = result.total
+    boardTasks.value = res.items || []
+    boardTotal.value = res.total || 0
+    boardTruncated.value = !!res.truncated
     loadStats()
   } catch {
     ElMessage.error(t('taskPage.loadListFailed'))
@@ -540,20 +653,79 @@ async function loadBoard() {
   }
 }
 
-const boardColumns = computed(() => {
-  const buckets: Record<TaskStatus, TaskItem[]> = { pending: [], in_progress: [], completed: [] }
-  for (const task of boardTasks.value) {
-    if (buckets[task.status]) buckets[task.status].push(task)
+interface BoardColumn {
+  key: string
+  title: string
+  /** 仅状态分组时提供色点样式，其余维度为空不渲染色点 */
+  dotClass?: string
+  tasks: TaskItem[]
+}
+
+// boardColumns 按当前分组维度将看板任务分桶：
+// status → 固定三列；priority → urgent/high/normal/low 固定四列；
+// assignee → 按主负责人动态列；tag → 按标签动态列（多标签出现在每列）+ 未分类列。
+const boardColumns = computed<BoardColumn[]>(() => {
+  switch (groupBy.value) {
+    case 'priority': {
+      const order: TaskPriority[] = ['urgent', 'high', 'normal', 'low']
+      return order.map((p) => ({
+        key: p,
+        title: priorityLabel(p),
+        tasks: boardTasks.value.filter((t) => t.priority === p),
+      }))
+    }
+    case 'assignee': {
+      const map = new Map<string, BoardColumn>()
+      for (const task of boardTasks.value) {
+        const key = task.assignee_id || '__unassigned__'
+        if (!map.has(key)) {
+          map.set(key, {
+            key,
+            title: task.assignee_id ? task.assignee_name || task.assignee_id : t('taskPage.board.unassigned'),
+            tasks: [],
+          })
+        }
+        map.get(key)!.tasks.push(task)
+      }
+      return [...map.values()].sort((a, b) => b.tasks.length - a.tasks.length)
+    }
+    case 'tag': {
+      const map = new Map<string, TaskItem[]>()
+      const untagged: TaskItem[] = []
+      for (const task of boardTasks.value) {
+        if (!task.tags || !task.tags.length) {
+          untagged.push(task)
+          continue
+        }
+        for (const tag of task.tags) {
+          if (!map.has(tag)) map.set(tag, [])
+          map.get(tag)!.push(task)
+        }
+      }
+      const cols: BoardColumn[] = [...map.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([tag, tasks]) => ({ key: tag, title: tag, tasks }))
+      cols.push({ key: '__untagged__', title: t('taskPage.board.untagged'), tasks: untagged })
+      return cols
+    }
+    default: {
+      const buckets: Record<TaskStatus, TaskItem[]> = { pending: [], in_progress: [], completed: [] }
+      for (const task of boardTasks.value) {
+        if (buckets[task.status]) buckets[task.status].push(task)
+      }
+      return (['pending', 'in_progress', 'completed'] as TaskStatus[]).map((s) => ({
+        key: s,
+        title: statusLabel(s),
+        dotClass: `board-col__dot--${s}`,
+        tasks: buckets[s],
+      }))
+    }
   }
-  return [
-    { status: 'pending' as TaskStatus, tasks: buckets.pending },
-    { status: 'in_progress' as TaskStatus, tasks: buckets.in_progress },
-    { status: 'completed' as TaskStatus, tasks: buckets.completed },
-  ]
 })
 
 const boardTruncatedTip = computed(() => {
-  if (boardTotal.value > boardTasks.value.length) {
+  // 仅当后端标记截断（匹配总数超过看板上限 BoardMax）时提示，不再因分页丢失而误报。
+  if (boardTruncated.value) {
     return t('taskPage.board.truncated', boardTasks.value.length, boardTotal.value)
   }
   return ''
@@ -583,23 +755,37 @@ function refreshCurrent() {
   return viewMode.value === 'board' ? loadBoard() : loadList()
 }
 
+// handleGroupByChange 切换看板分组维度：仅持久化偏好，分桶由 boardColumns 响应式重算，无需重拉数据。
+function handleGroupByChange(val: BoardGroupBy) {
+  try {
+    localStorage.setItem(GROUP_BY_KEY, val)
+  } catch {
+    /* 隐私模式写入失败仅影响下次默认分组，忽略 */
+  }
+  // 离开状态分组时清空残留拖拽态，避免高亮/拖起项悬空
+  dragTaskId.value = ''
+  dragOverKey.value = ''
+}
+
 function handleDragStart(task: TaskItem) {
-  if (boardSubmitting.value) return
+  if (!dragEnabled.value || boardSubmitting.value) return
   dragTaskId.value = task.id
 }
 
 function handleDragEnd() {
   dragTaskId.value = ''
-  dragOverStatus.value = ''
+  dragOverKey.value = ''
 }
 
-// handleDrop 卡片放入不同状态列时复用批量改状态接口（单条）改状态；
+// handleDrop 仅在按状态分组时生效：卡片放入不同状态列复用批量改状态接口（单条）改状态；
 // 无论成败都重拉看板，避免乐观移动与后端不一致（失败提示由拦截器统一弹出）。
-async function handleDrop(status: TaskStatus) {
-  dragOverStatus.value = ''
+async function handleDrop(colKey: string) {
+  dragOverKey.value = ''
+  if (!dragEnabled.value) return
   const id = dragTaskId.value
   dragTaskId.value = ''
   if (!id || boardSubmitting.value) return
+  const status = colKey as TaskStatus
   const task = boardTasks.value.find((x) => x.id === id)
   if (!task || task.status === status) return
   boardSubmitting.value = true
@@ -623,7 +809,8 @@ const form = reactive({
   description: '',
   visibility: 'personal' as TaskVisibility,
   priority: 'normal' as TaskPriority,
-  assignee_id: '',
+  assignees: [] as string[],
+  parent_id: '',
   due_date: '',
   remind_before: '',
   recurrence: '' as '' | TaskRecurrence,
@@ -633,6 +820,41 @@ const rules = computed<FormRules>(() => ({
   title: [{ required: true, message: t('taskPage.form.titleRequired'), trigger: 'blur' }],
 }))
 
+// 可指派成员：加载当前租户存活成员供负责人多选（仅需登录，不依赖 user:list 权限）。
+const assignableMembers = ref<AssignableMember[]>([])
+const assignableLoading = ref(false)
+async function loadAssignableMembers() {
+  assignableLoading.value = true
+  try {
+    assignableMembers.value = (await getAssignableMembers()) || []
+  } catch {
+    assignableMembers.value = []
+  } finally {
+    assignableLoading.value = false
+  }
+}
+
+// extraAssigneeCount 返回除主负责人外的额外负责人数（列表“负责人”列以 +N 折叠展示）。
+function extraAssigneeCount(row: TaskItem): number {
+  const n = row.assignees?.length ?? 0
+  return n > 1 ? n - 1 : 0
+}
+
+// 父任务选择器：远程搜索本人可见的根任务（排除自身），仅用于建/改时挂父。
+const parentOptions = ref<TaskItem[]>([])
+const parentLoading = ref(false)
+async function searchParents(query: string) {
+  parentLoading.value = true
+  try {
+    const raw = await getTaskList({ keyword: query || undefined, root_only: true, page: 1, page_size: 20 })
+    parentOptions.value = toPageResult<TaskItem>(raw).list.filter((tk) => tk.id !== editingId.value)
+  } catch {
+    parentOptions.value = []
+  } finally {
+    parentLoading.value = false
+  }
+}
+
 function openDialog(row?: TaskItem) {
   editingId.value = row?.id || ''
   if (row) {
@@ -640,23 +862,44 @@ function openDialog(row?: TaskItem) {
     form.description = row.description
     form.visibility = row.visibility
     form.priority = row.priority
-    form.assignee_id = row.assignee_id === row.creator_id ? '' : row.assignee_id
+    // 负责人多选：优先取集合，无集合时回落主负责人（自我负责也展示为一个可取消的选项）
+    form.assignees = row.assignees?.length ? [...row.assignees] : (row.assignee_id ? [row.assignee_id] : [])
+    form.parent_id = row.parent_id || ''
     form.due_date = row.due_date || ''
     form.remind_before = row.remind_before || ''
     form.recurrence = (row.recurrence as '' | TaskRecurrence) || ''
     form.tags = [...(row.tags || [])]
+    // 已挂父任务时回填一个下拉选项使其可见（标题异步拉取，失败则先以 ID 占位）
+    parentOptions.value = row.parent_id ? [{ ...row, id: row.parent_id, title: row.parent_id } as TaskItem] : []
+    if (row.parent_id) {
+      getTask(row.parent_id)
+        .then((p) => { parentOptions.value = [{ ...p }] })
+        .catch(() => { /* 保留 ID 占位 */ })
+    }
   } else {
     form.title = ''
     form.description = ''
     form.visibility = 'personal'
     form.priority = 'normal'
-    form.assignee_id = ''
+    form.assignees = []
+    form.parent_id = ''
     form.due_date = ''
     form.remind_before = ''
     form.recurrence = ''
     form.tags = []
+    parentOptions.value = []
   }
   dialogVisible.value = true
+  // 首次打开时懒加载可指派成员（已加载则不重复）
+  if (!assignableMembers.value.length) loadAssignableMembers()
+}
+
+// openCreateSubtask 从某行直接新建其子任务：预填 parent_id（父任务即该行）并继承其可见范围。
+function openCreateSubtask(row: TaskItem) {
+  openDialog()
+  form.parent_id = row.id
+  form.visibility = row.visibility
+  parentOptions.value = [{ ...row }]
 }
 
 async function submitForm() {
@@ -670,11 +913,12 @@ async function submitForm() {
         description: form.description,
         visibility: form.visibility,
         priority: form.priority,
-        assignee_id: form.visibility === 'tenant' ? form.assignee_id : undefined,
+        assignees: form.visibility === 'tenant' ? form.assignees : undefined,
         due_date: form.due_date || undefined,
         remind_before: form.remind_before || undefined,
         recurrence: form.recurrence,
         tags: form.tags,
+        parent_id: form.parent_id,
       }
       if (editingId.value) {
         await updateTask(editingId.value, payload)
@@ -738,7 +982,7 @@ async function handleBatchComplete() {
 // 两者均逐条做归属校验，只返回实际生效数，失败项不阻断整体。
 const assignVisible = ref(false)
 const assignLoading = ref(false)
-const assignUserId = ref('')
+const assignUserIds = ref<string[]>([])
 
 async function handleBatchStatus(status: string) {
   const ids = selected.value.map((r) => r.id)
@@ -753,21 +997,22 @@ async function handleBatchStatus(status: string) {
 }
 
 function openBatchAssign() {
-  assignUserId.value = ''
+  assignUserIds.value = []
   assignVisible.value = true
+  if (!assignableMembers.value.length) loadAssignableMembers()
 }
 
 async function submitBatchAssign() {
   const ids = selected.value.map((r) => r.id)
   if (!ids.length) return
-  const assignee = assignUserId.value.trim()
-  if (!assignee) {
+  const assignees = assignUserIds.value.filter((v) => v.trim() !== '')
+  if (!assignees.length) {
     ElMessage.warning(t('taskPage.assigneeIdRequired'))
     return
   }
   assignLoading.value = true
   try {
-    const res = await batchAssignTasks({ ids, assignee_id: assignee })
+    const res = await batchAssignTasks({ ids, assignees })
     ElMessage.success(t('taskPage.batchAssigned', res.affected))
     assignVisible.value = false
     loadList()
@@ -1088,6 +1333,40 @@ watch(
   padding-left: 20px;
   color: #606266;
   line-height: 1.6;
+}
+/* ===== 子任务展开面板 ===== */
+.subtask-panel {
+  padding: 8px 16px 8px 48px;
+  background: var(--el-fill-color-lighter);
+}
+.subtask-loading,
+.subtask-empty {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.8;
+}
+.subtask-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--el-border-color-lighter);
+}
+.subtask-row:last-child {
+  border-bottom: none;
+}
+.subtask-title {
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+.subtask-assignee,
+.subtask-due {
+  font-size: 12px;
+  color: #6b7280;
+}
+/* 列表“负责人”列多负责人折叠标记 +N，与主负责人名同一行展示 */
+.assignee-more {
+  margin-left: 4px;
 }
 /* ===== 看板视图 ===== */
 .board {
