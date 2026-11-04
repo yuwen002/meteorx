@@ -118,7 +118,21 @@ export function seedMultiAssignee(creatorId: string, tenantId: string): E2EMulti
   return JSON.parse(runFixture(['seed-multi-assignee', creatorId, tenantId])) as E2EMultiAssignee
 }
 
-/** 物理删除任务及其 task_assignees 关联行（批量）。 */
+export interface E2EDependency {
+  blocker_id: string
+  blocker_title: string
+  dependent_id: string
+  dependent_title: string
+  /** 两条任务标题共有的唯一串，供列表关键词一次搜出两行 */
+  keyword: string
+}
+
+/** 造一条前置任务 + 一条依赖它的后继任务（写 task_dependencies），供阻塞徽标/解锁用例。 */
+export function seedDependency(creatorId: string, tenantId: string): E2EDependency {
+  return JSON.parse(runFixture(['seed-dependency', creatorId, tenantId])) as E2EDependency
+}
+
+/** 物理删除任务及其 task_assignees / task_dependencies 关联行（批量）。 */
 export function cleanupTasks(ids: string[]): void {
   if (ids.length) runFixture(['cleanup-tasks', ids.join(',')])
 }

@@ -12,7 +12,8 @@
 //	delete-alert <id>   物理删除测试告警
 //	seed-task-tree <creatorId> <tenantId>  造一个根任务 + 两个子任务（personal，供子任务展开懒加载用例）
 //	seed-multi-assignee <creatorId> <tenantId>  造同租户第二成员 + 一条双负责人租户任务（写 task_assignees，供 +N 展示用例）
-//	cleanup-tasks <id1,id2,...>  物理删除任务及其 task_assignees 关联行
+//	seed-dependency <creatorId> <tenantId>  造一条前置任务 + 一条依赖它的后继任务（写 task_dependencies，供阻塞徽标/解锁用例）
+//	cleanup-tasks <id1,id2,...>  物理删除任务及其 task_assignees / task_dependencies 关联行
 //	cleanup-user <userId>  物理删除夹具创建的临时成员
 //
 // 约定：结果以单行 `E2E_JSON:<json>` 输出，便于测试侧在 GORM 日志中稳定解析。
@@ -84,9 +85,18 @@ type multiAssigneeRef struct {
 	MemberName string `json:"member_name"`
 }
 
+type dependencyRef struct {
+	BlockerID      string `json:"blocker_id"`
+	BlockerTitle   string `json:"blocker_title"`
+	DependentID    string `json:"dependent_id"`
+	DependentTitle string `json:"dependent_title"`
+	// Keyword 为两条任务标题共有的唯一串，供 E2E 关键词一次搜出两行
+	Keyword string `json:"keyword"`
+}
+
 func main() {
 	if len(os.Args) < 2 {
-		fatal("usage: fixture create-admin|delete-admin <username>|verify-plan <code>|delete-plan <code>|ensure-tenant|delete-tenant <id>|seed-alert <username>|delete-alert <id>|seed-task-tree <creatorId> <tenantId>|seed-multi-assignee <creatorId> <tenantId>|cleanup-tasks <ids>|cleanup-user <userId>")
+		fatal("usage: fixture create-admin|delete-admin <username>|verify-plan <code>|delete-plan <code>|ensure-tenant|delete-tenant <id>|seed-alert <username>|delete-alert <id>|seed-task-tree <creatorId> <tenantId>|seed-multi-assignee <creatorId> <tenantId>|seed-dependency <creatorId> <tenantId>|cleanup-tasks <ids>|cleanup-user <userId>")
 	}
 
 	cfg, err := bootstrap.LoadConfig()
@@ -287,6 +297,42 @@ func main() {
 		}
 		emit(multiAssigneeRef{TaskID: taskID, TaskTitle: taskTitle, MemberID: memberID, MemberName: memberName})
 
+	case "seed-dependency":
+		// 造一条前置（blocker）+ 一条依赖它的后继（dependent），并写 task_dependencies 行
+		// (task_id=dependent, blocked_by_id=blocker)。两条均 pending/personal/creator=临时超管，
+		// 共享唯一 keyword 便于列表一次搜出两行：验证“被 1 阻塞”徽标渲染与完成前置后徽标消失。
+		requireArgs(4)
+		creatorID, tenantID := os.Args[2], os.Args[3]
+		now := time.Now()
+		kw := fmt.Sprintf("%d", now.UnixNano())
+		blockerID := ulid.Generate()
+		dependentID := ulid.Generate()
+		blockerTitle := fmt.Sprintf("E2E前置-%s", kw)
+		dependentTitle := fmt.Sprintf("E2E后继-%s", kw)
+		blocker := taskrepo.TaskPO{
+			ID: blockerID, TenantID: tenantID, CreatorID: creatorID, AssigneeID: creatorID,
+			Title: blockerTitle, Status: "pending", Priority: "high",
+			Tags: "[]", Visibility: "personal", CreatedAt: now, UpdatedAt: now,
+		}
+		if err := db.Create(&blocker).Error; err != nil {
+			fatal("seed blocker task: %v", err)
+		}
+		dependent := taskrepo.TaskPO{
+			ID: dependentID, TenantID: tenantID, CreatorID: creatorID, AssigneeID: creatorID,
+			Title: dependentTitle, Status: "pending", Priority: "normal",
+			Tags: "[]", Visibility: "personal", CreatedAt: now, UpdatedAt: now,
+		}
+		if err := db.Create(&dependent).Error; err != nil {
+			fatal("seed dependent task: %v", err)
+		}
+		if err := db.Create(&taskrepo.TaskDependencyPO{TaskID: dependentID, BlockedByID: blockerID}).Error; err != nil {
+			fatal("seed dependency: %v", err)
+		}
+		emit(dependencyRef{
+			BlockerID: blockerID, BlockerTitle: blockerTitle,
+			DependentID: dependentID, DependentTitle: dependentTitle, Keyword: kw,
+		})
+
 	case "cleanup-tasks":
 		requireArgs(3)
 		ids := splitIDs(os.Args[2])
@@ -296,6 +342,11 @@ func main() {
 		}
 		if err := db.Exec("DELETE FROM task_assignees WHERE task_id IN ?", ids).Error; err != nil {
 			fatal("cleanup task_assignees: %v", err)
+		}
+		// 双向清理依赖行：本批任务作为依赖方（task_id）或作为前置（blocked_by_id）的边都要删，
+		// 避免残留行指向已物理删除的任务。
+		if err := db.Exec("DELETE FROM task_dependencies WHERE task_id IN ? OR blocked_by_id IN ?", ids, ids).Error; err != nil {
+			fatal("cleanup task_dependencies: %v", err)
 		}
 		res := db.Exec("DELETE FROM tasks WHERE id IN ?", ids)
 		if res.Error != nil {

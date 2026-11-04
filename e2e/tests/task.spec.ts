@@ -4,6 +4,7 @@ import {
   readCreds,
   seedTaskTree,
   seedMultiAssignee,
+  seedDependency,
   cleanupTasks,
   cleanupUser
 } from '../helpers'
@@ -122,6 +123,43 @@ test.describe('任务模块（看板分组 / 子任务 / 多负责人）', () =>
     } finally {
       cleanupTasks([seed.task_id])
       cleanupUser(seed.member_id)
+    }
+  })
+
+  test('任务依赖：列表对依赖方显示“被 1 阻塞”徽标，完成前置后标签消失 @smoke', async ({ page }) => {
+    const creds = readCreds()
+    const dep = seedDependency(creds.id, ADMIN_TENANT)
+    try {
+      await enterTaskPage(page, 'list')
+      await page.reload()
+      // 用共有的唯一 keyword 一次搜出前置与后继两行，规避存量数据干扰
+      await page.getByPlaceholder('搜索标题/描述').fill(dep.keyword)
+      const listResp = page.waitForResponse(
+        (r) => r.url().includes('/api/v1/tasks?') && r.url().includes('keyword='),
+        { timeout: 30_000 }
+      )
+      await page.getByRole('button', { name: '查询' }).click()
+      await listResp
+
+      // 依赖方行：含未完成前置→“被 1 阻塞”标签；前置行自身无徽标
+      const dependentRow = page.locator('.el-table__row').filter({ hasText: dep.dependent_title }).first()
+      await expect(dependentRow).toBeVisible({ timeout: 20_000 })
+      await expect(dependentRow.locator('.dep-badge')).toHaveText(/被\s*1\s*阻塞/)
+      const blockerRow = page.locator('.el-table__row').filter({ hasText: dep.blocker_title }).first()
+      await expect(blockerRow.locator('.dep-badge')).toHaveCount(0)
+
+      // 完成前置：点行内“完成”→ handleComplete 调 PUT /tasks/{id}/complete 后 reload 列表
+      const completeResp = page.waitForResponse(
+        (r) => r.url().includes(`/api/v1/tasks/${dep.blocker_id}/complete`),
+        { timeout: 20_000 }
+      )
+      await blockerRow.getByRole('button', { name: '完成' }).click()
+      await completeResp
+
+      // 刷新后：前置已完成→依赖方 blocked_by 富化 status=completed→阻塞标签消失（解锁）
+      await expect(dependentRow.locator('.dep-badge')).toHaveCount(0, { timeout: 20_000 })
+    } finally {
+      cleanupTasks([dep.blocker_id, dep.dependent_id])
     }
   })
 })
