@@ -151,6 +151,7 @@
           >
             <div class="board-card__title">{{ task.title }}</div>
             <div class="board-card__meta">
+              <el-tag v-if="blockedCount(task) > 0" size="small" type="danger" effect="plain">{{ t('taskPage.dep.blockedBadge', blockedCount(task)) }}</el-tag>
               <el-tag size="small" :type="priorityTagType(task.priority)" effect="plain">{{ priorityLabel(task.priority) }}</el-tag>
               <el-tag v-if="task.recurrence" size="small" type="success" effect="plain">{{ recurrenceLabel(task.recurrence) }}</el-tag>
               <span v-if="task.due_date" class="board-card__due" :class="{ 'board-card__due--overdue': isOverdue(task) }">{{ task.due_date }}</span>
@@ -161,7 +162,7 @@
         <div v-if="boardTruncatedTip" class="board-truncated">{{ boardTruncatedTip }}</div>
       </div>
 
-      <el-table v-if="viewMode === 'list'" v-loading="loading" :data="list" stripe row-key="id" style="width: 100%;" @selection-change="handleSelectionChange" @expand-change="handleExpandChange">
+      <el-table v-if="viewMode === 'list'" v-loading="loading" :data="list" stripe row-key="id" max-height="calc(100vh - 300px)" style="width: 100%;" @selection-change="handleSelectionChange" @expand-change="handleExpandChange">
         <el-table-column type="expand">
           <template #default="{ row }">
             <div class="subtask-panel">
@@ -186,6 +187,9 @@
         <el-table-column prop="title" :label="t('taskPage.col.title')" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">
             <el-tag v-if="row.recurrence" size="small" type="success" effect="plain" style="margin-right: 6px;">{{ recurrenceLabel(row.recurrence) }}</el-tag>
+            <el-tooltip v-if="blockedCount(row) > 0" :content="blockerTooltip(row)" placement="top">
+              <el-tag size="small" type="danger" effect="plain" class="dep-badge">{{ t('taskPage.dep.blockedBadge', blockedCount(row)) }}</el-tag>
+            </el-tooltip>
             <span>{{ row.title }}</span>
           </template>
         </el-table-column>
@@ -237,7 +241,7 @@
           v-model:current-page="page"
           v-model:page-size="pageSize"
           :total="total"
-          :page-sizes="[10, 20, 50]"
+          :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next"
           @size-change="loadList"
           @current-change="loadList"
@@ -285,6 +289,25 @@
             <el-option v-for="opt in parentOptions" :key="opt.id" :label="opt.title" :value="opt.id" />
           </el-select>
           <div class="form-tip">{{ t('taskPage.form.parentTip') }}</div>
+        </el-form-item>
+        <el-form-item :label="t('taskPage.dep.label')">
+          <el-select
+            v-model="form.blocked_by"
+            multiple
+            filterable
+            remote
+            reserve-keyword
+            collapse-tags
+            collapse-tags-tooltip
+            clearable
+            :remote-method="searchBlockers"
+            :loading="depLoading"
+            :placeholder="t('taskPage.dep.placeholder')"
+            style="width: 100%;"
+          >
+            <el-option v-for="opt in depOptions" :key="opt.id" :label="opt.title" :value="opt.id" />
+          </el-select>
+          <div class="form-tip">{{ t('taskPage.dep.tip') }}</div>
         </el-form-item>
         <el-form-item :label="t('taskPage.form.priorityLabel')">
           <div class="ai-field-row">
@@ -811,6 +834,7 @@ const form = reactive({
   priority: 'normal' as TaskPriority,
   assignees: [] as string[],
   parent_id: '',
+  blocked_by: [] as string[],
   due_date: '',
   remind_before: '',
   recurrence: '' as '' | TaskRecurrence,
@@ -840,6 +864,17 @@ function extraAssigneeCount(row: TaskItem): number {
   return n > 1 ? n - 1 : 0
 }
 
+// 阻塞关系徽标：未完成前置（status !== completed）才计入“被 N 阻塞”。
+function incompleteBlockers(row: TaskItem) {
+  return (row.blocked_by || []).filter((b) => b.status !== 'completed')
+}
+function blockedCount(row: TaskItem): number {
+  return incompleteBlockers(row).length
+}
+function blockerTooltip(row: TaskItem): string {
+  return t('taskPage.dep.blockedBy', incompleteBlockers(row).map((b) => b.title).join('、'))
+}
+
 // 父任务选择器：远程搜索本人可见的根任务（排除自身），仅用于建/改时挂父。
 const parentOptions = ref<TaskItem[]>([])
 const parentLoading = ref(false)
@@ -855,6 +890,27 @@ async function searchParents(query: string) {
   }
 }
 
+// 前置任务选择器：远程搜索本人可见的根任务（排除自身）供建/改时选前置。
+// depOptions 仅存 id/title（TaskDependencyRef 形状），已选项回显与搜索结果共用此列表。
+const depOptions = ref<{ id: string; title: string }[]>([])
+const depLoading = ref(false)
+async function searchBlockers(query: string) {
+  depLoading.value = true
+  try {
+    const raw = await getTaskList({ keyword: query || undefined, root_only: true, page: 1, page_size: 20 })
+    const results = toPageResult<TaskItem>(raw).list
+      .filter((tk) => tk.id !== editingId.value)
+      .map((tk) => ({ id: tk.id, title: tk.title }))
+    // 保留已选中但不在本次结果中的前置，避免其标签因远程刷新而丢标题
+    const keep = depOptions.value.filter((o) => form.blocked_by.includes(o.id) && !results.some((r) => r.id === o.id))
+    depOptions.value = [...keep, ...results]
+  } catch {
+    /* 保留已有选项 */
+  } finally {
+    depLoading.value = false
+  }
+}
+
 function openDialog(row?: TaskItem) {
   editingId.value = row?.id || ''
   if (row) {
@@ -865,6 +921,9 @@ function openDialog(row?: TaskItem) {
     // 负责人多选：优先取集合，无集合时回落主负责人（自我负责也展示为一个可取消的选项）
     form.assignees = row.assignees?.length ? [...row.assignees] : (row.assignee_id ? [row.assignee_id] : [])
     form.parent_id = row.parent_id || ''
+    // 前置依赖回显：取 blocked_by 的 id 集合，并以其标题初始化下拉选项（无需再拉取）
+    form.blocked_by = (row.blocked_by || []).map((b) => b.id)
+    depOptions.value = (row.blocked_by || []).map((b) => ({ id: b.id, title: b.title }))
     form.due_date = row.due_date || ''
     form.remind_before = row.remind_before || ''
     form.recurrence = (row.recurrence as '' | TaskRecurrence) || ''
@@ -883,11 +942,13 @@ function openDialog(row?: TaskItem) {
     form.priority = 'normal'
     form.assignees = []
     form.parent_id = ''
+    form.blocked_by = []
     form.due_date = ''
     form.remind_before = ''
     form.recurrence = ''
     form.tags = []
     parentOptions.value = []
+    depOptions.value = []
   }
   dialogVisible.value = true
   // 首次打开时懒加载可指派成员（已加载则不重复）
@@ -919,6 +980,7 @@ async function submitForm() {
         recurrence: form.recurrence,
         tags: form.tags,
         parent_id: form.parent_id,
+        blocked_by: form.blocked_by,
       }
       if (editingId.value) {
         await updateTask(editingId.value, payload)
@@ -1367,6 +1429,10 @@ watch(
 /* 列表“负责人”列多负责人折叠标记 +N，与主负责人名同一行展示 */
 .assignee-more {
   margin-left: 4px;
+}
+/* 列表“标题”列阻塞徽标，与标题文本同行前置展示 */
+.dep-badge {
+  margin-right: 6px;
 }
 /* ===== 看板视图 ===== */
 .board {

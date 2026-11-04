@@ -16,6 +16,13 @@ export type TaskVisibility = 'personal' | 'tenant'
 /** 重复周期（空表示不重复） */
 export type TaskRecurrence = 'daily' | 'weekly' | 'monthly'
 
+/** 任务依赖引用（阻塞关系轻量视图）：id/标题/状态，非 completed 即视为"未完成/阻塞中" */
+export interface TaskDependencyRef {
+  id: string
+  title: string
+  status: TaskStatus
+}
+
 /** 任务记录 */
 export interface TaskItem {
   id: string
@@ -30,6 +37,10 @@ export interface TaskItem {
   assignee_names?: string[]
   /** 父任务 ID，为空表示根任务（仅支持单层） */
   parent_id?: string
+  /** 前置任务集合（本任务被其阻塞）：含 id/title/status，供列表/看板阻塞徽标与解锁展示 */
+  blocked_by?: TaskDependencyRef[]
+  /** 后继任务集合（依赖本任务）：blocked_by 的反向视图 */
+  blocks?: TaskDependencyRef[]
   title: string
   description: string
   status: TaskStatus
@@ -62,6 +73,8 @@ export interface CreateTaskParams {
   recurrence?: TaskRecurrence | ''
   /** 父任务 ID：创建子任务时指定，仅允许挂在根任务下 */
   parent_id?: string
+  /** 前置任务 ID 集合：创建时一并建锁（任一不存在/跨租户/不可见/自引用/成环都会被后端拒绝） */
+  blocked_by?: string[]
 }
 
 /** 更新任务参数（仅提交需要修改的字段） */
@@ -80,6 +93,8 @@ export interface UpdateTaskParams {
   recurrence?: TaskRecurrence | ''
   /** 父任务 ID：传入设为子任务，传空字符串解除父子关系回退为根任务 */
   parent_id?: string
+  /** 前置任务 ID 集合：给出（非 null）时以其为准重置本任务前置集合，空数组=清空；不传则不改动 */
+  blocked_by?: string[]
 }
 
 /** 任务列表查询参数 */

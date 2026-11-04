@@ -53,7 +53,7 @@ vi.mock('@/api/modules/task-ai', () => ({
 }))
 
 import TaskView from './index.vue'
-import { getTaskList, getTaskBoard, batchUpdateTaskStatus, getAssignableMembers, type TaskItem } from '@/api/modules/task'
+import { getTaskList, getTaskBoard, createTask, batchUpdateTaskStatus, getAssignableMembers, type TaskItem } from '@/api/modules/task'
 
 // 透传桩：渲染默认插槽使卡片文本可断言
 const passThrough = { template: '<div><slot name="header" /><slot /></div>' }
@@ -344,5 +344,108 @@ describe('任务子任务（B3）', () => {
     wrapper.findComponent(ElTableStub).vm.$emit('expand-change', root, [])
     await flushPromises()
     expect(vi.mocked(getTaskList).mock.calls.length).toBe(before)
+  })
+})
+
+// 任务依赖（D1）：阻塞徽标渲染 + 弹窗前置多选提交 payload。
+describe('任务依赖（D1）', () => {
+  // 可控 el-select 桩：暴露 placeholder 供定位、可 emit update:modelValue 回写 v-model。
+  const SelectStub = {
+    name: 'ElSelectStub',
+    props: ['modelValue', 'placeholder'],
+    emits: ['update:modelValue'],
+    template: '<div class="select-stub" :data-placeholder="placeholder"><slot /></div>',
+  }
+  // el-form 桩：提供 validate(cb) 直接放行，驱动 submitForm 的校验回调执行。
+  const FormStub = {
+    name: 'ElFormStub',
+    methods: { validate: (cb?: (ok: boolean) => void) => { cb?.(true); return Promise.resolve(true) } },
+    template: '<div><slot /></div>',
+  }
+  // el-dialog 桩：始终渲染默认与 footer 插槽，使表单与提交按钮可被操作。
+  const DialogStub = { template: '<div class="dialog-stub"><slot /><slot name="footer" /></div>' }
+
+  async function mountWithDialog() {
+    localStorage.setItem('meteorx.task.viewMode', 'board')
+    vi.mocked(getTaskBoard).mockResolvedValue({ items: [], total: 0, truncated: false })
+    const wrapper = mount(TaskView, {
+      global: {
+        stubs: { ...stubs, 'el-dialog': DialogStub, 'el-form': FormStub, 'el-select': SelectStub },
+        directives: { loading: {} },
+      },
+    })
+    await flushPromises()
+    return wrapper
+  }
+
+  it('看板卡片：存在未完成前置时渲染“被 N 阻塞”徽标', async () => {
+    vi.mocked(getTaskBoard).mockResolvedValue({
+      items: [makeTask('a', 'pending', { blocked_by: [{ id: 'b1', title: '前置一', status: 'pending' }] })],
+      total: 1,
+      truncated: false,
+    })
+    const wrapper = await mountBoard()
+    expect(wrapper.find('.board-card').text()).toContain('taskPage.dep.blockedBadge')
+  })
+
+  it('看板卡片：前置均已完成时不渲染阻塞徽标', async () => {
+    vi.mocked(getTaskBoard).mockResolvedValue({
+      items: [makeTask('a', 'pending', { blocked_by: [{ id: 'b1', title: '前置一', status: 'completed' }] })],
+      total: 1,
+      truncated: false,
+    })
+    const wrapper = await mountBoard()
+    expect(wrapper.find('.board-card').text()).not.toContain('taskPage.dep.blockedBadge')
+  })
+
+  it('弹窗前置多选：提交时 payload 带回显的 blocked_by', async () => {
+    vi.mocked(createTask).mockResolvedValue(makeTask('n1', 'pending'))
+    const wrapper = await mountWithDialog()
+    // 定位“前置任务”选择器（按占位键区分），通过 emit 回写 form.blocked_by
+    const depSelect = wrapper
+      .findAllComponents(SelectStub)
+      .find((c) => c.props('placeholder') === 'taskPage.dep.placeholder')
+    expect(depSelect).toBeTruthy()
+    await depSelect!.vm.$emit('update:modelValue', ['b1', 'b2'])
+    await flushPromises()
+    // 点击“创建”按钮触发 submitForm
+    const btns = wrapper.findAll('*').filter((el) => el.text().includes('taskPage.form.submitCreate'))
+    const submitBtn = btns[btns.length - 1]
+    expect(submitBtn).toBeTruthy()
+    await submitBtn.trigger('click')
+    await flushPromises()
+    expect(createTask).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(createTask).mock.calls[0][0]).toMatchObject({ blocked_by: ['b1', 'b2'] })
+  })
+})
+
+// 任务列表可用性（D2）：无渲染缺陷，仅做固定高度内滚 + 页容量上限放宽的微调，此处断言两项属性到位。
+describe('任务列表可用性（D2）', () => {
+  // el-pagination 桩：声明 pageSizes 并以 data 属性回射供断言可选页容量。
+  const PaginationStub = {
+    name: 'ElPaginationStub',
+    props: ['pageSizes'],
+    template: '<div class="pagination-stub" :data-page-sizes="JSON.stringify(pageSizes)" />',
+  }
+
+  async function mountListD2(rows: TaskItem[]) {
+    localStorage.setItem('meteorx.task.viewMode', 'list')
+    vi.mocked(getTaskList).mockResolvedValue({ list: rows, total: rows.length } as never)
+    const wrapper = mount(TaskView, {
+      global: { stubs: { ...stubs, 'el-table': ElTableStub, 'el-pagination': PaginationStub }, directives: { loading: {} } },
+    })
+    await flushPromises()
+    return wrapper
+  }
+
+  it('列表 el-table 具备固定 max-height 以启用表体内滚', async () => {
+    const wrapper = await mountListD2([makeTask('r1', 'pending')])
+    expect(wrapper.find('.el-table-stub').attributes('max-height')).toBe('calc(100vh - 300px)')
+  })
+
+  it('分页可选页容量扩展至 100（与后端 MaxPageSize=100 对齐）', async () => {
+    const wrapper = await mountListD2([])
+    const sizes = JSON.parse(wrapper.find('.pagination-stub').attributes('data-page-sizes') as string)
+    expect(sizes).toEqual([10, 20, 50, 100])
   })
 })
