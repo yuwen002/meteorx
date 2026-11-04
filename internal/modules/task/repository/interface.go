@@ -68,6 +68,16 @@ type TaskRepository interface {
 	ReplaceAssignees(ctx context.Context, taskID string, ids []string) error
 	// LoadAssignees 批量读取多个任务的负责人集合（task_id -> user_id 列表），供服务层富化。
 	LoadAssignees(ctx context.Context, ids []string) (map[string][]string, error)
+	// ReplaceBlockedBy 重置指定任务的前置依赖集合（先清后写，同事务）；自动去重去空并剔除自引用。
+	ReplaceBlockedBy(ctx context.Context, taskID string, blockedIDs []string) error
+	// LoadDependencies 批量读取多个任务的阻塞关系，返回正向 blockedBy（task_id->前置ids）与反向 blocks（blocked_by_id->后继ids）两个映射。
+	LoadDependencies(ctx context.Context, ids []string) (map[string][]string, map[string][]string, error)
+	// FindBrief 批量按 ID 读取未删除任务的轻量引用（id -> model.TaskRef），供阻塞关系双向富化标题/状态。
+	FindBrief(ctx context.Context, ids []string) (map[string]model.TaskRef, error)
+	// DependentsOf 查询直接依赖 blockedByID 的后继任务 ID 列表，供完成任务时扫描可解锁的后继。
+	DependentsOf(ctx context.Context, blockedByID string) ([]string, error)
+	// TenantDependencyEdges 返回指定租户全部任务的依赖图（task_id -> blocked_by_ids），供服务层循环依赖检测。
+	TenantDependencyEdges(ctx context.Context, tenantID string) (map[string][]string, error)
 	// GetByIDUnscoped 按主键查询任务（包含已软删除记录，用于恢复/永久删除场景）
 	GetByIDUnscoped(ctx context.Context, id string) (*model.Task, error)
 	// ListDeleted 分页查询当前用户的回收站（已软删除）任务

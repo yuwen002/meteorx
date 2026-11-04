@@ -16,6 +16,8 @@ type CreateTaskReq struct {
 	// Assignees 多负责人集合：给出时以其为准（主负责人=首位），否则回落 assignee_id；个人任务强制为创建人。
 	Assignees  []string `json:"assignees" validate:"omitempty,max=20,dive,max=26" label:"负责人集合"`
 	ParentID     string   `json:"parent_id" validate:"omitempty,max=26" label:"父任务"` // 仅在已存在的根任务下创建子任务时传入（单层）
+	// BlockedBy 前置依赖任务 ID 集合：创建时一并建锁（任一不存在/跨租户/不可见/自引用/成环都会被 service 拒绝）。
+	BlockedBy  []string `json:"blocked_by" validate:"omitempty,max=20,dive,max=26" label:"前置任务"`
 	Recurrence   string   `json:"recurrence" validate:"omitempty,oneof=daily weekly monthly" label:"重复周期"` // 完成时自动按周期生成下一条任务
 }
 
@@ -33,6 +35,8 @@ type UpdateTaskReq struct {
 	// Assignees 多负责人集合指针：非 nil 时以其为准重置负责人集合（主负责人=首位）；nil 表示不改动。
 	Assignees  *[]string `json:"assignees" validate:"omitempty,max=20,dive,max=26" label:"负责人集合"`
 	ParentID     *string   `json:"parent_id" validate:"omitempty,max=26" label:"父任务"` // 传入非空挂到该根任务下（单层）；传空字符串表示解除父子关系
+	// BlockedBy 前置依赖集合指针：非 nil 时以其为准重置本任务的前置集合（空数组=清空）；nil 表示不改动。
+	BlockedBy  *[]string `json:"blocked_by" validate:"omitempty,max=20,dive,max=26" label:"前置任务集合"`
 	// Recurrence 传空字符串表示取消重复。注意：go-playground 的 omitempty 对指针只判 nil、
 	// 不判所指的值，故非 nil 指向 "" 仍会跑后续规则；若在此加 oneof=daily weekly monthly，
 	// 前端编辑无重复任务时无条件提交的 recurrence:"" 会被 oneof 拒绝成 400。改由 service 层
@@ -51,6 +55,10 @@ type TaskResp struct {
 	Assignees     []string `json:"assignees,omitempty"`      // 多负责人集合（含主负责人，主负责人排首位）
 	AssigneeNames []string `json:"assignee_names,omitempty"` // 负责人展示名集合（与 assignees 同序）
 	ParentID     string   `json:"parent_id,omitempty"`     // 父任务 ID（为空表示根任务）
+	// BlockedBy/Blocks 为任务依赖（阻塞关系）双向视图：前置集合与后继集合，由 service 富化。
+	// 每项含 id/title/status，前端据 status 判定“阻塞中”（存在未完成前置即显示徽标）。
+	BlockedBy []DependencyBriefResp `json:"blocked_by,omitempty"` // 本任务依赖的前置任务集合
+	Blocks    []DependencyBriefResp `json:"blocks,omitempty"`     // 依赖本任务的后继任务集合（反向视图）
 	Title        string   `json:"title"`
 	Description  string   `json:"description"`
 	Status       string   `json:"status"`
@@ -73,6 +81,13 @@ type TaskBoardResp struct {
 	Items     []*TaskResp `json:"items"`
 	Total     int         `json:"total"`
 	Truncated bool        `json:"truncated"`
+}
+
+// DependencyBriefResp 任务依赖项的轻量响应（供前端展示阻塞徽标与解锁提示）。
+type DependencyBriefResp struct {
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Status string `json:"status"` // pending/in_progress/completed；非 completed 即视为“未完成/阻塞中”
 }
 
 // TaskStatsResp 任务统计响应。

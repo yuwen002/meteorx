@@ -55,6 +55,20 @@ func (TaskAssigneePO) TableName() string {
 	return "task_assignees"
 }
 
+// TaskDependencyPO 任务阻塞关系关联表：一条 task 依赖（被阻塞于）若干前置 blocked_by。
+// 语义：TaskID 需等待 BlockedByID 完成后才能开工。复合主键 (task_id, blocked_by_id) 保证幂等；
+// blocked_by_id 另建索引供反向查询（blocks）与完成解锁。与 task_assignees 一样作为
+// 依赖关系的单一事实源，tasks 表不新增列。
+type TaskDependencyPO struct {
+	TaskID      string `gorm:"primaryKey;size:26;comment:任务ID"`
+	BlockedByID string `gorm:"primaryKey;size:26;index;comment:前置任务ID"`
+}
+
+// TableName 返回依赖关联表名 task_dependencies。
+func (TaskDependencyPO) TableName() string {
+	return "task_dependencies"
+}
+
 // toDomain 将持久化对象转换为领域模型 model.Task。
 func (p TaskPO) toDomain() *model.Task {
 	var tags []string
@@ -137,7 +151,7 @@ func NewTaskRepository(db *gorm.DB) TaskRepository {
 
 // Models 返回本模块全部待迁移模型，作为 AutoMigrate 与脏列巡检的单一模型来源。
 func Models() []interface{} {
-	return []interface{}{&TaskPO{}, &TaskAssigneePO{}}
+	return []interface{}{&TaskPO{}, &TaskAssigneePO{}, &TaskDependencyPO{}}
 }
 
 // AutoMigrate 自动迁移任务表结构，并在迁移后将现有主负责人回填到 task_assignees（幂等）。
@@ -255,6 +269,118 @@ func (r *taskRepository) LoadAssignees(ctx context.Context, ids []string) (map[s
 		result[row.TaskID] = append(result[row.TaskID], row.UserID)
 	}
 	return result, nil
+}
+
+// ReplaceBlockedBy 重置指定任务的前置依赖集合：先清旧行再批量写入新集合（同事务）。
+// ids 会去重、去空，并剔除自引用（taskID 本身），集合内容即 task_dependencies 中 task_id=taskID 的最终快照。
+func (r *taskRepository) ReplaceBlockedBy(ctx context.Context, taskID string, blockedIDs []string) error {
+	if taskID == "" {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(blockedIDs))
+	rows := make([]TaskDependencyPO, 0, len(blockedIDs))
+	for _, id := range blockedIDs {
+		if id == "" || id == taskID {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		rows = append(rows, TaskDependencyPO{TaskID: taskID, BlockedByID: id})
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("task_id = ?", taskID).Delete(&TaskDependencyPO{}).Error; err != nil {
+			return err
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		return tx.Create(&rows).Error
+	})
+}
+
+// LoadDependencies 批量读取多个任务的阻塞关系，返回双向映射：
+//   - blockedBy：task_id -> 其前置 blocked_by_id 列表（正向）；
+//   - blocks：blocked_by_id -> 依赖它的 task_id 列表（反向）。
+// ids 为空时返回两个空映射；无依赖关系的任务不会出现在结果中。
+func (r *taskRepository) LoadDependencies(ctx context.Context, ids []string) (map[string][]string, map[string][]string, error) {
+	blockedBy := make(map[string][]string, len(ids))
+	blocks := make(map[string][]string, len(ids))
+	if len(ids) == 0 {
+		return blockedBy, blocks, nil
+	}
+	var fwd []TaskDependencyPO
+	if err := r.db.WithContext(ctx).Where("task_id IN ?", ids).Find(&fwd).Error; err != nil {
+		return nil, nil, err
+	}
+	for _, row := range fwd {
+		blockedBy[row.TaskID] = append(blockedBy[row.TaskID], row.BlockedByID)
+	}
+	var rev []TaskDependencyPO
+	if err := r.db.WithContext(ctx).Where("blocked_by_id IN ?", ids).Find(&rev).Error; err != nil {
+		return nil, nil, err
+	}
+	for _, row := range rev {
+		blocks[row.BlockedByID] = append(blocks[row.BlockedByID], row.TaskID)
+	}
+	return blockedBy, blocks, nil
+}
+
+// FindBrief 批量按 ID 读取未删除任务的轻量引用（id -> TaskRef{标题/状态}），供阻塞关系双向富化。
+// ids 为空时返回空映射；软删除或不存在的任务不会出现在结果中。
+func (r *taskRepository) FindBrief(ctx context.Context, ids []string) (map[string]model.TaskRef, error) {
+	result := make(map[string]model.TaskRef, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+	var records []TaskPO
+	if err := r.db.WithContext(ctx).Model(&TaskPO{}).Select("id", "title", "status").
+		Where("id IN ?", ids).Find(&records).Error; err != nil {
+		return nil, err
+	}
+	for _, rec := range records {
+		result[rec.ID] = model.TaskRef{ID: rec.ID, Title: rec.Title, Status: rec.Status}
+	}
+	return result, nil
+}
+
+// DependentsOf 查询直接依赖 blockedByID 的后继任务 ID 列表（task_id WHERE blocked_by_id=?），供完成解锁扫描。
+func (r *taskRepository) DependentsOf(ctx context.Context, blockedByID string) ([]string, error) {
+	if blockedByID == "" {
+		return nil, nil
+	}
+	var rows []TaskDependencyPO
+	if err := r.db.WithContext(ctx).Where("blocked_by_id = ?", blockedByID).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.TaskID)
+	}
+	return ids, nil
+}
+
+// TenantDependencyEdges 返回指定租户全部任务的依赖图（task_id -> blocked_by_ids）。
+// join tasks 保证仅含本租户且未删除的节点（前置/后继任一端跨租户或已删则不参与成环判定），供 service 循环检测。
+func (r *taskRepository) TenantDependencyEdges(ctx context.Context, tenantID string) (map[string][]string, error) {
+	edges := make(map[string][]string)
+	if tenantID == "" {
+		return edges, nil
+	}
+	var rows []TaskDependencyPO
+	q := r.db.WithContext(ctx).Model(&TaskDependencyPO{}).
+		Joins("JOIN tasks t ON t.id = task_dependencies.task_id AND t.deleted_at IS NULL").
+		Joins("JOIN tasks b ON b.id = task_dependencies.blocked_by_id AND b.deleted_at IS NULL").
+		Where("t.tenant_id = ?", tenantID).
+		Select("task_dependencies.task_id", "task_dependencies.blocked_by_id")
+	if err := q.Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		edges[row.TaskID] = append(edges[row.TaskID], row.BlockedByID)
+	}
+	return edges, nil
 }
 
 // GetByIDUnscoped 按主键查询任务，包含已软删除记录（供恢复/永久删除校验归属）。

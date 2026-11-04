@@ -535,6 +535,12 @@ func writeServiceError(w http.ResponseWriter, err error, fallback string) {
 		response.BadRequest(w, "父任务不合法：不允许自引用，且仅支持一层子任务")
 	case errors.Is(err, service.ErrParentNotFound):
 		response.NotFound(w, "父任务不存在或无权访问")
+	case errors.Is(err, service.ErrDependencySelf):
+		response.BadRequest(w, "任务不能作为自己的前置依赖")
+	case errors.Is(err, service.ErrDependencyCycle):
+		response.BadRequest(w, "该前置依赖会形成循环阻塞，请重新选择")
+	case errors.Is(err, service.ErrDependencyNotFound):
+		response.NotFound(w, "前置任务不存在或无权访问")
 	case errors.Is(err, service.ErrTaskNotFound):
 		response.NotFound(w, "任务不存在")
 	case errors.Is(err, service.ErrTaskForbidden):

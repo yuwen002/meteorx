@@ -707,6 +707,131 @@ func TestTaskAssignable_Unauthorized(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 }
 
+// taskWithDeps 返回一个带双向依赖富化视图的任务，用于校验响应序列化。
+func taskWithDeps() *model.Task {
+	tk := sampleTask()
+	tk.BlockedBy = []model.TaskRef{{ID: "b1", Title: "前置一", Status: model.TaskStatusPending}}
+	tk.Blocks = []model.TaskRef{{ID: "d1", Title: "后继一", Status: model.TaskStatusCompleted}}
+	return tk
+}
+
+// TestTaskCreate_WithBlockedBy_Success 建锁 happy path：请求体 blocked_by 透传到 service，
+// 响应回显富化后的 blocked_by/blocks。
+func TestTaskCreate_WithBlockedBy_Success(t *testing.T) {
+	var got dto.CreateTaskReq
+	stub := &stubTaskService{createFn: func(_ context.Context, _, _ string, req dto.CreateTaskReq) (*model.Task, error) {
+		got = req
+		return taskWithDeps(), nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodPost, "/tasks",
+		bytesReader([]byte(`{"title":"后继任务","blocked_by":["b1"]}`))), "t1", "u1")
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, []string{"b1"}, got.BlockedBy, "blocked_by 应透传到 service")
+
+	var body struct {
+		Data dto.TaskResp `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Len(t, body.Data.BlockedBy, 1)
+	assert.Equal(t, "b1", body.Data.BlockedBy[0].ID)
+	assert.Equal(t, "前置一", body.Data.BlockedBy[0].Title)
+	require.Len(t, body.Data.Blocks, 1)
+	assert.Equal(t, "d1", body.Data.Blocks[0].ID)
+}
+
+// TestTaskCreate_BlockedByCycle_Mapped400 service 返回 ErrDependencyCycle 映射为 400。
+func TestTaskCreate_BlockedByCycle_Mapped400(t *testing.T) {
+	stub := &stubTaskService{createFn: func(context.Context, string, string, dto.CreateTaskReq) (*model.Task, error) {
+		return nil, service.ErrDependencyCycle
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodPost, "/tasks",
+		bytesReader([]byte(`{"title":"x","blocked_by":["b1"]}`))), "t1", "u1")
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// TestTaskCreate_BlockedByNotFound_Mapped404 service 返回 ErrDependencyNotFound 映射为 404。
+func TestTaskCreate_BlockedByNotFound_Mapped404(t *testing.T) {
+	stub := &stubTaskService{createFn: func(context.Context, string, string, dto.CreateTaskReq) (*model.Task, error) {
+		return nil, service.ErrDependencyNotFound
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodPost, "/tasks",
+		bytesReader([]byte(`{"title":"x","blocked_by":["nope"]}`))), "t1", "u1")
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+// TestTaskUpdate_BlockedBySelf_Mapped400 service 返回 ErrDependencySelf 映射为 400。
+func TestTaskUpdate_BlockedBySelf_Mapped400(t *testing.T) {
+	stub := &stubTaskService{updateFn: func(context.Context, string, string, string, dto.UpdateTaskReq) (*model.Task, error) {
+		return nil, service.ErrDependencySelf
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodPut, "/tasks/id1",
+		bytesReader([]byte(`{"blocked_by":["id1"]}`))), "t1", "u1")
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// TestTaskGet_DepsInResponse 详情响应含 blocked_by/blocks 双向视图。
+func TestTaskGet_DepsInResponse(t *testing.T) {
+	stub := &stubTaskService{getFn: func(context.Context, string, string, string) (*model.Task, error) {
+		return taskWithDeps(), nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodGet, "/tasks/id1", nil), "t1", "u1")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body struct {
+		Data dto.TaskResp `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Len(t, body.Data.BlockedBy, 1)
+	assert.Equal(t, model.TaskStatusPending, body.Data.BlockedBy[0].Status)
+	require.Len(t, body.Data.Blocks, 1)
+	assert.Equal(t, model.TaskStatusCompleted, body.Data.Blocks[0].Status)
+}
+
+// TestTaskList_DepsInResponse 列表响应每项任务序列化后保留 blocked_by/blocks。
+func TestTaskList_DepsInResponse(t *testing.T) {
+	stub := &stubTaskService{listFn: func(context.Context, repository.ListFilter) ([]*model.Task, int64, error) {
+		return []*model.Task{taskWithDeps()}, 1, nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodGet, "/tasks", nil), "t1", "u1")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body struct {
+		Data struct {
+			Data []dto.TaskResp `json:"data"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Len(t, body.Data.Data, 1)
+	require.Len(t, body.Data.Data[0].BlockedBy, 1)
+	assert.Equal(t, "b1", body.Data.Data[0].BlockedBy[0].ID)
+}
+
 // helpers
 func bytesReader(b []byte) *bytes.Reader { return bytes.NewReader(b) }
 

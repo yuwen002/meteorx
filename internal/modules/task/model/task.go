@@ -89,6 +89,19 @@ type Task struct {
 	// 由仓储 task_assignees 表读写/富化，写入时服务层显式设置、读取时由 LoadAssignees 回填。
 	AssigneeIDs   []string // 负责人集合（富化字段，不持久化于 tasks 表）
 	AssigneeNames []string // 负责人展示名集合（富化字段，不持久化）
+	// BlockedBy/Blocks 为非持久化的任务依赖视图（阻塞关系）。
+	// BlockedBy 为本任务依赖（被阻塞于）的前置任务集合；Blocks 为反向视图——依赖本任务的后继集合。
+	// 关系单向持久化于 task_dependencies（task_id→blocked_by_id），Blocks 由查询反向拼得，均不持久化于 tasks 表。
+	BlockedBy []TaskRef // 前置任务集合（富化字段，含 id/标题/状态）
+	Blocks    []TaskRef // 后继任务集合（富化字段，反向视图）
+}
+
+// TaskRef 任务依赖项的轻量引用（供阻塞关系富化与前端徽标展示）。
+// 仅携带展示与"是否阻塞中"判定所需的最小字段：ID、标题、状态。
+type TaskRef struct {
+	ID     string // 关联任务 ID
+	Title  string // 关联任务标题
+	Status string // 关联任务状态（pending/in_progress/completed），供前端判定未完成即"阻塞中"
 }
 
 // IsValidStatus 判断给定字符串是否为合法的任务状态。

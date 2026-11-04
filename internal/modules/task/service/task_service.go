@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -41,6 +42,12 @@ var (
 	ErrParentNotFound = errors.New("parent task not found")
 	// ErrInvalidParent 父任务不合法：自引用、或父任务自身已是子任务（仅允许单层）
 	ErrInvalidParent = errors.New("invalid parent task (only one level is allowed)")
+	// ErrDependencySelf 前置依赖不得为任务自身
+	ErrDependencySelf = errors.New("task cannot depend on itself")
+	// ErrDependencyNotFound 前置任务不存在、跨租户或当前用户不可见
+	ErrDependencyNotFound = errors.New("prerequisite task not found or not viewable")
+	// ErrDependencyCycle 设置该前置依赖会形成循环阻塞链
+	ErrDependencyCycle = errors.New("task dependency would create a cycle")
 )
 
 // TaskServiceInterface 任务服务接口，供 handler 层依赖反转。
@@ -192,6 +199,12 @@ func (s *TaskService) Create(ctx context.Context, tenantID, userID string, req d
 
 	applyStatusChange(task, status, now)
 
+	// 前置依赖校验（存在/同租户/可查看/不自引用/不成环）在建库前完成，避免创建了孤儿任务后再拒绝。
+	blockedIDs, berr := s.validateBlockedBy(ctx, tenantID, userID, task.ID, req.BlockedBy)
+	if berr != nil {
+		return nil, berr
+	}
+
 	if err := s.repo.Create(ctx, task); err != nil {
 		return nil, err
 	}
@@ -199,9 +212,14 @@ func (s *TaskService) Create(ctx context.Context, tenantID, userID string, req d
 	if err := s.repo.ReplaceAssignees(ctx, task.ID, assignees); err != nil {
 		return nil, err
 	}
+	// 前置依赖集合落库（校验已在建库前完成）；为空时 ReplaceBlockedBy 对新任务为无效操作。
+	if err := s.repo.ReplaceBlockedBy(ctx, task.ID, blockedIDs); err != nil {
+		return nil, err
+	}
 	// 向集合中被指派为“他人”的负责人去重发送站内提醒（自己给自己的不提醒）。
 	notifyTaskAssigned(ctx, task.CreatorID, assignees, task)
 	s.enrichNames(ctx, task)
+	s.fillDependencies(ctx, task)
 	return task, nil
 }
 
@@ -215,6 +233,7 @@ func (s *TaskService) Get(ctx context.Context, tenantID, userID, id string) (*mo
 		return nil, ErrTaskNotFound
 	}
 	s.enrichNames(ctx, task)
+	s.fillDependencies(ctx, task)
 	return task, nil
 }
 
@@ -289,6 +308,17 @@ func (s *TaskService) Update(ctx context.Context, tenantID, userID, id string, r
 		task.AssigneeID = set[0]
 		assigneesDirty = true
 	}
+	blockedChanged := false
+	var blockedIDs []string
+	if req.BlockedBy != nil {
+		// blocked_by 非 nil 即视为要重置前置集合（空数组=清空）；nil 保持不动。校验在建库前完成。
+		ids, berr := s.validateBlockedBy(ctx, tenantID, userID, task.ID, *req.BlockedBy)
+		if berr != nil {
+			return nil, berr
+		}
+		blockedIDs = ids
+		blockedChanged = true
+	}
 	if req.Tags != nil {
 		task.Tags = normalizeTags(*req.Tags)
 	}
@@ -333,11 +363,19 @@ func (s *TaskService) Update(ctx context.Context, tenantID, userID, id string, r
 		}
 		notifyTaskAssigned(ctx, task.CreatorID, task.AssigneeIDs, task)
 	}
+	// 前置依赖集合本次发生变更时回写关联表（含清空）。
+	if blockedChanged {
+		if err := s.repo.ReplaceBlockedBy(ctx, task.ID, blockedIDs); err != nil {
+			return nil, err
+		}
+	}
 	// 本次从非完成首次转为完成，且任务设了重复周期时，自动生成下一周期实例
 	if task.Status == model.TaskStatusCompleted && !wasCompleted {
 		s.spawnNextOccurrence(ctx, task)
+		s.notifyUnblocked(ctx, task)
 	}
 	s.enrichNames(ctx, task)
+	s.fillDependencies(ctx, task)
 	return task, nil
 }
 
@@ -376,8 +414,10 @@ func (s *TaskService) changeStatus(ctx context.Context, tenantID, userID, id, st
 	// 首次从非完成转为完成时，若任务设了重复周期则自动生成下一周期实例
 	if status == model.TaskStatusCompleted && !wasCompleted {
 		s.spawnNextOccurrence(ctx, task)
+		s.notifyUnblocked(ctx, task)
 	}
 	s.enrichNames(ctx, task)
+	s.fillDependencies(ctx, task)
 	return task, nil
 }
 
@@ -437,6 +477,7 @@ func (s *TaskService) List(ctx context.Context, f repository.ListFilter) ([]*mod
 	}
 	s.fillAssignees(ctx, tasks...)
 	s.enrichNames(ctx, tasks...)
+	s.fillDependencies(ctx, tasks...)
 	return tasks, total, nil
 }
 
@@ -449,6 +490,7 @@ func (s *TaskService) Board(ctx context.Context, f repository.ListFilter) ([]*mo
 	}
 	s.fillAssignees(ctx, tasks...)
 	s.enrichNames(ctx, tasks...)
+	s.fillDependencies(ctx, tasks...)
 	return tasks, total, total > int64(len(tasks)), nil
 }
 
@@ -624,6 +666,7 @@ func (s *TaskService) SendDueReminders(ctx context.Context, horizon time.Time, o
 const (
 	reminderTypeDue    = "task_due"      // 到期/逾期提醒类型标识
 	reminderTypeAssign = "task_assigned" // 指派提醒类型标识
+	reminderTypeUnlock = "task_unblocked" // 前置完成后解锁提醒类型标识
 	// 逾期重复提醒冷却期与单轮扫描上限的内置默认值，可被 ReminderOptions 覆盖
 	defaultReminderBatchLimit      = 200
 	defaultReminderOverdueCooldown = 24 * time.Hour
@@ -752,6 +795,210 @@ func (s *TaskService) fillAssignees(ctx context.Context, tasks ...*model.Task) {
 		if len(set) > 0 {
 			t.AssigneeIDs = set
 		}
+	}
+}
+
+// validateBlockedBy 校验并归一化前置依赖集合，返回去重去空后的合法 ID 列表（不落库，供调用方在校验通过后再写）。
+// 规则：
+//   - taskID 为空（新任务尚无 ID）时直接拒绝非空集合？——不会发生：调用方均先生成 ID；
+//   - 任一前置 == taskID → ErrDependencySelf；
+//   - 前置须存在、同租户、当前用户可查看 → 否则 ErrDependencyNotFound；
+//   - 加入后不得成环（从候选前置沿现有 blocked_by 边可达 taskID 即为环）→ 否则 ErrDependencyCycle。
+func (s *TaskService) validateBlockedBy(ctx context.Context, tenantID, userID, taskID string, blockedIDs []string) ([]string, error) {
+	if len(blockedIDs) == 0 {
+		return nil, nil
+	}
+	out := make([]string, 0, len(blockedIDs))
+	seen := make(map[string]struct{}, len(blockedIDs))
+	for _, raw := range blockedIDs {
+		id := strings.TrimSpace(raw)
+		if id == "" {
+			continue
+		}
+		if id == taskID {
+			return nil, ErrDependencySelf
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		dep, err := s.load(ctx, id)
+		if err != nil {
+			if errors.Is(err, ErrTaskNotFound) {
+				return nil, ErrDependencyNotFound
+			}
+			return nil, err
+		}
+		if dep.TenantID != tenantID || !canView(dep, tenantID, userID) {
+			return nil, ErrDependencyNotFound
+		}
+		out = append(out, id)
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	// 循环检测：基于当前租户已有依赖图，若任一候选前置沿 blocked_by 边可达 taskID，则新边会闭环。
+	edges, err := s.repo.TenantDependencyEdges(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range out {
+		if reaches(edges, d, taskID) {
+			return nil, ErrDependencyCycle
+		}
+	}
+	return out, nil
+}
+
+// reaches 判断在 edges（node -> 其前置列表）构成的有向图中，从 from 出发沿前置边能否到达 target。采用 BFS + visited 防重入。
+func reaches(edges map[string][]string, from, target string) bool {
+	if from == target {
+		return true
+	}
+	visited := make(map[string]struct{})
+	queue := []string{from}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		if cur == target {
+			return true
+		}
+		if _, ok := visited[cur]; ok {
+			continue
+		}
+		visited[cur] = struct{}{}
+		queue = append(queue, edges[cur]...)
+	}
+	return false
+}
+
+// fillDependencies 批量回填各任务的阻塞关系双向视图（BlockedBy 前置、Blocks 后继），携带标题/状态供前端徽标。
+// 仓储读取不携带依赖，统一在此补齐。失败静默跳过（不影响主流程）。
+func (s *TaskService) fillDependencies(ctx context.Context, tasks ...*model.Task) {
+	if len(tasks) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		if t.ID != "" {
+			ids = append(ids, t.ID)
+		}
+	}
+	blockedBy, blocks, err := s.repo.LoadDependencies(ctx, ids)
+	if err != nil {
+		return
+	}
+	// 汇总双向引用的全部任务 ID，一次拉取标题/状态
+	refSet := make(map[string]struct{})
+	for _, list := range blockedBy {
+		for _, id := range list {
+			refSet[id] = struct{}{}
+		}
+	}
+	for _, list := range blocks {
+		for _, id := range list {
+			refSet[id] = struct{}{}
+		}
+	}
+	refs := make([]string, 0, len(refSet))
+	for id := range refSet {
+		refs = append(refs, id)
+	}
+	brief, err := s.repo.FindBrief(ctx, refs)
+	if err != nil {
+		brief = nil
+	}
+	for _, t := range tasks {
+		t.BlockedBy = toTaskRefs(blockedBy[t.ID], brief)
+		t.Blocks = toTaskRefs(blocks[t.ID], brief)
+	}
+}
+
+// toTaskRefs 将一组依赖 ID 按 ID 稳定排序后映射为 model.TaskRef（跳过已删/不可见的引用）。
+func toTaskRefs(idList []string, brief map[string]model.TaskRef) []model.TaskRef {
+	if len(idList) == 0 {
+		return nil
+	}
+	sorted := append([]string(nil), idList...)
+	sort.Strings(sorted)
+	out := make([]model.TaskRef, 0, len(sorted))
+	for _, id := range sorted {
+		if ref, ok := brief[id]; ok {
+			out = append(out, ref)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// notifyUnblocked 在 task 刚转为完成后，扫描直接后继：若某后继的全部前置均已完成，则向其负责人发送解锁提醒。
+// 仅提醒、不自动推进后继状态；通知管理器未初始化时静默跳过。
+func (s *TaskService) notifyUnblocked(ctx context.Context, task *model.Task) {
+	mgr := notify.GetGlobalManager()
+	if mgr == nil {
+		return
+	}
+	deps, err := s.repo.DependentsOf(ctx, task.ID)
+	if err != nil || len(deps) == 0 {
+		return
+	}
+	for _, depID := range deps {
+		bb, _, err := s.repo.LoadDependencies(ctx, []string{depID})
+		if err != nil {
+			continue
+		}
+		prereq := bb[depID]
+		if len(prereq) == 0 {
+			continue
+		}
+		brief, err := s.repo.FindBrief(ctx, prereq)
+		if err != nil {
+			continue
+		}
+		allDone := true
+		for _, p := range prereq {
+			ref, ok := brief[p]
+			if !ok || ref.Status != model.TaskStatusCompleted {
+				allDone = false
+				break
+			}
+		}
+		if !allDone {
+			continue
+		}
+		dep, err := s.load(ctx, depID)
+		if err != nil {
+			continue
+		}
+		s.notifyTaskUnblocked(ctx, task, dep)
+	}
+}
+
+// notifyTaskUnblocked 向后继任务的全部负责人（去重）发送“前置已完成、可开始”提醒。
+func (s *TaskService) notifyTaskUnblocked(ctx context.Context, done, dependent *model.Task) {
+	mgr := notify.GetGlobalManager()
+	if mgr == nil {
+		return
+	}
+	title := "任务已解锁"
+	content := "前置任务「" + done.Title + "」已完成，任务「" + dependent.Title + "」可以开始了。"
+	recipients := dependent.AssigneeIDs
+	if len(recipients) == 0 && dependent.AssigneeID != "" {
+		recipients = []string{dependent.AssigneeID}
+	}
+	seen := make(map[string]struct{}, len(recipients))
+	for _, a := range recipients {
+		if a == "" {
+			continue
+		}
+		if _, ok := seen[a]; ok {
+			continue
+		}
+		seen[a] = struct{}{}
+		mgr.NotifyTaskReminder(ctx, a, title, content, reminderTypeUnlock,
+			map[string]interface{}{"task_id": dependent.ID, "tenant_id": dependent.TenantID})
 	}
 }
 
@@ -1020,5 +1267,19 @@ func ToResp(task *model.Task) *dto.TaskResp {
 	if task.DeletedAt != nil {
 		resp.DeletedAt = task.DeletedAt.Format("2006-01-02 15:04:05")
 	}
+	resp.BlockedBy = depBriefs(task.BlockedBy)
+	resp.Blocks = depBriefs(task.Blocks)
 	return resp
+}
+
+// depBriefs 将领域层依赖引用切片转为响应体；空集合返回 nil（配合 omitempty 不输出）。
+func depBriefs(refs []model.TaskRef) []dto.DependencyBriefResp {
+	if len(refs) == 0 {
+		return nil
+	}
+	out := make([]dto.DependencyBriefResp, 0, len(refs))
+	for _, r := range refs {
+		out = append(out, dto.DependencyBriefResp{ID: r.ID, Title: r.Title, Status: r.Status})
+	}
+	return out
 }

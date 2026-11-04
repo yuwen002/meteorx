@@ -24,10 +24,11 @@ type stubTaskRepo struct {
 	deleted   map[string]*model.Task
 	marked    []string
 	assignees map[string][]string // taskID -> 负责人集合，模拟 task_assignees 表
+	deps      map[string][]string // taskID -> 前置 blocked_by 集合，模拟 task_dependencies 表
 }
 
 func newStubTaskRepo() *stubTaskRepo {
-	return &stubTaskRepo{tasks: make(map[string]*model.Task), deleted: make(map[string]*model.Task), assignees: make(map[string][]string)}
+	return &stubTaskRepo{tasks: make(map[string]*model.Task), deleted: make(map[string]*model.Task), assignees: make(map[string][]string), deps: make(map[string][]string)}
 }
 
 // ReplaceAssignees 覆盖式写入任务负责人集合（去重去空），模拟关联表原子替换。
@@ -58,6 +59,90 @@ func (r *stubTaskRepo) LoadAssignees(_ context.Context, ids []string) (map[strin
 		}
 	}
 	return out, nil
+}
+
+// ReplaceBlockedBy 覆盖式写入任务前置依赖集合（去重去空、剔除自引用），模拟 task_dependencies 表原子替换。
+func (r *stubTaskRepo) ReplaceBlockedBy(_ context.Context, taskID string, blockedIDs []string) error {
+	if taskID == "" {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(blockedIDs))
+	out := make([]string, 0, len(blockedIDs))
+	for _, id := range blockedIDs {
+		if id == "" || id == taskID {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	if len(out) == 0 {
+		delete(r.deps, taskID)
+		return nil
+	}
+	r.deps[taskID] = out
+	return nil
+}
+
+// LoadDependencies 返回正向 blockedBy（从 r.deps）与反向 blocks（扫描 deps 值命中 ids 的 task）。
+func (r *stubTaskRepo) LoadDependencies(_ context.Context, ids []string) (map[string][]string, map[string][]string, error) {
+	idSet := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		idSet[id] = struct{}{}
+	}
+	blockedBy := make(map[string][]string)
+	blocks := make(map[string][]string)
+	for _, id := range ids {
+		if set, ok := r.deps[id]; ok {
+			blockedBy[id] = append([]string(nil), set...)
+		}
+	}
+	for taskID, prereq := range r.deps {
+		for _, p := range prereq {
+			if _, ok := idSet[p]; ok {
+				blocks[p] = append(blocks[p], taskID)
+			}
+		}
+	}
+	return blockedBy, blocks, nil
+}
+
+// FindBrief 批量读取未删除任务的轻量引用（id -> TaskRef）。
+func (r *stubTaskRepo) FindBrief(_ context.Context, ids []string) (map[string]model.TaskRef, error) {
+	out := make(map[string]model.TaskRef, len(ids))
+	for _, id := range ids {
+		if t, ok := r.tasks[id]; ok {
+			out[id] = model.TaskRef{ID: t.ID, Title: t.Title, Status: t.Status}
+		}
+	}
+	return out, nil
+}
+
+// DependentsOf 扫描 deps 中哪些任务的 blocked_by 含 blockedByID（后继）。
+func (r *stubTaskRepo) DependentsOf(_ context.Context, blockedByID string) ([]string, error) {
+	var out []string
+	for taskID, prereq := range r.deps {
+		for _, p := range prereq {
+			if p == blockedByID {
+				out = append(out, taskID)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+// TenantDependencyEdges 返回本租户全部任务的依赖图（task -> blocked_by）。
+func (r *stubTaskRepo) TenantDependencyEdges(_ context.Context, tenantID string) (map[string][]string, error) {
+	edges := make(map[string][]string)
+	for taskID, prereq := range r.deps {
+		if t, ok := r.tasks[taskID]; ok && t.TenantID == tenantID {
+			edges[taskID] = append([]string(nil), prereq...)
+		}
+	}
+	return edges, nil
 }
 
 func (r *stubTaskRepo) Create(_ context.Context, t *model.Task) error {
