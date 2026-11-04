@@ -10,6 +10,10 @@
 //	delete-tenant <id>  物理删除测试租户（仅删 ensure-tenant 返回 created=true 的那条）
 //	seed-alert <username>  造一条审计告警（user_id 由夹具生成），供告警详情深链用例定位
 //	delete-alert <id>   物理删除测试告警
+//	seed-task-tree <creatorId> <tenantId>  造一个根任务 + 两个子任务（personal，供子任务展开懒加载用例）
+//	seed-multi-assignee <creatorId> <tenantId>  造同租户第二成员 + 一条双负责人租户任务（写 task_assignees，供 +N 展示用例）
+//	cleanup-tasks <id1,id2,...>  物理删除任务及其 task_assignees 关联行
+//	cleanup-user <userId>  物理删除夹具创建的临时成员
 //
 // 约定：结果以单行 `E2E_JSON:<json>` 输出，便于测试侧在 GORM 日志中稳定解析。
 package main
@@ -18,9 +22,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"meteorx/internal/bootstrap"
+	taskrepo "meteorx/internal/modules/task/repository"
 	"meteorx/pkg/ulid"
 
 	"golang.org/x/crypto/bcrypt"
@@ -65,9 +71,22 @@ type alertRef struct {
 	UserID string `json:"user_id"`
 }
 
+type taskTreeRef struct {
+	RootID    string   `json:"root_id"`
+	RootTitle string   `json:"root_title"`
+	ChildIDs  []string `json:"child_ids"`
+}
+
+type multiAssigneeRef struct {
+	TaskID     string `json:"task_id"`
+	TaskTitle  string `json:"task_title"`
+	MemberID   string `json:"member_id"`
+	MemberName string `json:"member_name"`
+}
+
 func main() {
 	if len(os.Args) < 2 {
-		fatal("usage: fixture create-admin|delete-admin <username>|verify-plan <code>|delete-plan <code>|ensure-tenant|delete-tenant <id>|seed-alert <username>|delete-alert <id>")
+		fatal("usage: fixture create-admin|delete-admin <username>|verify-plan <code>|delete-plan <code>|ensure-tenant|delete-tenant <id>|seed-alert <username>|delete-alert <id>|seed-task-tree <creatorId> <tenantId>|seed-multi-assignee <creatorId> <tenantId>|cleanup-tasks <ids>|cleanup-user <userId>")
 	}
 
 	cfg, err := bootstrap.LoadConfig()
@@ -201,6 +220,97 @@ func main() {
 		}
 		emit(deleteResult{Deleted: res.RowsAffected})
 
+	case "seed-task-tree":
+		// 造一个根任务 + 两个子任务（personal，creator=admin 自身可见），
+		// 供列表行首展开懒加载子任务的 E2E 定位。
+		requireArgs(4)
+		creatorID, tenantID := os.Args[2], os.Args[3]
+		rootID := ulid.Generate()
+		now := time.Now()
+		rootTitle := fmt.Sprintf("E2E根任务-%d", now.UnixNano())
+		root := taskrepo.TaskPO{
+			ID: rootID, TenantID: tenantID, CreatorID: creatorID, AssigneeID: creatorID,
+			Title: rootTitle, Status: "pending", Priority: "normal",
+			Tags: "[]", Visibility: "personal", CreatedAt: now, UpdatedAt: now,
+		}
+		if err := db.Create(&root).Error; err != nil {
+			fatal("seed root task: %v", err)
+		}
+		childIDs := make([]string, 0, 2)
+		for i := 0; i < 2; i++ {
+			cid := ulid.Generate()
+			childIDs = append(childIDs, cid)
+			child := taskrepo.TaskPO{
+				ID: cid, TenantID: tenantID, CreatorID: creatorID, AssigneeID: creatorID, ParentID: rootID,
+				Title: fmt.Sprintf("E2E子任务-%d-%d", now.UnixNano(), i), Status: "pending", Priority: "normal",
+				Tags: "[]", Visibility: "personal", CreatedAt: now, UpdatedAt: now,
+			}
+			if err := db.Create(&child).Error; err != nil {
+				fatal("seed child task: %v", err)
+			}
+		}
+		emit(taskTreeRef{RootID: rootID, RootTitle: rootTitle, ChildIDs: childIDs})
+
+	case "seed-multi-assignee":
+		// 先在同租户造一个存活成员，再造一条双负责人租户任务（主=creator，副=新成员），
+		// 写入 tasks.assignee_id + task_assignees 两行，验证列表负责人列 +N 与读取回填链路。
+		requireArgs(4)
+		creatorID, tenantID := os.Args[2], os.Args[3]
+		now := time.Now()
+		memberID := ulid.Generate()
+		memberName := fmt.Sprintf("e2e_member_%d", now.UnixNano())
+		hash, err := bcrypt.GenerateFromPassword([]byte(e2ePassword), bcrypt.DefaultCost)
+		if err != nil {
+			fatal("hash member password: %v", err)
+		}
+		err = db.Exec(
+			"INSERT INTO users (id, tenant_id, username, password, nickname, email, status, is_master, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+			memberID, tenantID, memberName, string(hash), memberName, memberName+"@example.com", 1, false, now, now,
+		).Error
+		if err != nil {
+			fatal("seed member: %v", err)
+		}
+		taskID := ulid.Generate()
+		taskTitle := fmt.Sprintf("E2E多负责人任务-%d", now.UnixNano())
+		task := taskrepo.TaskPO{
+			ID: taskID, TenantID: tenantID, CreatorID: creatorID, AssigneeID: creatorID,
+			Title: taskTitle, Status: "pending", Priority: "high",
+			Tags: "[]", Visibility: "tenant", CreatedAt: now, UpdatedAt: now,
+		}
+		if err := db.Create(&task).Error; err != nil {
+			fatal("seed multi-assignee task: %v", err)
+		}
+		for _, uid := range []string{creatorID, memberID} {
+			if err := db.Create(&taskrepo.TaskAssigneePO{TaskID: taskID, UserID: uid}).Error; err != nil {
+				fatal("seed task assignee: %v", err)
+			}
+		}
+		emit(multiAssigneeRef{TaskID: taskID, TaskTitle: taskTitle, MemberID: memberID, MemberName: memberName})
+
+	case "cleanup-tasks":
+		requireArgs(3)
+		ids := splitIDs(os.Args[2])
+		if len(ids) == 0 {
+			emit(deleteResult{})
+			return
+		}
+		if err := db.Exec("DELETE FROM task_assignees WHERE task_id IN ?", ids).Error; err != nil {
+			fatal("cleanup task_assignees: %v", err)
+		}
+		res := db.Exec("DELETE FROM tasks WHERE id IN ?", ids)
+		if res.Error != nil {
+			fatal("cleanup tasks: %v", res.Error)
+		}
+		emit(deleteResult{Deleted: res.RowsAffected})
+
+	case "cleanup-user":
+		requireArgs(3)
+		res := db.Exec("DELETE FROM users WHERE id = ?", os.Args[2])
+		if res.Error != nil {
+			fatal("cleanup user: %v", res.Error)
+		}
+		emit(deleteResult{Deleted: res.RowsAffected})
+
 	default:
 		fatal("unknown action: %s", os.Args[1])
 	}
@@ -218,6 +328,18 @@ func requireArgs(n int) {
 	if len(os.Args) < n {
 		fatal("missing argument, usage: fixture %s <%s>", os.Args[1], "value")
 	}
+}
+
+// splitIDs 将逗号分隔的 ID 串拆成去空后的切片，供 IN 子句批量清理。
+func splitIDs(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func fatal(format string, args ...any) {
