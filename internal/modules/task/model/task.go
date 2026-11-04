@@ -51,7 +51,12 @@ type Task struct {
 	ID          string     // 任务唯一标识（ULID）
 	TenantID    string     // 所属租户 ID（多租户隔离）
 	CreatorID   string     // 创建人用户 ID
-	AssigneeID  string     // 负责人用户 ID，为空表示由创建人自己负责
+	// AssigneeID 主负责人用户 ID（多负责人集合的第一位，assignees[0]）。
+	// 保留此列作为既有过滤/提醒/看板的向后兼容基准；为空表示由创建人自己负责。
+	AssigneeID  string
+	// ParentID 父任务 ID，为空表示根任务。仅支持一层父子关系：
+	// 父任务自身必须是根任务（其 ParentID 为空），子任务不得再挂子任务。
+	ParentID    string     // 父任务 ID（单层子任务）
 	Title       string     // 任务标题
 	Description string     // 任务详细描述
 	Status      string     // 状态：pending / in_progress / completed
@@ -79,7 +84,11 @@ type Task struct {
 	// CreatorName/AssigneeName 为非持久化的展示字段，仅在读取响应时由服务层
 	// 依据用户目录批量富化，不参与仓储读写。
 	CreatorName  string // 创建人展示名（富化字段，不持久化）
-	AssigneeName string // 负责人展示名（富化字段，不持久化）
+	AssigneeName string // 主负责人展示名（富化字段，不持久化）
+	// AssigneeIDs/AssigneeNames 为非持久化的多负责人集合（含主负责人，主负责人排首位）。
+	// 由仓储 task_assignees 表读写/富化，写入时服务层显式设置、读取时由 LoadAssignees 回填。
+	AssigneeIDs   []string // 负责人集合（富化字段，不持久化于 tasks 表）
+	AssigneeNames []string // 负责人展示名集合（富化字段，不持久化）
 }
 
 // IsValidStatus 判断给定字符串是否为合法的任务状态。

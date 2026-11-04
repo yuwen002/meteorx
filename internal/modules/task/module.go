@@ -42,6 +42,8 @@ func RegisterRoutes(r chi.Router, h *handler.TaskHandler, aiH *handler.TaskAIHan
 		r.Post("/ai/summary", aiH.Summarize)
 
 		r.Get("/stats", h.Stats)
+		r.Get("/board", h.Board)
+		r.Get("/assignable", h.Assignable)
 		r.Get("/deleted", h.ListTrash)
 		r.Post("/batch/complete", h.BatchComplete)
 		r.Post("/batch/delete", h.BatchDelete)

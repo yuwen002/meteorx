@@ -19,6 +19,7 @@ type TaskPO struct {
 	TenantID     string         `gorm:"index;size:26;not null;comment:租户ID"`
 	CreatorID    string         `gorm:"index;size:26;not null;comment:创建人ID"`
 	AssigneeID   string         `gorm:"index;size:26;comment:负责人ID"`
+	ParentID     string         `gorm:"index;size:26;comment:父任务ID"`
 	Title        string         `gorm:"size:200;not null;comment:标题"`
 	Description  string         `gorm:"type:text;comment:描述"`
 	Status       string         `gorm:"size:20;default:pending;index;comment:状态"`
@@ -41,6 +42,19 @@ func (TaskPO) TableName() string {
 	return "tasks"
 }
 
+// TaskAssigneePO 任务多负责人关联表：一条任务对应多名负责人（含主负责人）。
+// 复合主键 (task_id, user_id) 保证幂等；user_id 另建索引供“我参与的”反向查询。
+// 与 tasks.assignee_id（主负责人）共存，作为多负责人扩展的单一事实源。
+type TaskAssigneePO struct {
+	TaskID string `gorm:"primaryKey;size:26;comment:任务ID"`
+	UserID string `gorm:"primaryKey;size:26;index;comment:负责人用户ID"`
+}
+
+// TableName 返回负责人关联表名 task_assignees。
+func (TaskAssigneePO) TableName() string {
+	return "task_assignees"
+}
+
 // toDomain 将持久化对象转换为领域模型 model.Task。
 func (p TaskPO) toDomain() *model.Task {
 	var tags []string
@@ -52,6 +66,7 @@ func (p TaskPO) toDomain() *model.Task {
 		TenantID:       p.TenantID,
 		CreatorID:      p.CreatorID,
 		AssigneeID:     p.AssigneeID,
+		ParentID:       p.ParentID,
 		Title:          p.Title,
 		Description:    p.Description,
 		Status:         p.Status,
@@ -85,6 +100,7 @@ func fromDomain(t *model.Task) TaskPO {
 		TenantID:     t.TenantID,
 		CreatorID:    t.CreatorID,
 		AssigneeID:   t.AssigneeID,
+		ParentID:     t.ParentID,
 		Title:        t.Title,
 		Description:  t.Description,
 		Status:       t.Status,
@@ -121,12 +137,27 @@ func NewTaskRepository(db *gorm.DB) TaskRepository {
 
 // Models 返回本模块全部待迁移模型，作为 AutoMigrate 与脏列巡检的单一模型来源。
 func Models() []interface{} {
-	return []interface{}{&TaskPO{}}
+	return []interface{}{&TaskPO{}, &TaskAssigneePO{}}
 }
 
-// AutoMigrate 自动迁移任务表结构。
+// AutoMigrate 自动迁移任务表结构，并在迁移后将现有主负责人回填到 task_assignees（幂等）。
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(Models()...)
+	if err := db.AutoMigrate(Models()...); err != nil {
+		return err
+	}
+	return backfillAssignees(db)
+}
+
+// backfillAssignees 将历史任务的 assignee_id 一次性回填到 task_assignees（仅未删除任务）。
+// 采用 NOT EXISTS 去重，使多次启动幂等不重复插入；仅对尚未建过关联行的任务生效。
+func backfillAssignees(db *gorm.DB) error {
+	return db.Exec(`
+		INSERT INTO task_assignees (task_id, user_id)
+		SELECT t.id, t.assignee_id FROM tasks t
+		WHERE t.assignee_id <> '' AND t.deleted_at IS NULL
+		  AND NOT EXISTS (
+			SELECT 1 FROM task_assignees a WHERE a.task_id = t.id AND a.user_id = t.assignee_id
+		)`).Error
 }
 
 // Create 新建任务记录。
@@ -156,6 +187,7 @@ func (r *taskRepository) Update(ctx context.Context, task *model.Task) error {
 		"remind_before":    remindBeforeMinutes(task.RemindBefore),
 		"tags":             string(tagsJSON),
 		"assignee_id":      task.AssigneeID,
+		"parent_id":        task.ParentID,
 		"visibility":       task.Visibility,
 		"recurrence":       task.Recurrence,
 		"started_at":       task.StartedAt,
@@ -169,6 +201,60 @@ func (r *taskRepository) Update(ctx context.Context, task *model.Task) error {
 // Delete 软删除任务。
 func (r *taskRepository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&TaskPO{}, "id = ?", id).Error
+}
+
+// SoftDeleteChildren 级联软删除指定父任务的全部直接子任务（仅未删除者）。
+func (r *taskRepository) SoftDeleteChildren(ctx context.Context, parentID string) error {
+	if parentID == "" {
+		return nil
+	}
+	return r.db.WithContext(ctx).Where("parent_id = ?", parentID).Delete(&TaskPO{}).Error
+}
+
+// ReplaceAssignees 重置指定任务的负责人集合：先清空旧行再批量写入新集合（同事务）。
+// ids 会去重、去空；集合内容即 task_assignees 表的最终快照（含主负责人）。
+func (r *taskRepository) ReplaceAssignees(ctx context.Context, taskID string, ids []string) error {
+	if taskID == "" {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(ids))
+	rows := make([]TaskAssigneePO, 0, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		rows = append(rows, TaskAssigneePO{TaskID: taskID, UserID: id})
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("task_id = ?", taskID).Delete(&TaskAssigneePO{}).Error; err != nil {
+			return err
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		return tx.Create(&rows).Error
+	})
+}
+
+// LoadAssignees 批量读取多个任务的负责人集合（task_id -> user_id 列表），供服务层富化。
+// ids 为空时返回空映射；未配置任何负责人的任务不会出现在结果中。
+func (r *taskRepository) LoadAssignees(ctx context.Context, ids []string) (map[string][]string, error) {
+	result := make(map[string][]string, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+	var rows []TaskAssigneePO
+	if err := r.db.WithContext(ctx).Where("task_id IN ?", ids).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.TaskID] = append(result[row.TaskID], row.UserID)
+	}
+	return result, nil
 }
 
 // GetByIDUnscoped 按主键查询任务，包含已软删除记录（供恢复/永久删除校验归属）。
@@ -256,25 +342,29 @@ func (r *taskRepository) MarkReminderSent(ctx context.Context, id string, t time
 }
 
 // applyVisibility 依据可见范围与用户身份追加过滤条件，返回新查询。
+// 副负责人参与子查询（task_assignees 中 user_id 命中的 task_id）使多负责人任务对非主负责人亦可见。
 func applyVisibility(q *gorm.DB, f ListFilter) *gorm.DB {
+	// 基于同一连接新建一个无条件的 session 专用于拼装子查询，避免污染外层 q 的构建条件。
+	sub := q.Session(&gorm.Session{NewDB: true}).Model(&TaskAssigneePO{}).
+		Select("task_id").Where("user_id = ?", f.UserID)
 	q = q.Where("tenant_id = ?", f.TenantID)
 	switch f.Visibility {
 	case model.TaskVisibilityPersonal:
-		q = q.Where("visibility = ? AND creator_id = ?", model.TaskVisibilityPersonal, f.UserID)
+		q = q.Where("visibility = ? AND (creator_id = ? OR assignee_id = ? OR id IN (?))",
+			model.TaskVisibilityPersonal, f.UserID, f.UserID, sub)
 	case model.TaskVisibilityTenant:
 		q = q.Where("visibility = ?", model.TaskVisibilityTenant)
 	default:
-		// 全部视图：租户协作任务 + 自己创建/负责的个人任务
-		q = q.Where("visibility = ? OR creator_id = ? OR assignee_id = ?",
-			model.TaskVisibilityTenant, f.UserID, f.UserID)
+		// 全部视图：租户协作任务 + 自己创建/负责（含副负责人）的个人任务
+		q = q.Where("visibility = ? OR creator_id = ? OR assignee_id = ? OR id IN (?)",
+			model.TaskVisibilityTenant, f.UserID, f.UserID, sub)
 	}
 	return q
 }
 
-// List 按过滤条件分页查询任务列表。
-func (r *taskRepository) List(ctx context.Context, f ListFilter) ([]*model.Task, int64, error) {
-	q := applyVisibility(r.db.WithContext(ctx).Model(&TaskPO{}), f)
-
+// applyListFilters 依据过滤条件（状态/优先级/负责人/关键词/标签/逾期/截止区间）追加 WHERE，返回新查询。
+// 可见范围由调用方先经 applyVisibility 处理；此处仅叠加其余筛选，供 List 与 ListBoard 复用。
+func applyListFilters(q *gorm.DB, f ListFilter) *gorm.DB {
 	if f.Status != "" {
 		q = q.Where("status = ?", f.Status)
 	}
@@ -282,7 +372,10 @@ func (r *taskRepository) List(ctx context.Context, f ListFilter) ([]*model.Task,
 		q = q.Where("priority = ?", f.Priority)
 	}
 	if f.AssigneeID != "" {
-		q = q.Where("assignee_id = ?", f.AssigneeID)
+		// 命中主负责人或任一负责人（含副负责人）：前者走 assignee_id 列，后者回查 task_assignees。
+		sub := q.Session(&gorm.Session{NewDB: true}).Model(&TaskAssigneePO{}).
+			Select("task_id").Where("user_id = ?", f.AssigneeID)
+		q = q.Where("assignee_id = ? OR id IN (?)", f.AssigneeID, sub)
 	}
 	if f.Keyword != "" {
 		kw := "%" + f.Keyword + "%"
@@ -302,6 +395,18 @@ func (r *taskRepository) List(ctx context.Context, f ListFilter) ([]*model.Task,
 	if f.DueTo != nil {
 		q = q.Where("due_date <= ?", *f.DueTo)
 	}
+	if f.ParentID != "" {
+		q = q.Where("parent_id = ?", f.ParentID)
+	} else if f.RootOnly {
+		// 仅根任务：parent_id 为空串（写入默认）或 NULL（历史行）均视为根
+		q = q.Where("parent_id = ? OR parent_id IS NULL", "")
+	}
+	return q
+}
+
+// List 按过滤条件分页查询任务列表。
+func (r *taskRepository) List(ctx context.Context, f ListFilter) ([]*model.Task, int64, error) {
+	q := applyListFilters(applyVisibility(r.db.WithContext(ctx).Model(&TaskPO{}), f), f)
 
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
@@ -313,15 +418,42 @@ func (r *taskRepository) List(ctx context.Context, f ListFilter) ([]*model.Task,
 		q = q.Offset((f.Page - 1) * f.PageSize).Limit(f.PageSize)
 	}
 
+	tasks, err := r.find(q)
+	if err != nil {
+		return nil, 0, err
+	}
+	return tasks, total, nil
+}
+
+// ListBoard 一次性拉取看板所需任务（不分页，上限 BoardMax），返回条目与不受上限约束的真实总数。
+// 复用 List 的可见范围与筛选逻辑，但不叠加状态过滤（看板按状态分列，需同时含各状态任务）。
+func (r *taskRepository) ListBoard(ctx context.Context, f ListFilter) ([]*model.Task, int64, error) {
+	base := applyVisibility(r.db.WithContext(ctx).Model(&TaskPO{}), f)
+
+	var total int64
+	if err := applyListFilters(base.Session(&gorm.Session{}), f).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	q := applySort(applyListFilters(base, f), f).Limit(BoardMax)
+	tasks, err := r.find(q)
+	if err != nil {
+		return nil, 0, err
+	}
+	return tasks, total, nil
+}
+
+// find 执行查询并将持久化对象转换为领域模型切片。
+func (r *taskRepository) find(q *gorm.DB) ([]*model.Task, error) {
 	var records []TaskPO
 	if err := q.Find(&records).Error; err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	tasks := make([]*model.Task, 0, len(records))
 	for _, rec := range records {
 		tasks = append(tasks, rec.toDomain())
 	}
-	return tasks, total, nil
+	return tasks, nil
 }
 
 // applySort 依据排序字段追加 ORDER BY，仅允许白名单列，默认按优先级与创建时间排序。

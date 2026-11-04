@@ -20,13 +20,44 @@ import (
 // deleted 映射模拟软删除回收站，与 tasks（活跃数据）分离；
 // marked 记录 MarkReminderSent 被调用的任务 ID，供提醒测试断言。
 type stubTaskRepo struct {
-	tasks   map[string]*model.Task
-	deleted map[string]*model.Task
-	marked  []string
+	tasks     map[string]*model.Task
+	deleted   map[string]*model.Task
+	marked    []string
+	assignees map[string][]string // taskID -> 负责人集合，模拟 task_assignees 表
 }
 
 func newStubTaskRepo() *stubTaskRepo {
-	return &stubTaskRepo{tasks: make(map[string]*model.Task), deleted: make(map[string]*model.Task)}
+	return &stubTaskRepo{tasks: make(map[string]*model.Task), deleted: make(map[string]*model.Task), assignees: make(map[string][]string)}
+}
+
+// ReplaceAssignees 覆盖式写入任务负责人集合（去重去空），模拟关联表原子替换。
+func (r *stubTaskRepo) ReplaceAssignees(_ context.Context, taskID string, ids []string) error {
+	seen := make(map[string]struct{}, len(ids))
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	r.assignees[taskID] = out
+	return nil
+}
+
+// LoadAssignees 批量读取任务负责人集合。
+func (r *stubTaskRepo) LoadAssignees(_ context.Context, ids []string) (map[string][]string, error) {
+	out := make(map[string][]string, len(ids))
+	for _, id := range ids {
+		if set, ok := r.assignees[id]; ok {
+			cp := append([]string(nil), set...)
+			out[id] = cp
+		}
+	}
+	return out, nil
 }
 
 func (r *stubTaskRepo) Create(_ context.Context, t *model.Task) error {
@@ -67,6 +98,23 @@ func (r *stubTaskRepo) UpdateStatus(_ context.Context, id, status string) error 
 
 func (r *stubTaskRepo) Delete(_ context.Context, id string) error {
 	delete(r.tasks, id)
+	return nil
+}
+
+// SoftDeleteChildren 将 parentID 的直接子任务从活跃集移入回收站（模拟级联软删）。
+func (r *stubTaskRepo) SoftDeleteChildren(_ context.Context, parentID string) error {
+	if parentID == "" {
+		return nil
+	}
+	for id, t := range r.tasks {
+		if t.ParentID == parentID {
+			cp := *t
+			now := time.Now()
+			cp.DeletedAt = &now
+			r.deleted[id] = &cp
+			delete(r.tasks, id)
+		}
+	}
 	return nil
 }
 
@@ -119,6 +167,19 @@ func (r *stubTaskRepo) List(_ context.Context, f repository.ListFilter) ([]*mode
 			continue
 		}
 		if f.Status != "" && t.Status != f.Status {
+			continue
+		}
+		cp := *t
+		out = append(out, &cp)
+	}
+	return out, int64(len(out)), nil
+}
+
+// ListBoard 看板桩：与 List 同口径返回租户内匹配任务（不分页）。
+func (r *stubTaskRepo) ListBoard(_ context.Context, f repository.ListFilter) ([]*model.Task, int64, error) {
+	var out []*model.Task
+	for _, t := range r.tasks {
+		if t.TenantID != f.TenantID {
 			continue
 		}
 		cp := *t
@@ -389,6 +450,20 @@ func TestList_Passthrough(t *testing.T) {
 	assert.Len(t, tasks, 1)
 }
 
+func TestBoard_TenantOnlyNotTruncated(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["id1"] = &model.Task{ID: "id1", TenantID: "t1", Status: model.TaskStatusPending}
+	repo.tasks["id2"] = &model.Task{ID: "id2", TenantID: "t1", Status: model.TaskStatusCompleted}
+	repo.tasks["other"] = &model.Task{ID: "other", TenantID: "t2", Status: model.TaskStatusPending}
+	tasks, total, truncated, err := svc.Board(context.Background(), repository.ListFilter{TenantID: "t1", UserID: "u1"})
+	require.NoError(t, err)
+	// 仅返回本租户任务，跨租户不可见
+	assert.Equal(t, int64(2), total)
+	assert.Len(t, tasks, 2)
+	// 桩内 total==len，未触及 BoardMax，故不截断
+	assert.False(t, truncated)
+}
+
 func TestStats_CountsByStatus(t *testing.T) {
 	svc, repo := newService()
 	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", Status: model.TaskStatusPending}
@@ -571,6 +646,100 @@ func TestCreate_TenantAssigneeNotifyNilSafe(t *testing.T) {
 	assert.Equal(t, "u2", task.AssigneeID)
 }
 
+// ---- 子任务 ParentID ----
+
+func TestCreate_ChildInheritsParentVisibility(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["p"] = &model.Task{ID: "p", TenantID: "t1", CreatorID: "u1", Visibility: model.TaskVisibilityTenant}
+	child, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "子任务", ParentID: "p",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "p", child.ParentID)
+	// 可见范围继承父任务
+	assert.Equal(t, model.TaskVisibilityTenant, child.Visibility)
+}
+
+func TestCreate_ChildPersonalKeepsCreatorAssignee(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["p"] = &model.Task{ID: "p", TenantID: "t1", CreatorID: "u1", Visibility: model.TaskVisibilityPersonal}
+	child, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "私密子项", ParentID: "p",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, model.TaskVisibilityPersonal, child.Visibility)
+	// 个人子任务 creator/assignee 仍为当前用户
+	assert.Equal(t, "u1", child.CreatorID)
+	assert.Equal(t, "u1", child.AssigneeID)
+}
+
+func TestCreate_ChildParentNotFound(t *testing.T) {
+	svc, _ := newService()
+	_, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "x", ParentID: "missing",
+	})
+	assert.ErrorIs(t, err, ErrParentNotFound)
+}
+
+func TestCreate_ChildCrossTenantParentDenied(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["p"] = &model.Task{ID: "p", TenantID: "t2", CreatorID: "u1", Visibility: model.TaskVisibilityTenant}
+	_, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "x", ParentID: "p",
+	})
+	assert.ErrorIs(t, err, ErrParentNotFound)
+}
+
+func TestCreate_ChildRejectsParentBeingChild(t *testing.T) {
+	// 仅允许单层：父任务自身已是子任务时拒绝
+	svc, repo := newService()
+	repo.tasks["gp"] = &model.Task{ID: "gp", TenantID: "t1", CreatorID: "u1", Visibility: model.TaskVisibilityTenant}
+	repo.tasks["p"] = &model.Task{ID: "p", TenantID: "t1", CreatorID: "u1", Visibility: model.TaskVisibilityTenant, ParentID: "gp"}
+	_, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "x", ParentID: "p",
+	})
+	assert.ErrorIs(t, err, ErrInvalidParent)
+}
+
+func TestUpdate_ReparentSelfReferenceRejected(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1", Visibility: model.TaskVisibilityTenant}
+	_, err := svc.Update(context.Background(), "t1", "u1", "a", dto.UpdateTaskReq{ParentID: ptr("a")})
+	assert.ErrorIs(t, err, ErrInvalidParent)
+}
+
+func TestUpdate_ReparentToGrandparentRejected(t *testing.T) {
+	// 目标父自身是子任务 → 会形成两层，拒绝
+	svc, repo := newService()
+	repo.tasks["p"] = &model.Task{ID: "p", TenantID: "t1", CreatorID: "u1", Visibility: model.TaskVisibilityTenant, ParentID: "gp"}
+	repo.tasks["gp"] = &model.Task{ID: "gp", TenantID: "t1", CreatorID: "u1", Visibility: model.TaskVisibilityTenant}
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1", Visibility: model.TaskVisibilityTenant}
+	_, err := svc.Update(context.Background(), "t1", "u1", "a", dto.UpdateTaskReq{ParentID: ptr("p")})
+	assert.ErrorIs(t, err, ErrInvalidParent)
+}
+
+func TestUpdate_ClearParentMakesRoot(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1", Visibility: model.TaskVisibilityTenant, ParentID: "p"}
+	task, err := svc.Update(context.Background(), "t1", "u1", "a", dto.UpdateTaskReq{ParentID: ptr("")})
+	require.NoError(t, err)
+	assert.Equal(t, "", task.ParentID)
+}
+
+func TestDelete_CascadesChildren(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["p"] = &model.Task{ID: "p", TenantID: "t1", CreatorID: "u1", Visibility: model.TaskVisibilityPersonal}
+	repo.tasks["c1"] = &model.Task{ID: "c1", TenantID: "t1", CreatorID: "u1", Visibility: model.TaskVisibilityPersonal, ParentID: "p"}
+	repo.tasks["c2"] = &model.Task{ID: "c2", TenantID: "t1", CreatorID: "u1", Visibility: model.TaskVisibilityPersonal, ParentID: "p"}
+	require.NoError(t, svc.Delete(context.Background(), "t1", "u1", "p"))
+	// 父与其全部子任务均进入回收站
+	assert.NotContains(t, repo.tasks, "p")
+	assert.NotContains(t, repo.tasks, "c1")
+	assert.NotContains(t, repo.tasks, "c2")
+	assert.Contains(t, repo.deleted, "c1")
+	assert.Contains(t, repo.deleted, "c2")
+}
+
 // ---- 开始时间 StartedAt ----
 
 func TestCreate_InProgressSetsStartedAt(t *testing.T) {
@@ -691,7 +860,7 @@ func TestBatchAssign_CountsOnlyEditable(t *testing.T) {
 	svc, repo := newService()
 	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1", AssigneeID: "u1", Visibility: model.TaskVisibilityTenant, Status: model.TaskStatusPending}
 	repo.tasks["x"] = &model.Task{ID: "x", TenantID: "t1", CreatorID: "u2", AssigneeID: "u2", Visibility: model.TaskVisibilityTenant, Status: model.TaskStatusPending}
-	n, err := svc.BatchAssign(context.Background(), "t1", "u1", []string{"a", "x"}, "u3")
+	n, err := svc.BatchAssign(context.Background(), "t1", "u1", []string{"a", "x"}, []string{"u3"})
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
 	assert.Equal(t, "u3", repo.tasks["a"].AssigneeID)
@@ -927,10 +1096,105 @@ func TestBatchAssign_InvalidAssigneeShortCircuits(t *testing.T) {
 	svc, repo := newServiceWithDirectory(map[string]bool{"u1": true})
 	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1",
 		Visibility: model.TaskVisibilityTenant, Status: model.TaskStatusPending, AssigneeID: "u1"}
-	n, err := svc.BatchAssign(context.Background(), "t1", "u1", []string{"a"}, "u9")
+	n, err := svc.BatchAssign(context.Background(), "t1", "u1", []string{"a"}, []string{"u9"})
 	assert.ErrorIs(t, err, ErrAssigneeInvalid)
 	assert.Equal(t, 0, n)
 	assert.Equal(t, "u1", repo.tasks["a"].AssigneeID) // 非法指派不生效
+}
+
+// ---- B4 多负责人指派 ----
+
+// TestCreate_MultipleAssignees 集合为准：Assignees 非空时主负责人=首位、集合写入关联表，
+// 且响应同时携带 assignees 与富化后的 assignee_names。
+func TestCreate_MultipleAssignees(t *testing.T) {
+	repo := newStubTaskRepo()
+	svc := NewTaskServiceWithNames(repo, stubDirectory{
+		names:   map[string]string{"u2": "李四", "u3": "王五"},
+		members: map[string]bool{"u1": true, "u2": true, "u3": true},
+	})
+	task, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "协作", Visibility: model.TaskVisibilityTenant, Assignees: []string{"u2", "u3", "u2"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "u2", task.AssigneeID)                    // 主负责人=首位
+	assert.Equal(t, []string{"u2", "u3"}, task.AssigneeIDs)   // 去重后集合
+	assert.Equal(t, []string{"u2", "u3"}, repo.assignees[task.ID]) // 已写入关联表
+	resp := ToResp(task)
+	assert.Equal(t, []string{"u2", "u3"}, resp.Assignees)
+	assert.Equal(t, []string{"李四", "王五"}, resp.AssigneeNames)
+}
+
+// TestCreate_PersonalForcesCreator 个人任务忽略传入集合，强制仅创建人本人。
+func TestCreate_PersonalForcesCreator(t *testing.T) {
+	svc, repo := newService()
+	task, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "个人", Visibility: model.TaskVisibilityPersonal, Assignees: []string{"u2", "u3"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "u1", task.AssigneeID)
+	assert.Equal(t, []string{"u1"}, repo.assignees[task.ID])
+}
+
+// TestCreate_AssigneesFallsBackToAssigneeID 未给集合时回落单个 assignee_id。
+func TestCreate_AssigneesFallsBackToAssigneeID(t *testing.T) {
+	svc, _ := newService()
+	task, err := svc.Create(context.Background(), "t1", "u1", dto.CreateTaskReq{
+		Title: "协作", Visibility: model.TaskVisibilityTenant, AssigneeID: "u2",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "u2", task.AssigneeID)
+	assert.Equal(t, []string{"u2"}, task.AssigneeIDs)
+}
+
+// TestCanView_CanEdit_SecondaryAssignee 命中非主负责人：副负责人可查看/编辑租户任务，
+// 但个人任务不因副负责人跨租户泄露。
+func TestCanView_CanEdit_SecondaryAssignee(t *testing.T) {
+	tenantTask := &model.Task{TenantID: "t1", CreatorID: "u1", AssigneeID: "u2",
+		AssigneeIDs: []string{"u2", "u3"}, Visibility: model.TaskVisibilityTenant}
+	assert.True(t, canView(tenantTask, "t1", "u3"))
+	assert.True(t, canEdit(tenantTask, "u3"))
+	assert.False(t, canEdit(tenantTask, "u9"))
+
+	personalTask := &model.Task{TenantID: "t1", CreatorID: "u1", AssigneeID: "u2",
+		AssigneeIDs: []string{"u2", "u3"}, Visibility: model.TaskVisibilityPersonal}
+	assert.True(t, canView(personalTask, "t1", "u3"))   // 任一负责人可见自己的个人任务
+	assert.False(t, canView(personalTask, "t1", "u9"))  // 非集合成员不可见
+	assert.False(t, canEdit(personalTask, "u3"))        // 个人任务仅创建人可编辑
+}
+
+// TestGet_FillsAssigneesFromRepo 单条读取应从关联表回填集合，使基于副负责人的鉴权生效。
+func TestGet_FillsAssigneesFromRepo(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1", AssigneeID: "u2",
+		Visibility: model.TaskVisibilityTenant, Status: model.TaskStatusPending}
+	repo.assignees["a"] = []string{"u2", "u3"}
+	task, err := svc.Get(context.Background(), "t1", "u3", "a")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"u2", "u3"}, task.AssigneeIDs)
+}
+
+// TestUpdate_ReplaceAssigneesCollection 以集合为准回写关联表，主负责人随集合首位更新。
+func TestUpdate_ReplaceAssigneesCollection(t *testing.T) {
+	svc, repo := newService()
+	repo.tasks["a"] = &model.Task{ID: "a", TenantID: "t1", CreatorID: "u1", AssigneeID: "u2",
+		AssigneeIDs: []string{"u2"}, Visibility: model.TaskVisibilityTenant, Status: model.TaskStatusPending}
+	repo.assignees["a"] = []string{"u2"}
+	task, err := svc.Update(context.Background(), "t1", "u1", "a",
+		dto.UpdateTaskReq{Assignees: &[]string{"u3", "u4"}})
+	require.NoError(t, err)
+	assert.Equal(t, "u3", task.AssigneeID)
+	assert.Equal(t, []string{"u3", "u4"}, repo.assignees["a"])
+}
+
+func TestNormalizeAssignees(t *testing.T) {
+	// 个人任务强制创建人
+	assert.Equal(t, []string{"u1"}, normalizeAssignees([]string{"u2", "u3"}, "", "u1", model.TaskVisibilityPersonal))
+	// 去重去空，保持顺序
+	assert.Equal(t, []string{"u2", "u3"}, normalizeAssignees([]string{"u2", "", "u2", "u3 "}, "u9", "u1", model.TaskVisibilityTenant))
+	// 集合为空回落单个
+	assert.Equal(t, []string{"u9"}, normalizeAssignees(nil, "u9", "u1", model.TaskVisibilityTenant))
+	// 均空回落 userID
+	assert.Equal(t, []string{"u1"}, normalizeAssignees([]string{"", ""}, "", "u1", model.TaskVisibilityTenant))
 }
 
 // ---- 周期/重复任务 ----

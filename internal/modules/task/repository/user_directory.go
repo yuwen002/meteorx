@@ -65,3 +65,34 @@ func (d *UserDirectory) IsTenantMember(ctx context.Context, tenantID, userID str
 	}
 	return cnt > 0, nil
 }
+
+// AssigneeBrief 供前端负责人选择器使用的轻量成员信息。
+type AssigneeBrief struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// ListAssignable 返回指定租户下未删除的存活成员（id + 展示名，昵称优先回退用户名），
+// 供 /tasks/assignable 端点给普通成员选择负责人（不依赖需 user:list 权限的 /users）。
+func (d *UserDirectory) ListAssignable(ctx context.Context, tenantID string) ([]AssigneeBrief, error) {
+	out := make([]AssigneeBrief, 0)
+	if tenantID == "" {
+		return out, nil
+	}
+	var rows []userBriefRow
+	if err := d.db.WithContext(ctx).Table("users").
+		Select("id", "nickname", "username").
+		Where("tenant_id = ? AND deleted_at IS NULL", tenantID).
+		Order("username ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		name := r.Nickname
+		if name == "" {
+			name = r.Username
+		}
+		out = append(out, AssigneeBrief{ID: r.ID, Name: name})
+	}
+	return out, nil
+}

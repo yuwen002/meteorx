@@ -35,3 +35,30 @@ func TestUserDirectory_EmptyIDs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, names)
 }
+
+// TestUserDirectory_ListAssignable 验证存活成员列表：昵称优先回退用户名，且保留排序。
+func TestUserDirectory_ListAssignable(t *testing.T) {
+	gormDB, mock := newTaskTestDB(t)
+	d := NewUserDirectory(gormDB)
+
+	rows := sqlmock.NewRows([]string{"id", "nickname", "username"}).
+		AddRow("u1", "张三", "zhangsan").
+		AddRow("u2", "", "lisi")
+	mock.ExpectQuery("SELECT .* FROM `users` WHERE tenant_id").
+		WithArgs("t1").WillReturnRows(rows)
+
+	list, err := d.ListAssignable(context.Background(), "t1")
+	require.NoError(t, err)
+	require.Len(t, list, 2)
+	assert.Equal(t, AssigneeBrief{ID: "u1", Name: "张三"}, list[0])
+	assert.Equal(t, AssigneeBrief{ID: "u2", Name: "lisi"}, list[1])
+}
+
+// TestUserDirectory_ListAssignable_EmptyTenant 空租户不触发查询，直接返回空列表。
+func TestUserDirectory_ListAssignable_EmptyTenant(t *testing.T) {
+	gormDB, _ := newTaskTestDB(t)
+	d := NewUserDirectory(gormDB)
+	list, err := d.ListAssignable(context.Background(), "")
+	require.NoError(t, err)
+	assert.Empty(t, list)
+}

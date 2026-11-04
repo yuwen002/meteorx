@@ -169,6 +169,88 @@ func TestTaskRepo_List_FilterEnhancements(t *testing.T) {
 	assert.Equal(t, "id1", tasks[0].ID)
 }
 
+// TestTaskRepo_ListBoard_NoPagination 看板全量拉取：不分页、以 LIMIT BoardMax 为上限，
+// count 返回不受上限约束的真实总数（供调用方判断截断）。
+func TestTaskRepo_ListBoard_NoPagination(t *testing.T) {
+	gormDB, mock := newTaskTestDB(t)
+	repo := NewTaskRepository(gormDB)
+
+	now := time.Now()
+	// count 返回真实总数 600（超过 BoardMax=500）
+	mock.ExpectQuery("SELECT count\\(\\*\\) FROM `tasks`").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(600))
+	// 数据查询带 LIMIT 500 且不含 OFFSET（不分页）
+	rows := sqlmock.NewRows([]string{
+		"id", "tenant_id", "creator_id", "assignee_id", "title", "description",
+		"status", "priority", "due_date", "tags", "visibility", "completed_at",
+		"created_at", "updated_at", "deleted_at",
+	}).AddRow(
+		"id1", "t1", "u1", "u1", "写周报", "",
+		"pending", "normal", nil, "[]", "personal", nil,
+		now, now, nil,
+	)
+	mock.ExpectQuery("SELECT .* FROM `tasks`.* ORDER BY .*").
+		WithArgs("t1", model.TaskVisibilityPersonal, "u1", "u1", "u1", BoardMax).WillReturnRows(rows)
+
+	tasks, total, err := repo.ListBoard(context.Background(), ListFilter{
+		TenantID:   "t1",
+		UserID:     "u1",
+		Visibility: model.TaskVisibilityPersonal,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(600), total)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, "id1", tasks[0].ID)
+}
+
+// TestTaskRepo_List_RootOnly 验证 root_only 仅拉根任务（parent_id 空串或 NULL）。
+func TestTaskRepo_List_RootOnly(t *testing.T) {
+	gormDB, mock := newTaskTestDB(t)
+	repo := NewTaskRepository(gormDB)
+
+	now := time.Now()
+	mock.ExpectQuery("parent_id = .* OR parent_id IS NULL").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery("parent_id = .* OR parent_id IS NULL").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "tenant_id", "creator_id", "assignee_id", "parent_id", "title", "description",
+			"status", "priority", "due_date", "tags", "visibility", "completed_at",
+			"created_at", "updated_at", "deleted_at",
+		}).AddRow("id1", "t1", "u1", "u1", "", "写周报", "", "pending", "normal", nil, "[]", "personal", nil, now, now, nil))
+
+	tasks, total, err := repo.List(context.Background(), ListFilter{
+		TenantID: "t1", UserID: "u1", RootOnly: true, Page: 1, PageSize: 20,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, "", tasks[0].ParentID)
+}
+
+// TestTaskRepo_List_ParentID 验证 parent_id 过滤仅返回该父任务的直接子任务。
+func TestTaskRepo_List_ParentID(t *testing.T) {
+	gormDB, mock := newTaskTestDB(t)
+	repo := NewTaskRepository(gormDB)
+
+	now := time.Now()
+	mock.ExpectQuery("parent_id = \\?").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery("parent_id = \\?").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "tenant_id", "creator_id", "assignee_id", "parent_id", "title", "description",
+			"status", "priority", "due_date", "tags", "visibility", "completed_at",
+			"created_at", "updated_at", "deleted_at",
+		}).AddRow("c1", "t1", "u1", "u1", "p1", "子项", "", "pending", "normal", nil, "[]", "tenant", nil, now, now, nil))
+
+	tasks, total, err := repo.List(context.Background(), ListFilter{
+		TenantID: "t1", UserID: "u1", Visibility: model.TaskVisibilityTenant, ParentID: "p1", Page: 1, PageSize: 20,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, "p1", tasks[0].ParentID)
+}
+
 func TestTaskRepo_Stats(t *testing.T) {
 	gormDB, mock := newTaskTestDB(t)
 	repo := NewTaskRepository(gormDB)
@@ -320,4 +402,44 @@ func TestTaskRepo_MarkReminderSent(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	require.NoError(t, repo.MarkReminderSent(context.Background(), "id1", time.Now()))
+}
+
+// TestTaskRepo_ReplaceAssignees 验证集合替换：事务内先删除旧行再插入去重后的新行。
+func TestTaskRepo_ReplaceAssignees(t *testing.T) {
+	gormDB, mock := newTaskTestDB(t)
+	repo := NewTaskRepository(gormDB)
+
+	mock.ExpectBegin()
+	mock.ExpectExec("DELETE FROM `task_assignees` WHERE task_id = ?").
+		WithArgs("id1").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO `task_assignees`").
+		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectCommit()
+
+	require.NoError(t, repo.ReplaceAssignees(context.Background(), "id1", []string{"u2", "u3", "u2", ""}))
+}
+
+// TestTaskRepo_LoadAssignees 验证批量读取负责人集合并按 task_id 分组。
+func TestTaskRepo_LoadAssignees(t *testing.T) {
+	gormDB, mock := newTaskTestDB(t)
+	repo := NewTaskRepository(gormDB)
+
+	rows := sqlmock.NewRows([]string{"task_id", "user_id"}).
+		AddRow("id1", "u2").AddRow("id1", "u3").AddRow("id2", "u4")
+	mock.ExpectQuery("SELECT .* FROM `task_assignees` WHERE task_id IN").WillReturnRows(rows)
+
+	m, err := repo.LoadAssignees(context.Background(), []string{"id1", "id2"})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"u2", "u3"}, m["id1"])
+	assert.Equal(t, []string{"u4"}, m["id2"])
+}
+
+// TestTaskRepo_LoadAssignees_EmptyIDs 空 ID 列表不触发查询，直接返回空映射。
+func TestTaskRepo_LoadAssignees_EmptyIDs(t *testing.T) {
+	gormDB, _ := newTaskTestDB(t)
+	repo := NewTaskRepository(gormDB)
+
+	m, err := repo.LoadAssignees(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Empty(t, m)
 }

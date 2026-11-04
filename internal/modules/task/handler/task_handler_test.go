@@ -30,6 +30,7 @@ type stubTaskService struct {
 	reopenFn          func(ctx context.Context, tenantID, userID, id, status string) (*model.Task, error)
 	deleteFn          func(ctx context.Context, tenantID, userID, id string) error
 	listFn            func(ctx context.Context, f repository.ListFilter) ([]*model.Task, int64, error)
+	boardFn           func(ctx context.Context, f repository.ListFilter) ([]*model.Task, int64, bool, error)
 	statsFn           func(ctx context.Context, f repository.ListFilter) (*repository.TaskStatusStats, error)
 	listTrashFn       func(ctx context.Context, f repository.ListFilter) ([]*model.Task, int64, error)
 	restoreFn         func(ctx context.Context, tenantID, userID, id string) (*model.Task, error)
@@ -37,7 +38,8 @@ type stubTaskService struct {
 	batchCompleteFn   func(ctx context.Context, tenantID, userID string, ids []string) (int, error)
 	batchDeleteFn     func(ctx context.Context, tenantID, userID string, ids []string) (int, error)
 	batchStatusFn     func(ctx context.Context, tenantID, userID string, ids []string, status string) (int, error)
-	batchAssignFn     func(ctx context.Context, tenantID, userID string, ids []string, assigneeID string) (int, error)
+	batchAssignFn     func(ctx context.Context, tenantID, userID string, ids []string, assignees []string) (int, error)
+	assignableFn      func(ctx context.Context, tenantID string) ([]repository.AssigneeBrief, error)
 }
 
 func (s *stubTaskService) Create(ctx context.Context, t, u string, req dto.CreateTaskReq) (*model.Task, error) {
@@ -61,6 +63,9 @@ func (s *stubTaskService) Delete(ctx context.Context, t, u, id string) error {
 func (s *stubTaskService) List(ctx context.Context, f repository.ListFilter) ([]*model.Task, int64, error) {
 	return s.listFn(ctx, f)
 }
+func (s *stubTaskService) Board(ctx context.Context, f repository.ListFilter) ([]*model.Task, int64, bool, error) {
+	return s.boardFn(ctx, f)
+}
 func (s *stubTaskService) Stats(ctx context.Context, f repository.ListFilter) (*repository.TaskStatusStats, error) {
 	return s.statsFn(ctx, f)
 }
@@ -82,8 +87,11 @@ func (s *stubTaskService) BatchDelete(ctx context.Context, t, u string, ids []st
 func (s *stubTaskService) BatchUpdateStatus(ctx context.Context, t, u string, ids []string, status string) (int, error) {
 	return s.batchStatusFn(ctx, t, u, ids, status)
 }
-func (s *stubTaskService) BatchAssign(ctx context.Context, t, u string, ids []string, assigneeID string) (int, error) {
-	return s.batchAssignFn(ctx, t, u, ids, assigneeID)
+func (s *stubTaskService) BatchAssign(ctx context.Context, t, u string, ids []string, assignees []string) (int, error) {
+	return s.batchAssignFn(ctx, t, u, ids, assignees)
+}
+func (s *stubTaskService) Assignable(ctx context.Context, t string) ([]repository.AssigneeBrief, error) {
+	return s.assignableFn(ctx, t)
 }
 
 func newTaskRouter(stub *stubTaskService) http.Handler {
@@ -91,6 +99,8 @@ func newTaskRouter(stub *stubTaskService) http.Handler {
 	r := chi.NewRouter()
 	r.Route("/tasks", func(r chi.Router) {
 		r.Get("/stats", h.Stats)
+		r.Get("/board", h.Board)
+		r.Get("/assignable", h.Assignable)
 		r.Get("/deleted", h.ListTrash)
 		r.Post("/batch/complete", h.BatchComplete)
 		r.Post("/batch/delete", h.BatchDelete)
@@ -354,6 +364,170 @@ func TestTaskList_InvalidDueRange(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+// TestTaskBoard_Success 看板端点正常返回，响应含 items/total/truncated。
+func TestTaskBoard_Success(t *testing.T) {
+	stub := &stubTaskService{boardFn: func(context.Context, repository.ListFilter) ([]*model.Task, int64, bool, error) {
+		return []*model.Task{sampleTask()}, 1, false, nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodGet, "/tasks/board", nil), "t1", "u1")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body struct {
+		Data dto.TaskBoardResp `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, 1, body.Data.Total)
+	assert.False(t, body.Data.Truncated)
+	require.Len(t, body.Data.Items, 1)
+}
+
+// TestTaskBoard_TruncatedPropagates boardFn 返回 truncated=true 时透传到响应。
+func TestTaskBoard_TruncatedPropagates(t *testing.T) {
+	stub := &stubTaskService{boardFn: func(context.Context, repository.ListFilter) ([]*model.Task, int64, bool, error) {
+		return []*model.Task{sampleTask()}, 501, true, nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodGet, "/tasks/board", nil), "t1", "u1")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body struct {
+		Data dto.TaskBoardResp `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.True(t, body.Data.Truncated)
+	assert.Equal(t, 501, body.Data.Total)
+}
+
+// TestTaskBoard_BoardIgnoresStatus 看板不将 status 参数透传为过滤位（按状态分列需含各状态）。
+func TestTaskBoard_BoardIgnoresStatus(t *testing.T) {
+	var got repository.ListFilter
+	stub := &stubTaskService{boardFn: func(_ context.Context, f repository.ListFilter) ([]*model.Task, int64, bool, error) {
+		got = f
+		return nil, 0, false, nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodGet, "/tasks/board?status=completed&visibility=tenant&tag=x", nil), "t1", "u1")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Empty(t, got.Status)
+	assert.Equal(t, "tenant", got.Visibility)
+	assert.Equal(t, "x", got.Tag)
+}
+
+// TestTaskBoard_Unauthorized 未登录返回 401。
+func TestTaskBoard_Unauthorized(t *testing.T) {
+	stub := &stubTaskService{boardFn: func(context.Context, repository.ListFilter) ([]*model.Task, int64, bool, error) {
+		return nil, 0, false, nil
+	}}
+	router := newTaskRouter(stub)
+	req := httptest.NewRequest(http.MethodGet, "/tasks/board", nil)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+// TestTaskBoard_InvalidDueRange 非法 due_to 返回 400。
+func TestTaskBoard_InvalidDueRange(t *testing.T) {
+	stub := &stubTaskService{boardFn: func(context.Context, repository.ListFilter) ([]*model.Task, int64, bool, error) {
+		return nil, 0, false, nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodGet, "/tasks/board?due_to=not-a-date", nil), "t1", "u1")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// TestTaskList_ParentAndRootOnly 验证 parent_id 透传与 root_only 布尔开关解析（1/true/on 视为真）。
+func TestTaskList_ParentAndRootOnly(t *testing.T) {
+	var got repository.ListFilter
+	stub := &stubTaskService{listFn: func(_ context.Context, f repository.ListFilter) ([]*model.Task, int64, error) {
+		got = f
+		return nil, 0, nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodGet, "/tasks?parent_id=p1&root_only=1", nil), "t1", "u1")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "p1", got.ParentID)
+	assert.True(t, got.RootOnly)
+}
+
+// TestTaskList_RootOnlyFalsy 验证 root_only 缺省或非真值时置假（parent_id 单独查询子任务不受影响）。
+func TestTaskList_RootOnlyFalsy(t *testing.T) {
+	var got repository.ListFilter
+	stub := &stubTaskService{listFn: func(_ context.Context, f repository.ListFilter) ([]*model.Task, int64, error) {
+		got = f
+		return nil, 0, nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodGet, "/tasks?parent_id=p1", nil), "t1", "u1")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "p1", got.ParentID)
+	assert.False(t, got.RootOnly)
+}
+
+// TestTaskBoard_ParentAndRootOnly 验证看板端点同样解析 parent_id/root_only。
+func TestTaskBoard_ParentAndRootOnly(t *testing.T) {
+	var got repository.ListFilter
+	stub := &stubTaskService{boardFn: func(_ context.Context, f repository.ListFilter) ([]*model.Task, int64, bool, error) {
+		got = f
+		return nil, 0, false, nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodGet, "/tasks/board?root_only=true", nil), "t1", "u1")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.True(t, got.RootOnly)
+	assert.Empty(t, got.ParentID)
+}
+
+// TestTaskCreate_InvalidParentMapped 验证 service 返回 ErrInvalidParent 映射为 400。
+func TestTaskCreate_InvalidParentMapped(t *testing.T) {
+	stub := &stubTaskService{createFn: func(context.Context, string, string, dto.CreateTaskReq) (*model.Task, error) {
+		return nil, service.ErrInvalidParent
+	}}
+	router := newTaskRouter(stub)
+	body, _ := json.Marshal(dto.CreateTaskReq{Title: "子任务", ParentID: "p1"})
+	req := withCtx(httptest.NewRequest(http.MethodPost, "/tasks", bytesReader(body)), "t1", "u1")
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// TestTaskCreate_ParentNotFoundMapped 验证 service 返回 ErrParentNotFound 映射为 404。
+func TestTaskCreate_ParentNotFoundMapped(t *testing.T) {
+	stub := &stubTaskService{createFn: func(context.Context, string, string, dto.CreateTaskReq) (*model.Task, error) {
+		return nil, service.ErrParentNotFound
+	}}
+	router := newTaskRouter(stub)
+	body, _ := json.Marshal(dto.CreateTaskReq{Title: "子任务", ParentID: "p1"})
+	req := withCtx(httptest.NewRequest(http.MethodPost, "/tasks", bytesReader(body)), "t1", "u1")
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
 func TestTaskStats_Success(t *testing.T) {
 	stub := &stubTaskService{statsFn: func(context.Context, repository.ListFilter) (*repository.TaskStatusStats, error) {
 		return &repository.TaskStatusStats{Pending: 2, Completed: 1, Total: 3, AvgHandleSeconds: 7200}, nil
@@ -477,8 +651,9 @@ func TestTaskBatchStatus_ValidationError(t *testing.T) {
 }
 
 func TestTaskBatchAssign_Success(t *testing.T) {
-	stub := &stubTaskService{batchAssignFn: func(_ context.Context, _, _ string, ids []string, assignee string) (int, error) {
-		assert.Equal(t, "u2", assignee)
+	stub := &stubTaskService{batchAssignFn: func(_ context.Context, _, _ string, ids []string, assignees []string) (int, error) {
+		// 仅传 assignee_id 时应回落为单元素集合
+		assert.Equal(t, []string{"u2"}, assignees)
 		return len(ids), nil
 	}}
 	router := newTaskRouter(stub)
@@ -489,6 +664,47 @@ func TestTaskBatchAssign_Success(t *testing.T) {
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestTaskBatchAssign_UsesAssigneesCollection(t *testing.T) {
+	stub := &stubTaskService{batchAssignFn: func(_ context.Context, _, _ string, ids []string, assignees []string) (int, error) {
+		// assignees 非空时以集合为准，忽略单个 assignee_id
+		assert.Equal(t, []string{"u2", "u3"}, assignees)
+		return len(ids), nil
+	}}
+	router := newTaskRouter(stub)
+	body, _ := json.Marshal(dto.BatchAssignReq{IDs: []string{"a", "b"}, AssigneeID: "u9", Assignees: []string{"u2", "u3"}})
+	req := withCtx(httptest.NewRequest(http.MethodPost, "/tasks/batch/assign", bytesReader(body)), "t1", "u1")
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestTaskAssignable_Success(t *testing.T) {
+	stub := &stubTaskService{assignableFn: func(_ context.Context, tenantID string) ([]repository.AssigneeBrief, error) {
+		assert.Equal(t, "t1", tenantID)
+		return []repository.AssigneeBrief{{ID: "u1", Name: "张三"}, {ID: "u2", Name: "李四"}}, nil
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodGet, "/tasks/assignable", nil), "t1", "u1")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestTaskAssignable_Unauthorized(t *testing.T) {
+	stub := &stubTaskService{assignableFn: func(_ context.Context, _ string) ([]repository.AssigneeBrief, error) {
+		return nil, nil
+	}}
+	router := newTaskRouter(stub)
+	req := httptest.NewRequest(http.MethodGet, "/tasks/assignable", nil)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 }
 
 // helpers

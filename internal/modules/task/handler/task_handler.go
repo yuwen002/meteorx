@@ -81,6 +81,8 @@ func (h *TaskHandler) List(w http.ResponseWriter, r *http.Request) {
 		PageSize:   pg.PageSize,
 		SortBy:     q.Get("sort_by"),
 		SortOrder:  q.Get("sort_order"),
+		ParentID:   strings.TrimSpace(q.Get("parent_id")),
+		RootOnly:   isTruthy(q.Get("root_only")),
 	}
 	if statusParam == "overdue" {
 		f.Overdue = true
@@ -124,6 +126,64 @@ func (h *TaskHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	result := pagination.NewPaginatedResult(items, pg.Page, pg.PageSize, int(total))
 	response.Success(w, result)
+}
+
+// Board 看板全量加载。GET /api/v1/tasks/board
+// 与 List 共享过滤参数，但不分页、忽略 status（看板按状态分列需同时含各状态任务），
+// 一次返回 repository.BoardMax 上限内的任务与真实总数，超出时置 truncated 供前端提示。
+func (h *TaskHandler) Board(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := currentIdentity(r)
+	if tenantID == "" || userID == "" {
+		response.Unauthorized(w, "未获取到用户信息")
+		return
+	}
+
+	q := r.URL.Query()
+	f := repository.ListFilter{
+		TenantID:   tenantID,
+		UserID:     userID,
+		Visibility: q.Get("visibility"),
+		Priority:   q.Get("priority"),
+		AssigneeID: q.Get("assignee_id"),
+		Keyword:    q.Get("keyword"),
+		Tag:        strings.TrimSpace(q.Get("tag")),
+		SortBy:     q.Get("sort_by"),
+		SortOrder:  q.Get("sort_order"),
+		ParentID:   strings.TrimSpace(q.Get("parent_id")),
+		RootOnly:   isTruthy(q.Get("root_only")),
+	}
+	if raw := strings.TrimSpace(q.Get("due_from")); raw != "" {
+		t, err := service.ParseTaskDate(raw)
+		if err != nil {
+			response.BadRequest(w, "due_from 时间格式不正确")
+			return
+		}
+		f.DueFrom = t
+	}
+	if raw := strings.TrimSpace(q.Get("due_to")); raw != "" {
+		t, err := service.ParseTaskDate(raw)
+		if err != nil {
+			response.BadRequest(w, "due_to 时间格式不正确")
+			return
+		}
+		if len(raw) == len("2006-01-02") {
+			y, m, d := t.Date()
+			eod := time.Date(y, m, d, 23, 59, 59, 0, time.Local)
+			t = &eod
+		}
+		f.DueTo = t
+	}
+
+	tasks, total, truncated, err := h.svc.Board(r.Context(), f)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取看板数据失败")
+		return
+	}
+	items := make([]*dto.TaskResp, 0, len(tasks))
+	for _, t := range tasks {
+		items = append(items, service.ToResp(t))
+	}
+	response.Success(w, dto.TaskBoardResp{Items: items, Total: int(total), Truncated: truncated})
 }
 
 // Get 查询任务详情。GET /api/v1/tasks/{id}
@@ -383,7 +443,12 @@ func (h *TaskHandler) BatchAssign(w http.ResponseWriter, r *http.Request) {
 	if !validator.ValidateJSON(w, r, &req) {
 		return
 	}
-	affected, err := h.svc.BatchAssign(r.Context(), tenantID, userID, req.IDs, req.AssigneeID)
+	// assignees 非空以集合为准；否则回落单个 assignee_id（向后兼容）。
+	assignees := req.Assignees
+	if len(assignees) == 0 && strings.TrimSpace(req.AssigneeID) != "" {
+		assignees = []string{req.AssigneeID}
+	}
+	affected, err := h.svc.BatchAssign(r.Context(), tenantID, userID, req.IDs, assignees)
 	if err != nil {
 		if errors.Is(err, service.ErrAssigneeInvalid) {
 			response.BadRequest(w, "负责人不存在或不属于当前租户")
@@ -393,6 +458,22 @@ func (h *TaskHandler) BatchAssign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.Success(w, dto.BatchTaskResp{Affected: affected})
+}
+
+// Assignable 返回当前租户存活成员列表，供前端负责人选择器使用。GET /api/v1/tasks/assignable
+// 仅需登录（无需 user:list 权限），解决普通成员无法检索可指派人员的问题。
+func (h *TaskHandler) Assignable(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID := currentIdentity(r)
+	if tenantID == "" || userID == "" {
+		response.Unauthorized(w, "未获取到用户信息")
+		return
+	}
+	members, err := h.svc.Assignable(r.Context(), tenantID)
+	if err != nil {
+		response.Fail(w, http.StatusInternalServerError, "获取可指派成员失败")
+		return
+	}
+	response.Success(w, members)
 }
 
 // Stats 任务统计。GET /api/v1/tasks/stats
@@ -450,11 +531,25 @@ func writeServiceError(w http.ResponseWriter, err error, fallback string) {
 		response.BadRequest(w, "重复周期不合法（仅支持 daily/weekly/monthly）")
 	case errors.Is(err, service.ErrRecurrenceNeedsDue):
 		response.BadRequest(w, "周期性任务必须设置截止时间")
+	case errors.Is(err, service.ErrInvalidParent):
+		response.BadRequest(w, "父任务不合法：不允许自引用，且仅支持一层子任务")
+	case errors.Is(err, service.ErrParentNotFound):
+		response.NotFound(w, "父任务不存在或无权访问")
 	case errors.Is(err, service.ErrTaskNotFound):
 		response.NotFound(w, "任务不存在")
 	case errors.Is(err, service.ErrTaskForbidden):
 		response.Forbidden(w, "无权操作该任务")
 	default:
 		response.Fail(w, http.StatusInternalServerError, fallback+": "+err.Error())
+	}
+}
+
+// isTruthy 判断查询参数是否为真（1/true/on，大小写不敏感），供 root_only 等布尔开关使用。
+func isTruthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "on":
+		return true
+	default:
+		return false
 	}
 }

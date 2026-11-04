@@ -30,6 +30,10 @@ type ListFilter struct {
 	// 任一为 nil 表示该侧不设限。用于"今天到期/本周/自定义区间"筛选。
 	DueFrom *time.Time
 	DueTo   *time.Time
+	// ParentID 非空时仅返回直接子任务（parent_id = ParentID），供展开子任务懒加载。
+	ParentID string
+	// RootOnly 为真时仅返回根任务（parent_id 为空），使列表/看板默认不混入子任务保持分列清爽。
+	RootOnly bool
 }
 
 // TaskStatusStats 按状态统计的任务数量。
@@ -44,6 +48,10 @@ type TaskStatusStats struct {
 	AvgHandleSeconds int64
 }
 
+// BoardMax 看板全量加载的单次返回上限：看板需一次拉足当前筛选范围内的全部任务分列，
+// 但为避免无界返回拖垮内存/响应，设硬上限 500，超出部分由 handler 置 truncated 标记告知前端。
+const BoardMax = 500
+
 // TaskRepository 任务仓储接口，定义任务数据的持久化操作。
 type TaskRepository interface {
 	// Create 新建任务记录
@@ -54,6 +62,12 @@ type TaskRepository interface {
 	Update(ctx context.Context, task *model.Task) error
 	// Delete 软删除任务
 	Delete(ctx context.Context, id string) error
+	// SoftDeleteChildren 级联软删除指定父任务的全部直接子任务（parent_id = parentID 且未删除）。
+	SoftDeleteChildren(ctx context.Context, parentID string) error
+	// ReplaceAssignees 重置指定任务的负责人集合（先清后写，同事务）；集合含主负责人。
+	ReplaceAssignees(ctx context.Context, taskID string, ids []string) error
+	// LoadAssignees 批量读取多个任务的负责人集合（task_id -> user_id 列表），供服务层富化。
+	LoadAssignees(ctx context.Context, ids []string) (map[string][]string, error)
 	// GetByIDUnscoped 按主键查询任务（包含已软删除记录，用于恢复/永久删除场景）
 	GetByIDUnscoped(ctx context.Context, id string) (*model.Task, error)
 	// ListDeleted 分页查询当前用户的回收站（已软删除）任务
@@ -70,6 +84,9 @@ type TaskRepository interface {
 	MarkReminderSent(ctx context.Context, id string, t time.Time) error
 	// List 按过滤条件分页查询任务列表，返回任务切片与总数
 	List(ctx context.Context, f ListFilter) ([]*model.Task, int64, error)
+	// ListBoard 按过滤条件一次性拉取看板所需任务（不分页，上限 BoardMax 条），返回任务切片与真实总数。
+	// total 为不受上限约束的匹配总数，供调用方判断是否被截断。
+	ListBoard(ctx context.Context, f ListFilter) ([]*model.Task, int64, error)
 	// Stats 统计当前用户在指定可见范围下各状态任务数量
 	Stats(ctx context.Context, f ListFilter) (*TaskStatusStats, error)
 }

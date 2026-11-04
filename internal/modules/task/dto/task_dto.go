@@ -13,6 +13,9 @@ type CreateTaskReq struct {
 	Tags         []string `json:"tags" validate:"omitempty,max=10" label:"标签"`
 	Visibility   string   `json:"visibility" validate:"omitempty,oneof=personal tenant" label:"可见范围"`
 	AssigneeID   string   `json:"assignee_id" validate:"omitempty,max=26" label:"负责人"`
+	// Assignees 多负责人集合：给出时以其为准（主负责人=首位），否则回落 assignee_id；个人任务强制为创建人。
+	Assignees  []string `json:"assignees" validate:"omitempty,max=20,dive,max=26" label:"负责人集合"`
+	ParentID     string   `json:"parent_id" validate:"omitempty,max=26" label:"父任务"` // 仅在已存在的根任务下创建子任务时传入（单层）
 	Recurrence   string   `json:"recurrence" validate:"omitempty,oneof=daily weekly monthly" label:"重复周期"` // 完成时自动按周期生成下一条任务
 }
 
@@ -27,6 +30,9 @@ type UpdateTaskReq struct {
 	Tags         *[]string `json:"tags" validate:"omitempty,max=10" label:"标签"`
 	Visibility   *string   `json:"visibility" validate:"omitempty,oneof=personal tenant" label:"可见范围"`
 	AssigneeID   *string   `json:"assignee_id" validate:"omitempty,max=26" label:"负责人"`
+	// Assignees 多负责人集合指针：非 nil 时以其为准重置负责人集合（主负责人=首位）；nil 表示不改动。
+	Assignees  *[]string `json:"assignees" validate:"omitempty,max=20,dive,max=26" label:"负责人集合"`
+	ParentID     *string   `json:"parent_id" validate:"omitempty,max=26" label:"父任务"` // 传入非空挂到该根任务下（单层）；传空字符串表示解除父子关系
 	// Recurrence 传空字符串表示取消重复。注意：go-playground 的 omitempty 对指针只判 nil、
 	// 不判所指的值，故非 nil 指向 "" 仍会跑后续规则；若在此加 oneof=daily weekly monthly，
 	// 前端编辑无重复任务时无条件提交的 recurrence:"" 会被 oneof 拒绝成 400。改由 service 层
@@ -41,7 +47,10 @@ type TaskResp struct {
 	CreatorID    string   `json:"creator_id"`
 	CreatorName  string   `json:"creator_name,omitempty"` // 创建人展示名（昵称优先，回退用户名）
 	AssigneeID   string   `json:"assignee_id"`
-	AssigneeName string   `json:"assignee_name,omitempty"` // 负责人展示名（昵称优先，回退用户名）
+	AssigneeName string   `json:"assignee_name,omitempty"` // 主负责人展示名（昵称优先，回退用户名）
+	Assignees     []string `json:"assignees,omitempty"`      // 多负责人集合（含主负责人，主负责人排首位）
+	AssigneeNames []string `json:"assignee_names,omitempty"` // 负责人展示名集合（与 assignees 同序）
+	ParentID     string   `json:"parent_id,omitempty"`     // 父任务 ID（为空表示根任务）
 	Title        string   `json:"title"`
 	Description  string   `json:"description"`
 	Status       string   `json:"status"`
@@ -56,6 +65,14 @@ type TaskResp struct {
 	DeletedAt    string   `json:"deleted_at,omitempty"`
 	CreatedAt    string   `json:"created_at"`
 	UpdatedAt    string   `json:"updated_at"`
+}
+
+// TaskBoardResp 看板全量加载响应：当前筛选范围内（上限 repository.BoardMax）的任务、不受上限约束的匹配总数，
+// 以及总数是否超过返回条目数（truncated，供前端提示“仅展示部分”）。
+type TaskBoardResp struct {
+	Items     []*TaskResp `json:"items"`
+	Total     int         `json:"total"`
+	Truncated bool        `json:"truncated"`
 }
 
 // TaskStatsResp 任务统计响应。
@@ -83,9 +100,11 @@ type BatchStatusReq struct {
 }
 
 // BatchAssignReq 批量指派负责人请求。
+// Assignees 非空时以集合为准；否则回落 AssigneeID 单个。两者至少传一个。
 type BatchAssignReq struct {
 	IDs        []string `json:"ids" validate:"required,min=1,max=100" label:"任务ID列表"`
-	AssigneeID string   `json:"assignee_id" validate:"required,max=26" label:"负责人"`
+	AssigneeID string   `json:"assignee_id" validate:"omitempty,max=26" label:"负责人"`
+	Assignees  []string `json:"assignees" validate:"omitempty,max=20,dive,max=26" label:"负责人集合"`
 }
 
 // BatchTaskResp 批量操作任务响应。
