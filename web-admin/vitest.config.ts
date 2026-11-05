@@ -12,6 +12,9 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // vmThreads 池：相较默认 threads 更省 worker 启动开销，且保留 per-file 隔离
+    // （避免 jsdom 环境与模块状态跨文件串扰），主要优化点为减少每文件重复创建 jsdom。
+    pool: 'vmThreads',
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     coverage: {
       provider: 'v8',
