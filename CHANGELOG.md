@@ -19,6 +19,10 @@
 - 依赖升级：`aws-sdk-go-v2` → v1.47.5（`config` v1.33.12、`credentials` v1.20.12、`service/s3` v1.114.6，间接依赖同步补丁位）；均为次/补丁版本、无 API 破坏，`go build`/`go vet`/`go test ./...` 全绿；以 `go get`+`tidy` 方式落地，保留本仓较新的 `xuri/excelize` 伪版本不被回退。
 - 前端构建链大版本升级（`web-admin`）：`vite` ^5.4→^8.3（已切 Rolldown 内核，现有 `vite.config.ts` 无需迁移）、`vitest` 与 `@vitest/coverage-v8` ^2.1→^5.0.5（peer 要求精确同版本）、配套 `@vitejs/plugin-vue` ^5.1→^6（vite8 必需 peer）、`@types/node` ^20→^24（vitest5 peer 硬约束）；四道验证门均绿（vue-tsc 类型检查、vitest 351 用例、vite build、preview 冒烟 HTTP 200）。TypeScript 因 `typescript-eslint`（`<6.1`）与 `@volar/typescript`（`<7`）尚未支持而**保持 ^5.5.0**，vue-tsc 保持 ^2.0.0。
 
+### 修复
+- **到期/逾期提醒漏发副负责人**：`SendDueReminders` 收件人由仅取主负责人（回退创建人）改为向全部负责人去重广播（与解锁提醒 `notifyTaskUnblocked` 对称），扫描后回填 `task_assignees` 集合；`MarkReminderSent` 仍按任务记录一次冷却，多负责人广播不放大重复提醒频率。
+- **重复派生丢失多负责人集合**：`spawnNextOccurrence` 生成的下一周期实例现复制并显式落库父任务的 `AssigneeIDs`（此前仅携带主负责人 `AssigneeID`，`Create` 不写关联表），副负责人不再随周期滚动丢失。
+
 ### 文档
 - 同步 `docs/api/task-api.md`（新增 board/assignable 端点、`parent_id`/`root_only`/`assignees` 字段、子任务与多负责人规则、访问控制矩阵与回填说明），并 `go run scripts/openapi_sync.go -apply` 重生成 `docs/apifox/` 两份 OpenAPI 产物（`-check` 完美匹配）。
 - 同步 `docs/api/task-api.md` 任务依赖（`blocked_by`/`blocks` 字段与 `DependencyBrief`、创建/更新依赖校验与循环/跨租户拒绝规则、`task_unblocked` 解锁提醒、`task_dependencies` 迁移说明）；D1 无新增路由，`openapi_sync -check` 维持完美匹配（字段变更不影响路由级产物）。

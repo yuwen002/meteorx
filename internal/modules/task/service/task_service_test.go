@@ -705,6 +705,47 @@ func TestSendDueReminders_NoneDue(t *testing.T) {
 	assert.Empty(t, repo.marked)
 }
 
+// TestSendDueReminders_MultiAssignee_AllNotified 到期提醒需向全部负责人去重广播（与 notifyTaskUnblocked 对称）：
+// 负责人集合 [a,b,a]（含重复）去重后 a、b 各收一条，且 MarkReminderSent 每任务只记一次（sent 仍为任务数）。
+func TestSendDueReminders_MultiAssignee_AllNotified(t *testing.T) {
+	svc, repo := newService()
+	rec := installUnlockNotifyManager(t)
+	now := time.Now()
+	repo.tasks["multi"] = &model.Task{ID: "multi", TenantID: "t1", CreatorID: "c1", AssigneeID: "a",
+		Status: model.TaskStatusPending, DueDate: ptr(now.Add(2 * time.Hour))}
+	repo.assignees["multi"] = []string{"a", "b", "a"} // 含重复 a
+
+	n, err := svc.SendDueReminders(context.Background(), now.Add(24*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, 1, n, "sent 语义为本轮提醒的任务数，不随收件人数量放大")
+	assert.ElementsMatch(t, []string{"multi"}, repo.marked, "MarkReminderSent 每任务一次")
+
+	var got []string
+	for _, m := range rec.msgs {
+		require.Len(t, m.Recipients, 1)
+		assert.Equal(t, reminderTypeDue, m.Extra["type"])
+		assert.Equal(t, "multi", m.Extra["task_id"])
+		got = append(got, m.Recipients[0])
+	}
+	assert.ElementsMatch(t, []string{"a", "b"}, got, "去重后 a、b 各收一条到期提醒")
+}
+
+// TestSendDueReminders_NoAssignee_FallbackCreator 无主负责人、无负责人集合时提醒回退创建人。
+func TestSendDueReminders_NoAssignee_FallbackCreator(t *testing.T) {
+	svc, repo := newService()
+	rec := installUnlockNotifyManager(t)
+	now := time.Now()
+	repo.tasks["solo"] = &model.Task{ID: "solo", TenantID: "t1", CreatorID: "c1",
+		Status: model.TaskStatusPending, DueDate: ptr(now.Add(-time.Hour))} // 已逾期
+
+	n, err := svc.SendDueReminders(context.Background(), now.Add(24*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	require.Len(t, rec.msgs, 1, "无负责人时应回退创建人发一条")
+	assert.Equal(t, []string{"c1"}, rec.msgs[0].Recipients)
+	assert.Equal(t, "任务逾期提醒", rec.msgs[0].Title)
+}
+
 func TestUpdate_DueDateChangeResetsReminder(t *testing.T) {
 	svc, repo := newService()
 	now := time.Now()
@@ -1380,6 +1421,25 @@ func TestComplete_RecurrenceSpawnsNextDaily(t *testing.T) {
 	assert.Equal(t, model.TaskRecurrenceDaily, next.Recurrence)
 	require.NotNil(t, next.DueDate)
 	assert.True(t, next.DueDate.Equal(origDue.AddDate(0, 0, 1)))
+}
+
+// TestComplete_RecurrenceSpawnsNextPreservesAssignees 多负责人重复任务完成后，派生的下一条
+// 应携带与父一致的负责人集合（主负责人在首）并落库到 task_assignees。
+func TestComplete_RecurrenceSpawnsNextPreservesAssignees(t *testing.T) {
+	svc, repo := newService()
+	task, err := svc.Create(context.Background(), "t1", "c1", dto.CreateTaskReq{
+		Title: "每周巡检", DueDate: "2026-12-31 10:00:00", Recurrence: model.TaskRecurrenceWeekly,
+		Visibility: model.TaskVisibilityTenant, Assignees: []string{"a", "b"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"a", "b"}, task.AssigneeIDs)
+	_, err = svc.Complete(context.Background(), "t1", "c1", task.ID)
+	require.NoError(t, err)
+	next := findPendingCopy(repo, task.ID)
+	require.NotNil(t, next)
+	assert.Equal(t, task.AssigneeID, next.AssigneeID, "主负责人保持不变")
+	assert.Equal(t, []string{"a", "b"}, next.AssigneeIDs, "副负责人集合应随派生携带")
+	assert.ElementsMatch(t, []string{"a", "b"}, repo.assignees[next.ID], "派生任务的负责人集合应落库")
 }
 
 func TestComplete_AlreadyCompletedDoesNotRespawn(t *testing.T) {

@@ -618,9 +618,10 @@ type ReminderOptions struct {
 }
 
 // SendDueReminders 扫描需要提醒的未完成任务（即将到期/首次逾期、以及距上次提醒超过冷却期的已逾期任务），
-// 逐条向负责人（无负责人时向创建人）发送站内提醒并刷新提醒时间，返回实际发送数。
+// 逐条向全部负责人（去重广播，无负责人时回退创建人）发送站内提醒并刷新提醒时间，返回实际提醒的任务数。
 // 供定时提醒任务调用，不受多租户/可见范围限制（系统级扫描）。
 // opts 为可选扫描参数（冷却期/单轮上限），缺省时使用内置默认值。
+// 冷却基准 MarkReminderSent 按任务（而非收件人）记录，故多负责人广播不会放大重复提醒频率。
 func (s *TaskService) SendDueReminders(ctx context.Context, horizon time.Time, opts ...ReminderOptions) (int, error) {
 	cooldown, limit := defaultReminderOverdueCooldown, defaultReminderBatchLimit
 	if len(opts) > 0 {
@@ -637,23 +638,40 @@ func (s *TaskService) SendDueReminders(ctx context.Context, horizon time.Time, o
 	if err != nil {
 		return 0, err
 	}
+	// FindDueForReminder 不回填负责人集合，此处补齐以支持多负责人广播（仅依赖 LoadAssignees）。
+	s.fillAssignees(ctx, tasks...)
 	sent := 0
 	for _, t := range tasks {
-		recipient := t.AssigneeID
-		if recipient == "" {
-			recipient = t.CreatorID
-		}
 		title := "任务截止提醒"
 		content := "您负责的任务「" + t.Title + "」即将到期（截止：" + formatDue(t.DueDate) + "），请及时处理。"
 		if t.DueDate != nil && t.DueDate.Before(now) {
 			title = "任务逾期提醒"
 			content = "您负责的任务「" + t.Title + "」已逾期（截止：" + formatDue(t.DueDate) + "），请尽快处理。"
 		}
-		if mgr := notify.GetGlobalManager(); mgr != nil && recipient != "" {
-			mgr.NotifyTaskReminder(ctx, recipient, title, content, reminderTypeDue,
-				map[string]interface{}{"task_id": t.ID, "tenant_id": t.TenantID})
+		// 收件人与 notifyTaskUnblocked 对称：以负责人集合为基准去重广播，
+		// 集合为空回退主负责人，再为空回退创建人。
+		recipients := t.AssigneeIDs
+		if len(recipients) == 0 && t.AssigneeID != "" {
+			recipients = []string{t.AssigneeID}
 		}
-		// 无论站内推送成否均刷新提醒时间，作为下次重复提醒的冷却基准
+		if len(recipients) == 0 && t.CreatorID != "" {
+			recipients = []string{t.CreatorID}
+		}
+		if mgr := notify.GetGlobalManager(); mgr != nil {
+			seen := make(map[string]struct{}, len(recipients))
+			for _, a := range recipients {
+				if a == "" {
+					continue
+				}
+				if _, ok := seen[a]; ok {
+					continue
+				}
+				seen[a] = struct{}{}
+				mgr.NotifyTaskReminder(ctx, a, title, content, reminderTypeDue,
+					map[string]interface{}{"task_id": t.ID, "tenant_id": t.TenantID})
+			}
+		}
+		// 无论站内推送成否均刷新提醒时间，作为下次重复提醒的冷却基准（每任务一次）
 		if err := s.repo.MarkReminderSent(ctx, t.ID, now); err != nil {
 			return sent, err
 		}
@@ -1019,7 +1037,7 @@ func (s *TaskService) validateAssignee(ctx context.Context, tenantID, creatorID,
 }
 
 // spawnNextOccurrence 为设置了重复周期的任务生成下一周期实例：
-// 复制标题/描述/优先级/负责人/可见范围/提醒提前量/标签，重置为 pending 并按周期从原截止日推进。
+// 复制标题/描述/优先级/负责人（含多负责人集合）/可见范围/提醒提前量/标签，重置为 pending 并按周期从原截止日推进。
 // 完成已落库后才调用，生成失败不阻断本次完成（静默跳过）。
 func (s *TaskService) spawnNextOccurrence(ctx context.Context, task *model.Task) {
 	if task.Recurrence == "" || task.DueDate == nil {
@@ -1036,6 +1054,7 @@ func (s *TaskService) spawnNextOccurrence(ctx context.Context, task *model.Task)
 		TenantID:     task.TenantID,
 		CreatorID:    task.CreatorID,
 		AssigneeID:   task.AssigneeID,
+		AssigneeIDs:  append([]string(nil), task.AssigneeIDs...),
 		Title:        task.Title,
 		Description:  task.Description,
 		Status:       model.TaskStatusPending,
@@ -1048,7 +1067,13 @@ func (s *TaskService) spawnNextOccurrence(ctx context.Context, task *model.Task)
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
-	_ = s.repo.Create(ctx, next)
+	if err := s.repo.Create(ctx, next); err != nil {
+		return
+	}
+	// Create 仅落 tasks 主表，不写 task_assignees；副负责人集合需显式回写，与 Create 服务路径对称。
+	if len(next.AssigneeIDs) > 0 {
+		_ = s.repo.ReplaceAssignees(ctx, next.ID, next.AssigneeIDs)
+	}
 }
 
 // loadUnscoped 按 ID 读取任务（含已软删除），将未找到错误归一化为 ErrTaskNotFound。
