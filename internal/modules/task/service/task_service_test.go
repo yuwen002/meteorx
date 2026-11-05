@@ -706,14 +706,16 @@ func TestSendDueReminders_NoneDue(t *testing.T) {
 }
 
 // TestSendDueReminders_MultiAssignee_AllNotified 到期提醒需向全部负责人去重广播（与 notifyTaskUnblocked 对称）：
-// 负责人集合 [a,b,a]（含重复）去重后 a、b 各收一条，且 MarkReminderSent 每任务只记一次（sent 仍为任务数）。
+// 负责人集合 [a,b,b]（重复项为非主负责人，fillAssignees 不会先行归位去重，
+// 必须依赖 SendDueReminders 内部 seen 集去重）去重后 a、b 各收一条，
+// 且 MarkReminderSent 每任务只记一次（sent 仍为任务数）。
 func TestSendDueReminders_MultiAssignee_AllNotified(t *testing.T) {
 	svc, repo := newService()
 	rec := installUnlockNotifyManager(t)
 	now := time.Now()
 	repo.tasks["multi"] = &model.Task{ID: "multi", TenantID: "t1", CreatorID: "c1", AssigneeID: "a",
 		Status: model.TaskStatusPending, DueDate: ptr(now.Add(2 * time.Hour))}
-	repo.assignees["multi"] = []string{"a", "b", "a"} // 含重复 a
+	repo.assignees["multi"] = []string{"a", "b", "b"} // 重复 b 非主负责人，专门触发提醒层的 seen 去重
 
 	n, err := svc.SendDueReminders(context.Background(), now.Add(24*time.Hour))
 	require.NoError(t, err)
