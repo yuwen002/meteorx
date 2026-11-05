@@ -22,6 +22,7 @@
 ### 测试
 - 新增任务模块浏览器端 E2E（Playwright）：`e2e/tests/task.spec.ts` 覆盖三条 happy path —— 看板走 `GET /api/v1/tasks/board` 全量加载并按分组维度切换（状态 3 列 → 优先级固定 4 列，校验 `root_only=true` 与 `meteorx.task.groupBy` 持久化）；列表行首展开按 `parent_id` 懒加载并渲染两条子任务行；双负责人租户任务列表显示主负责人 + `+1`，且按副负责人 `assignee_id` 可筛选命中。配套扩展 `e2e/fixtures/fixture`（`seed-task-tree` / `seed-multi-assignee` / `cleanup-tasks` / `cleanup-user` 子命令）与 `e2e/helpers.ts` 数据封装。
 - 新增任务依赖单测：仓储层 `task_dependency_test.go`（sqlmock）覆盖 `ReplaceBlockedBy` 去重去空/剔自引用、`LoadDependencies` 双向、`FindBrief`、`DependentsOf`、`TenantDependencyEdges`；服务层 `task_dependency_service_test.go` 覆盖 self/notfound/notviewable/cycle 拒绝、nil 保留/空数组清空、双向富化与完成解锁 nil-safe 路径、`reaches` BFS 环检测；`task_handler_test.go` 补 create/update 依赖映射（cycle/self→400、notfound→404）与 get/list 响应含 `blocked_by`/`blocks`；前端 `index.test.ts` 补看板“被 N 阻塞”徽标渲染与弹窗前置多选提交 payload，及 D2 固定 `max-height`/页容量 `[10,20,50,100]` 断言。
+- 深化任务依赖安全与边界用例：服务层 `task_dependency_service_test.go` 接管全局通知管理器（录制型 WS 渠道）补 `notifyUnblocked` 门控——全部前置完成才提醒 / 部分完成不提醒 / 多负责人去重，另覆盖跨租户 `blocked_by` 拒绝、多跳循环 `Update` 拒绝、自引用非首位拒绝、多前置稳定序回填、去重落库；`task_handler_test.go` 补 `Update` 依赖 notfound→404 对称映射。
 
 ## [1.5.0] - 2026-11-03
 

@@ -789,6 +789,22 @@ func TestTaskUpdate_BlockedBySelf_Mapped400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+// TestTaskUpdate_BlockedByNotFound_Mapped404 Update 路径 service 返回 ErrDependencyNotFound 映射为 404，
+// 与 Create 路径同口径（补齐写接口错误映射对称性）。
+func TestTaskUpdate_BlockedByNotFound_Mapped404(t *testing.T) {
+	stub := &stubTaskService{updateFn: func(context.Context, string, string, string, dto.UpdateTaskReq) (*model.Task, error) {
+		return nil, service.ErrDependencyNotFound
+	}}
+	router := newTaskRouter(stub)
+	req := withCtx(httptest.NewRequest(http.MethodPut, "/tasks/id1",
+		bytesReader([]byte(`{"blocked_by":["nope"]}`))), "t1", "u1")
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
 // TestTaskGet_DepsInResponse 详情响应含 blocked_by/blocks 双向视图。
 func TestTaskGet_DepsInResponse(t *testing.T) {
 	stub := &stubTaskService{getFn: func(context.Context, string, string, string) (*model.Task, error) {
