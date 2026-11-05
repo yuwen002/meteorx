@@ -15,6 +15,9 @@
 - **任务依赖（阻塞关系）**：新增关联表 `task_dependencies`（复合主键 `task_id`+`blocked_by_id`、`blocked_by_id` 另建索引，`AutoMigrate` 建表、`tasks` 表不加列），`CreateTaskReq`/`UpdateTaskReq` 增 `blocked_by`、`TaskResp` 增 `blocked_by`/`blocks`（每项含 `id`/`title`/`status`，读取时批量富化）；服务层拒绝自引用/跨租户/不可见前置与循环依赖（`ErrDependencySelf`/`ErrDependencyNotFound`/`ErrDependencyCycle`），完成前置时向“全部前置均已完成”的后继负责人推送 `task_unblocked` 解锁提醒（软约束、不自动推进后继状态）；前端新建/编辑弹窗增前置任务多选（远程搜索、回显），列表与看板卡片对存在未完成前置者显示“被 N 阻塞”徽标。
 - **任务列表可用性（D2）**：排查确认“列表仅渲染部分行”系分页默认（`page_size` 默认 10、后端 `MaxPageSize=100`）而非渲染缺陷，不做虚拟滚动重写；低风险微调——列表分页页容量选项放宽为 `[10,20,50,100]`，`el-table` 增加固定 `max-height` 启用表体内滚（保留展开/多选/行键）。
 
+### 变更
+- 依赖升级：`aws-sdk-go-v2` → v1.47.5（`config` v1.33.12、`credentials` v1.20.12、`service/s3` v1.114.6，间接依赖同步补丁位）；均为次/补丁版本、无 API 破坏，`go build`/`go vet`/`go test ./...` 全绿；以 `go get`+`tidy` 方式落地，保留本仓较新的 `xuri/excelize` 伪版本不被回退。
+
 ### 文档
 - 同步 `docs/api/task-api.md`（新增 board/assignable 端点、`parent_id`/`root_only`/`assignees` 字段、子任务与多负责人规则、访问控制矩阵与回填说明），并 `go run scripts/openapi_sync.go -apply` 重生成 `docs/apifox/` 两份 OpenAPI 产物（`-check` 完美匹配）。
 - 同步 `docs/api/task-api.md` 任务依赖（`blocked_by`/`blocks` 字段与 `DependencyBrief`、创建/更新依赖校验与循环/跨租户拒绝规则、`task_unblocked` 解锁提醒、`task_dependencies` 迁移说明）；D1 无新增路由，`openapi_sync -check` 维持完美匹配（字段变更不影响路由级产物）。
