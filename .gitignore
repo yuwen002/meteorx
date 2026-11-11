@@ -19,7 +19,8 @@ vendor/
 *~
 
 # Editor / AI tool directories (personal workspace, not shared source)
-.trae/
+.trae/*
+!.trae/rules/
 .cursor/
 
 # UI 目视验证临时工具（本地 Playwright 脚本与截图，不入库）
