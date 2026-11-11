@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -67,7 +68,7 @@ func TestRequestIDMiddleware_GeneratedWhenMissing(t *testing.T) {
 }
 
 func TestGetRequestID_EmptyWhenMissing(t *testing.T) {
-	assert.Empty(t, GetRequestID(http.Background()))
+	assert.Empty(t, GetRequestID(context.Background()))
 }
 
 func TestGlobalErrorHandler_PanicRecoveryReturns500(t *testing.T) {

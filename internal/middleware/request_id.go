@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"meteorx/internal/common/response"
+	"meteorx/internal/pkg/apperrors"
 )
 
 type requestIDKey struct{}
@@ -46,17 +47,10 @@ func GlobalErrorHandler(next http.Handler) http.Handler {
 
 		defer func() {
 			if rec := recover(); rec != nil {
-				appErr := &struct {
-					Code    string `json:"code"`
-					Message string `json:"message"`
-				}{
-					Code:    "INTERNAL_ERROR",
-					Message: "Internal server error",
-				}
-				_ = rec
+				err := apperrors.NewInternal("Internal server error").WithRequestID(requestID)
 				response.WriteJSON(w, http.StatusInternalServerError, map[string]any{
-					"code":       appErr.Code,
-					"message":    appErr.Message,
+					"code":       string(err.Code),
+					"message":    err.Message,
 					"request_id": requestID,
 				})
 			}
