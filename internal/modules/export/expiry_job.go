@@ -7,6 +7,7 @@ import (
 	"meteorx/internal/config"
 	"meteorx/internal/modules/export/repository"
 	"meteorx/internal/modules/export/service"
+	"meteorx/internal/pkg/scheduler"
 	"meteorx/pkg/logger"
 
 	"gorm.io/gorm"
@@ -30,23 +31,14 @@ func NewExportExpiryJob(db *gorm.DB, cfg config.Config) *ExportExpiryJob {
 
 // Start 启动定时清理任务（后台 goroutine），interval 为扫描间隔
 func (j *ExportExpiryJob) Start(ctx context.Context, interval time.Duration) {
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if n, err := j.runOnce(ctx); err != nil {
-					logger.Errorf("[ExportExpiryJob] 清理过期导出任务失败: %v", err)
-				} else if n > 0 {
-					logger.Infof("[ExportExpiryJob] 已清理 %d 个过期导出任务", n)
-				}
-			}
-		}
-	}()
 	logger.Infof("[ExportExpiryJob] 导出过期清理任务已启动，间隔 %s", interval)
+	scheduler.Ticker(ctx, "ExportExpiryJob", interval, func(ctx context.Context) error {
+		n, err := j.runOnce(ctx)
+		if err == nil && n > 0 {
+			logger.Infof("[ExportExpiryJob] 已清理 %d 个过期导出任务", n)
+		}
+		return err
+	})
 }
 
 // runOnce 执行一轮清理，返回清理条数

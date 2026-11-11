@@ -7,6 +7,7 @@ import (
 	"meteorx/internal/config"
 	"meteorx/internal/modules/audit/repository"
 	"meteorx/internal/modules/audit/service"
+	"meteorx/internal/pkg/scheduler"
 	"meteorx/pkg/idgen"
 	"meteorx/pkg/logger"
 
@@ -41,21 +42,8 @@ func (j *IntegrityAnchorJob) Start(ctx context.Context, interval time.Duration) 
 		logger.Info("[IntegrityAnchorJob] 审计完整性校验未启用，锚点链任务已跳过")
 		return
 	}
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if err := j.runOnce(ctx); err != nil {
-					logger.Errorf("[IntegrityAnchorJob] 生成完整性锚点失败: %v", err)
-				}
-			}
-		}
-	}()
 	logger.Infof("[IntegrityAnchorJob] 审计完整性锚点链任务已启动，封口间隔 %s，安全边界 %s", interval, j.grace)
+	scheduler.Ticker(ctx, "IntegrityAnchorJob", interval, j.runOnce)
 }
 
 // runOnce 生成一条锚点：取链尾窗口右端为下界、now-grace 为上界折叠窗口行摘要并链式落库。

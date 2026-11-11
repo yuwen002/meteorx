@@ -11,6 +11,7 @@ import (
 	"meteorx/internal/modules/audit/model"
 	"meteorx/internal/modules/audit/repository"
 	"meteorx/internal/modules/audit/service"
+	"meteorx/internal/pkg/scheduler"
 	"meteorx/pkg/logger"
 
 	"gorm.io/gorm"
@@ -40,23 +41,14 @@ func (j *AuditRetentionJob) Start(ctx context.Context, interval time.Duration) {
 		logger.Info("[AuditRetentionJob] audit.retention_days ≤ 0，审计日志自动清理已关闭")
 		return
 	}
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if n, err := j.runOnce(ctx); err != nil {
-					logger.Errorf("[AuditRetentionJob] 清理过期审计日志失败: %v", err)
-				} else if n > 0 {
-					logger.Infof("[AuditRetentionJob] 已清理 %d 条过期审计日志（保留 %d 天）", n, j.days)
-				}
-			}
-		}
-	}()
 	logger.Infof("[AuditRetentionJob] 审计日志清理任务已启动，保留 %d 天，间隔 %s", j.days, interval)
+	scheduler.Ticker(ctx, "AuditRetentionJob", interval, func(ctx context.Context) error {
+		n, err := j.runOnce(ctx)
+		if err == nil && n > 0 {
+			logger.Infof("[AuditRetentionJob] 已清理 %d 条过期审计日志（保留 %d 天）", n, j.days)
+		}
+		return err
+	})
 }
 
 // runOnce 执行一轮清理：删除早于保留期的审计日志，成功后补记一条自指审计。

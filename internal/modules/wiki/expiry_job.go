@@ -6,10 +6,11 @@ import (
 	"log"
 	"time"
 
-	dbpkg "meteorx/internal/pkg/db"
 	"meteorx/internal/modules/wiki/repository"
 	"meteorx/internal/modules/wiki/service"
 	"meteorx/internal/notify"
+	dbpkg "meteorx/internal/pkg/db"
+	"meteorx/internal/pkg/scheduler"
 
 	"gorm.io/gorm"
 )
@@ -35,20 +36,10 @@ func NewWikiTrashExpiryJob(db *gorm.DB, opts ...service.Option) *WikiTrashExpiry
 
 // Start 启动后台定时扫描（绑定 ctx，应用关闭时随 ctx 取消）。
 func (j *WikiTrashExpiryJob) Start(ctx context.Context, interval time.Duration) {
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				// RunOnce 内部已包含成功/失败日志，此处无需重复记录
-				_, _ = j.RunOnce(ctx)
-			}
-		}
-	}()
-	j.logger.Printf("[WikiTrashExpiryJob] 回收站过期清理任务已启动，间隔 %s", interval)
+	scheduler.Ticker(ctx, "WikiTrashExpiryJob", interval, func(ctx context.Context) error {
+		_, err := j.RunOnce(ctx)
+		return err
+	}, scheduler.WithLogger(j.logger))
 }
 
 // runOnce 执行一次过期清理（委托业务服务跨租户全局扫描），返回清理数量。

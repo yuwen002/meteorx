@@ -8,6 +8,7 @@ import (
 	planrepo "meteorx/internal/modules/plan/repository"
 	"meteorx/internal/modules/tenant/repository"
 	"meteorx/internal/modules/tenant/service"
+	"meteorx/internal/pkg/scheduler"
 
 	"gorm.io/gorm"
 )
@@ -39,21 +40,7 @@ func NewCancelCleanupJob(db *gorm.DB) *CancelCleanupJob {
 
 // Start 启动定时任务（后台 goroutine），interval 为扫描间隔
 func (j *CancelCleanupJob) Start(ctx context.Context, interval time.Duration) {
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if err := j.runOnce(ctx); err != nil {
-					j.logger.Printf("[CancelCleanupJob] 扫描失败: %v", err)
-				}
-			}
-		}
-	}()
-	j.logger.Printf("[CancelCleanupJob] 租户注销任务已启动，间隔 %s", interval)
+	scheduler.Ticker(ctx, "CancelCleanupJob", interval, j.runOnce)
 }
 
 // runOnce 执行一次扫描：执行所有已到期（effective_at <= now）的已通过注销申请

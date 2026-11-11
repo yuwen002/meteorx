@@ -8,6 +8,7 @@ import (
 	"meteorx/internal/config"
 	"meteorx/internal/modules/invitation/repository"
 	"meteorx/internal/modules/invitation/service"
+	"meteorx/internal/pkg/scheduler"
 
 	"gorm.io/gorm"
 )
@@ -35,21 +36,7 @@ func NewInvitationExpiryJob(db *gorm.DB) *InvitationExpiryJob {
 
 // Start 启动定时任务（后台 goroutine），interval 为扫描间隔
 func (j *InvitationExpiryJob) Start(ctx context.Context, interval time.Duration) {
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if err := j.runOnce(ctx); err != nil {
-					j.logger.Printf("[InvitationExpiryJob] 扫描失败: %v", err)
-				}
-			}
-		}
-	}()
-	j.logger.Printf("[InvitationExpiryJob] 邀请过期清理任务已启动，间隔 %s", interval)
+	scheduler.Ticker(ctx, "InvitationExpiryJob", interval, j.runOnce)
 }
 
 // runOnce 执行一次扫描：将过期邀请置为 expired

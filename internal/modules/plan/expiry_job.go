@@ -12,6 +12,7 @@ import (
 	tenantRepo "meteorx/internal/modules/tenant/repository"
 	userRepo "meteorx/internal/modules/user/repository"
 	"meteorx/internal/notify"
+	"meteorx/internal/pkg/scheduler"
 
 	"gorm.io/gorm"
 )
@@ -111,21 +112,7 @@ func newExpiryJobWith(planSvc *service.PlanService, subRepo repository.Subscript
 
 // Start 启动定时任务（后台 goroutine），interval 为扫描间隔
 func (j *ExpiryJob) Start(ctx context.Context, interval time.Duration) {
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if err := j.runOnce(ctx); err != nil {
-					j.logger.Printf("[ExpiryJob] 扫描失败: %v", err)
-				}
-			}
-		}
-	}()
-	j.logger.Printf("[ExpiryJob] 订阅到期监控已启动，间隔 %s", interval)
+	scheduler.Ticker(ctx, "ExpiryJob", interval, j.runOnce, scheduler.WithLogger(j.logger))
 }
 
 // runOnce 执行一次扫描：到期订阅 → 禁用租户 → 即将到期提醒

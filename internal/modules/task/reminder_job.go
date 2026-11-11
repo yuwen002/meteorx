@@ -8,6 +8,7 @@ import (
 	"meteorx/internal/modules/settings/model"
 	"meteorx/internal/modules/task/repository"
 	"meteorx/internal/modules/task/service"
+	"meteorx/internal/pkg/scheduler"
 
 	"gorm.io/gorm"
 )
@@ -67,26 +68,10 @@ func NewTaskReminderJob(db *gorm.DB, opts ReminderJobOptions) *TaskReminderJob {
 
 // Start 启动定时扫描（后台 goroutine），绑定 ctx 支持优雅退出。
 func (j *TaskReminderJob) Start(ctx context.Context) {
-	// 启动后先立即执行一次，避免等待首个 tick
-	go func() {
-		if err := j.runOnce(ctx); err != nil {
-			j.logger.Printf("[TaskReminderJob] 扫描失败: %v", err)
-		}
-		ticker := time.NewTicker(j.interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if err := j.runOnce(ctx); err != nil {
-					j.logger.Printf("[TaskReminderJob] 扫描失败: %v", err)
-				}
-			}
-		}
-	}()
 	j.logger.Printf("[TaskReminderJob] 任务到期提醒任务已启动，间隔 %s，窗口 %s，逾期冷却 %s，单轮上限 %d",
 		j.interval, j.horizon, j.reminder.OverdueCooldown, j.reminder.BatchLimit)
+	scheduler.Ticker(ctx, "TaskReminderJob", j.interval, j.runOnce,
+		scheduler.WithRunImmediately(), scheduler.WithLogger(j.logger))
 }
 
 // SetHorizonProvider 注入配置中心覆盖源（平台运行时配置中心 task_reminder_horizon）。

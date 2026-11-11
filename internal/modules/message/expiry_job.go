@@ -6,6 +6,7 @@ import (
 
 	"meteorx/internal/config"
 	messagerepo "meteorx/internal/modules/message/repository"
+	"meteorx/internal/pkg/scheduler"
 	"meteorx/pkg/logger"
 
 	"gorm.io/gorm"
@@ -33,23 +34,14 @@ func (j *MessageExpiryJob) Start(ctx context.Context, interval time.Duration) {
 		logger.Info("[MessageExpiryJob] message.retention_days 为负值，站内消息清理已关闭")
 		return
 	}
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if n, err := j.runOnce(ctx); err != nil {
-					logger.Errorf("[MessageExpiryJob] 清理过期站内消息失败: %v", err)
-				} else if n > 0 {
-					logger.Infof("[MessageExpiryJob] 已清理 %d 条过期站内消息", n)
-				}
-			}
-		}
-	}()
 	logger.Infof("[MessageExpiryJob] 站内消息清理任务已启动，保留 %d 天，间隔 %s", j.retentionDays, interval)
+	scheduler.Ticker(ctx, "MessageExpiryJob", interval, func(ctx context.Context) error {
+		n, err := j.runOnce(ctx)
+		if err == nil && n > 0 {
+			logger.Infof("[MessageExpiryJob] 已清理 %d 条过期站内消息", n)
+		}
+		return err
+	})
 }
 
 // runOnce 执行一轮清理，返回删除条数。
